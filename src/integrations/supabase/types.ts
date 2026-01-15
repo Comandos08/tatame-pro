@@ -230,6 +230,8 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string | null
+          current_academy_id: string | null
+          current_main_coach_id: string | null
           email: string
           full_name: string
           gender: Database["public"]["Enums"]["gender_type"]
@@ -249,6 +251,8 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
+          current_academy_id?: string | null
+          current_main_coach_id?: string | null
           email: string
           full_name: string
           gender: Database["public"]["Enums"]["gender_type"]
@@ -268,6 +272,8 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
+          current_academy_id?: string | null
+          current_main_coach_id?: string | null
           email?: string
           full_name?: string
           gender?: Database["public"]["Enums"]["gender_type"]
@@ -281,6 +287,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "athletes_current_academy_id_fkey"
+            columns: ["current_academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athletes_current_main_coach_id_fkey"
+            columns: ["current_main_coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "athletes_profile_id_fkey"
             columns: ["profile_id"]
