@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
+import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -137,6 +138,8 @@ export default function TenantDashboard() {
   return (
     <AppShell>
       <div className="space-y-8">
+        <BillingStatusBanner />
+        
         <div>
           <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="font-display text-3xl font-bold mb-2">
             {t('dashboard.welcome')}, {currentUser?.name || 'Usuário'}! 👋
