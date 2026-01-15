@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface TenantBilling {
   id: string;
@@ -13,6 +15,7 @@ interface TenantBilling {
   plan_name: string;
   current_period_end: string | null;
   cancel_at: string | null;
+  stripe_customer_id: string | null;
 }
 
 const statusConfig: Record<string, { 
@@ -25,7 +28,7 @@ const statusConfig: Record<string, {
     variant: 'default', 
     icon: CheckCircle, 
     title: 'Assinatura ativa',
-    showBanner: false, // Don't show banner for active
+    showBanner: false,
   },
   TRIALING: { 
     variant: 'default', 
@@ -62,8 +65,8 @@ const statusConfig: Record<string, {
 export function BillingStatusBanner() {
   const { tenant } = useTenant();
   const { hasRole, currentUser } = useCurrentUser();
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
-  // Check if user can see billing info (admin or staff of this tenant)
   const canSeeBilling = tenant?.id && currentUser && (
     hasRole('ADMIN_TENANT', tenant.id) || 
     hasRole('STAFF_ORGANIZACAO', tenant.id) ||
@@ -77,7 +80,7 @@ export function BillingStatusBanner() {
       
       const { data, error } = await supabase
         .from('tenant_billing')
-        .select('id, status, plan_name, current_period_end, cancel_at')
+        .select('id, status, plan_name, current_period_end, cancel_at, stripe_customer_id')
         .eq('tenant_id', tenant.id)
         .maybeSingle();
       
@@ -87,13 +90,32 @@ export function BillingStatusBanner() {
     enabled: !!tenant?.id && !!canSeeBilling,
   });
 
-  // Only show to admins/staff
+  const handleOpenCustomerPortal = async () => {
+    if (!tenant?.id) return;
+    
+    setIsOpeningPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
+        body: { tenant_id: tenant.id },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error('URL do portal não retornada');
+      }
+    } catch (err) {
+      console.error('Error opening customer portal:', err);
+      toast.error('Erro ao abrir portal de pagamento');
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
+
   if (!canSeeBilling) return null;
-  
-  // Still loading
   if (isLoading) return null;
 
-  // No billing record yet - show warning
   if (!billing) {
     return (
       <Alert variant="destructive" className="mb-6">
@@ -109,7 +131,6 @@ export function BillingStatusBanner() {
 
   const config = statusConfig[billing.status];
   
-  // Don't show banner for active subscriptions
   if (!config?.showBanner) return null;
 
   const Icon = config.icon;
@@ -138,6 +159,9 @@ export function BillingStatusBanner() {
     }
   };
 
+  const canManagePayment = billing.stripe_customer_id && 
+    ['PAST_DUE', 'INCOMPLETE', 'UNPAID'].includes(billing.status);
+
   return (
     <Alert variant={config.variant} className="mb-6">
       <Icon className="h-4 w-4" />
@@ -148,11 +172,27 @@ export function BillingStatusBanner() {
         </Badge>
       </AlertTitle>
       <AlertDescription>
-        {getDescription()}
+        <p>{getDescription()}</p>
         {periodEnd && billing.status !== 'CANCELED' && (
           <span className="block mt-1 text-sm opacity-80">
             Válido até: {periodEnd}
           </span>
+        )}
+        {canManagePayment && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={handleOpenCustomerPortal}
+            disabled={isOpeningPortal}
+          >
+            {isOpeningPortal ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <ExternalLink className="h-4 w-4 mr-2" />
+            )}
+            Gerenciar pagamento
+          </Button>
         )}
       </AlertDescription>
     </Alert>
