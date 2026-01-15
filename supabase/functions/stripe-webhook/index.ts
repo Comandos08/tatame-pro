@@ -1,6 +1,9 @@
+// deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+
+type SupabaseClientAny = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,7 +126,7 @@ serve(async (req) => {
 });
 
 async function handleCheckoutCompleted(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientAny,
   supabaseUrl: string,
   supabaseServiceKey: string,
   session: Stripe.Checkout.Session
@@ -194,7 +197,7 @@ async function handleCheckoutCompleted(
 }
 
 async function handlePaymentSucceeded(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientAny,
   paymentIntent: Stripe.PaymentIntent
 ) {
   logStep("Processing payment_intent.succeeded", { id: paymentIntent.id });
@@ -226,7 +229,7 @@ async function handlePaymentSucceeded(
 }
 
 async function handlePaymentFailed(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientAny,
   paymentIntent: Stripe.PaymentIntent
 ) {
   logStep("Processing payment_intent.payment_failed", { id: paymentIntent.id });
