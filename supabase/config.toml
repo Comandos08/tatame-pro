@@ -2,3 +2,6 @@ project_id = "kotxhtveuegrywzyvdnl"
 
 [functions.get-document]
 verify_jwt = false
+
+[functions.create-tenant-admin]
+verify_jwt = false

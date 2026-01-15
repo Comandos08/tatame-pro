@@ -1,20 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Building2, Users, LogOut, Activity, ExternalLink, Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check } from 'lucide-react';
+import { 
+  Shield, Building2, Users, LogOut, Activity, ExternalLink, 
+  Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check,
+  Edit2, UserCog, Calendar
+} from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { CreateTenantDialog } from '@/components/admin/CreateTenantDialog';
+import { EditTenantDialog } from '@/components/admin/EditTenantDialog';
+import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -26,7 +33,10 @@ interface Tenant {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
   sport_types: string[];
+  default_locale: string;
+  primary_color: string;
   is_active: boolean;
   created_at: string;
 }
@@ -37,6 +47,9 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
+
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [managingAdminsTenant, setManagingAdminsTenant] = useState<Tenant | null>(null);
 
   React.useEffect(() => {
     if (!authLoading && !isGlobalSuperadmin && currentUser) {
@@ -68,16 +81,18 @@ export default function AdminDashboard() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const [tenantsRes, profilesRes, athletesRes] = await Promise.all([
+      const [tenantsRes, profilesRes, athletesRes, membershipsRes] = await Promise.all([
         supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('athletes').select('id', { count: 'exact', head: true }),
+        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
       ]);
       
       return {
         activeTenants: tenantsRes.count || 0,
         totalUsers: profilesRes.count || 0,
         totalAthletes: athletesRes.count || 0,
+        activeMemberships: membershipsRes.count || 0,
       };
     },
     enabled: isGlobalSuperadmin,
@@ -96,18 +111,27 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast.success('Status do tenant atualizado');
+      toast.success('Status da organização atualizado');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar tenant');
+      toast.error('Erro ao atualizar organização');
       console.error(error);
     },
   });
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
   const statCards = [
     { label: 'Organizações Ativas', value: stats?.activeTenants || 0, icon: Building2, color: 'text-primary' },
     { label: 'Usuários Totais', value: stats?.totalUsers || 0, icon: Users, color: 'text-info' },
-    { label: 'Atletas Filiados', value: stats?.totalAthletes || 0, icon: Activity, color: 'text-success' },
+    { label: 'Atletas Cadastrados', value: stats?.totalAthletes || 0, icon: Activity, color: 'text-success' },
+    { label: 'Filiações Ativas', value: stats?.activeMemberships || 0, icon: Calendar, color: 'text-warning' },
   ];
 
   if (authLoading) {
@@ -121,7 +145,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -180,7 +204,7 @@ export default function AdminDashboard() {
               <TooltipContent>{t('nav.help')}</TooltipContent>
             </Tooltip>
 
-            <span className="text-sm text-muted-foreground ml-2">{currentUser?.email}</span>
+            <span className="text-sm text-muted-foreground ml-2 hidden sm:inline">{currentUser?.email}</span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={handleSignOut}>
@@ -202,7 +226,7 @@ export default function AdminDashboard() {
         >
           <div className="mb-8">
             <h2 className="font-display text-3xl font-bold mb-2">
-              Admin Global da Plataforma
+              Painel de Administração Global
             </h2>
             <p className="text-muted-foreground">
               Gerencie todas as organizações de esportes de combate da plataforma IPPON.
@@ -210,7 +234,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Stats */}
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {statCards.map((stat, index) => (
               <motion.div
                 key={stat.label}
@@ -238,7 +262,7 @@ export default function AdminDashboard() {
           {/* Tenants Table */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Building2 className="h-5 w-5" />
@@ -248,10 +272,13 @@ export default function AdminDashboard() {
                     Gerencie todas as organizações da plataforma
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refetch()}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Atualizar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar
+                  </Button>
+                  <CreateTenantDialog />
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -260,71 +287,143 @@ export default function AdminDashboard() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : tenants && tenants.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Slug</TableHead>
-                      <TableHead>Modalidades</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tenants.map((tenant) => (
-                      <TableRow key={tenant.id}>
-                        <TableCell className="font-medium">{tenant.name}</TableCell>
-                        <TableCell>
-                          <code className="text-sm bg-muted px-2 py-1 rounded">
-                            {tenant.slug}
-                          </code>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {tenant.sport_types?.map((sport) => (
-                              <Badge key={sport} variant="outline" className="text-xs">
-                                {sport}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={tenant.is_active}
-                              onCheckedChange={(checked) => 
-                                toggleTenantMutation.mutate({ id: tenant.id, isActive: checked })
-                              }
-                              disabled={toggleTenantMutation.isPending}
-                            />
-                            <span className={tenant.is_active ? 'text-success' : 'text-muted-foreground'}>
-                              {tenant.is_active ? 'Ativo' : 'Inativo'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(`/${tenant.slug}/app`, '_blank')}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Acessar
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Organização</TableHead>
+                        <TableHead>Slug</TableHead>
+                        <TableHead>Modalidades</TableHead>
+                        <TableHead>Idioma</TableHead>
+                        <TableHead>Criado em</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {tenants.map((tenant) => (
+                        <TableRow key={tenant.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                                style={{ backgroundColor: tenant.primary_color || '#dc2626' }}
+                              >
+                                {tenant.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium">{tenant.name}</p>
+                                {tenant.description && (
+                                  <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                    {tenant.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-sm bg-muted px-2 py-1 rounded">
+                              /{tenant.slug}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {tenant.sport_types?.slice(0, 3).map((sport) => (
+                                <Badge key={sport} variant="outline" className="text-xs">
+                                  {sport}
+                                </Badge>
+                              ))}
+                              {tenant.sport_types && tenant.sport_types.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{tenant.sport_types.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs">
+                              {tenant.default_locale || 'pt-BR'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDate(tenant.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={tenant.is_active}
+                                onCheckedChange={(checked) => 
+                                  toggleTenantMutation.mutate({ id: tenant.id, isActive: checked })
+                                }
+                                disabled={toggleTenantMutation.isPending}
+                              />
+                              <span className={`text-xs ${tenant.is_active ? 'text-success' : 'text-muted-foreground'}`}>
+                                {tenant.is_active ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  Ações
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}`, '_blank')}>
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Abrir portal
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}/app`, '_blank')}>
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  Entrar como admin
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => setEditingTenant(tenant)}>
+                                  <Edit2 className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setManagingAdminsTenant(tenant)}>
+                                  <UserCog className="h-4 w-4 mr-2" />
+                                  Gerenciar admins
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma organização encontrada
+                <div className="text-center py-12">
+                  <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">Nenhuma organização encontrada</p>
+                  <CreateTenantDialog />
                 </div>
               )}
             </CardContent>
           </Card>
         </motion.div>
       </main>
+
+      {/* Edit tenant dialog */}
+      {editingTenant && (
+        <EditTenantDialog
+          tenant={editingTenant}
+          open={!!editingTenant}
+          onOpenChange={(open) => !open && setEditingTenant(null)}
+        />
+      )}
+
+      {/* Manage admins dialog */}
+      {managingAdminsTenant && (
+        <ManageAdminsDialog
+          tenant={managingAdminsTenant}
+          open={!!managingAdminsTenant}
+          onOpenChange={(open) => !open && setManagingAdminsTenant(null)}
+        />
+      )}
     </div>
   );
 }
