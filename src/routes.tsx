@@ -23,6 +23,10 @@ import ResetPassword from '@/pages/ResetPassword';
 import VerifyCard from '@/pages/VerifyCard';
 import VerifyDiploma from '@/pages/VerifyDiploma';
 import NotFound from '@/pages/NotFound';
+import Help from '@/pages/Help';
+import TenantHelp from '@/pages/TenantHelp';
+import AuditLog from '@/pages/AuditLog';
+import PublicAcademies from '@/pages/PublicAcademies';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -83,6 +87,7 @@ export function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/help" element={<Help />} />
 
       {/* Admin routes */}
       <Route
@@ -102,6 +107,7 @@ export function AppRoutes() {
         {/* Public verification routes */}
         <Route path="verify/card/:cardId" element={<VerifyCard />} />
         <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
+        <Route path="academies" element={<PublicAcademies />} />
         
         {/* Public membership routes */}
         <Route path="membership/new" element={<MembershipTypeSelector />} />
@@ -121,6 +127,8 @@ export function AppRoutes() {
         <Route path="app/grading-schemes/:schemeId/levels" element={<ProtectedRoute><GradingLevelsList /></ProtectedRoute>} />
         <Route path="app/athletes" element={<ProtectedRoute><AthletesList /></ProtectedRoute>} />
         <Route path="app/athletes/:athleteId/gradings" element={<ProtectedRoute><AthleteGradingsPage /></ProtectedRoute>} />
+        <Route path="app/help" element={<ProtectedRoute><TenantHelp /></ProtectedRoute>} />
+        <Route path="app/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
       </Route>
 

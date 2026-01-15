@@ -10,11 +10,19 @@ import {
   Menu,
   X,
   Shield,
-  Building2
+  Building2,
+  Sun,
+  Moon,
+  HelpCircle,
+  Globe,
+  FileText,
+  CheckCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useI18n, Locale } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -25,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AppShellProps {
   children: ReactNode;
@@ -34,6 +43,8 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentUser, signOut, isGlobalSuperadmin } = useCurrentUser();
   const { tenant } = useTenant();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -49,13 +60,20 @@ export function AppShell({ children }: AppShellProps) {
   const tenantSlug = tenant?.slug || '';
   
   const navigation = [
-    { name: 'Dashboard', href: `/${tenantSlug}/app`, icon: Home },
-    { name: 'Atletas', href: `/${tenantSlug}/app/athletes`, icon: Users },
-    { name: 'Minhas Filiações', href: `/${tenantSlug}/app/memberships`, icon: Shield },
-    { name: 'Academias', href: `/${tenantSlug}/app/academies`, icon: Building2 },
-    { name: 'Coaches', href: `/${tenantSlug}/app/coaches`, icon: Award },
-    { name: 'Graduações', href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
-    { name: 'Aprovações', href: `/${tenantSlug}/app/approvals`, icon: Settings },
+    { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home },
+    { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users },
+    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: Shield },
+    { name: t('nav.academies'), href: `/${tenantSlug}/app/academies`, icon: Building2 },
+    { name: t('nav.coaches'), href: `/${tenantSlug}/app/coaches`, icon: Award },
+    { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
+    { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings },
+    { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText },
+  ];
+
+  const languages: { code: Locale; label: string }[] = [
+    { code: 'pt-BR', label: t('language.ptBR') },
+    { code: 'en', label: t('language.en') },
+    { code: 'es', label: t('language.es') },
   ];
 
   return (
@@ -99,7 +117,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -110,6 +128,15 @@ export function AppShell({ children }: AppShellProps) {
                 <span>{item.name}</span>
               </Link>
             ))}
+            
+            {/* Help link */}
+            <Link
+              to={`/${tenantSlug}/app/help`}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <HelpCircle className="h-5 w-5" />
+              <span>{t('nav.help')}</span>
+            </Link>
           </nav>
 
           {/* User menu */}
@@ -134,17 +161,17 @@ export function AppShell({ children }: AppShellProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('nav.myAccount')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {isGlobalSuperadmin && (
                   <DropdownMenuItem onClick={() => navigate('/admin')}>
                     <Shield className="mr-2 h-4 w-4" />
-                    Admin Global
+                    {t('nav.globalAdmin')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sair
+                  {t('nav.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -166,9 +193,66 @@ export function AppShell({ children }: AppShellProps) {
           </Button>
           
           <div className="flex-1" />
+
+          {/* Language selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Globe className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{t('language.select')}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {languages.map((lang) => (
+                <DropdownMenuItem 
+                  key={lang.code} 
+                  onClick={() => setLocale(lang.code)}
+                  className="flex items-center justify-between"
+                >
+                  {lang.label}
+                  {locale === lang.code && <CheckCircle className="h-4 w-4 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Theme toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              >
+                {resolvedTheme === 'dark' ? (
+                  <Sun className="h-5 w-5" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {resolvedTheme === 'dark' ? t('theme.light') : t('theme.dark')}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Help */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate(`/${tenantSlug}/app/help`)}
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('nav.help')}</TooltipContent>
+          </Tooltip>
           
           {tenant && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
               <Building2 className="h-4 w-4" />
               <span>{tenant.sportTypes.join(', ')}</span>
             </div>
