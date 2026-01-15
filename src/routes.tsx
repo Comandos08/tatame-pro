@@ -18,6 +18,10 @@ import GradingSchemesList from '@/pages/GradingSchemesList';
 import GradingLevelsList from '@/pages/GradingLevelsList';
 import AthleteGradingsPage from '@/pages/AthleteGradingsPage';
 import AthletesList from '@/pages/AthletesList';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
+import VerifyCard from '@/pages/VerifyCard';
+import VerifyDiploma from '@/pages/VerifyDiploma';
 import NotFound from '@/pages/NotFound';
 
 // Membership components
@@ -77,6 +81,8 @@ export function AppRoutes() {
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Admin routes */}
       <Route
@@ -92,6 +98,10 @@ export function AppRoutes() {
       <Route path="/:tenantSlug" element={<TenantLayout />}>
         {/* Public tenant landing */}
         <Route index element={<TenantLanding />} />
+        
+        {/* Public verification routes */}
+        <Route path="verify/card/:cardId" element={<VerifyCard />} />
+        <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
         
         {/* Public membership routes */}
         <Route path="membership/new" element={<MembershipTypeSelector />} />
