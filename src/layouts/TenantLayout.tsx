@@ -1,11 +1,13 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
+import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 function TenantContent() {
-  const { tenant, isLoading, error } = useTenant();
+  const { tenant, isLoading, error, billingInfo } = useTenant();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -39,6 +41,19 @@ function TenantContent() {
           </p>
         </motion.div>
       </div>
+    );
+  }
+
+  // Check if tenant is inactive (blocked due to billing)
+  // Only show blocked screen for protected routes (/app/*)
+  const isProtectedRoute = location.pathname.includes('/app');
+  if (!tenant.isActive && isProtectedRoute) {
+    return (
+      <TenantBlockedScreen
+        tenantName={tenant.name}
+        tenantId={tenant.id}
+        hasStripeCustomer={!!billingInfo?.stripe_customer_id}
+      />
     );
   }
 
