@@ -89,7 +89,7 @@ export default function Landing() {
               className="font-display text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6"
             >
               Gerencie sua{' '}
-              <span className="text-gradient-primary">federação</span>
+              <span className="text-gradient-primary">organização de esporte de combate</span>
               <br />
               com excelência
             </motion.h1>
