@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle, ExternalLink, Loader2, FileText } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
 interface TenantBilling {
   id: string;
   status: string;
@@ -65,6 +66,7 @@ const statusConfig: Record<string, {
 export function BillingStatusBanner() {
   const { tenant } = useTenant();
   const { hasRole, currentUser } = useCurrentUser();
+  const { t } = useI18n();
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   const canSeeBilling = tenant?.id && currentUser && (
@@ -107,12 +109,13 @@ export function BillingStatusBanner() {
       }
     } catch (err) {
       console.error('Error opening customer portal:', err);
-      toast.error('Erro ao abrir portal de pagamento');
+      toast.error(t('billing.openPortalError'));
     } finally {
       setIsOpeningPortal(false);
     }
   };
 
+  const tenantSlug = tenant?.slug;
   if (!canSeeBilling) return null;
   if (isLoading) return null;
 
@@ -178,22 +181,35 @@ export function BillingStatusBanner() {
             Válido até: {periodEnd}
           </span>
         )}
-        {canManagePayment && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={handleOpenCustomerPortal}
-            disabled={isOpeningPortal}
-          >
-            {isOpeningPortal ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <ExternalLink className="h-4 w-4 mr-2" />
-            )}
-            Gerenciar pagamento
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2 mt-3">
+          {canManagePayment && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenCustomerPortal}
+              disabled={isOpeningPortal}
+            >
+              {isOpeningPortal ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4 mr-2" />
+              )}
+              {t('billing.managePayment')}
+            </Button>
+          )}
+          {tenantSlug && (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+            >
+              <Link to={`/${tenantSlug}/app/billing`}>
+                <FileText className="h-4 w-4 mr-2" />
+                {t('billing.viewInvoiceHistory')}
+              </Link>
+            </Button>
+          )}
+        </div>
       </AlertDescription>
     </Alert>
   );
