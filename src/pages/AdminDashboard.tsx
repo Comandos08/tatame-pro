@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Building2, Users, LogOut, Activity, ExternalLink, Power, Loader2, RefreshCw } from 'lucide-react';
+import { Shield, Building2, Users, LogOut, Activity, ExternalLink, Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
+  { code: 'pt-BR', label: 'Português (BR)' },
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
+];
 
 interface Tenant {
   id: string;
@@ -25,6 +35,8 @@ export default function AdminDashboard() {
   const { currentUser, signOut, isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useTheme();
+  const { locale, setLocale, t } = useI18n();
 
   React.useEffect(() => {
     if (!authLoading && !isGlobalSuperadmin && currentUser) {
@@ -120,11 +132,63 @@ export default function AdminDashboard() {
               <p className="text-xs text-muted-foreground">Painel Global</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{currentUser?.email}</span>
-            <Button variant="ghost" size="icon" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            {/* Language selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Globe className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {AVAILABLE_LOCALES.map((loc) => (
+                  <DropdownMenuItem
+                    key={loc.code}
+                    onClick={() => setLocale(loc.code)}
+                    className="flex items-center justify-between"
+                  >
+                    {loc.label}
+                    {locale === loc.code && <Check className="h-4 w-4 ml-2" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Theme toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                >
+                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Help button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={() => navigate('/help')}>
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('nav.help')}</TooltipContent>
+            </Tooltip>
+
+            <span className="text-sm text-muted-foreground ml-2">{currentUser?.email}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sair</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
