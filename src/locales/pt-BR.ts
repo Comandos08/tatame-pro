@@ -200,6 +200,13 @@ export const ptBR = {
   'empty.noAcademies': 'Nenhuma academia cadastrada ainda',
   'empty.noAthletes': 'Nenhum atleta cadastrado ainda',
   'empty.noMemberships': 'Nenhuma filiação encontrada',
+
+  // Document access
+  'document.downloading': 'Baixando documento...',
+  'document.downloadSuccess': 'Documento aberto com sucesso',
+  'document.accessDenied': 'Você não tem permissão para acessar este documento',
+  'document.loginRequired': 'Faça login para acessar este documento',
+  'document.downloadError': 'Erro ao baixar documento',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

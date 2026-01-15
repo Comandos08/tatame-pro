@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useSecureDocumentDownload } from '@/hooks/useSecureDocumentDownload';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -119,6 +120,7 @@ export default function ApprovalDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
+  const { downloadDocument, isDownloading } = useSecureDocumentDownload();
   
   const [reviewNotes, setReviewNotes] = useState('');
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
@@ -568,9 +570,14 @@ export default function ApprovalDetails() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(doc.file_url, '_blank')}
+                              disabled={isDownloading(doc.id)}
+                              onClick={() => downloadDocument(doc.id)}
                             >
-                              <Download className="h-4 w-4" />
+                              {isDownloading(doc.id) ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                         ))}
