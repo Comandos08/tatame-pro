@@ -98,7 +98,7 @@ export default function Landing() {
               variants={fadeInUp}
               className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8"
             >
-              Sistema completo para federações e organizações de esportes de combate. 
+              Sistema completo para sua organização de esporte de combate. 
               Filiações, graduações, eventos e pagamentos em uma única plataforma.
             </motion.p>
             
