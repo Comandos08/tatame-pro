@@ -1,5 +1,8 @@
 project_id = "kotxhtveuegrywzyvdnl"
 
+[functions.send-billing-email]
+verify_jwt = false
+
 [functions.get-document]
 verify_jwt = false
 

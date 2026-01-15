@@ -15,6 +15,29 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
+async function sendBillingEmail(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  eventType: string,
+  tenantId: string,
+  data?: Record<string, unknown>
+) {
+  try {
+    const emailUrl = `${supabaseUrl}/functions/v1/send-billing-email`;
+    await fetch(emailUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
+    });
+    logStep("Billing email triggered", { eventType, tenantId });
+  } catch (err) {
+    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -97,22 +120,30 @@ serve(async (req) => {
         case "customer.subscription.created":
         case "customer.subscription.updated": {
           const subscription = event.data.object as Stripe.Subscription;
-          await handleSubscriptionChange(supabase, subscription);
+          await handleSubscriptionChange(supabase, supabaseUrl, supabaseServiceKey, subscription);
           break;
         }
         case "customer.subscription.deleted": {
           const subscription = event.data.object as Stripe.Subscription;
-          await handleSubscriptionDeleted(supabase, subscription);
+          await handleSubscriptionDeleted(supabase, supabaseUrl, supabaseServiceKey, subscription);
+          break;
+        }
+        // Invoice events
+        case "invoice.created":
+        case "invoice.finalized":
+        case "invoice.updated": {
+          const invoice = event.data.object as Stripe.Invoice;
+          await handleInvoiceUpdate(supabase, invoice);
           break;
         }
         case "invoice.payment_succeeded": {
           const invoice = event.data.object as Stripe.Invoice;
-          await handleInvoicePaymentSucceeded(supabase, invoice);
+          await handleInvoicePaymentSucceeded(supabase, supabaseUrl, supabaseServiceKey, invoice);
           break;
         }
         case "invoice.payment_failed": {
           const invoice = event.data.object as Stripe.Invoice;
-          await handleInvoicePaymentFailed(supabase, invoice);
+          await handleInvoicePaymentFailed(supabase, supabaseUrl, supabaseServiceKey, invoice);
           break;
         }
         default:
@@ -273,6 +304,8 @@ async function handlePaymentFailed(
 // Subscription event handlers for tenant billing
 async function handleSubscriptionChange(
   supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
   subscription: Stripe.Subscription
 ) {
   logStep("Processing subscription change", { 
@@ -319,6 +352,15 @@ async function handleSubscriptionChange(
 
   const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
 
+  // Check previous status for email triggers
+  const { data: existingBilling } = await supabase
+    .from("tenant_billing")
+    .select("id, status")
+    .eq("tenant_id", actualTenantId)
+    .maybeSingle();
+
+  const previousStatus = existingBilling?.status;
+
   // Upsert billing record
   const billingData = {
     tenant_id: actualTenantId,
@@ -331,17 +373,11 @@ async function handleSubscriptionChange(
     canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
   };
 
-  const { data: existing } = await supabase
-    .from("tenant_billing")
-    .select("id")
-    .eq("tenant_id", actualTenantId)
-    .maybeSingle();
-
-  if (existing) {
+  if (existingBilling) {
     await supabase
       .from("tenant_billing")
       .update(billingData as Record<string, unknown>)
-      .eq("id", existing.id);
+      .eq("id", existingBilling.id);
   } else {
     await supabase.from("tenant_billing").insert({
       ...billingData,
@@ -358,10 +394,23 @@ async function handleSubscriptionChange(
     .eq("id", actualTenantId);
 
   logStep("Subscription updated", { tenantId: actualTenantId, status: billingStatus, isActive });
+
+  // Send emails based on status transitions
+  if (previousStatus && previousStatus !== billingStatus) {
+    if (billingStatus === "PAST_DUE" && previousStatus === "ACTIVE") {
+      // Payment issue - warn about potential blocking
+      sendBillingEmail(supabaseUrl, supabaseServiceKey, "TENANT_WILL_BE_BLOCKED", actualTenantId);
+    } else if (!isActive && (previousStatus === "ACTIVE" || previousStatus === "TRIALING")) {
+      // Tenant is being blocked
+      sendBillingEmail(supabaseUrl, supabaseServiceKey, "TENANT_BLOCKED", actualTenantId);
+    }
+  }
 }
 
 async function handleSubscriptionDeleted(
   supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
   subscription: Stripe.Subscription
 ) {
   logStep("Processing subscription deleted", { subscriptionId: subscription.id });
@@ -393,13 +442,91 @@ async function handleSubscriptionDeleted(
     .eq("id", billing.tenant_id);
 
   logStep("Subscription deleted, tenant deactivated", { tenantId: billing.tenant_id });
+
+  // Send blocked email
+  sendBillingEmail(supabaseUrl, supabaseServiceKey, "TENANT_BLOCKED", billing.tenant_id);
+}
+
+// Helper to find tenant ID from invoice
+async function getTenantIdFromInvoice(
+  supabase: SupabaseClientAny,
+  invoice: Stripe.Invoice
+): Promise<string | null> {
+  if (!invoice.subscription) return null;
+
+  const { data: billing } = await supabase
+    .from("tenant_billing")
+    .select("tenant_id")
+    .eq("stripe_subscription_id", invoice.subscription as string)
+    .maybeSingle();
+
+  return billing?.tenant_id || null;
+}
+
+// Handle invoice create/update for history
+async function handleInvoiceUpdate(
+  supabase: SupabaseClientAny,
+  invoice: Stripe.Invoice
+) {
+  logStep("Processing invoice update", { invoiceId: invoice.id, status: invoice.status });
+
+  // Only handle subscription invoices
+  if (!invoice.subscription) {
+    logStep("Not a subscription invoice, skipping");
+    return;
+  }
+
+  const tenantId = await getTenantIdFromInvoice(supabase, invoice);
+  if (!tenantId) {
+    logStep("No tenant found for invoice");
+    return;
+  }
+
+  const invoiceData = {
+    tenant_id: tenantId,
+    stripe_invoice_id: invoice.id,
+    stripe_customer_id: invoice.customer as string,
+    amount_cents: invoice.amount_due || 0,
+    currency: invoice.currency || "brl",
+    status: invoice.status || "draft",
+    due_date: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
+    paid_at: invoice.status === "paid" && invoice.status_transitions?.paid_at
+      ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+      : null,
+    hosted_invoice_url: invoice.hosted_invoice_url || null,
+    invoice_pdf: invoice.invoice_pdf || null,
+    description: invoice.description || `Fatura ${invoice.number || invoice.id}`,
+  };
+
+  // Upsert invoice record
+  const { data: existing } = await supabase
+    .from("tenant_invoices")
+    .select("id")
+    .eq("stripe_invoice_id", invoice.id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("tenant_invoices")
+      .update(invoiceData as Record<string, unknown>)
+      .eq("id", existing.id);
+  } else {
+    await supabase.from("tenant_invoices").insert(invoiceData as Record<string, unknown>);
+  }
+
+  logStep("Invoice record saved", { invoiceId: invoice.id, tenantId });
 }
 
 async function handleInvoicePaymentSucceeded(
   supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
   invoice: Stripe.Invoice
 ) {
   logStep("Processing invoice.payment_succeeded", { invoiceId: invoice.id });
+
+  // Update invoice record
+  await handleInvoiceUpdate(supabase, invoice);
 
   // Only handle subscription invoices
   if (!invoice.subscription) {
@@ -430,13 +557,32 @@ async function handleInvoicePaymentSucceeded(
     .eq("id", billing.tenant_id);
 
   logStep("Invoice paid, tenant activated", { tenantId: billing.tenant_id });
+
+  // Send payment success email
+  sendBillingEmail(supabaseUrl, supabaseServiceKey, "INVOICE_PAYMENT_SUCCEEDED", billing.tenant_id, {
+    invoice_amount: invoice.amount_paid || 0,
+    invoice_currency: invoice.currency || "brl",
+    invoice_url: invoice.hosted_invoice_url || undefined,
+    period_end: invoice.lines?.data?.[0]?.period?.end
+      ? new Date(invoice.lines.data[0].period.end * 1000).toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : undefined,
+  });
 }
 
 async function handleInvoicePaymentFailed(
   supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
   invoice: Stripe.Invoice
 ) {
   logStep("Processing invoice.payment_failed", { invoiceId: invoice.id });
+
+  // Update invoice record
+  await handleInvoiceUpdate(supabase, invoice);
 
   if (!invoice.subscription) {
     logStep("Not a subscription invoice, skipping");
@@ -461,4 +607,7 @@ async function handleInvoicePaymentFailed(
     .eq("id", billing.id);
 
   logStep("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id });
+
+  // Send payment failed email
+  sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", billing.tenant_id);
 }
