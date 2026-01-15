@@ -82,6 +82,17 @@ serve(async (req) => {
       throw new Error("Membership not found or session mismatch");
     }
 
+    // Trigger digital card generation (fire and forget)
+    const generateCardUrl = `${supabaseUrl}/functions/v1/generate-digital-card`;
+    fetch(generateCardUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ membershipId }),
+    }).catch((err) => console.error("Failed to trigger card generation:", err));
+
     return new Response(
       JSON.stringify({ 
         success: true, 

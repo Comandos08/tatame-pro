@@ -309,6 +309,9 @@ export type Database = {
           id: string
           payment_status: Database["public"]["Enums"]["payment_status"]
           price_cents: number
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by_profile_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["membership_status"]
           stripe_checkout_session_id: string | null
@@ -325,6 +328,9 @@ export type Database = {
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           price_cents?: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_profile_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["membership_status"]
           stripe_checkout_session_id?: string | null
@@ -341,6 +347,9 @@ export type Database = {
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           price_cents?: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_profile_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["membership_status"]
           stripe_checkout_session_id?: string | null
@@ -355,6 +364,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_reviewed_by_profile_id_fkey"
+            columns: ["reviewed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

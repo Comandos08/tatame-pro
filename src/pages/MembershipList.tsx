@@ -1,21 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FileText, ExternalLink, AlertCircle, Loader2 } from 'lucide-react';
+import { FileText, CreditCard, Clock, CheckCircle, XCircle, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import {
   MembershipStatus,
@@ -23,7 +16,6 @@ import {
   MEMBERSHIP_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from '@/types/membership';
-import { useNavigate, useParams } from 'react-router-dom';
 
 interface MembershipWithAthlete {
   id: string;
@@ -35,10 +27,26 @@ interface MembershipWithAthlete {
   currency: string;
   created_at: string;
   athlete: {
+    id: string;
     full_name: string;
     email: string;
   };
+  digital_cards: {
+    id: string;
+    qr_code_image_url: string;
+    pdf_url: string;
+  }[];
 }
+
+const statusConfig: Record<MembershipStatus, { icon: React.ElementType; color: string; bgColor: string }> = {
+  DRAFT: { icon: FileText, color: 'text-muted-foreground', bgColor: 'bg-muted' },
+  PENDING_PAYMENT: { icon: CreditCard, color: 'text-warning', bgColor: 'bg-warning/10' },
+  PENDING_REVIEW: { icon: Clock, color: 'text-warning', bgColor: 'bg-warning/10' },
+  APPROVED: { icon: CheckCircle, color: 'text-info', bgColor: 'bg-info/10' },
+  ACTIVE: { icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10' },
+  EXPIRED: { icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted' },
+  CANCELLED: { icon: XCircle, color: 'text-destructive', bgColor: 'bg-destructive/10' },
+};
 
 export default function MembershipList() {
   const { tenant } = useTenant();
@@ -91,7 +99,8 @@ export default function MembershipList() {
             price_cents,
             currency,
             created_at,
-            athlete:athletes(full_name, email)
+            athlete:athletes(id, full_name, email),
+            digital_cards(id, qr_code_image_url, pdf_url)
           `)
           .eq('tenant_id', tenant.id)
           .in('athlete_id', athleteIds)
@@ -112,7 +121,8 @@ export default function MembershipList() {
           price_cents,
           currency,
           created_at,
-          athlete:athletes(full_name, email)
+          athlete:athletes(id, full_name, email),
+          digital_cards(id, qr_code_image_url, pdf_url)
         `)
         .eq('tenant_id', tenant.id)
         .eq('athlete_id', athlete.id)
@@ -124,39 +134,13 @@ export default function MembershipList() {
     enabled: !!tenant && !!currentUser,
   });
 
-  const getStatusBadgeVariant = (status: MembershipStatus) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'default';
-      case 'PENDING_REVIEW':
-      case 'PENDING_PAYMENT':
-        return 'secondary';
-      case 'APPROVED':
-        return 'outline';
-      case 'EXPIRED':
-      case 'CANCELLED':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-
-  const getPaymentBadgeVariant = (status: PaymentStatus) => {
-    switch (status) {
-      case 'PAID':
-        return 'default';
-      case 'NOT_PAID':
-        return 'secondary';
-      case 'FAILED':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  const getShortId = (id: string) => {
+    return id.substring(0, 8).toUpperCase();
   };
 
   if (!tenant) return null;
@@ -174,7 +158,7 @@ export default function MembershipList() {
               Minhas Filiações
             </h1>
             <p className="text-muted-foreground">
-              Acompanhe o status das suas filiações
+              Acompanhe o status das suas filiações na {tenant.name}
             </p>
           </div>
           <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)}>
@@ -182,89 +166,104 @@ export default function MembershipList() {
           </Button>
         </motion.div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Filiações
-            </CardTitle>
-            <CardDescription>
-              Lista de todas as suas filiações na {tenant.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <AlertCircle className="h-8 w-8 text-destructive mb-2" />
-                <p className="text-muted-foreground">Erro ao carregar filiações</p>
-              </div>
-            ) : memberships && memberships.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Atleta</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Pagamento</TableHead>
-                      <TableHead>Início</TableHead>
-                      <TableHead>Validade</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {memberships.map((membership) => (
-                      <TableRow key={membership.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{membership.athlete?.full_name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {membership.athlete?.email}
-                            </p>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+              <p className="text-muted-foreground">Erro ao carregar filiações</p>
+            </CardContent>
+          </Card>
+        ) : memberships && memberships.length > 0 ? (
+          <div className="grid gap-4">
+            {memberships.map((membership, index) => {
+              const config = statusConfig[membership.status];
+              const StatusIcon = config.icon;
+              const hasCard = membership.digital_cards && membership.digital_cards.length > 0;
+
+              return (
+                <motion.div
+                  key={membership.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card 
+                    className="card-hover cursor-pointer group"
+                    onClick={() => navigate(`/${tenantSlug}/app/memberships/${membership.id}`)}
+                  >
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex items-start gap-4">
+                        <div className={`h-12 w-12 rounded-xl ${config.bgColor} flex items-center justify-center shrink-0`}>
+                          <StatusIcon className={`h-6 w-6 ${config.color}`} />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <h3 className="font-medium truncate">
+                              {membership.athlete?.full_name}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              #{getShortId(membership.id)}
+                            </Badge>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(membership.status)}>
-                            {MEMBERSHIP_STATUS_LABELS[membership.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getPaymentBadgeVariant(membership.payment_status)}>
-                            {PAYMENT_STATUS_LABELS[membership.payment_status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(membership.start_date)}</TableCell>
-                        <TableCell>{formatDate(membership.end_date)}</TableCell>
-                        <TableCell className="text-right">
-                          {membership.status === 'ACTIVE' && (
-                            <Button size="sm" variant="ghost">
-                              <ExternalLink className="h-4 w-4 mr-1" />
+                          
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <Badge 
+                              variant={membership.status === 'ACTIVE' ? 'default' : 'secondary'}
+                              className={membership.status === 'ACTIVE' ? 'bg-success' : ''}
+                            >
+                              {MEMBERSHIP_STATUS_LABELS[membership.status]}
+                            </Badge>
+                            <Badge 
+                              variant={membership.payment_status === 'PAID' ? 'outline' : 'destructive'}
+                            >
+                              {PAYMENT_STATUS_LABELS[membership.payment_status]}
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span>Início: {formatDate(membership.start_date)}</span>
+                            <span>Validade: {formatDate(membership.end_date)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {hasCard && (
+                            <Badge variant="outline" className="hidden sm:flex gap-1 text-success border-success/30">
+                              <CreditCard className="h-3 w-3" />
                               Carteira
-                            </Button>
+                            </Badge>
                           )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <FileText className="h-8 w-8 text-muted-foreground" />
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="font-medium text-lg mb-1">Nenhuma filiação encontrada</h3>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Você ainda não possui filiações registradas
-                </p>
-                <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)}>
-                  Fazer minha filiação
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <h3 className="font-display font-bold text-xl mb-2">Nenhuma filiação encontrada</h3>
+              <p className="text-muted-foreground text-sm mb-6 max-w-md">
+                Você ainda não possui filiações registradas na {tenant.name}. 
+                Comece agora mesmo e faça parte da nossa comunidade!
+              </p>
+              <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)} size="lg">
+                Fazer minha filiação
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppShell>
   );
