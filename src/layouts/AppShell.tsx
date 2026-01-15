@@ -50,10 +50,10 @@ export function AppShell({ children }: AppShellProps) {
   
   const navigation = [
     { name: 'Dashboard', href: `/${tenantSlug}/app`, icon: Home },
-    { name: 'Atletas', href: `/${tenantSlug}/app/atletas`, icon: Users },
-    { name: 'Graduações', href: `/${tenantSlug}/app/graduacoes`, icon: Award },
-    { name: 'Academias', href: `/${tenantSlug}/app/academias`, icon: Building2 },
-    { name: 'Configurações', href: `/${tenantSlug}/app/config`, icon: Settings },
+    { name: 'Minhas Filiações', href: `/${tenantSlug}/app/memberships`, icon: Users },
+    { name: 'Academias', href: `/${tenantSlug}/app/academies`, icon: Building2 },
+    { name: 'Coaches', href: `/${tenantSlug}/app/coaches`, icon: Award },
+    { name: 'Aprovações', href: `/${tenantSlug}/app/approvals`, icon: Settings },
   ];
 
   return (

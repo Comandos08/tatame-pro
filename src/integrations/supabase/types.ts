@@ -14,6 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      academies: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          logo_url: string | null
+          name: string
+          phone: string | null
+          postal_code: string | null
+          slug: string
+          sport_type: string | null
+          state: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          postal_code?: string | null
+          slug: string
+          sport_type?: string | null
+          state?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          postal_code?: string | null
+          slug?: string
+          sport_type?: string | null
+          state?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_coaches: {
+        Row: {
+          academy_id: string
+          coach_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          role: Database["public"]["Enums"]["academy_coach_role"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          academy_id: string
+          coach_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          role?: Database["public"]["Enums"]["academy_coach_role"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          academy_id?: string
+          coach_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          role?: Database["public"]["Enums"]["academy_coach_role"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_coaches_academy_id_fkey"
+            columns: ["academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_coaches_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_coaches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athletes: {
         Row: {
           address_line1: string | null
@@ -82,6 +205,57 @@ export type Database = {
           },
           {
             foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coaches: {
+        Row: {
+          created_at: string | null
+          full_name: string
+          id: string
+          is_active: boolean | null
+          main_sport: string | null
+          profile_id: string | null
+          rank: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean | null
+          main_sport?: string | null
+          profile_id?: string | null
+          rank?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean | null
+          main_sport?: string | null
+          profile_id?: string | null
+          rank?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coaches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coaches_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -302,12 +476,14 @@ export type Database = {
       }
       memberships: {
         Row: {
+          academy_id: string | null
           athlete_id: string
           created_at: string | null
           currency: string
           end_date: string | null
           id: string
           payment_status: Database["public"]["Enums"]["payment_status"]
+          preferred_coach_id: string | null
           price_cents: number
           review_notes: string | null
           reviewed_at: string | null
@@ -321,12 +497,14 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          academy_id?: string | null
           athlete_id: string
           created_at?: string | null
           currency?: string
           end_date?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          preferred_coach_id?: string | null
           price_cents?: number
           review_notes?: string | null
           reviewed_at?: string | null
@@ -340,12 +518,14 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          academy_id?: string | null
           athlete_id?: string
           created_at?: string | null
           currency?: string
           end_date?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          preferred_coach_id?: string | null
           price_cents?: number
           review_notes?: string | null
           reviewed_at?: string | null
@@ -360,10 +540,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "memberships_academy_id_fkey"
+            columns: ["academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "memberships_athlete_id_fkey"
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_preferred_coach_id_fkey"
+            columns: ["preferred_coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
             referencedColumns: ["id"]
           },
           {
@@ -503,6 +697,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_approve_membership: {
+        Args: { _membership_id: string }
+        Returns: boolean
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -512,11 +710,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_head_coach_of_academy: {
+        Args: { _academy_id: string }
+        Returns: boolean
+      }
       is_member_of_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
     }
     Enums: {
+      academy_coach_role: "HEAD_COACH" | "ASSISTANT_COACH" | "INSTRUCTOR"
       app_role:
         | "SUPERADMIN_GLOBAL"
         | "ADMIN_TENANT"
@@ -671,6 +874,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      academy_coach_role: ["HEAD_COACH", "ASSISTANT_COACH", "INSTRUCTOR"],
       app_role: [
         "SUPERADMIN_GLOBAL",
         "ADMIN_TENANT",
