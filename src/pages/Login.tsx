@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -22,14 +23,37 @@ export default function Login() {
 
   // Redirect if already logged in
   React.useEffect(() => {
-    if (currentUser) {
+    const redirectUser = async () => {
+      if (!currentUser) return;
+      
       if (isGlobalSuperadmin) {
         navigate('/admin');
-      } else if (currentUser.tenantId) {
-        // Need to get tenant slug - for now redirect to landing
+        return;
+      }
+
+      // Check if user has any tenant admin role
+      const { data: adminRoles } = await supabase
+        .from('user_roles')
+        .select('tenant_id, tenants!inner(slug)')
+        .eq('user_id', currentUser.id)
+        .in('role', ['ADMIN_TENANT', 'STAFF_ORGANIZACAO', 'COACH_PRINCIPAL'])
+        .limit(1);
+
+      if (adminRoles && adminRoles.length > 0) {
+        const tenantSlug = (adminRoles[0] as any).tenants?.slug;
+        if (tenantSlug) {
+          navigate(`/${tenantSlug}/app`);
+          return;
+        }
+      }
+
+      // Fallback to landing
+      if (currentUser.tenantId) {
         navigate('/');
       }
-    }
+    };
+
+    redirectUser();
   }, [currentUser, isGlobalSuperadmin, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
