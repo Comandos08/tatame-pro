@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Loader2, Calendar, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CreditCard, Loader2, Calendar, AlertCircle, CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillingDialogProps) {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   const { data: billing, isLoading } = useQuery({
     queryKey: ['tenant-billing', tenant.id],
@@ -88,6 +89,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
       toast.success('Assinatura criada com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['tenant-billing', tenant.id] });
       queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-billing'] });
       
       if (data.clientSecret) {
         toast.info('O tenant precisará completar o pagamento para ativar a assinatura.');
@@ -100,6 +102,32 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
       setIsCreating(false);
     },
   });
+
+  const handleOpenCustomerPortal = async () => {
+    if (!billing?.stripe_customer_id) {
+      toast.error('Este tenant não possui um cliente Stripe configurado');
+      return;
+    }
+    
+    setIsOpeningPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
+        body: { tenant_id: tenant.id },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error('URL do portal não retornada');
+      }
+    } catch (err) {
+      console.error('Error opening customer portal:', err);
+      toast.error('Erro ao abrir portal Stripe');
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
@@ -170,20 +198,38 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
               )}
             </div>
 
-            {(billing.status === 'CANCELED' || billing.status === 'INCOMPLETE') && (
-              <Button 
-                className="w-full" 
-                onClick={() => createSubscriptionMutation.mutate()}
-                disabled={isCreating}
-              >
-                {isCreating ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="h-4 w-4 mr-2" />
-                )}
-                Reativar assinatura
-              </Button>
-            )}
+            <div className="flex flex-col gap-2">
+              {billing.stripe_customer_id && (
+                <Button 
+                  variant="outline"
+                  className="w-full" 
+                  onClick={handleOpenCustomerPortal}
+                  disabled={isOpeningPortal}
+                >
+                  {isOpeningPortal ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  Abrir portal Stripe
+                </Button>
+              )}
+
+              {(billing.status === 'CANCELED' || billing.status === 'INCOMPLETE') && (
+                <Button 
+                  className="w-full" 
+                  onClick={() => createSubscriptionMutation.mutate()}
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4 mr-2" />
+                  )}
+                  Reativar assinatura
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="text-center py-6 space-y-4">
