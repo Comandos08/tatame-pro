@@ -9,6 +9,7 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import TenantLanding from '@/pages/TenantLanding';
 import TenantDashboard from '@/pages/TenantDashboard';
 import MembershipList from '@/pages/MembershipList';
+import MembershipDetails from '@/pages/MembershipDetails';
 import NotFound from '@/pages/NotFound';
 
 // Membership components
@@ -104,6 +105,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <MembershipList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="app/memberships/:membershipId"
+          element={
+            <ProtectedRoute>
+              <MembershipDetails />
             </ProtectedRoute>
           }
         />
