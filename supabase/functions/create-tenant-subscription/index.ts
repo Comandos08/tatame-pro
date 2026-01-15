@@ -7,10 +7,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Trial period in days for new tenants
+const TRIAL_PERIOD_DAYS = 14;
+
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CREATE-TENANT-SUBSCRIPTION] ${step}${detailsStr}`);
 };
+
+async function sendBillingEmail(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  eventType: string,
+  tenantId: string,
+  data?: Record<string, unknown>
+) {
+  try {
+    const emailUrl = `${supabaseUrl}/functions/v1/send-billing-email`;
+    await fetch(emailUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
+    });
+    logStep("Billing email triggered", { eventType, tenantId });
+  } catch (err) {
+    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -143,10 +169,13 @@ serve(async (req) => {
       }
     }
 
+    // Determine if this is a new tenant (no existing billing) - apply trial
+    const isNewTenant = !existingBilling;
+
     // Create new subscription
-    logStep("Creating Stripe subscription");
+    logStep("Creating Stripe subscription", { isNewTenant, trialDays: isNewTenant ? TRIAL_PERIOD_DAYS : 0 });
     
-    const subscription = await stripe.subscriptions.create({
+    const subscriptionParams: Stripe.SubscriptionCreateParams = {
       customer: stripeCustomerId,
       items: [{ price: priceId }],
       payment_behavior: "default_incomplete",
@@ -156,7 +185,14 @@ serve(async (req) => {
         tenant_id: tenantId,
         tenant_slug: tenant.slug,
       },
-    });
+    };
+
+    // Add trial period for new tenants
+    if (isNewTenant) {
+      subscriptionParams.trial_period_days = TRIAL_PERIOD_DAYS;
+    }
+
+    const subscription = await stripe.subscriptions.create(subscriptionParams);
 
     logStep("Subscription created", { 
       subscriptionId: subscription.id, 
@@ -210,6 +246,17 @@ serve(async (req) => {
       .eq("id", tenantId);
 
     logStep("Tenant isActive updated", { isActive });
+
+    // Send trial started email for new tenants
+    if (isNewTenant && billingStatus === "TRIALING") {
+      sendBillingEmail(supabaseUrl, supabaseServiceKey, "TRIAL_STARTED", tenantId, {
+        trial_end_date: new Date(subscription.current_period_end * 1000).toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        }),
+      });
+    }
 
     // Get payment intent for checkout
     const invoice = subscription.latest_invoice as Stripe.Invoice;

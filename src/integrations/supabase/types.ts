@@ -1055,8 +1055,68 @@ export type Database = {
           },
         ]
       }
+      tenant_invoices: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          description: string | null
+          due_date: string | null
+          hosted_invoice_url: string | null
+          id: string
+          invoice_pdf: string | null
+          paid_at: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf?: string | null
+          paid_at?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf?: string | null
+          paid_at?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
+          billing_email: string | null
           created_at: string | null
           default_locale: string | null
           description: string | null
@@ -1071,6 +1131,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          billing_email?: string | null
           created_at?: string | null
           default_locale?: string | null
           description?: string | null
@@ -1085,6 +1146,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          billing_email?: string | null
           created_at?: string | null
           default_locale?: string | null
           description?: string | null
