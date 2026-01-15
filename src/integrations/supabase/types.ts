@@ -794,6 +794,7 @@ export type Database = {
           tenant_id: string
           type: Database["public"]["Enums"]["membership_type"]
           updated_at: string | null
+          webhook_processed_at: string | null
         }
         Insert: {
           academy_id?: string | null
@@ -815,6 +816,7 @@ export type Database = {
           tenant_id: string
           type?: Database["public"]["Enums"]["membership_type"]
           updated_at?: string | null
+          webhook_processed_at?: string | null
         }
         Update: {
           academy_id?: string | null
@@ -836,6 +838,7 @@ export type Database = {
           tenant_id?: string
           type?: Database["public"]["Enums"]["membership_type"]
           updated_at?: string | null
+          webhook_processed_at?: string | null
         }
         Relationships: [
           {
@@ -871,6 +874,47 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      password_resets: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          profile_id: string
+          token: string
+          updated_at: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          profile_id: string
+          token: string
+          updated_at?: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          profile_id?: string
+          token?: string
+          updated_at?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_resets_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -990,6 +1034,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string
+          status?: string
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -156,7 +156,15 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          {!isSignUp && (
+            <div className="mt-4 text-center">
+              <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
+                Esqueceu sua senha?
+              </Link>
+            </div>
+          )}
+
+          <p className="mt-4 text-center text-sm text-muted-foreground">
             {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}{' '}
             <button
               type="button"
