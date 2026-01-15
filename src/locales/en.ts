@@ -175,4 +175,31 @@ export const en: Record<TranslationKey, string> = {
   'status.rejected': 'Rejected',
   'status.expired': 'Expired',
   'status.cancelled': 'Cancelled',
+
+  // TenantLanding features
+  'tenant.featureAffiliation': 'Athlete Affiliation',
+  'tenant.featureAffiliationDesc': 'Register and keep your membership up to date',
+  'tenant.featureGradings': 'Gradings',
+  'tenant.featureGradingsDesc': 'Track your grading history',
+  'tenant.featureEvents': 'Events',
+  'tenant.featureEventsDesc': 'Register for competitions and seminars',
+  'tenant.verifyCard': 'Verify Card',
+  'tenant.verifyDiploma': 'Verify Diploma',
+  'tenant.joinCta': 'Join',
+  'tenant.joinCtaDesc': 'Join thousands of athletes and accredited academies. Keep your gradings up to date and access exclusive benefits.',
+
+  // Dashboard descriptions
+  'dashboard.recentActivityDesc': 'Latest system updates',
+  'dashboard.quickActionsDesc': 'Access frequent functions',
+  'dashboard.quickActionsHint': 'Shortcuts for athlete registration and membership approvals.',
+
+  // Error states
+  'error.loadingFailed': 'Error loading data',
+  'error.tryAgain': 'Try again',
+  'error.contactSupport': 'If the problem persists, contact support.',
+
+  // Empty states
+  'empty.noAcademies': 'No academies registered yet',
+  'empty.noAthletes': 'No athletes registered yet',
+  'empty.noMemberships': 'No memberships found',
 };

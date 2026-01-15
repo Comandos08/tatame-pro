@@ -173,6 +173,33 @@ export const ptBR = {
   'status.rejected': 'Rejeitada',
   'status.expired': 'Expirada',
   'status.cancelled': 'Cancelada',
+
+  // TenantLanding features
+  'tenant.featureAffiliation': 'Filiação de Atletas',
+  'tenant.featureAffiliationDesc': 'Cadastre-se e mantenha sua filiação em dia',
+  'tenant.featureGradings': 'Graduações',
+  'tenant.featureGradingsDesc': 'Acompanhe seu histórico de graduações',
+  'tenant.featureEvents': 'Eventos',
+  'tenant.featureEventsDesc': 'Inscreva-se em competições e seminários',
+  'tenant.verifyCard': 'Verificar Carteira',
+  'tenant.verifyDiploma': 'Verificar Diploma',
+  'tenant.joinCta': 'Faça parte da',
+  'tenant.joinCtaDesc': 'Junte-se a milhares de atletas e academias credenciadas. Mantenha suas graduações em dia e acesse benefícios exclusivos.',
+
+  // Dashboard descriptions
+  'dashboard.recentActivityDesc': 'Últimas atualizações do sistema',
+  'dashboard.quickActionsDesc': 'Acesse funções frequentes',
+  'dashboard.quickActionsHint': 'Atalhos para cadastro de atletas e aprovação de filiações.',
+
+  // Error states
+  'error.loadingFailed': 'Erro ao carregar dados',
+  'error.tryAgain': 'Tentar novamente',
+  'error.contactSupport': 'Se o problema persistir, entre em contato com o suporte.',
+
+  // Empty states
+  'empty.noAcademies': 'Nenhuma academia cadastrada ainda',
+  'empty.noAthletes': 'Nenhum atleta cadastrado ainda',
+  'empty.noMemberships': 'Nenhuma filiação encontrada',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

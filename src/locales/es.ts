@@ -175,4 +175,31 @@ export const es: Record<TranslationKey, string> = {
   'status.rejected': 'Rechazada',
   'status.expired': 'Expirada',
   'status.cancelled': 'Cancelada',
+
+  // TenantLanding features
+  'tenant.featureAffiliation': 'Afiliación de Atletas',
+  'tenant.featureAffiliationDesc': 'Regístrese y mantenga su afiliación al día',
+  'tenant.featureGradings': 'Graduaciones',
+  'tenant.featureGradingsDesc': 'Siga su historial de graduaciones',
+  'tenant.featureEvents': 'Eventos',
+  'tenant.featureEventsDesc': 'Inscríbase en competiciones y seminarios',
+  'tenant.verifyCard': 'Verificar Carnet',
+  'tenant.verifyDiploma': 'Verificar Diploma',
+  'tenant.joinCta': 'Sea parte de',
+  'tenant.joinCtaDesc': 'Únase a miles de atletas y academias acreditadas. Mantenga sus graduaciones al día y acceda a beneficios exclusivos.',
+
+  // Dashboard descriptions
+  'dashboard.recentActivityDesc': 'Últimas actualizaciones del sistema',
+  'dashboard.quickActionsDesc': 'Acceda a funciones frecuentes',
+  'dashboard.quickActionsHint': 'Atajos para registro de atletas y aprobación de afiliaciones.',
+
+  // Error states
+  'error.loadingFailed': 'Error al cargar datos',
+  'error.tryAgain': 'Intentar de nuevo',
+  'error.contactSupport': 'Si el problema persiste, contacte al soporte.',
+
+  // Empty states
+  'empty.noAcademies': 'Ninguna academia registrada aún',
+  'empty.noAthletes': 'Ningún atleta registrado aún',
+  'empty.noMemberships': 'Ninguna afiliación encontrada',
 };

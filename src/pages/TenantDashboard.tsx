@@ -239,7 +239,7 @@ export default function TenantDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
-                  <CardDescription>Últimas atualizações do sistema</CardDescription>
+                  <CardDescription>{t('dashboard.recentActivityDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border border-dashed border-border p-8 text-center">
@@ -250,11 +250,11 @@ export default function TenantDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.quickActions')}</CardTitle>
-                  <CardDescription>Acesse funções frequentes</CardDescription>
+                  <CardDescription>{t('dashboard.quickActionsDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border border-dashed border-border p-8 text-center">
-                    <p className="text-muted-foreground text-sm">Atalhos para cadastro de atletas e aprovação de filiações.</p>
+                    <p className="text-muted-foreground text-sm">{t('dashboard.quickActionsHint')}</p>
                   </div>
                 </CardContent>
               </Card>

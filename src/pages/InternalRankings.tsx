@@ -46,123 +46,134 @@ export default function InternalRankings() {
     async function fetchRankings() {
       setLoading(true);
 
-      // Fetch academies for filter
-      const { data: academiesData } = await supabase
-        .from('academies')
-        .select('id, name')
-        .eq('tenant_id', tenant.id)
-        .eq('is_active', true)
-        .order('name');
+      try {
+        // Fetch academies for filter dropdown
+        const { data: academiesData } = await supabase
+          .from('academies')
+          .select('id, name')
+          .eq('tenant_id', tenant.id)
+          .eq('is_active', true)
+          .order('name');
 
-      if (academiesData) setAcademies(academiesData);
+        if (academiesData) setAcademies(academiesData);
 
-      // Fetch academy rankings with athlete counts
-      const { data: academiesWithStats } = await supabase
-        .from('academies')
-        .select(`
-          id,
-          name,
-          city,
-          state,
-          sport_type
-        `)
-        .eq('tenant_id', tenant.id)
-        .eq('is_active', true);
+        // Fetch all active academies with their details
+        const { data: academiesWithStats } = await supabase
+          .from('academies')
+          .select('id, name, city, state, sport_type')
+          .eq('tenant_id', tenant.id)
+          .eq('is_active', true);
 
-      if (academiesWithStats) {
-        // For each academy, count athletes and diplomas
-        const rankingsWithCounts = await Promise.all(
-          academiesWithStats.map(async (academy) => {
-            const { count: athleteCount } = await supabase
-              .from('memberships')
-              .select('id', { count: 'exact', head: true })
-              .eq('tenant_id', tenant.id)
-              .eq('academy_id', academy.id)
-              .eq('status', 'ACTIVE');
+        if (academiesWithStats && academiesWithStats.length > 0) {
+          // Get all active memberships for counting
+          const { data: memberships } = await supabase
+            .from('memberships')
+            .select('academy_id')
+            .eq('tenant_id', tenant.id)
+            .eq('status', 'ACTIVE')
+            .not('academy_id', 'is', null);
 
-            const { count: diplomaCount } = await supabase
-              .from('diplomas')
-              .select('id', { count: 'exact', head: true })
-              .eq('tenant_id', tenant.id)
-              .eq('academy_id', academy.id)
-              .eq('status', 'ISSUED');
+          // Get all issued diplomas for counting
+          const { data: diplomas } = await supabase
+            .from('diplomas')
+            .select('academy_id')
+            .eq('tenant_id', tenant.id)
+            .eq('status', 'ISSUED')
+            .not('academy_id', 'is', null);
 
-            return {
-              ...academy,
-              athlete_count: athleteCount || 0,
-              diploma_count: diplomaCount || 0,
-            };
-          })
-        );
+          // Count per academy
+          const athleteCounts: Record<string, number> = {};
+          const diplomaCounts: Record<string, number> = {};
 
-        // Sort by athlete count descending
-        rankingsWithCounts.sort((a, b) => b.athlete_count - a.athlete_count);
-        setAcademyRankings(rankingsWithCounts);
-      }
-
-      // Fetch athlete rankings with grading counts
-      const { data: athletes } = await supabase
-        .from('athletes')
-        .select(`
-          id,
-          full_name,
-          current_academy_id
-        `)
-        .eq('tenant_id', tenant.id);
-
-      if (athletes) {
-        const athleteRankingsData = await Promise.all(
-          athletes.map(async (athlete) => {
-            const { count: gradingCount } = await supabase
-              .from('athlete_gradings')
-              .select('id', { count: 'exact', head: true })
-              .eq('tenant_id', tenant.id)
-              .eq('athlete_id', athlete.id);
-
-            // Get last grading level
-            const { data: lastGrading } = await supabase
-              .from('athlete_gradings')
-              .select(`
-                grading_level_id,
-                grading_levels (
-                  display_name,
-                  order_index
-                )
-              `)
-              .eq('tenant_id', tenant.id)
-              .eq('athlete_id', athlete.id)
-              .order('promotion_date', { ascending: false })
-              .limit(1)
-              .single();
-
-            // Get academy name
-            let academyName: string | null = null;
-            if (athlete.current_academy_id) {
-              const { data: academy } = await supabase
-                .from('academies')
-                .select('name')
-                .eq('id', athlete.current_academy_id)
-                .single();
-              academyName = academy?.name || null;
+          memberships?.forEach(m => {
+            if (m.academy_id) {
+              athleteCounts[m.academy_id] = (athleteCounts[m.academy_id] || 0) + 1;
             }
+          });
 
-            return {
-              id: athlete.id,
-              full_name: athlete.full_name,
-              academy_name: academyName,
-              grading_count: gradingCount || 0,
-              last_grading_level: (lastGrading?.grading_levels as any)?.display_name || null,
-              current_academy_id: athlete.current_academy_id,
-            };
-          })
-        );
+          diplomas?.forEach(d => {
+            if (d.academy_id) {
+              diplomaCounts[d.academy_id] = (diplomaCounts[d.academy_id] || 0) + 1;
+            }
+          });
 
-        // Sort by grading count descending
-        athleteRankingsData.sort((a, b) => b.grading_count - a.grading_count);
-        setAthleteRankings(athleteRankingsData);
+          // Merge counts with academies
+          const rankingsWithCounts = academiesWithStats.map(academy => ({
+            ...academy,
+            athlete_count: athleteCounts[academy.id] || 0,
+            diploma_count: diplomaCounts[academy.id] || 0,
+          }));
+
+          // Sort by athlete count descending
+          rankingsWithCounts.sort((a, b) => b.athlete_count - a.athlete_count);
+          setAcademyRankings(rankingsWithCounts);
+        }
+
+        // Fetch athletes
+        const { data: athletes } = await supabase
+          .from('athletes')
+          .select('id, full_name, current_academy_id')
+          .eq('tenant_id', tenant.id);
+
+        if (athletes && athletes.length > 0) {
+          const athleteIds = athletes.map(a => a.id);
+
+          // Get all gradings in one query
+          const { data: allGradings } = await supabase
+            .from('athlete_gradings')
+            .select(`
+              athlete_id,
+              promotion_date,
+              grading_levels!inner(display_name, order_index)
+            `)
+            .eq('tenant_id', tenant.id)
+            .in('athlete_id', athleteIds)
+            .order('promotion_date', { ascending: false });
+
+          // Get academies for athletes
+          const academyIds = [...new Set(athletes.map(a => a.current_academy_id).filter(Boolean))] as string[];
+          const { data: academiesForAthletes } = academyIds.length > 0
+            ? await supabase
+                .from('academies')
+                .select('id, name')
+                .in('id', academyIds)
+            : { data: [] };
+
+          const academyMap: Record<string, string> = {};
+          academiesForAthletes?.forEach(a => {
+            academyMap[a.id] = a.name;
+          });
+
+          // Process gradings
+          const gradingCountMap: Record<string, number> = {};
+          const lastGradingMap: Record<string, string | null> = {};
+
+          allGradings?.forEach(g => {
+            gradingCountMap[g.athlete_id] = (gradingCountMap[g.athlete_id] || 0) + 1;
+            if (!lastGradingMap[g.athlete_id]) {
+              lastGradingMap[g.athlete_id] = (g.grading_levels as any)?.display_name || null;
+            }
+          });
+
+          // Build athlete rankings
+          const athleteRankingsData = athletes.map(athlete => ({
+            id: athlete.id,
+            full_name: athlete.full_name,
+            academy_name: athlete.current_academy_id ? academyMap[athlete.current_academy_id] || null : null,
+            grading_count: gradingCountMap[athlete.id] || 0,
+            last_grading_level: lastGradingMap[athlete.id] || null,
+            current_academy_id: athlete.current_academy_id,
+          }));
+
+          // Sort by grading count descending
+          athleteRankingsData.sort((a, b) => b.grading_count - a.grading_count);
+          setAthleteRankings(athleteRankingsData);
+        }
+      } catch (error) {
+        console.error('Error fetching internal rankings:', error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     fetchRankings();
