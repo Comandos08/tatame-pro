@@ -60,9 +60,9 @@ export default function TenantLanding() {
   if (!tenant) return null;
 
   const features = [
-    { icon: Users, title: 'Filiação de Atletas', description: 'Cadastre-se e mantenha sua filiação em dia' },
-    { icon: Award, title: 'Graduações', description: 'Acompanhe seu histórico de graduações' },
-    { icon: Calendar, title: 'Eventos', description: 'Inscreva-se em competições e seminários' },
+    { icon: Users, titleKey: 'tenant.featureAffiliation' as const, descKey: 'tenant.featureAffiliationDesc' as const },
+    { icon: Award, titleKey: 'tenant.featureGradings' as const, descKey: 'tenant.featureGradingsDesc' as const },
+    { icon: Calendar, titleKey: 'tenant.featureEvents' as const, descKey: 'tenant.featureEventsDesc' as const },
   ];
 
   return (
@@ -146,7 +146,7 @@ export default function TenantLanding() {
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => (
               <motion.div
-                key={feature.title}
+                key={feature.titleKey}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
@@ -158,8 +158,8 @@ export default function TenantLanding() {
                 >
                   <feature.icon className="h-7 w-7" style={{ color: tenant.primaryColor }} />
                 </div>
-                <h3 className="font-display text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm">{feature.description}</p>
+                <h3 className="font-display text-lg font-semibold mb-2">{t(feature.titleKey)}</h3>
+                <p className="text-muted-foreground text-sm">{t(feature.descKey)}</p>
               </motion.div>
             ))}
           </div>
@@ -242,12 +242,12 @@ export default function TenantLanding() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button variant="outline" asChild>
                 <Link to={`/${tenant.slug}/verify/card`}>
-                  Verificar Carteira
+                  {t('tenant.verifyCard')}
                 </Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link to={`/${tenant.slug}/verify/diploma`}>
-                  Verificar Diploma
+                  {t('tenant.verifyDiploma')}
                 </Link>
               </Button>
             </div>
@@ -262,10 +262,10 @@ export default function TenantLanding() {
       >
         <div className="container mx-auto px-4 text-center relative z-10">
           <h2 className="font-display text-3xl font-bold text-white mb-4">
-            Faça parte da {tenant.name}
+            {t('tenant.joinCta')} {tenant.name}
           </h2>
           <p className="text-white/80 mb-8 max-w-xl mx-auto">
-            Junte-se a milhares de atletas e academias credenciadas. Mantenha suas graduações em dia e acesse benefícios exclusivos.
+            {t('tenant.joinCtaDesc')}
           </p>
           <Button size="lg" variant="secondary" className="h-12 px-8" asChild>
             <Link to={`/${tenant.slug}/membership/new`}>
