@@ -8,7 +8,14 @@ import Login from '@/pages/Login';
 import AdminDashboard from '@/pages/AdminDashboard';
 import TenantLanding from '@/pages/TenantLanding';
 import TenantDashboard from '@/pages/TenantDashboard';
+import MembershipList from '@/pages/MembershipList';
 import NotFound from '@/pages/NotFound';
+
+// Membership components
+import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
+import { AdultMembershipForm } from '@/components/membership/AdultMembershipForm';
+import { YouthMembershipForm } from '@/components/membership/YouthMembershipForm';
+import { MembershipSuccess } from '@/components/membership/MembershipSuccess';
 
 // Layouts
 import { TenantLayout } from '@/layouts/TenantLayout';
@@ -77,12 +84,26 @@ export function AppRoutes() {
         {/* Public tenant landing */}
         <Route index element={<TenantLanding />} />
         
+        {/* Public membership routes */}
+        <Route path="membership/new" element={<MembershipTypeSelector />} />
+        <Route path="membership/adult" element={<AdultMembershipForm />} />
+        <Route path="membership/youth" element={<YouthMembershipForm />} />
+        <Route path="membership/success" element={<MembershipSuccess />} />
+        
         {/* Protected tenant app */}
         <Route
           path="app"
           element={
             <ProtectedRoute>
               <TenantDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="app/memberships"
+          element={
+            <ProtectedRoute>
+              <MembershipList />
             </ProtectedRoute>
           }
         />

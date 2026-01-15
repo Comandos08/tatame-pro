@@ -14,6 +14,358 @@ export type Database = {
   }
   public: {
     Tables: {
+      athletes: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          birth_date: string
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string
+          full_name: string
+          gender: Database["public"]["Enums"]["gender_type"]
+          id: string
+          national_id: string | null
+          phone: string | null
+          postal_code: string | null
+          profile_id: string | null
+          state: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          birth_date: string
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email: string
+          full_name: string
+          gender: Database["public"]["Enums"]["gender_type"]
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          profile_id?: string | null
+          state?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          birth_date?: string
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          gender?: Database["public"]["Enums"]["gender_type"]
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          profile_id?: string | null
+          state?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athletes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      digital_cards: {
+        Row: {
+          created_at: string | null
+          id: string
+          membership_id: string
+          pdf_url: string | null
+          qr_code_data: string | null
+          qr_code_image_url: string | null
+          tenant_id: string
+          updated_at: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          membership_id: string
+          pdf_url?: string | null
+          qr_code_data?: string | null
+          qr_code_image_url?: string | null
+          tenant_id: string
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          membership_id?: string
+          pdf_url?: string | null
+          qr_code_data?: string | null
+          qr_code_image_url?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "digital_cards_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: true
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "digital_cards_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          athlete_id: string
+          created_at: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          ocr_data: Json | null
+          tenant_id: string
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          ocr_data?: Json | null
+          tenant_id: string
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          ocr_data?: Json | null
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["document_type"]
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guardian_links: {
+        Row: {
+          athlete_id: string
+          created_at: string | null
+          guardian_id: string
+          id: string
+          is_primary: boolean | null
+          relationship: Database["public"]["Enums"]["guardian_relationship"]
+          tenant_id: string
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string | null
+          guardian_id: string
+          id?: string
+          is_primary?: boolean | null
+          relationship?: Database["public"]["Enums"]["guardian_relationship"]
+          tenant_id: string
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string | null
+          guardian_id?: string
+          id?: string
+          is_primary?: boolean | null
+          relationship?: Database["public"]["Enums"]["guardian_relationship"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guardian_links_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardian_links_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardian_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guardians: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          national_id: string | null
+          phone: string | null
+          profile_id: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name: string
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          profile_id?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          profile_id?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guardians_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardians_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memberships: {
+        Row: {
+          athlete_id: string
+          created_at: string | null
+          currency: string
+          end_date: string | null
+          id: string
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          price_cents: number
+          start_date: string | null
+          status: Database["public"]["Enums"]["membership_status"]
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          tenant_id: string
+          type: Database["public"]["Enums"]["membership_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string | null
+          currency?: string
+          end_date?: string | null
+          id?: string
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          price_cents?: number
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["membership_status"]
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tenant_id: string
+          type?: Database["public"]["Enums"]["membership_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string | null
+          currency?: string
+          end_date?: string | null
+          id?: string
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          price_cents?: number
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["membership_status"]
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["membership_type"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -159,6 +511,23 @@ export type Database = {
         | "RECEPCAO"
         | "ATLETA"
         | "RESPONSAVELLEGAL"
+      document_type:
+        | "ID_DOCUMENT"
+        | "MEDICAL_CERTIFICATE"
+        | "ADDRESS_PROOF"
+        | "OTHER"
+      gender_type: "MALE" | "FEMALE" | "OTHER"
+      guardian_relationship: "PARENT" | "GUARDIAN" | "OTHER"
+      membership_status:
+        | "DRAFT"
+        | "PENDING_PAYMENT"
+        | "PENDING_REVIEW"
+        | "APPROVED"
+        | "ACTIVE"
+        | "EXPIRED"
+        | "CANCELLED"
+      membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
+      payment_status: "NOT_PAID" | "PAID" | "FAILED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -297,6 +666,25 @@ export const Constants = {
         "ATLETA",
         "RESPONSAVELLEGAL",
       ],
+      document_type: [
+        "ID_DOCUMENT",
+        "MEDICAL_CERTIFICATE",
+        "ADDRESS_PROOF",
+        "OTHER",
+      ],
+      gender_type: ["MALE", "FEMALE", "OTHER"],
+      guardian_relationship: ["PARENT", "GUARDIAN", "OTHER"],
+      membership_status: [
+        "DRAFT",
+        "PENDING_PAYMENT",
+        "PENDING_REVIEW",
+        "APPROVED",
+        "ACTIVE",
+        "EXPIRED",
+        "CANCELLED",
+      ],
+      membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
+      payment_status: ["NOT_PAID", "PAID", "FAILED"],
     },
   },
 } as const
