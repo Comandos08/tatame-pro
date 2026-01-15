@@ -93,6 +93,28 @@ serve(async (req) => {
           await handlePaymentFailed(supabase, paymentIntent);
           break;
         }
+        // Subscription events for tenant billing
+        case "customer.subscription.created":
+        case "customer.subscription.updated": {
+          const subscription = event.data.object as Stripe.Subscription;
+          await handleSubscriptionChange(supabase, subscription);
+          break;
+        }
+        case "customer.subscription.deleted": {
+          const subscription = event.data.object as Stripe.Subscription;
+          await handleSubscriptionDeleted(supabase, subscription);
+          break;
+        }
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object as Stripe.Invoice;
+          await handleInvoicePaymentSucceeded(supabase, invoice);
+          break;
+        }
+        case "invoice.payment_failed": {
+          const invoice = event.data.object as Stripe.Invoice;
+          await handleInvoicePaymentFailed(supabase, invoice);
+          break;
+        }
         default:
           logStep("Unhandled event type", { type: event.type });
       }
@@ -246,4 +268,197 @@ async function handlePaymentFailed(
     .eq("id", membershipId);
 
   logStep("Updated membership payment status to FAILED", { membershipId });
+}
+
+// Subscription event handlers for tenant billing
+async function handleSubscriptionChange(
+  supabase: SupabaseClientAny,
+  subscription: Stripe.Subscription
+) {
+  logStep("Processing subscription change", { 
+    subscriptionId: subscription.id, 
+    status: subscription.status 
+  });
+
+  const tenantId = subscription.metadata?.tenant_id;
+  const customerId = subscription.customer as string;
+
+  if (!tenantId && !customerId) {
+    logStep("No tenant_id in metadata and no customer, skipping");
+    return;
+  }
+
+  // Find tenant by stripe_customer_id if not in metadata
+  let actualTenantId = tenantId;
+  if (!actualTenantId) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+    
+    if (tenant) {
+      actualTenantId = tenant.id;
+    } else {
+      logStep("No tenant found for customer", { customerId });
+      return;
+    }
+  }
+
+  // Map Stripe status to our enum
+  const statusMap: Record<string, string> = {
+    active: "ACTIVE",
+    past_due: "PAST_DUE",
+    canceled: "CANCELED",
+    incomplete: "INCOMPLETE",
+    trialing: "TRIALING",
+    unpaid: "UNPAID",
+    incomplete_expired: "CANCELED",
+    paused: "PAST_DUE",
+  };
+
+  const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
+
+  // Upsert billing record
+  const billingData = {
+    tenant_id: actualTenantId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscription.id,
+    status: billingStatus,
+    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
+    canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+  };
+
+  const { data: existing } = await supabase
+    .from("tenant_billing")
+    .select("id")
+    .eq("tenant_id", actualTenantId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("tenant_billing")
+      .update(billingData as Record<string, unknown>)
+      .eq("id", existing.id);
+  } else {
+    await supabase.from("tenant_billing").insert({
+      ...billingData,
+      plan_name: "Plano Federação Anual",
+      plan_price_id: "price_1Spz03HH533PC5DdDUbCe7fS",
+    } as Record<string, unknown>);
+  }
+
+  // Update tenant isActive
+  const isActive = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
+  await supabase
+    .from("tenants")
+    .update({ is_active: isActive } as Record<string, unknown>)
+    .eq("id", actualTenantId);
+
+  logStep("Subscription updated", { tenantId: actualTenantId, status: billingStatus, isActive });
+}
+
+async function handleSubscriptionDeleted(
+  supabase: SupabaseClientAny,
+  subscription: Stripe.Subscription
+) {
+  logStep("Processing subscription deleted", { subscriptionId: subscription.id });
+
+  const { data: billing } = await supabase
+    .from("tenant_billing")
+    .select("id, tenant_id")
+    .eq("stripe_subscription_id", subscription.id)
+    .maybeSingle();
+
+  if (!billing) {
+    logStep("No billing record found for subscription");
+    return;
+  }
+
+  // Update billing to canceled
+  await supabase
+    .from("tenant_billing")
+    .update({
+      status: "CANCELED",
+      canceled_at: new Date().toISOString(),
+    } as Record<string, unknown>)
+    .eq("id", billing.id);
+
+  // Deactivate tenant
+  await supabase
+    .from("tenants")
+    .update({ is_active: false } as Record<string, unknown>)
+    .eq("id", billing.tenant_id);
+
+  logStep("Subscription deleted, tenant deactivated", { tenantId: billing.tenant_id });
+}
+
+async function handleInvoicePaymentSucceeded(
+  supabase: SupabaseClientAny,
+  invoice: Stripe.Invoice
+) {
+  logStep("Processing invoice.payment_succeeded", { invoiceId: invoice.id });
+
+  // Only handle subscription invoices
+  if (!invoice.subscription) {
+    logStep("Not a subscription invoice, skipping");
+    return;
+  }
+
+  const { data: billing } = await supabase
+    .from("tenant_billing")
+    .select("id, tenant_id")
+    .eq("stripe_subscription_id", invoice.subscription as string)
+    .maybeSingle();
+
+  if (!billing) {
+    logStep("No billing record found for subscription");
+    return;
+  }
+
+  // Ensure tenant is active and billing is up to date
+  await supabase
+    .from("tenant_billing")
+    .update({ status: "ACTIVE" } as Record<string, unknown>)
+    .eq("id", billing.id);
+
+  await supabase
+    .from("tenants")
+    .update({ is_active: true } as Record<string, unknown>)
+    .eq("id", billing.tenant_id);
+
+  logStep("Invoice paid, tenant activated", { tenantId: billing.tenant_id });
+}
+
+async function handleInvoicePaymentFailed(
+  supabase: SupabaseClientAny,
+  invoice: Stripe.Invoice
+) {
+  logStep("Processing invoice.payment_failed", { invoiceId: invoice.id });
+
+  if (!invoice.subscription) {
+    logStep("Not a subscription invoice, skipping");
+    return;
+  }
+
+  const { data: billing } = await supabase
+    .from("tenant_billing")
+    .select("id, tenant_id")
+    .eq("stripe_subscription_id", invoice.subscription as string)
+    .maybeSingle();
+
+  if (!billing) {
+    logStep("No billing record found for subscription");
+    return;
+  }
+
+  // Mark as past due
+  await supabase
+    .from("tenant_billing")
+    .update({ status: "PAST_DUE" } as Record<string, unknown>)
+    .eq("id", billing.id);
+
+  logStep("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id });
 }

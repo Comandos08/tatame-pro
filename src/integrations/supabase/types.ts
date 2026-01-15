@@ -999,6 +999,62 @@ export type Database = {
           },
         ]
       }
+      tenant_billing: {
+        Row: {
+          cancel_at: string | null
+          canceled_at: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_name: string
+          plan_price_id: string
+          status: Database["public"]["Enums"]["billing_status"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_name?: string
+          plan_price_id?: string
+          status?: Database["public"]["Enums"]["billing_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_at?: string | null
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_name?: string
+          plan_price_id?: string
+          status?: Database["public"]["Enums"]["billing_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_billing_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string | null
@@ -1145,6 +1201,10 @@ export type Database = {
       is_member_of_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
+      tenant_has_active_billing: {
+        Args: { _tenant_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       academy_coach_role: "HEAD_COACH" | "ASSISTANT_COACH" | "INSTRUCTOR"
@@ -1158,6 +1218,13 @@ export type Database = {
         | "RECEPCAO"
         | "ATLETA"
         | "RESPONSAVELLEGAL"
+      billing_status:
+        | "ACTIVE"
+        | "PAST_DUE"
+        | "CANCELED"
+        | "INCOMPLETE"
+        | "TRIALING"
+        | "UNPAID"
       diploma_status: "DRAFT" | "ISSUED" | "REVOKED"
       document_type:
         | "ID_DOCUMENT"
@@ -1314,6 +1381,14 @@ export const Constants = {
         "RECEPCAO",
         "ATLETA",
         "RESPONSAVELLEGAL",
+      ],
+      billing_status: [
+        "ACTIVE",
+        "PAST_DUE",
+        "CANCELED",
+        "INCOMPLETE",
+        "TRIALING",
+        "UNPAID",
       ],
       diploma_status: ["DRAFT", "ISSUED", "REVOKED"],
       document_type: [

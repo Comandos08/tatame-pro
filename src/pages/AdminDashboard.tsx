@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   Shield, Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar
+  Edit2, UserCog, Calendar, CreditCard
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { CreateTenantDialog } from '@/components/admin/CreateTenantDialog';
 import { EditTenantDialog } from '@/components/admin/EditTenantDialog';
 import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
+import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -39,7 +40,24 @@ interface Tenant {
   primary_color: string;
   is_active: boolean;
   created_at: string;
+  stripe_customer_id: string | null;
 }
+
+interface TenantBilling {
+  id: string;
+  tenant_id: string;
+  status: string;
+  current_period_end: string | null;
+}
+
+const billingStatusLabels: Record<string, { label: string; color: string }> = {
+  ACTIVE: { label: 'Ativo', color: 'text-success' },
+  TRIALING: { label: 'Trial', color: 'text-info' },
+  PAST_DUE: { label: 'Em atraso', color: 'text-warning' },
+  CANCELED: { label: 'Cancelado', color: 'text-destructive' },
+  INCOMPLETE: { label: 'Incompleto', color: 'text-muted-foreground' },
+  UNPAID: { label: 'Não pago', color: 'text-destructive' },
+};
 
 export default function AdminDashboard() {
   const { currentUser, signOut, isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
@@ -50,6 +68,7 @@ export default function AdminDashboard() {
 
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [managingAdminsTenant, setManagingAdminsTenant] = useState<Tenant | null>(null);
+  const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
 
   React.useEffect(() => {
     if (!authLoading && !isGlobalSuperadmin && currentUser) {
@@ -94,6 +113,26 @@ export default function AdminDashboard() {
         totalAthletes: athletesRes.count || 0,
         activeMemberships: membershipsRes.count || 0,
       };
+    },
+    enabled: isGlobalSuperadmin,
+  });
+
+  // Fetch billing data for all tenants
+  const { data: billingData } = useQuery({
+    queryKey: ['admin-billing'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tenant_billing')
+        .select('id, tenant_id, status, current_period_end');
+      
+      if (error) throw error;
+      
+      // Create a map by tenant_id
+      const billingMap = new Map<string, TenantBilling>();
+      (data || []).forEach((b) => {
+        billingMap.set(b.tenant_id, b as TenantBilling);
+      });
+      return billingMap;
     },
     enabled: isGlobalSuperadmin,
   });
@@ -294,7 +333,7 @@ export default function AdminDashboard() {
                         <TableHead>Organização</TableHead>
                         <TableHead>Slug</TableHead>
                         <TableHead>Modalidades</TableHead>
-                        <TableHead>Idioma</TableHead>
+                        <TableHead>Billing</TableHead>
                         <TableHead>Criado em</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -341,9 +380,31 @@ export default function AdminDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {tenant.default_locale || 'pt-BR'}
-                            </Badge>
+                            {(() => {
+                              const billing = billingData?.get(tenant.id);
+                              if (!billing) {
+                                return (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-xs"
+                                    onClick={() => setBillingTenant(tenant)}
+                                  >
+                                    <CreditCard className="h-3 w-3 mr-1" />
+                                    Configurar
+                                  </Button>
+                                );
+                              }
+                              const statusInfo = billingStatusLabels[billing.status];
+                              return (
+                                <button
+                                  onClick={() => setBillingTenant(tenant)}
+                                  className={`text-xs font-medium ${statusInfo?.color || 'text-muted-foreground'} hover:underline cursor-pointer`}
+                                >
+                                  {statusInfo?.label || billing.status}
+                                </button>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {formatDate(tenant.created_at)}
@@ -422,6 +483,15 @@ export default function AdminDashboard() {
           tenant={managingAdminsTenant}
           open={!!managingAdminsTenant}
           onOpenChange={(open) => !open && setManagingAdminsTenant(null)}
+        />
+      )}
+
+      {/* Billing dialog */}
+      {billingTenant && (
+        <TenantBillingDialog
+          tenant={billingTenant}
+          open={!!billingTenant}
+          onOpenChange={(open) => !open && setBillingTenant(null)}
         />
       )}
     </div>
