@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Shield, Zap, Users, Award, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import PublicHeader from '@/components/PublicHeader';
 
 const features = [
   {
@@ -50,24 +51,7 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-glow opacity-50" />
         
         {/* Header */}
-        <header className="relative z-10">
-          <div className="container mx-auto flex items-center justify-between py-6 px-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-                <Shield className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="font-display text-xl font-bold">IPPON</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              <Link to="/login" className="text-muted-foreground hover:text-foreground transition-colors">
-                Entrar
-              </Link>
-              <Button asChild>
-                <Link to="/login">Começar Agora</Link>
-              </Button>
-            </nav>
-          </div>
-        </header>
+        <PublicHeader />
 
         {/* Hero content */}
         <div className="relative z-10 container mx-auto px-4 py-24 lg:py-32">
