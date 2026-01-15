@@ -202,4 +202,11 @@ export const es: Record<TranslationKey, string> = {
   'empty.noAcademies': 'Ninguna academia registrada aún',
   'empty.noAthletes': 'Ningún atleta registrado aún',
   'empty.noMemberships': 'Ninguna afiliación encontrada',
+
+  // Document access
+  'document.downloading': 'Descargando documento...',
+  'document.downloadSuccess': 'Documento abierto exitosamente',
+  'document.accessDenied': 'No tienes permiso para acceder a este documento',
+  'document.loginRequired': 'Inicia sesión para acceder a este documento',
+  'document.downloadError': 'Error al descargar documento',
 };

@@ -202,4 +202,11 @@ export const en: Record<TranslationKey, string> = {
   'empty.noAcademies': 'No academies registered yet',
   'empty.noAthletes': 'No athletes registered yet',
   'empty.noMemberships': 'No memberships found',
+
+  // Document access
+  'document.downloading': 'Downloading document...',
+  'document.downloadSuccess': 'Document opened successfully',
+  'document.accessDenied': 'You do not have permission to access this document',
+  'document.loginRequired': 'Please log in to access this document',
+  'document.downloadError': 'Error downloading document',
 };
