@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import PublicHeader from '@/components/PublicHeader';
 
 interface Academy {
   id: string;
@@ -67,37 +68,7 @@ export default function TenantLanding() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-        <div className="container mx-auto flex items-center justify-between py-4 px-4">
-          <div className="flex items-center gap-3">
-            {tenant.logoUrl ? (
-              <img src={tenant.logoUrl} alt={tenant.name} className="h-10 w-10 rounded-lg object-cover" />
-            ) : (
-              <div 
-                className="h-10 w-10 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: tenant.primaryColor }}
-              >
-                <Shield className="h-6 w-6 text-white" />
-              </div>
-            )}
-            <span className="font-display text-lg font-bold">{tenant.name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild>
-              <Link to={`/${tenant.slug}/rankings`}>
-                <Trophy className="mr-2 h-4 w-4" />
-                Rankings
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link to={`/${tenant.slug}/app`}>
-                {t('nav.accessPortal')}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <PublicHeader tenant={tenant} />
 
       {/* Hero */}
       <section className="py-24 lg:py-32 relative overflow-hidden">
