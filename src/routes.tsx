@@ -1,0 +1,103 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useCurrentUser } from '@/contexts/AuthContext';
+
+// Pages
+import Landing from '@/pages/Landing';
+import Login from '@/pages/Login';
+import AdminDashboard from '@/pages/AdminDashboard';
+import TenantLanding from '@/pages/TenantLanding';
+import TenantDashboard from '@/pages/TenantDashboard';
+import NotFound from '@/pages/NotFound';
+
+// Layouts
+import { TenantLayout } from '@/layouts/TenantLayout';
+
+// Protected route wrapper
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Admin route wrapper
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isGlobalSuperadmin, isLoading, isAuthenticated } = useCurrentUser();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isGlobalSuperadmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* Admin routes */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+
+      {/* Tenant routes */}
+      <Route path="/:tenantSlug" element={<TenantLayout />}>
+        {/* Public tenant landing */}
+        <Route index element={<TenantLanding />} />
+        
+        {/* Protected tenant app */}
+        <Route
+          path="app"
+          element={
+            <ProtectedRoute>
+              <TenantDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="app/*"
+          element={
+            <ProtectedRoute>
+              <TenantDashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
+      {/* Catch-all */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
