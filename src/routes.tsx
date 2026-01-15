@@ -27,6 +27,7 @@ import Help from '@/pages/Help';
 import TenantHelp from '@/pages/TenantHelp';
 import AuditLog from '@/pages/AuditLog';
 import PublicAcademies from '@/pages/PublicAcademies';
+import PublicRankings from '@/pages/PublicRankings';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -108,6 +109,7 @@ export function AppRoutes() {
         <Route path="verify/card/:cardId" element={<VerifyCard />} />
         <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
         <Route path="academies" element={<PublicAcademies />} />
+        <Route path="rankings" element={<PublicRankings />} />
         
         {/* Public membership routes */}
         <Route path="membership/new" element={<MembershipTypeSelector />} />

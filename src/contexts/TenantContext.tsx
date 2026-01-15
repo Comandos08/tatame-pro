@@ -46,6 +46,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
             id: data.id,
             slug: data.slug,
             name: data.name,
+            description: data.description,
             logoUrl: data.logo_url,
             primaryColor: data.primary_color || '#dc2626',
             sportTypes: (data.sport_types || ['BJJ']) as Tenant['sportTypes'],

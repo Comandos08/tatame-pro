@@ -4,6 +4,7 @@ export interface Tenant {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
   logoUrl: string | null;
   primaryColor: string;
   sportTypes: SportType[];

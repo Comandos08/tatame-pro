@@ -15,6 +15,7 @@ export const ptBR = {
   'nav.myAccount': 'Minha Conta',
   'nav.logout': 'Sair',
   'nav.globalAdmin': 'Admin Global',
+  'nav.rankings': 'Rankings',
 
   // Common
   'common.loading': 'Carregando...',
@@ -33,6 +34,8 @@ export const ptBR = {
   'common.email': 'E-mail',
   'common.phone': 'Telefone',
   'common.address': 'Endereço',
+  'common.viewAll': 'Ver Todos',
+  'common.back': 'Voltar',
 
   // Theme
   'theme.light': 'Tema Claro',
@@ -72,6 +75,49 @@ export const ptBR = {
   'tenant.joinNow': 'Filie-se Agora',
   'tenant.accreditedAcademies': 'Academias Credenciadas',
   'tenant.portalDesc': 'Portal oficial para atletas, academias e professores.',
+  'tenant.sports': 'Modalidades Atendidas',
+  'tenant.verifyCredentials': 'Verificação de Credenciais',
+  'tenant.verifyDesc': 'Carteiras digitais e diplomas podem ser verificados através do QR code oficial.',
+  'tenant.howToVerify': 'Como verificar',
+  'tenant.previewAcademies': 'Academias em Destaque',
+  'tenant.seeAllAcademies': 'Ver todas as academias',
+  'tenant.searchAcademies': 'Buscar por nome ou cidade...',
+  'tenant.filterBySport': 'Filtrar por esporte',
+  'tenant.allSports': 'Todos os esportes',
+  'tenant.wantToJoin': 'Quer credenciar sua academia?',
+
+  // Rankings
+  'rankings.title': 'Rankings',
+  'rankings.academies': 'Academias',
+  'rankings.athletes': 'Atletas',
+  'rankings.topAcademies': 'Top Academias',
+  'rankings.topAthletes': 'Top Atletas',
+  'rankings.byActiveAthletes': 'Por atletas ativos',
+  'rankings.byGradings': 'Por graduações',
+  'rankings.athleteCount': 'Atletas ativos',
+  'rankings.gradingCount': 'Graduações',
+  'rankings.lastGrading': 'Última graduação',
+  'rankings.position': 'Posição',
+  'rankings.academy': 'Academia',
+  'rankings.noData': 'Sem dados de ranking disponíveis',
+  'rankings.publicNote': 'Exibindo rankings públicos. Para dados detalhados, acesse o portal.',
+
+  // Dashboard
+  'dashboard.title': 'Dashboard',
+  'dashboard.welcome': 'Olá',
+  'dashboard.welcomeDesc': 'Bem-vindo ao painel. Aqui você pode gerenciar atletas, academias e graduações.',
+  'dashboard.activeAthletes': 'Atletas Ativos',
+  'dashboard.activeMemberships': 'Filiações Ativas',
+  'dashboard.pendingMemberships': 'Filiações Pendentes',
+  'dashboard.activeAcademies': 'Academias Ativas',
+  'dashboard.diplomasIssued': 'Diplomas Emitidos',
+  'dashboard.recentActivity': 'Atividade Recente',
+  'dashboard.quickActions': 'Ações Rápidas',
+  'dashboard.membershipsByMonth': 'Filiações por Mês',
+  'dashboard.diplomasByMonth': 'Diplomas por Mês',
+  'dashboard.thisYear': 'Este ano',
+  'dashboard.lastDays': 'Últimos {days} dias',
+  'dashboard.noRecentActivity': 'Nenhuma atividade recente',
 
   // Help
   'help.title': 'Central de Ajuda',

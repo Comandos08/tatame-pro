@@ -17,6 +17,7 @@ export const es: Record<TranslationKey, string> = {
   'nav.myAccount': 'Mi Cuenta',
   'nav.logout': 'Salir',
   'nav.globalAdmin': 'Admin Global',
+  'nav.rankings': 'Rankings',
 
   // Common
   'common.loading': 'Cargando...',
@@ -35,6 +36,8 @@ export const es: Record<TranslationKey, string> = {
   'common.email': 'Correo',
   'common.phone': 'Teléfono',
   'common.address': 'Dirección',
+  'common.viewAll': 'Ver Todos',
+  'common.back': 'Volver',
 
   // Theme
   'theme.light': 'Tema Claro',
@@ -74,6 +77,49 @@ export const es: Record<TranslationKey, string> = {
   'tenant.joinNow': 'Afíliate Ahora',
   'tenant.accreditedAcademies': 'Academias Acreditadas',
   'tenant.portalDesc': 'Portal oficial para atletas, academias y entrenadores.',
+  'tenant.sports': 'Deportes Ofrecidos',
+  'tenant.verifyCredentials': 'Verificación de Credenciales',
+  'tenant.verifyDesc': 'Las tarjetas digitales y diplomas pueden verificarse a través del código QR oficial.',
+  'tenant.howToVerify': 'Cómo verificar',
+  'tenant.previewAcademies': 'Academias Destacadas',
+  'tenant.seeAllAcademies': 'Ver todas las academias',
+  'tenant.searchAcademies': 'Buscar por nombre o ciudad...',
+  'tenant.filterBySport': 'Filtrar por deporte',
+  'tenant.allSports': 'Todos los deportes',
+  'tenant.wantToJoin': '¿Quieres acreditar tu academia?',
+
+  // Rankings
+  'rankings.title': 'Rankings',
+  'rankings.academies': 'Academias',
+  'rankings.athletes': 'Atletas',
+  'rankings.topAcademies': 'Top Academias',
+  'rankings.topAthletes': 'Top Atletas',
+  'rankings.byActiveAthletes': 'Por atletas activos',
+  'rankings.byGradings': 'Por graduaciones',
+  'rankings.athleteCount': 'Atletas activos',
+  'rankings.gradingCount': 'Graduaciones',
+  'rankings.lastGrading': 'Última graduación',
+  'rankings.position': 'Posición',
+  'rankings.academy': 'Academia',
+  'rankings.noData': 'Sin datos de ranking disponibles',
+  'rankings.publicNote': 'Mostrando rankings públicos. Para datos detallados, acceda al portal.',
+
+  // Dashboard
+  'dashboard.title': 'Panel',
+  'dashboard.welcome': 'Hola',
+  'dashboard.welcomeDesc': 'Bienvenido al panel. Aquí puede gestionar atletas, academias y graduaciones.',
+  'dashboard.activeAthletes': 'Atletas Activos',
+  'dashboard.activeMemberships': 'Afiliaciones Activas',
+  'dashboard.pendingMemberships': 'Afiliaciones Pendientes',
+  'dashboard.activeAcademies': 'Academias Activas',
+  'dashboard.diplomasIssued': 'Diplomas Emitidos',
+  'dashboard.recentActivity': 'Actividad Reciente',
+  'dashboard.quickActions': 'Acciones Rápidas',
+  'dashboard.membershipsByMonth': 'Afiliaciones por Mes',
+  'dashboard.diplomasByMonth': 'Diplomas por Mes',
+  'dashboard.thisYear': 'Este año',
+  'dashboard.lastDays': 'Últimos {days} días',
+  'dashboard.noRecentActivity': 'Sin actividad reciente',
 
   // Help
   'help.title': 'Centro de Ayuda',
