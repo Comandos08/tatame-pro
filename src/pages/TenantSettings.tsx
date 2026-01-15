@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Palette, Globe, Building2, Loader2, Check } from 'lucide-react';
+import { Settings, Palette, Globe, Building2, Loader2, Check, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,12 @@ export default function TenantSettings() {
   const [description, setDescription] = useState('');
   const [defaultLocale, setDefaultLocale] = useState<string>('pt-BR');
   const [primaryColor, setPrimaryColor] = useState('#dc2626');
+  const [billingEmail, setBillingEmail] = useState('');
 
   useEffect(() => {
     if (tenant) {
       setDescription(tenant.description || '');
       setPrimaryColor(tenant.primaryColor || '#dc2626');
-      // Fetch default_locale from database since it might not be in context
       fetchTenantDetails();
     }
   }, [tenant?.id]);
@@ -39,12 +39,13 @@ export default function TenantSettings() {
     
     const { data } = await supabase
       .from('tenants')
-      .select('default_locale')
+      .select('default_locale, billing_email')
       .eq('id', tenant.id)
       .single();
     
     if (data) {
       setDefaultLocale(data.default_locale || 'pt-BR');
+      setBillingEmail(data.billing_email || '');
     }
     setLoading(false);
   }
@@ -60,6 +61,7 @@ export default function TenantSettings() {
           description,
           default_locale: defaultLocale,
           primary_color: primaryColor,
+          billing_email: billingEmail || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', tenant.id);
@@ -164,7 +166,34 @@ export default function TenantSettings() {
               </CardContent>
             </Card>
 
-            {/* Language Settings */}
+            {/* Billing Email */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  E-mail de Faturamento
+                </CardTitle>
+                <CardDescription>
+                  E-mail para receber notificações de cobrança e faturas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="billingEmail">E-mail</Label>
+                  <Input
+                    id="billingEmail"
+                    type="email"
+                    value={billingEmail}
+                    onChange={(e) => setBillingEmail(e.target.value)}
+                    placeholder="financeiro@suaorganizacao.com"
+                    className="max-w-md"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Se não preenchido, os e-mails serão enviados para os administradores do tenant.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
