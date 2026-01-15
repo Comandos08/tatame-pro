@@ -28,6 +28,8 @@ import TenantHelp from '@/pages/TenantHelp';
 import AuditLog from '@/pages/AuditLog';
 import PublicAcademies from '@/pages/PublicAcademies';
 import PublicRankings from '@/pages/PublicRankings';
+import InternalRankings from '@/pages/InternalRankings';
+import TenantSettings from '@/pages/TenantSettings';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -129,6 +131,8 @@ export function AppRoutes() {
         <Route path="app/grading-schemes/:schemeId/levels" element={<ProtectedRoute><GradingLevelsList /></ProtectedRoute>} />
         <Route path="app/athletes" element={<ProtectedRoute><AthletesList /></ProtectedRoute>} />
         <Route path="app/athletes/:athleteId/gradings" element={<ProtectedRoute><AthleteGradingsPage /></ProtectedRoute>} />
+        <Route path="app/rankings" element={<ProtectedRoute><InternalRankings /></ProtectedRoute>} />
+        <Route path="app/settings" element={<ProtectedRoute><TenantSettings /></ProtectedRoute>} />
         <Route path="app/help" element={<ProtectedRoute><TenantHelp /></ProtectedRoute>} />
         <Route path="app/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />

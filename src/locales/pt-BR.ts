@@ -118,6 +118,38 @@ export const ptBR = {
   'dashboard.thisYear': 'Este ano',
   'dashboard.lastDays': 'Últimos {days} dias',
   'dashboard.noRecentActivity': 'Nenhuma atividade recente',
+  'dashboard.last12Months': 'Últimos 12 meses',
+  'dashboard.count': 'Quantidade',
+  'dashboard.month': 'Mês',
+
+  // Rankings Internal
+  'rankings.internal': 'Rankings Internos',
+  'rankings.internalDesc': 'Visão completa de rankings para administradores',
+  'rankings.fullName': 'Nome Completo',
+  'rankings.city': 'Cidade',
+  'rankings.state': 'Estado',
+  'rankings.sport': 'Esporte',
+  'rankings.diplomasIssued': 'Diplomas Emitidos',
+  'rankings.currentAcademy': 'Academia Atual',
+  'rankings.filterByAcademy': 'Filtrar por academia',
+  'rankings.filterBySport': 'Filtrar por esporte',
+  'rankings.allAcademies': 'Todas as academias',
+  'rankings.minAthletes': 'Mínimo de atletas',
+
+  // Settings
+  'settings.title': 'Configurações',
+  'settings.general': 'Informações Gerais',
+  'settings.generalDesc': 'Configurações básicas da organização',
+  'settings.branding': 'Identidade Visual',
+  'settings.brandingDesc': 'Personalize as cores do portal',
+  'settings.language': 'Idioma Padrão',
+  'settings.languageDesc': 'Idioma padrão do portal para novos usuários',
+  'settings.description': 'Descrição',
+  'settings.descriptionPlaceholder': 'Descreva sua organização...',
+  'settings.primaryColor': 'Cor Primária',
+  'settings.saveSuccess': 'Configurações salvas com sucesso!',
+  'settings.saveError': 'Erro ao salvar configurações',
+  'settings.organizationName': 'Nome da Organização',
 
   // Help
   'help.title': 'Central de Ajuda',

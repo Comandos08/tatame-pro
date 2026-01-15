@@ -120,6 +120,38 @@ export const en: Record<TranslationKey, string> = {
   'dashboard.thisYear': 'This year',
   'dashboard.lastDays': 'Last {days} days',
   'dashboard.noRecentActivity': 'No recent activity',
+  'dashboard.last12Months': 'Last 12 months',
+  'dashboard.count': 'Count',
+  'dashboard.month': 'Month',
+
+  // Rankings Internal
+  'rankings.internal': 'Internal Rankings',
+  'rankings.internalDesc': 'Complete ranking view for administrators',
+  'rankings.fullName': 'Full Name',
+  'rankings.city': 'City',
+  'rankings.state': 'State',
+  'rankings.sport': 'Sport',
+  'rankings.diplomasIssued': 'Diplomas Issued',
+  'rankings.currentAcademy': 'Current Academy',
+  'rankings.filterByAcademy': 'Filter by academy',
+  'rankings.filterBySport': 'Filter by sport',
+  'rankings.allAcademies': 'All academies',
+  'rankings.minAthletes': 'Minimum athletes',
+
+  // Settings
+  'settings.title': 'Settings',
+  'settings.general': 'General Information',
+  'settings.generalDesc': 'Basic organization settings',
+  'settings.branding': 'Branding',
+  'settings.brandingDesc': 'Customize portal colors',
+  'settings.language': 'Default Language',
+  'settings.languageDesc': 'Default portal language for new users',
+  'settings.description': 'Description',
+  'settings.descriptionPlaceholder': 'Describe your organization...',
+  'settings.primaryColor': 'Primary Color',
+  'settings.saveSuccess': 'Settings saved successfully!',
+  'settings.saveError': 'Error saving settings',
+  'settings.organizationName': 'Organization Name',
 
   // Help
   'help.title': 'Help Center',
