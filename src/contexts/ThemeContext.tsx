@@ -26,13 +26,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = window.document.documentElement;
     
     const applyTheme = (isDark: boolean) => {
+      // Add transitioning class for smooth animation
+      root.classList.add('theme-transitioning');
+      
       if (isDark) {
+        root.classList.remove('light');
         root.classList.add('dark');
         setResolvedTheme('dark');
       } else {
         root.classList.remove('dark');
+        root.classList.add('light');
         setResolvedTheme('light');
       }
+      
+      // Remove transitioning class after animation completes
+      setTimeout(() => {
+        root.classList.remove('theme-transitioning');
+      }, 300);
     };
 
     if (theme === 'system') {
