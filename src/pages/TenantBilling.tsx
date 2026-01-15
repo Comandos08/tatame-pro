@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CreditCard, ExternalLink, FileText, Loader2 } from 'lucide-react';
 import { AppShell } from '@/layouts/AppShell';
@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,9 +23,12 @@ interface TenantInvoice {
   created_at: string;
 }
 
+type StatusFilter = 'all' | 'open' | 'paid';
+
 export default function TenantBilling() {
   const { tenant } = useTenant();
   const { t, locale } = useI18n();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     paid: { label: t('billing.filterPaid'), variant: 'default' },
@@ -50,6 +54,14 @@ export default function TenantBilling() {
     },
     enabled: !!tenant?.id,
   });
+
+  const filteredInvoices = useMemo(() => {
+    if (!invoices) return [];
+    if (statusFilter === 'all') return invoices;
+    if (statusFilter === 'open') return invoices.filter(inv => ['open', 'draft'].includes(inv.status));
+    if (statusFilter === 'paid') return invoices.filter(inv => inv.status === 'paid');
+    return invoices;
+  }, [invoices, statusFilter]);
 
   const formatCurrency = (cents: number, currency: string) => {
     const localeMap: Record<string, string> = {
@@ -92,20 +104,31 @@ export default function TenantBilling() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {t('billing.invoiceHistory')}
-            </CardTitle>
-            <CardDescription>
-              {t('billing.invoiceHistory')}
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {t('billing.invoiceHistory')}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {t('billing.invoiceHistory')}
+                </CardDescription>
+              </div>
+              <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <TabsList>
+                  <TabsTrigger value="all">{t('billing.filterAll')}</TabsTrigger>
+                  <TabsTrigger value="open">{t('billing.filterOpen')}</TabsTrigger>
+                  <TabsTrigger value="paid">{t('billing.filterPaid')}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : invoices && invoices.length > 0 ? (
+            ) : filteredInvoices && filteredInvoices.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -117,7 +140,7 @@ export default function TenantBilling() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((invoice) => {
+                  {filteredInvoices.map((invoice) => {
                     const status = statusConfig[invoice.status] || { label: invoice.status, variant: 'outline' as const };
                     return (
                       <TableRow key={invoice.id}>

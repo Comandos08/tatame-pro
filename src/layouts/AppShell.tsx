@@ -17,7 +17,8 @@ import {
   Globe,
   FileText,
   CheckCircle,
-  Trophy
+  Trophy,
+  CreditCard
 } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -70,6 +71,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings },
     { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy },
     { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText },
+    { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard },
     { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings },
   ];
 
