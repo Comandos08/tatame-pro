@@ -17,6 +17,7 @@ export const en: Record<TranslationKey, string> = {
   'nav.myAccount': 'My Account',
   'nav.logout': 'Logout',
   'nav.globalAdmin': 'Global Admin',
+  'nav.rankings': 'Rankings',
 
   // Common
   'common.loading': 'Loading...',
@@ -35,6 +36,8 @@ export const en: Record<TranslationKey, string> = {
   'common.email': 'Email',
   'common.phone': 'Phone',
   'common.address': 'Address',
+  'common.viewAll': 'View All',
+  'common.back': 'Back',
 
   // Theme
   'theme.light': 'Light Theme',
@@ -74,6 +77,49 @@ export const en: Record<TranslationKey, string> = {
   'tenant.joinNow': 'Join Now',
   'tenant.accreditedAcademies': 'Accredited Academies',
   'tenant.portalDesc': 'Official portal for athletes, academies and coaches.',
+  'tenant.sports': 'Sports Offered',
+  'tenant.verifyCredentials': 'Credential Verification',
+  'tenant.verifyDesc': 'Digital cards and diplomas can be verified through the official QR code.',
+  'tenant.howToVerify': 'How to verify',
+  'tenant.previewAcademies': 'Featured Academies',
+  'tenant.seeAllAcademies': 'See all academies',
+  'tenant.searchAcademies': 'Search by name or city...',
+  'tenant.filterBySport': 'Filter by sport',
+  'tenant.allSports': 'All sports',
+  'tenant.wantToJoin': 'Want to accredit your academy?',
+
+  // Rankings
+  'rankings.title': 'Rankings',
+  'rankings.academies': 'Academies',
+  'rankings.athletes': 'Athletes',
+  'rankings.topAcademies': 'Top Academies',
+  'rankings.topAthletes': 'Top Athletes',
+  'rankings.byActiveAthletes': 'By active athletes',
+  'rankings.byGradings': 'By gradings',
+  'rankings.athleteCount': 'Active athletes',
+  'rankings.gradingCount': 'Gradings',
+  'rankings.lastGrading': 'Last grading',
+  'rankings.position': 'Position',
+  'rankings.academy': 'Academy',
+  'rankings.noData': 'No ranking data available',
+  'rankings.publicNote': 'Showing public rankings. For detailed data, access the portal.',
+
+  // Dashboard
+  'dashboard.title': 'Dashboard',
+  'dashboard.welcome': 'Hello',
+  'dashboard.welcomeDesc': 'Welcome to the panel. Here you can manage athletes, academies and gradings.',
+  'dashboard.activeAthletes': 'Active Athletes',
+  'dashboard.activeMemberships': 'Active Memberships',
+  'dashboard.pendingMemberships': 'Pending Memberships',
+  'dashboard.activeAcademies': 'Active Academies',
+  'dashboard.diplomasIssued': 'Diplomas Issued',
+  'dashboard.recentActivity': 'Recent Activity',
+  'dashboard.quickActions': 'Quick Actions',
+  'dashboard.membershipsByMonth': 'Memberships by Month',
+  'dashboard.diplomasByMonth': 'Diplomas by Month',
+  'dashboard.thisYear': 'This year',
+  'dashboard.lastDays': 'Last {days} days',
+  'dashboard.noRecentActivity': 'No recent activity',
 
   // Help
   'help.title': 'Help Center',
