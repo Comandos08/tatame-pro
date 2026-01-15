@@ -137,6 +137,91 @@ export type Database = {
           },
         ]
       }
+      athlete_gradings: {
+        Row: {
+          academy_id: string | null
+          athlete_id: string
+          coach_id: string | null
+          created_at: string | null
+          diploma_id: string | null
+          grading_level_id: string
+          id: string
+          notes: string | null
+          promotion_date: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          academy_id?: string | null
+          athlete_id: string
+          coach_id?: string | null
+          created_at?: string | null
+          diploma_id?: string | null
+          grading_level_id: string
+          id?: string
+          notes?: string | null
+          promotion_date?: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          academy_id?: string | null
+          athlete_id?: string
+          coach_id?: string | null
+          created_at?: string | null
+          diploma_id?: string | null
+          grading_level_id?: string
+          id?: string
+          notes?: string | null
+          promotion_date?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athlete_gradings_academy_id_fkey"
+            columns: ["academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_diploma_id_fkey"
+            columns: ["diploma_id"]
+            isOneToOne: false
+            referencedRelation: "diplomas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_grading_level_id_fkey"
+            columns: ["grading_level_id"]
+            isOneToOne: false
+            referencedRelation: "grading_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athletes: {
         Row: {
           address_line1: string | null
@@ -314,6 +399,102 @@ export type Database = {
           },
         ]
       }
+      diplomas: {
+        Row: {
+          academy_id: string | null
+          athlete_id: string
+          coach_id: string | null
+          created_at: string | null
+          grading_level_id: string
+          id: string
+          issued_at: string | null
+          pdf_url: string | null
+          promotion_date: string
+          qr_code_data: string | null
+          qr_code_image_url: string | null
+          revoked_at: string | null
+          revoked_reason: string | null
+          serial_number: string
+          status: Database["public"]["Enums"]["diploma_status"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          academy_id?: string | null
+          athlete_id: string
+          coach_id?: string | null
+          created_at?: string | null
+          grading_level_id: string
+          id?: string
+          issued_at?: string | null
+          pdf_url?: string | null
+          promotion_date: string
+          qr_code_data?: string | null
+          qr_code_image_url?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          serial_number: string
+          status?: Database["public"]["Enums"]["diploma_status"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          academy_id?: string | null
+          athlete_id?: string
+          coach_id?: string | null
+          created_at?: string | null
+          grading_level_id?: string
+          id?: string
+          issued_at?: string | null
+          pdf_url?: string | null
+          promotion_date?: string
+          qr_code_data?: string | null
+          qr_code_image_url?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          serial_number?: string
+          status?: Database["public"]["Enums"]["diploma_status"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diplomas_academy_id_fkey"
+            columns: ["academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diplomas_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diplomas_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diplomas_grading_level_id_fkey"
+            columns: ["grading_level_id"]
+            isOneToOne: false
+            referencedRelation: "grading_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diplomas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           athlete_id: string
@@ -364,6 +545,104 @@ export type Database = {
           },
           {
             foreignKeyName: "documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_levels: {
+        Row: {
+          code: string
+          created_at: string | null
+          display_name: string
+          grading_scheme_id: string
+          id: string
+          is_active: boolean | null
+          min_age: number | null
+          min_time_months: number | null
+          order_index: number
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          display_name: string
+          grading_scheme_id: string
+          id?: string
+          is_active?: boolean | null
+          min_age?: number | null
+          min_time_months?: number | null
+          order_index?: number
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          display_name?: string
+          grading_scheme_id?: string
+          id?: string
+          is_active?: boolean | null
+          min_age?: number | null
+          min_time_months?: number | null
+          order_index?: number
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_levels_grading_scheme_id_fkey"
+            columns: ["grading_scheme_id"]
+            isOneToOne: false
+            referencedRelation: "grading_schemes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grading_levels_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_schemes: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          sport_type: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          sport_type: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          sport_type?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_schemes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -701,6 +980,10 @@ export type Database = {
         Args: { _membership_id: string }
         Returns: boolean
       }
+      get_next_diploma_serial: {
+        Args: { p_sport_type: string; p_tenant_id: string }
+        Returns: string
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -730,6 +1013,7 @@ export type Database = {
         | "RECEPCAO"
         | "ATLETA"
         | "RESPONSAVELLEGAL"
+      diploma_status: "DRAFT" | "ISSUED" | "REVOKED"
       document_type:
         | "ID_DOCUMENT"
         | "MEDICAL_CERTIFICATE"
@@ -886,6 +1170,7 @@ export const Constants = {
         "ATLETA",
         "RESPONSAVELLEGAL",
       ],
+      diploma_status: ["DRAFT", "ISSUED", "REVOKED"],
       document_type: [
         "ID_DOCUMENT",
         "MEDICAL_CERTIFICATE",

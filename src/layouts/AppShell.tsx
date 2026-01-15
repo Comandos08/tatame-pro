@@ -53,6 +53,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: 'Minhas Filiações', href: `/${tenantSlug}/app/memberships`, icon: Users },
     { name: 'Academias', href: `/${tenantSlug}/app/academies`, icon: Building2 },
     { name: 'Coaches', href: `/${tenantSlug}/app/coaches`, icon: Award },
+    { name: 'Graduações', href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
     { name: 'Aprovações', href: `/${tenantSlug}/app/approvals`, icon: Settings },
   ];
 
