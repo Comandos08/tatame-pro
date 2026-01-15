@@ -17,6 +17,7 @@ import ApprovalDetails from '@/pages/ApprovalDetails';
 import GradingSchemesList from '@/pages/GradingSchemesList';
 import GradingLevelsList from '@/pages/GradingLevelsList';
 import AthleteGradingsPage from '@/pages/AthleteGradingsPage';
+import AthletesList from '@/pages/AthletesList';
 import NotFound from '@/pages/NotFound';
 
 // Membership components
@@ -108,6 +109,7 @@ export function AppRoutes() {
         <Route path="app/approvals/:membershipId" element={<ProtectedRoute><ApprovalDetails /></ProtectedRoute>} />
         <Route path="app/grading-schemes" element={<ProtectedRoute><GradingSchemesList /></ProtectedRoute>} />
         <Route path="app/grading-schemes/:schemeId/levels" element={<ProtectedRoute><GradingLevelsList /></ProtectedRoute>} />
+        <Route path="app/athletes" element={<ProtectedRoute><AthletesList /></ProtectedRoute>} />
         <Route path="app/athletes/:athleteId/gradings" element={<ProtectedRoute><AthleteGradingsPage /></ProtectedRoute>} />
         <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
       </Route>

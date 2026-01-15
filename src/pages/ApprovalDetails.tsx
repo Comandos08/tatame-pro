@@ -15,7 +15,8 @@ import {
   CreditCard,
   Clock,
   Building2,
-  QrCode
+  QrCode,
+  UserCheck
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -29,6 +30,13 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -52,6 +60,8 @@ interface MembershipDetails {
   created_at: string;
   review_notes: string | null;
   reviewed_at: string | null;
+  academy_id: string | null;
+  preferred_coach_id: string | null;
   athlete: {
     id: string;
     full_name: string;
@@ -67,6 +77,10 @@ interface MembershipDetails {
     id: string;
     name: string;
   } | null;
+  coach: {
+    id: string;
+    full_name: string;
+  } | null;
   digital_cards: {
     id: string;
     qr_code_image_url: string;
@@ -80,6 +94,16 @@ interface Document {
   file_url: string;
   file_type: string | null;
   created_at: string;
+}
+
+interface Academy {
+  id: string;
+  name: string;
+}
+
+interface Coach {
+  id: string;
+  full_name: string;
 }
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
@@ -99,6 +123,8 @@ export default function ApprovalDetails() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [selectedAcademyId, setSelectedAcademyId] = useState<string>('');
+  const [selectedCoachId, setSelectedCoachId] = useState<string>('');
 
   const canApprove = isGlobalSuperadmin || 
     (tenant && (
@@ -126,15 +152,29 @@ export default function ApprovalDetails() {
           created_at,
           review_notes,
           reviewed_at,
+          academy_id,
+          preferred_coach_id,
           athlete:athletes(id, full_name, email, phone, birth_date, gender, national_id, city, state),
-          academy:academies(id, name),
+          academy:academies!academy_id(id, name),
+          coach:coaches!preferred_coach_id(id, full_name),
           digital_cards(id, qr_code_image_url, pdf_url)
         `)
         .eq('id', membershipId)
         .maybeSingle();
 
       if (error) throw error;
-      return data as unknown as MembershipDetails;
+      
+      const result = data as unknown as MembershipDetails;
+      
+      // Initialize selections from existing data
+      if (result?.academy_id) {
+        setSelectedAcademyId(result.academy_id);
+      }
+      if (result?.preferred_coach_id) {
+        setSelectedCoachId(result.preferred_coach_id);
+      }
+      
+      return result;
     },
     enabled: !!membershipId,
   });
@@ -156,15 +196,47 @@ export default function ApprovalDetails() {
     enabled: !!membership?.athlete?.id,
   });
 
+  // Fetch academies
+  const { data: academies } = useQuery({
+    queryKey: ['academies-for-approval', tenant?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('academies')
+        .select('id, name')
+        .eq('tenant_id', tenant!.id)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data as Academy[];
+    },
+    enabled: !!tenant?.id,
+  });
+
+  // Fetch coaches
+  const { data: coaches } = useQuery({
+    queryKey: ['coaches-for-approval', tenant?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('coaches')
+        .select('id, full_name')
+        .eq('tenant_id', tenant!.id)
+        .eq('is_active', true)
+        .order('full_name');
+      if (error) throw error;
+      return data as Coach[];
+    },
+    enabled: !!tenant?.id,
+  });
+
   const approveMutation = useMutation({
     mutationFn: async () => {
-      if (!membershipId || !currentUser) throw new Error('Missing data');
+      if (!membershipId || !currentUser || !membership) throw new Error('Missing data');
 
       const now = new Date();
       const startDate = now.toISOString().split('T')[0];
       const endDate = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
 
-      // Update membership
+      // Update membership with academy and coach
       const { error: updateError } = await supabase
         .from('memberships')
         .update({
@@ -174,10 +246,28 @@ export default function ApprovalDetails() {
           review_notes: reviewNotes || null,
           reviewed_by_profile_id: currentUser.id,
           reviewed_at: new Date().toISOString(),
+          academy_id: selectedAcademyId || null,
+          preferred_coach_id: selectedCoachId || null,
         })
         .eq('id', membershipId);
 
       if (updateError) throw updateError;
+
+      // Update athlete's current academy and coach if this is their first/active membership
+      if (membership.athlete?.id && (selectedAcademyId || selectedCoachId)) {
+        const athleteUpdate: Record<string, string | null> = {};
+        if (selectedAcademyId) {
+          athleteUpdate.current_academy_id = selectedAcademyId;
+        }
+        if (selectedCoachId) {
+          athleteUpdate.current_main_coach_id = selectedCoachId;
+        }
+        
+        await supabase
+          .from('athletes')
+          .update(athleteUpdate)
+          .eq('id', membership.athlete.id);
+      }
 
       // Check if digital card already exists
       const { data: existingCard } = await supabase
@@ -194,13 +284,13 @@ export default function ApprovalDetails() {
           });
         } catch (cardError) {
           console.error('Error generating digital card:', cardError);
-          // Don't fail the approval, just log
         }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['athletes-list'] });
       setIsApproveDialogOpen(false);
       toast.success('Filiação aprovada com sucesso!');
       navigate(`/${tenantSlug}/app/approvals`);
@@ -544,12 +634,51 @@ export default function ApprovalDetails() {
               >
                 <Card>
                   <CardHeader>
-                    <CardTitle>Decisão</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserCheck className="h-5 w-5" />
+                      Decisão e Vínculo
+                    </CardTitle>
                     <CardDescription>
-                      Revise os dados e documentos antes de tomar uma decisão
+                      Defina a academia e coach do atleta antes de aprovar
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Academy and Coach Selection */}
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="academy">Academia do Atleta</Label>
+                        <Select value={selectedAcademyId} onValueChange={setSelectedAcademyId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a academia" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {academies?.map((academy) => (
+                              <SelectItem key={academy.id} value={academy.id}>
+                                {academy.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="coach">Coach Responsável</Label>
+                        <Select value={selectedCoachId} onValueChange={setSelectedCoachId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o coach" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {coaches?.map((coach) => (
+                              <SelectItem key={coach.id} value={coach.id}>
+                                {coach.full_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
                     <div className="space-y-2">
                       <Label htmlFor="notes">Observações (opcional)</Label>
                       <Textarea
@@ -591,7 +720,16 @@ export default function ApprovalDetails() {
               <DialogTitle>Confirmar Aprovação</DialogTitle>
               <DialogDescription>
                 Você está prestes a aprovar a filiação de {membership?.athlete?.full_name}.
-                A carteira digital será gerada automaticamente.
+                {selectedAcademyId && academies && (
+                  <span className="block mt-2">
+                    <strong>Academia:</strong> {academies.find(a => a.id === selectedAcademyId)?.name}
+                  </span>
+                )}
+                {selectedCoachId && coaches && (
+                  <span className="block">
+                    <strong>Coach:</strong> {coaches.find(c => c.id === selectedCoachId)?.full_name}
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
