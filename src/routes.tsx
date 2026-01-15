@@ -10,6 +10,10 @@ import TenantLanding from '@/pages/TenantLanding';
 import TenantDashboard from '@/pages/TenantDashboard';
 import MembershipList from '@/pages/MembershipList';
 import MembershipDetails from '@/pages/MembershipDetails';
+import AcademiesList from '@/pages/AcademiesList';
+import CoachesList from '@/pages/CoachesList';
+import ApprovalsList from '@/pages/ApprovalsList';
+import ApprovalDetails from '@/pages/ApprovalDetails';
 import NotFound from '@/pages/NotFound';
 
 // Membership components
@@ -92,38 +96,14 @@ export function AppRoutes() {
         <Route path="membership/success" element={<MembershipSuccess />} />
         
         {/* Protected tenant app */}
-        <Route
-          path="app"
-          element={
-            <ProtectedRoute>
-              <TenantDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="app/memberships"
-          element={
-            <ProtectedRoute>
-              <MembershipList />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="app/memberships/:membershipId"
-          element={
-            <ProtectedRoute>
-              <MembershipDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="app/*"
-          element={
-            <ProtectedRoute>
-              <TenantDashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="app" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
+        <Route path="app/memberships" element={<ProtectedRoute><MembershipList /></ProtectedRoute>} />
+        <Route path="app/memberships/:membershipId" element={<ProtectedRoute><MembershipDetails /></ProtectedRoute>} />
+        <Route path="app/academies" element={<ProtectedRoute><AcademiesList /></ProtectedRoute>} />
+        <Route path="app/coaches" element={<ProtectedRoute><CoachesList /></ProtectedRoute>} />
+        <Route path="app/approvals" element={<ProtectedRoute><ApprovalsList /></ProtectedRoute>} />
+        <Route path="app/approvals/:membershipId" element={<ProtectedRoute><ApprovalDetails /></ProtectedRoute>} />
+        <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
       </Route>
 
       {/* Catch-all */}
