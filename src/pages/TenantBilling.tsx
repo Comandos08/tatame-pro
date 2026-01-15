@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface TenantInvoice {
@@ -21,16 +22,17 @@ interface TenantInvoice {
   created_at: string;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  paid: { label: 'Pago', variant: 'default' },
-  open: { label: 'Aberto', variant: 'secondary' },
-  draft: { label: 'Rascunho', variant: 'outline' },
-  void: { label: 'Cancelado', variant: 'destructive' },
-  uncollectible: { label: 'Não cobrável', variant: 'destructive' },
-};
-
 export default function TenantBilling() {
   const { tenant } = useTenant();
+  const { t, locale } = useI18n();
+
+  const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    paid: { label: t('billing.filterPaid'), variant: 'default' },
+    open: { label: t('billing.filterOpen'), variant: 'secondary' },
+    draft: { label: 'Draft', variant: 'outline' },
+    void: { label: t('status.cancelled'), variant: 'destructive' },
+    uncollectible: { label: 'Uncollectible', variant: 'destructive' },
+  };
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['tenant-invoices', tenant?.id],
@@ -50,7 +52,12 @@ export default function TenantBilling() {
   });
 
   const formatCurrency = (cents: number, currency: string) => {
-    return new Intl.NumberFormat('pt-BR', {
+    const localeMap: Record<string, string> = {
+      'pt-BR': 'pt-BR',
+      'en': 'en-US',
+      'es': 'es-ES',
+    };
+    return new Intl.NumberFormat(localeMap[locale] || 'pt-BR', {
       style: 'currency',
       currency: currency.toUpperCase(),
     }).format(cents / 100);
@@ -58,7 +65,12 @@ export default function TenantBilling() {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    const localeMap: Record<string, string> = {
+      'pt-BR': 'pt-BR',
+      'en': 'en-US',
+      'es': 'es-ES',
+    };
+    return new Date(dateString).toLocaleDateString(localeMap[locale] || 'pt-BR', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -71,10 +83,10 @@ export default function TenantBilling() {
         <div>
           <h1 className="font-display text-3xl font-bold mb-2 flex items-center gap-3">
             <CreditCard className="h-8 w-8" />
-            Faturamento
+            {t('billing.title')}
           </h1>
           <p className="text-muted-foreground">
-            Histórico de faturas e pagamentos da sua organização.
+            {t('billing.invoiceHistory')}
           </p>
         </div>
 
@@ -82,10 +94,10 @@ export default function TenantBilling() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Histórico de Faturas
+              {t('billing.invoiceHistory')}
             </CardTitle>
             <CardDescription>
-              Todas as faturas emitidas para sua organização
+              {t('billing.invoiceHistory')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -97,11 +109,11 @@ export default function TenantBilling() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pago em</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead>{t('billing.date')}</TableHead>
+                    <TableHead>{t('billing.amount')}</TableHead>
+                    <TableHead>{t('billing.status')}</TableHead>
+                    <TableHead>{t('billing.filterPaid')}</TableHead>
+                    <TableHead className="text-right">{t('billing.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -125,7 +137,7 @@ export default function TenantBilling() {
                               onClick={() => window.open(invoice.hosted_invoice_url!, '_blank')}
                             >
                               <ExternalLink className="h-4 w-4 mr-1" />
-                              Ver
+                              {t('billing.viewInStripe')}
                             </Button>
                           )}
                         </TableCell>
@@ -137,7 +149,7 @@ export default function TenantBilling() {
             ) : (
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Nenhuma fatura encontrada</p>
+                <p className="text-muted-foreground">{t('billing.noInvoices')}</p>
               </div>
             )}
           </CardContent>
