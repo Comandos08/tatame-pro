@@ -860,6 +860,7 @@ export type Database = {
           payment_status: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id: string | null
           price_cents: number
+          renewal_reminder_sent: boolean | null
           review_notes: string | null
           reviewed_at: string | null
           reviewed_by_profile_id: string | null
@@ -882,6 +883,7 @@ export type Database = {
           payment_status?: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id?: string | null
           price_cents?: number
+          renewal_reminder_sent?: boolean | null
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by_profile_id?: string | null
@@ -904,6 +906,7 @@ export type Database = {
           payment_status?: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id?: string | null
           price_cents?: number
+          renewal_reminder_sent?: boolean | null
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by_profile_id?: string | null

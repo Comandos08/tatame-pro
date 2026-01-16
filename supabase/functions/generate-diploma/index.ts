@@ -358,6 +358,21 @@ serve(async (req) => {
       // Don't fail - diploma was created successfully
     }
 
+    // Send notification email to athlete about new grading
+    if (grading) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      
+      fetch(`${supabaseUrl}/functions/v1/notify-new-grading`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ grading_id: grading.id }),
+      }).catch((err) => console.error('Failed to send grading notification:', err));
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
