@@ -1,16 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Award, FileText, TrendingUp, Building2, Loader2 } from 'lucide-react';
+import { 
+  Users, Award, FileText, TrendingUp, Building2, Loader2,
+  UserPlus, CheckCircle, Clock, AlertTriangle, Calendar
+} from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
 import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, addDays } from 'date-fns';
 
 interface DashboardStats {
   activeAthletes: number;
@@ -18,6 +24,7 @@ interface DashboardStats {
   pendingMemberships: number;
   activeAcademies: number;
   diplomasIssued: number;
+  expiringMemberships: number;
 }
 
 interface MonthlyData {
@@ -25,25 +32,55 @@ interface MonthlyData {
   count: number;
 }
 
+interface AuditLogEntry {
+  id: string;
+  event_type: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+  profile?: { name: string | null; email: string } | null;
+}
+
+const eventTypeLabels: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+  MEMBERSHIP_CREATED: { label: 'Filiação Criada', icon: <UserPlus className="h-4 w-4" />, color: 'text-info' },
+  MEMBERSHIP_PAID: { label: 'Pagamento Confirmado', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
+  MEMBERSHIP_APPROVED: { label: 'Filiação Aprovada', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
+  MEMBERSHIP_EXPIRED: { label: 'Filiação Expirada', icon: <Clock className="h-4 w-4" />, color: 'text-warning' },
+  DIPLOMA_ISSUED: { label: 'Diploma Emitido', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
+  GRADING_RECORDED: { label: 'Graduação Registrada', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
+  RENEWAL_REMINDER_SENT: { label: 'Lembrete de Renovação', icon: <AlertTriangle className="h-4 w-4" />, color: 'text-warning' },
+  TENANT_SETTINGS_UPDATED: { label: 'Configurações Atualizadas', icon: <FileText className="h-4 w-4" />, color: 'text-muted-foreground' },
+};
+
 export default function TenantDashboard() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
   const { t } = useI18n();
+  const { tenantSlug } = useParams();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [membershipsByMonth, setMembershipsByMonth] = useState<MonthlyData[]>([]);
   const [diplomasByMonth, setDiplomasByMonth] = useState<MonthlyData[]>([]);
+  const [recentActivity, setRecentActivity] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStats() {
       if (!tenant?.id) return;
 
-      const [athletes, activeMemberships, pendingMemberships, academies, diplomas] = await Promise.all([
+      // Calculate date 30 days from now for expiring memberships
+      const thirtyDaysFromNow = addDays(new Date(), 30).toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
+
+      const [athletes, activeMemberships, pendingMemberships, academies, diplomas, expiring] = await Promise.all([
         supabase.from('athletes').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id),
         supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'ACTIVE'),
         supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'PENDING_REVIEW'),
         supabase.from('academies').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('is_active', true),
         supabase.from('diplomas').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'ISSUED'),
+        supabase.from('memberships').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenant.id)
+          .in('status', ['ACTIVE', 'APPROVED'])
+          .gte('end_date', today)
+          .lte('end_date', thirtyDaysFromNow),
       ]);
 
       setStats({
@@ -52,6 +89,7 @@ export default function TenantDashboard() {
         pendingMemberships: pendingMemberships.count || 0,
         activeAcademies: academies.count || 0,
         diplomasIssued: diplomas.count || 0,
+        expiringMemberships: expiring.count || 0,
       });
     }
 
@@ -62,18 +100,13 @@ export default function TenantDashboard() {
       const months: MonthlyData[] = [];
       const diplomaMonths: MonthlyData[] = [];
 
-      // Generate last 12 months
       for (let i = 11; i >= 0; i--) {
         const monthDate = subMonths(now, i);
         const monthLabel = format(monthDate, 'MMM yy');
-        const start = startOfMonth(monthDate).toISOString();
-        const end = endOfMonth(monthDate).toISOString();
-
         months.push({ month: monthLabel, count: 0 });
         diplomaMonths.push({ month: monthLabel, count: 0 });
       }
 
-      // Fetch memberships created in last 12 months
       const twelveMonthsAgo = startOfMonth(subMonths(now, 11)).toISOString();
       const { data: memberships } = await supabase
         .from('memberships')
@@ -81,7 +114,6 @@ export default function TenantDashboard() {
         .eq('tenant_id', tenant.id)
         .gte('created_at', twelveMonthsAgo);
 
-      // Fetch diplomas issued in last 12 months
       const { data: diplomasData } = await supabase
         .from('diplomas')
         .select('issued_at')
@@ -89,7 +121,6 @@ export default function TenantDashboard() {
         .eq('status', 'ISSUED')
         .gte('issued_at', twelveMonthsAgo);
 
-      // Count memberships by month
       if (memberships) {
         memberships.forEach(m => {
           if (m.created_at) {
@@ -100,7 +131,6 @@ export default function TenantDashboard() {
         });
       }
 
-      // Count diplomas by month
       if (diplomasData) {
         diplomasData.forEach(d => {
           if (d.issued_at) {
@@ -115,7 +145,28 @@ export default function TenantDashboard() {
       setDiplomasByMonth(diplomaMonths);
     }
 
-    Promise.all([fetchStats(), fetchMonthlyData()]).finally(() => setLoading(false));
+    async function fetchRecentActivity() {
+      if (!tenant?.id) return;
+
+      const { data } = await supabase
+        .from('audit_logs')
+        .select(`
+          id,
+          event_type,
+          created_at,
+          metadata,
+          profile:profiles(name, email)
+        `)
+        .eq('tenant_id', tenant.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (data) {
+        setRecentActivity(data as unknown as AuditLogEntry[]);
+      }
+    }
+
+    Promise.all([fetchStats(), fetchMonthlyData(), fetchRecentActivity()]).finally(() => setLoading(false));
   }, [tenant?.id]);
 
   if (!tenant) return null;
@@ -133,6 +184,63 @@ export default function TenantDashboard() {
       label: t('dashboard.count'),
       color: 'hsl(var(--primary))',
     },
+  };
+
+  const quickActions = [
+    { 
+      label: 'Aprovar Filiações', 
+      description: `${stats?.pendingMemberships || 0} pendentes`,
+      href: `/${tenantSlug}/aprovacoes`, 
+      icon: CheckCircle,
+      variant: stats?.pendingMemberships ? 'default' : 'outline' as const,
+      highlight: (stats?.pendingMemberships || 0) > 0,
+    },
+    { 
+      label: 'Filiações Expirando', 
+      description: `${stats?.expiringMemberships || 0} em 30 dias`,
+      href: `/${tenantSlug}/atletas`, 
+      icon: Calendar,
+      variant: stats?.expiringMemberships ? 'warning' : 'outline' as const,
+      highlight: (stats?.expiringMemberships || 0) > 0,
+    },
+    { 
+      label: 'Emitir Diploma', 
+      description: 'Nova graduação',
+      href: `/${tenantSlug}/graduacoes`, 
+      icon: Award,
+      variant: 'outline' as const,
+      highlight: false,
+    },
+    { 
+      label: 'Cadastrar Academia', 
+      description: 'Nova academia',
+      href: `/${tenantSlug}/academias`, 
+      icon: Building2,
+      variant: 'outline' as const,
+      highlight: false,
+    },
+  ];
+
+  const formatActivityTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins}min atrás`;
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    if (diffDays < 7) return `${diffDays}d atrás`;
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  const getEventInfo = (eventType: string) => {
+    return eventTypeLabels[eventType] || { 
+      label: eventType, 
+      icon: <FileText className="h-4 w-4" />, 
+      color: 'text-muted-foreground' 
+    };
   };
 
   return (
@@ -172,7 +280,6 @@ export default function TenantDashboard() {
 
             {/* Charts */}
             <div className="grid lg:grid-cols-2 gap-6">
-              {/* Memberships by Month */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.membershipsByMonth')}</CardTitle>
@@ -181,30 +288,15 @@ export default function TenantDashboard() {
                 <CardContent>
                   <ChartContainer config={chartConfig} className="h-[250px] w-full">
                     <BarChart data={membershipsByMonth} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <XAxis 
-                        dataKey="month" 
-                        tickLine={false} 
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis 
-                        tickLine={false} 
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                        allowDecimals={false}
-                      />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} allowDecimals={false} />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar 
-                        dataKey="count" 
-                        fill="hsl(var(--primary))" 
-                        radius={[4, 4, 0, 0]}
-                      />
+                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
 
-              {/* Diplomas by Month */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.diplomasByMonth')}</CardTitle>
@@ -213,51 +305,92 @@ export default function TenantDashboard() {
                 <CardContent>
                   <ChartContainer config={chartConfig} className="h-[250px] w-full">
                     <BarChart data={diplomasByMonth} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <XAxis 
-                        dataKey="month" 
-                        tickLine={false} 
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis 
-                        tickLine={false} 
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                        allowDecimals={false}
-                      />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} allowDecimals={false} />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar 
-                        dataKey="count" 
-                        fill="hsl(var(--chart-2))" 
-                        radius={[4, 4, 0, 0]}
-                      />
+                      <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Activity cards */}
+            {/* Activity and Quick Actions */}
             <div className="grid lg:grid-cols-2 gap-6">
+              {/* Recent Activity */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
                   <CardDescription>{t('dashboard.recentActivityDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-lg border border-dashed border-border p-8 text-center">
-                    <p className="text-muted-foreground text-sm">{t('dashboard.noRecentActivity')}</p>
-                  </div>
+                  {recentActivity.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border p-8 text-center">
+                      <p className="text-muted-foreground text-sm">{t('dashboard.noRecentActivity')}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {recentActivity.map((activity) => {
+                        const eventInfo = getEventInfo(activity.event_type);
+                        return (
+                          <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className={`mt-0.5 ${eventInfo.color}`}>
+                              {eventInfo.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{eventInfo.label}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {activity.profile?.name || activity.profile?.email || 'Sistema'}
+                              </p>
+                            </div>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatActivityTime(activity.created_at)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <Link 
+                        to={`/${tenantSlug}/audit-log`}
+                        className="block text-center text-sm text-primary hover:underline pt-2"
+                      >
+                        Ver todo o histórico →
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Quick Actions */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.quickActions')}</CardTitle>
                   <CardDescription>{t('dashboard.quickActionsDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-lg border border-dashed border-border p-8 text-center">
-                    <p className="text-muted-foreground text-sm">{t('dashboard.quickActionsHint')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {quickActions.map((action) => (
+                      <Link key={action.href} to={action.href}>
+                        <Button 
+                          variant="outline" 
+                          className={`w-full h-auto flex-col items-start p-4 gap-2 ${
+                            action.highlight ? 'border-primary bg-primary/5 hover:bg-primary/10' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <action.icon className={`h-4 w-4 ${action.highlight ? 'text-primary' : ''}`} />
+                            <span className="font-medium text-sm">{action.label}</span>
+                            {action.highlight && (
+                              <Badge variant="secondary" className="ml-auto text-xs">
+                                !
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground text-left">
+                            {action.description}
+                          </span>
+                        </Button>
+                      </Link>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
