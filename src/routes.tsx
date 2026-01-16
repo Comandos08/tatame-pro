@@ -31,6 +31,7 @@ import PublicRankings from '@/pages/PublicRankings';
 import InternalRankings from '@/pages/InternalRankings';
 import TenantSettings from '@/pages/TenantSettings';
 import TenantBilling from '@/pages/TenantBilling';
+import AthleteArea from '@/pages/AthleteArea';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -135,6 +136,7 @@ export function AppRoutes() {
         <Route path="app/rankings" element={<ProtectedRoute><InternalRankings /></ProtectedRoute>} />
         <Route path="app/settings" element={<ProtectedRoute><TenantSettings /></ProtectedRoute>} />
         <Route path="app/billing" element={<ProtectedRoute><TenantBilling /></ProtectedRoute>} />
+        <Route path="app/me" element={<ProtectedRoute><AthleteArea /></ProtectedRoute>} />
         <Route path="app/help" element={<ProtectedRoute><TenantHelp /></ProtectedRoute>} />
         <Route path="app/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
