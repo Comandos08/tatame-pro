@@ -189,7 +189,10 @@ export const ptBR = {
   'dashboard.activeAcademies': 'Academias Ativas',
   'dashboard.diplomasIssued': 'Diplomas Emitidos',
   'dashboard.recentActivity': 'Atividade Recente',
+  'dashboard.recentActivityDesc': 'Últimas ações no sistema',
   'dashboard.quickActions': 'Ações Rápidas',
+  'dashboard.quickActionsDesc': 'Atalhos para tarefas comuns',
+  'dashboard.quickActionsHint': 'Atalhos para cadastro de atletas e aprovação de filiações',
   'dashboard.membershipsByMonth': 'Filiações por Mês',
   'dashboard.diplomasByMonth': 'Diplomas por Mês',
   'dashboard.thisYear': 'Este ano',
@@ -262,11 +265,6 @@ export const ptBR = {
   'tenant.verifyDiploma': 'Verificar Diploma',
   'tenant.joinCta': 'Faça parte da',
   'tenant.joinCtaDesc': 'Junte-se a milhares de atletas e academias credenciadas. Mantenha suas graduações em dia e acesse benefícios exclusivos.',
-
-  // Dashboard descriptions
-  'dashboard.recentActivityDesc': 'Últimas atualizações do sistema',
-  'dashboard.quickActionsDesc': 'Acesse funções frequentes',
-  'dashboard.quickActionsHint': 'Atalhos para cadastro de atletas e aprovação de filiações.',
 
   // Error states
   'error.loadingFailed': 'Erro ao carregar dados',

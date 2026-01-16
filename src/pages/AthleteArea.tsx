@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -10,7 +10,6 @@ import {
   Building2,
   Download,
   QrCode,
-  Shield,
   Loader2,
   AlertCircle,
   ExternalLink,
@@ -29,6 +28,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { MEMBERSHIP_STATUS_LABELS } from '@/types/membership';
 import { EditablePersonalData } from '@/components/athlete/EditablePersonalData';
 import { DocumentsSection } from '@/components/athlete/DocumentsSection';
+import { RenewalBanner } from '@/components/membership/RenewalBanner';
 
 interface AthleteData {
   id: string;
@@ -297,6 +297,23 @@ export default function AthleteArea() {
   const activeDigitalCard = activeMembership?.digital_cards?.[0];
   const currentGrading = gradings?.[0];
 
+  // Calculate days until expiry for renewal banner
+  const renewalInfo = useMemo(() => {
+    if (!activeMembership?.end_date) return null;
+    const endDate = new Date(activeMembership.end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    const diffTime = endDate.getTime() - today.getTime();
+    const daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return {
+      membershipId: activeMembership.id,
+      daysUntilExpiry,
+      endDate: activeMembership.end_date,
+      status: activeMembership.status,
+    };
+  }, [activeMembership]);
+
   if (!tenant) return null;
 
   // Show message for admins
@@ -345,6 +362,15 @@ export default function AthleteArea() {
   return (
     <AppShell>
       <div className="space-y-6 max-w-5xl mx-auto">
+        {/* Renewal Banner - Shows when membership is expiring soon */}
+        {renewalInfo && (
+          <RenewalBanner
+            membershipId={renewalInfo.membershipId}
+            daysUntilExpiry={renewalInfo.daysUntilExpiry}
+            endDate={renewalInfo.endDate}
+            status={renewalInfo.status}
+          />
+        )}
         {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -472,7 +498,7 @@ export default function AthleteArea() {
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <Shield className="h-8 w-8 text-muted-foreground" />
+                      <CreditCard className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <p className="text-muted-foreground text-sm max-w-xs">
                       {t('athleteArea.digitalCardPendingDesc')}
@@ -517,7 +543,7 @@ export default function AthleteArea() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Shield className="h-5 w-5 text-primary" />
+                          <FileText className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                           <p className="font-medium">
