@@ -8,6 +8,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { supabase } from '@/integrations/supabase/client';
 import {
   MembershipStatus,
@@ -198,15 +199,14 @@ export default function ApprovalsList() {
                         </p>
                         
                         <div className="flex flex-wrap gap-2 mb-3">
-                          <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/30">
-                            {MEMBERSHIP_STATUS_LABELS[membership.status]}
-                          </Badge>
-                          <Badge 
-                            variant={membership.payment_status === 'PAID' ? 'outline' : 'destructive'}
-                          >
-                            <CreditCard className="h-3 w-3 mr-1" />
-                            {PAYMENT_STATUS_LABELS[membership.payment_status]}
-                          </Badge>
+                          <StatusBadge 
+                            status={membership.status} 
+                            label={MEMBERSHIP_STATUS_LABELS[membership.status]}
+                          />
+                          <StatusBadge 
+                            status={membership.payment_status} 
+                            label={PAYMENT_STATUS_LABELS[membership.payment_status]}
+                          />
                           {membership.academy && (
                             <Badge variant="outline">
                               {membership.academy.name}

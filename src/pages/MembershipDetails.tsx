@@ -23,6 +23,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
@@ -158,23 +159,6 @@ export default function MembershipDetailsPage() {
     }).format(cents / 100);
   };
 
-  const getStatusColor = (status: MembershipStatus) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-success text-success-foreground';
-      case 'PENDING_REVIEW':
-      case 'PENDING_PAYMENT':
-        return 'bg-warning text-warning-foreground';
-      case 'APPROVED':
-        return 'bg-info text-info-foreground';
-      case 'EXPIRED':
-      case 'CANCELLED':
-        return 'bg-destructive text-destructive-foreground';
-      default:
-        return 'bg-muted text-muted-foreground';
-    }
-  };
-
   if (!tenant) return null;
 
   const digitalCard = membership?.digital_cards?.[0];
@@ -229,12 +213,14 @@ export default function MembershipDetailsPage() {
                         </CardDescription>
                       </div>
                       <div className="flex gap-2">
-                        <Badge className={getStatusColor(membership.status)}>
-                          {MEMBERSHIP_STATUS_LABELS[membership.status]}
-                        </Badge>
-                        <Badge variant={membership.payment_status === 'PAID' ? 'outline' : 'destructive'}>
-                          {PAYMENT_STATUS_LABELS[membership.payment_status]}
-                        </Badge>
+                        <StatusBadge 
+                          status={membership.status} 
+                          label={MEMBERSHIP_STATUS_LABELS[membership.status]}
+                        />
+                        <StatusBadge 
+                          status={membership.payment_status} 
+                          label={PAYMENT_STATUS_LABELS[membership.payment_status]}
+                        />
                       </div>
                     </div>
                   </CardHeader>

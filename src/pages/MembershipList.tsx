@@ -8,6 +8,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -38,14 +39,14 @@ interface MembershipWithAthlete {
   }[];
 }
 
-const statusConfig: Record<MembershipStatus, { icon: React.ElementType; color: string; bgColor: string }> = {
-  DRAFT: { icon: FileText, color: 'text-muted-foreground', bgColor: 'bg-muted' },
-  PENDING_PAYMENT: { icon: CreditCard, color: 'text-warning', bgColor: 'bg-warning/10' },
-  PENDING_REVIEW: { icon: Clock, color: 'text-warning', bgColor: 'bg-warning/10' },
-  APPROVED: { icon: CheckCircle, color: 'text-info', bgColor: 'bg-info/10' },
-  ACTIVE: { icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10' },
-  EXPIRED: { icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted' },
-  CANCELLED: { icon: XCircle, color: 'text-destructive', bgColor: 'bg-destructive/10' },
+const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgColor: string }> = {
+  DRAFT: { icon: FileText, bgColor: 'bg-muted' },
+  PENDING_PAYMENT: { icon: CreditCard, bgColor: 'bg-warning/10' },
+  PENDING_REVIEW: { icon: Clock, bgColor: 'bg-warning/10' },
+  APPROVED: { icon: CheckCircle, bgColor: 'bg-info/10' },
+  ACTIVE: { icon: CheckCircle, bgColor: 'bg-success/10' },
+  EXPIRED: { icon: AlertCircle, bgColor: 'bg-muted' },
+  CANCELLED: { icon: XCircle, bgColor: 'bg-destructive/10' },
 };
 
 export default function MembershipList() {
@@ -139,10 +140,6 @@ export default function MembershipList() {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const getShortId = (id: string) => {
-    return id.substring(0, 8).toUpperCase();
-  };
-
   if (!tenant) return null;
 
   return (
@@ -180,8 +177,8 @@ export default function MembershipList() {
         ) : memberships && memberships.length > 0 ? (
           <div className="grid gap-4">
             {memberships.map((membership, index) => {
-              const config = statusConfig[membership.status];
-              const StatusIcon = config.icon;
+              const iconConfig = statusIconConfig[membership.status];
+              const StatusIcon = iconConfig.icon;
               const hasCard = membership.digital_cards && membership.digital_cards.length > 0;
 
               return (
@@ -197,8 +194,8 @@ export default function MembershipList() {
                   >
                     <CardContent className="p-4 sm:p-6">
                       <div className="flex items-start gap-4">
-                        <div className={`h-12 w-12 rounded-xl ${config.bgColor} flex items-center justify-center shrink-0`}>
-                          <StatusIcon className={`h-6 w-6 ${config.color}`} />
+                        <div className={`h-12 w-12 rounded-xl ${iconConfig.bgColor} flex items-center justify-center shrink-0`}>
+                          <StatusIcon className="h-6 w-6" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
@@ -207,22 +204,19 @@ export default function MembershipList() {
                               {membership.athlete?.full_name}
                             </h3>
                             <Badge variant="outline" className="text-xs">
-                              #{getShortId(membership.id)}
+                              #{membership.id.substring(0, 8).toUpperCase()}
                             </Badge>
                           </div>
                           
                           <div className="flex flex-wrap gap-2 mb-3">
-                            <Badge 
-                              variant={membership.status === 'ACTIVE' ? 'default' : 'secondary'}
-                              className={membership.status === 'ACTIVE' ? 'bg-success' : ''}
-                            >
-                              {MEMBERSHIP_STATUS_LABELS[membership.status]}
-                            </Badge>
-                            <Badge 
-                              variant={membership.payment_status === 'PAID' ? 'outline' : 'destructive'}
-                            >
-                              {PAYMENT_STATUS_LABELS[membership.payment_status]}
-                            </Badge>
+                            <StatusBadge 
+                              status={membership.status} 
+                              label={MEMBERSHIP_STATUS_LABELS[membership.status]}
+                            />
+                            <StatusBadge 
+                              status={membership.payment_status} 
+                              label={PAYMENT_STATUS_LABELS[membership.payment_status]}
+                            />
                           </div>
                           
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
