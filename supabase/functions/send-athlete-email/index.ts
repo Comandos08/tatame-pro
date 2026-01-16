@@ -104,13 +104,13 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
-        <h2 style="color: #f59e0b;">📋 Nova filiação pendente</h2>
+        <h2 style="color: #dc2626;">📋 Nova filiação pendente</h2>
         
         <p style="line-height: 1.6;">
           Uma nova solicitação de filiação foi recebida e está aguardando sua aprovação.
         </p>
         
-        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <div style="background: #fef2f2; border: 1px solid #dc2626; border-radius: 8px; padding: 20px; margin: 20px 0;">
           <p style="margin: 0; color: #92400e;">
             <strong>Atleta:</strong> ${data?.athlete_name || "Nome não informado"}<br>
             <strong>E-mail:</strong> ${data?.athlete_email || "Não informado"}<br>
