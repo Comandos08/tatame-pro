@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Loader2, Calendar, AlertCircle, CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react';
+import { CreditCard, Loader2, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -38,13 +38,14 @@ interface TenantBilling {
   canceled_at: string | null;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  ACTIVE: { label: 'Ativo', variant: 'default', icon: CheckCircle },
-  TRIALING: { label: 'Trial', variant: 'secondary', icon: Clock },
-  PAST_DUE: { label: 'Em atraso', variant: 'destructive', icon: AlertCircle },
-  CANCELED: { label: 'Cancelado', variant: 'destructive', icon: XCircle },
-  INCOMPLETE: { label: 'Incompleto', variant: 'outline', icon: Clock },
-  UNPAID: { label: 'Não pago', variant: 'destructive', icon: AlertCircle },
+// Map billing status to StatusBadge status type
+const billingStatusMap: Record<string, StatusType> = {
+  ACTIVE: 'ACTIVE',
+  TRIALING: 'TRIALING',
+  PAST_DUE: 'PAST_DUE',
+  CANCELED: 'CANCELLED',
+  INCOMPLETE: 'INCOMPLETE',
+  UNPAID: 'UNPAID',
 };
 
 export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillingDialogProps) {
@@ -138,8 +139,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
     });
   };
 
-  const statusInfo = billing?.status ? statusConfig[billing.status] : null;
-  const StatusIcon = statusInfo?.icon || Clock;
+  const statusType = billing?.status ? billingStatusMap[billing.status] || 'neutral' : 'neutral';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,10 +168,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
               
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <Badge variant={statusInfo?.variant || 'outline'} className="flex items-center gap-1">
-                  <StatusIcon className="h-3 w-3" />
-                  {statusInfo?.label || billing.status}
-                </Badge>
+                <StatusBadge status={statusType} showDot />
               </div>
 
               <div className="flex items-center justify-between">
