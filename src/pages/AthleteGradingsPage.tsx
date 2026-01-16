@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -37,6 +37,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { ExportCsvButton } from '@/components/export/ExportCsvButton';
+import { formatDateForCsv } from '@/lib/exportCsv';
 import type { AthleteGrading, GradingScheme, GradingLevel } from '@/types/grading';
 
 interface Athlete {
@@ -233,6 +235,52 @@ export default function AthleteGradingsPage() {
     });
   };
 
+  // CSV columns for export
+  const csvColumns = useMemo(() => [
+    { key: 'athlete', label: 'Atleta', format: () => athlete?.full_name || '' },
+    { 
+      key: 'level', 
+      label: 'Nível/Faixa', 
+      format: (_: unknown, row: AthleteGrading) => {
+        const level = row.grading_levels as unknown as GradingLevel | undefined;
+        return level?.display_name || '-';
+      }
+    },
+    { 
+      key: 'sport', 
+      label: 'Esporte', 
+      format: (_: unknown, row: AthleteGrading) => {
+        const level = row.grading_levels as unknown as (GradingLevel & { grading_schemes?: GradingScheme }) | undefined;
+        return level?.grading_schemes?.sport_type || '-';
+      }
+    },
+    { key: 'promotion_date', label: 'Data Graduação', format: (v: string) => formatDateForCsv(v) },
+    { 
+      key: 'academy', 
+      label: 'Academia', 
+      format: (_: unknown, row: AthleteGrading) => {
+        const academy = row.academies as unknown as { name: string } | undefined;
+        return academy?.name || '-';
+      }
+    },
+    { 
+      key: 'coach', 
+      label: 'Professor', 
+      format: (_: unknown, row: AthleteGrading) => {
+        const coach = row.coaches as unknown as { full_name: string } | undefined;
+        return coach?.full_name || '-';
+      }
+    },
+    { 
+      key: 'diploma', 
+      label: 'Diploma Emitido', 
+      format: (_: unknown, row: AthleteGrading) => {
+        const diploma = row.diplomas as unknown as { status: string } | undefined;
+        return diploma?.status === 'ISSUED' ? 'Sim' : 'Não';
+      }
+    },
+  ], [athlete?.full_name]);
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -252,10 +300,18 @@ export default function AthleteGradingsPage() {
               <p className="text-muted-foreground">{athlete.full_name}</p>
             )}
           </div>
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Registrar Graduação
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportCsvButton
+              filename={`graduacoes_${athlete?.full_name?.replace(/\s+/g, '_') || 'atleta'}`}
+              columns={csvColumns}
+              data={gradings || []}
+              isLoading={isLoading}
+            />
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar Graduação
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

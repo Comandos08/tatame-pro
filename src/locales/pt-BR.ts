@@ -645,6 +645,11 @@ export const ptBR = {
   'admin.searchTenant': 'Buscar organização...',
   'admin.confirmDeactivate': 'Tem certeza que deseja desativar esta organização? Os usuários não poderão acessar.',
   'admin.confirmActivate': 'Tem certeza que deseja ativar esta organização?',
+  
+  // Membership Blocking
+  'membership.blockedByBilling': 'Novas filiações estão temporariamente indisponíveis. Entre em contato com a organização.',
+  'membership.billingBlockedTitle': 'Filiações Temporariamente Indisponíveis',
+  'membership.billingBlockedDesc': 'A organização está com pendências de pagamento. Novas filiações serão habilitadas após regularização.',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

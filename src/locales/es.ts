@@ -649,4 +649,9 @@ export const es: Record<TranslationKey, string> = {
   'admin.searchTenant': 'Buscar organización...',
   'admin.confirmDeactivate': '¿Está seguro de que desea desactivar esta organización? Los usuarios no podrán acceder.',
   'admin.confirmActivate': '¿Está seguro de que desea activar esta organización?',
+  
+  // Membership Blocking
+  'membership.blockedByBilling': 'Las nuevas afiliaciones no están disponibles temporalmente. Contacte a la organización.',
+  'membership.billingBlockedTitle': 'Afiliaciones Temporalmente No Disponibles',
+  'membership.billingBlockedDesc': 'La organización tiene problemas de pago pendientes. Las nuevas afiliaciones se habilitarán después de la regularización.',
 };

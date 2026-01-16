@@ -649,4 +649,9 @@ export const en: Record<TranslationKey, string> = {
   'admin.searchTenant': 'Search organization...',
   'admin.confirmDeactivate': 'Are you sure you want to deactivate this organization? Users will not be able to access.',
   'admin.confirmActivate': 'Are you sure you want to activate this organization?',
+  
+  // Membership Blocking
+  'membership.blockedByBilling': 'New memberships are temporarily unavailable. Please contact the organization.',
+  'membership.billingBlockedTitle': 'Memberships Temporarily Unavailable',
+  'membership.billingBlockedDesc': 'The organization has pending payment issues. New memberships will be enabled after regularization.',
 };
