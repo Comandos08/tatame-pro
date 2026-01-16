@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,6 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ExportCsvButton } from '@/components/export/ExportCsvButton';
+import { formatDateForCsv, CsvColumn } from '@/lib/exportCsv';
 import { MEMBERSHIP_STATUS_LABELS, type MembershipStatus } from '@/types/membership';
 
 interface AthleteWithMembership {
@@ -60,6 +63,7 @@ interface Academy {
 export default function AthletesList() {
   const { tenant } = useTenant();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [searchName, setSearchName] = useState('');
   const [filterAcademy, setFilterAcademy] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -159,16 +163,50 @@ export default function AthletesList() {
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
+  // CSV Export columns
+  const csvColumns = useMemo(() => [
+    { key: 'full_name', label: 'Nome' },
+    { key: 'email', label: 'E-mail' },
+    { key: 'birth_date', label: 'Data de Nascimento', format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'academy_name', label: 'Academia', format: (v: string | null) => v || '-' },
+    { 
+      key: 'membershipStatus', 
+      label: 'Status Filiação', 
+      format: (_: unknown, row: AthleteWithMembership) => 
+        row.latest_membership?.status ? MEMBERSHIP_STATUS_LABELS[row.latest_membership.status] : 'Sem filiação'
+    },
+    { 
+      key: 'membershipStart', 
+      label: 'Início Filiação', 
+      format: (_: unknown, row: AthleteWithMembership) => 
+        row.latest_membership?.start_date ? formatDateForCsv(row.latest_membership.start_date) : '-'
+    },
+    { 
+      key: 'membershipEnd', 
+      label: 'Fim Filiação', 
+      format: (_: unknown, row: AthleteWithMembership) => 
+        row.latest_membership?.end_date ? formatDateForCsv(row.latest_membership.end_date) : '-'
+    },
+  ], []);
+
   return (
     <AppShell>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">
-            Atletas
-          </h1>
-          <p className="text-muted-foreground">
-            Gerencie os atletas cadastrados na organização
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-foreground">
+              Atletas
+            </h1>
+            <p className="text-muted-foreground">
+              Gerencie os atletas cadastrados na organização
+            </p>
+          </div>
+          <ExportCsvButton
+            filename={`atletas_${tenant?.slug || 'export'}`}
+            columns={csvColumns}
+            data={athletes || []}
+            isLoading={isLoading}
+          />
         </div>
 
         {/* Filters */}

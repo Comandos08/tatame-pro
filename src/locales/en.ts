@@ -618,4 +618,35 @@ export const en: Record<TranslationKey, string> = {
   'health.noData': 'No execution data',
   'health.jobsRunning': 'Jobs running',
   'health.allSystemsOperational': 'Systems operational',
+  
+  // Tenant Status Banners
+  'tenantStatus.blocked': 'Your organization is blocked. Contact support or update your payment to continue.',
+  'tenantStatus.billingIssue': 'There is an issue with your payment. Update your billing information to avoid service interruption.',
+  'tenantStatus.trialExpired': 'Your trial period has expired. Activate your subscription to continue using the platform.',
+  'tenantStatus.trialEndingSoon': 'Your trial expires in {days} days. Set up payment to continue using after the trial.',
+  'tenantStatus.onTrial': 'You are on a trial period until {date}.',
+  'tenantStatus.manageBilling': 'Manage Billing',
+  'tenantStatus.viewDetails': 'View Details',
+  
+  // Export CSV
+  'export.exportCsv': 'Export CSV',
+  'export.noData': 'No data to export',
+  'export.success': '{count} records exported successfully',
+  'export.error': 'Export error. Please try again.',
+  
+  // Admin - Tenant Management
+  'admin.tenants': 'Organizations',
+  'admin.tenantStatus': 'Status',
+  'admin.tenantActivate': 'Activate',
+  'admin.tenantDeactivate': 'Deactivate',
+  'admin.tenantActivated': 'Organization activated successfully',
+  'admin.tenantDeactivated': 'Organization deactivated successfully',
+  'admin.tenantFilter.all': 'All',
+  'admin.tenantFilter.active': 'Active',
+  'admin.tenantFilter.inactive': 'Inactive',
+  'admin.tenantFilter.trial': 'On Trial',
+  'admin.tenantFilter.billingIssue': 'With Issues',
+  'admin.searchTenant': 'Search organization...',
+  'admin.confirmDeactivate': 'Are you sure you want to deactivate this organization? Users will not be able to access.',
+  'admin.confirmActivate': 'Are you sure you want to activate this organization?',
 };

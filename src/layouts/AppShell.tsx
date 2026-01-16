@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
 
 interface AppShellProps {
   children: ReactNode;
@@ -296,6 +297,9 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Page content */}
         <main className="flex-1 p-4 lg:p-6">
+          {/* Tenant Status Banner - shows trial/billing warnings */}
+          <TenantStatusBanner />
+          
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
