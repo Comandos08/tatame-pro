@@ -14,6 +14,7 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
 interface BillingEmailRequest {
   event_type: 
     | "TRIAL_STARTED" 
+    | "TRIAL_ENDING_SOON"
     | "INVOICE_PAYMENT_SUCCEEDED" 
     | "PAYMENT_FAILED" 
     | "TENANT_WILL_BE_BLOCKED"
@@ -64,6 +65,45 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
           <a href="https://tatame-pro.lovable.app" 
              style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
             Acessar minha organização
+          </a>
+        </div>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  TRIAL_ENDING_SOON: {
+    subject: "⏰ Seu período de teste termina em 3 dias - IPPON",
+    getHtml: (tenantName, data) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
+        </div>
+        
+        <h2 style="color: #f59e0b;">⏰ Seu período de teste está terminando!</h2>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, seu período de teste gratuito termina em <strong>${data?.trial_end_date || "3 dias"}</strong>.
+        </p>
+        
+        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #92400e; font-weight: 600;">
+            Configure seu método de pagamento agora para não perder o acesso!
+          </p>
+        </div>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Após o término do período de teste, sua organização não poderá mais acessar as funcionalidades 
+          da plataforma até que o pagamento seja regularizado.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://tatame-pro.lovable.app" 
+             style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Configurar pagamento
           </a>
         </div>
         
