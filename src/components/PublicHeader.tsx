@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Sun, Moon, Globe, ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import { Sun, Moon, Globe, ArrowLeft, ArrowRight, Trophy, Shield } from 'lucide-react';
 import logoIppon from '@/assets/logoIppon.png';
+import logoIpponDark from '@/assets/logoIpponDark.png';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -46,7 +47,7 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <Link to="/" className="flex items-center">
             <img 
-              src={logoIppon} 
+              src={resolvedTheme === 'dark' ? logoIpponDark : logoIppon} 
               alt="IPPON" 
               className="h-10 w-auto object-contain" 
             />
