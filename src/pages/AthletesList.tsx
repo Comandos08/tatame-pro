@@ -60,7 +60,7 @@ const STATUS_COLORS: Record<MembershipStatus, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
   PENDING_PAYMENT: 'bg-warning/20 text-warning',
   PENDING_REVIEW: 'bg-warning/20 text-warning',
-  APPROVED: 'bg-blue-500/20 text-blue-500',
+  APPROVED: 'bg-info/20 text-info',
   ACTIVE: 'bg-success/20 text-success',
   EXPIRED: 'bg-destructive/20 text-destructive',
   CANCELLED: 'bg-destructive/20 text-destructive',

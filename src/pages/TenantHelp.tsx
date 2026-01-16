@@ -113,7 +113,7 @@ export default function TenantHelp() {
                     {section.steps.map((step, i) => (
                       <li key={i} className="flex items-center gap-3">
                         <CheckCircle 
-                          className={`h-5 w-5 shrink-0 ${step.done ? 'text-green-500' : 'text-muted-foreground/30'}`} 
+                          className={`h-5 w-5 shrink-0 ${step.done ? 'text-success' : 'text-muted-foreground/30'}`} 
                         />
                         <span className={step.done ? 'text-foreground' : 'text-muted-foreground'}>
                           {step.text}

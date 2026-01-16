@@ -63,8 +63,8 @@ export default function ForgotPassword() {
         >
           <Card>
             <CardHeader className="text-center space-y-4">
-              <div className="mx-auto bg-green-500/10 rounded-full p-4 w-fit">
-                <CheckCircle className="h-12 w-12 text-green-500" />
+              <div className="mx-auto bg-success/10 rounded-full p-4 w-fit">
+                <CheckCircle className="h-12 w-12 text-success" />
               </div>
               <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
               <CardDescription className="text-base">

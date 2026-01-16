@@ -157,9 +157,9 @@ export default function PublicRankings() {
   if (!tenant) return null;
 
   const getMedalIcon = (position: number) => {
-    if (position === 1) return <Medal className="h-5 w-5 text-yellow-500" />;
-    if (position === 2) return <Medal className="h-5 w-5 text-gray-400" />;
-    if (position === 3) return <Medal className="h-5 w-5 text-amber-600" />;
+    if (position === 1) return <Medal className="h-5 w-5 text-warning" />;
+    if (position === 2) return <Medal className="h-5 w-5 text-muted-foreground" />;
+    if (position === 3) return <Medal className="h-5 w-5 text-primary" />;
     return <span className="font-mono text-muted-foreground">{position}</span>;
   };
 

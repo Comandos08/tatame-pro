@@ -276,18 +276,18 @@ export default function VerifyCard() {
                 transition={{ delay: 0.3 }}
                 className={`rounded-lg p-4 border-2 ${
                   verification.hashVerified 
-                    ? "bg-green-500/5 border-green-500/30" 
+                    ? "bg-success/5 border-success/30" 
                     : "bg-destructive/5 border-destructive/30"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   {verification.hashVerified ? (
-                    <ShieldCheck className="h-8 w-8 text-green-500 flex-shrink-0" />
+                    <ShieldCheck className="h-8 w-8 text-success flex-shrink-0" />
                   ) : (
                     <ShieldX className="h-8 w-8 text-destructive flex-shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold ${verification.hashVerified ? "text-green-600" : "text-destructive"}`}>
+                    <p className={`font-semibold ${verification.hashVerified ? "text-success" : "text-destructive"}`}>
                       {verification.hashVerified ? t('verification.integrityVerified') : t('verification.integrityFailed')}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
