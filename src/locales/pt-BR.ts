@@ -334,6 +334,8 @@ export const ptBR = {
   'athleteArea.adminMessageDesc': 'Esta área é destinada a atletas. Como administrador, você pode gerenciar atletas através do menu de Atletas.',
   'athleteArea.noAthleteFound': 'Perfil de Atleta não encontrado',
   'athleteArea.noAthleteFoundDesc': 'Você ainda não possui um cadastro de atleta vinculado a esta organização. Faça sua filiação para acessar esta área.',
+  'athleteArea.dataSaved': 'Dados salvos com sucesso!',
+  'athleteArea.saveError': 'Erro ao salvar dados',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
