@@ -100,6 +100,15 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+
+    /* Semantic status colors - Light theme (darker for contrast) */
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 93% 41%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 40%;
+    --info-foreground: 0 0% 100%;
+
     --border: 220 13% 90%;
     --input: 220 13% 90%;
     --ring: 0 84% 50%;
