@@ -17,3 +17,27 @@ verify_jwt = false
 
 [functions.check-trial-ending]
 verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
+
+[functions.create-membership-checkout]
+verify_jwt = false
+
+[functions.confirm-membership-payment]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.check-membership-renewal]
+verify_jwt = false
+
+[functions.expire-memberships]
+verify_jwt = false
+
+[functions.cleanup-abandoned-memberships]
+verify_jwt = false

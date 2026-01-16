@@ -12,6 +12,80 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[REQUEST-PASSWORD-RESET] ${step}${detailsStr}`);
 };
 
+// ============================================
+// RATE LIMITING CONFIGURATION
+// - 5 requests per hour per email
+// - 20 requests per hour per IP
+// ============================================
+interface RateLimitResult {
+  success: boolean;
+  remaining: number;
+  reset: number;
+  count: number;
+}
+
+async function checkRateLimit(
+  identifier: string,
+  prefix: string,
+  limit: number,
+  windowSeconds: number
+): Promise<RateLimitResult> {
+  const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
+  const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+
+  if (!redisUrl || !redisToken) {
+    logStep("Rate limiting not configured, allowing request");
+    return { success: true, remaining: limit, reset: Date.now() + windowSeconds * 1000, count: 0 };
+  }
+
+  const key = `ratelimit:${prefix}:${identifier}`;
+  const now = Date.now();
+  const windowStart = now - windowSeconds * 1000;
+
+  try {
+    const pipeline = [
+      ["ZREMRANGEBYSCORE", key, "0", windowStart.toString()],
+      ["ZADD", key, now.toString(), `${now}-${Math.random()}`],
+      ["ZCARD", key],
+      ["PEXPIRE", key, (windowSeconds * 1000).toString()],
+    ];
+
+    const response = await fetch(`${redisUrl}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(pipeline),
+    });
+
+    if (!response.ok) {
+      logStep("Redis error, allowing request");
+      return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+    }
+
+    const results = await response.json();
+    const count = results[2]?.result ?? 0;
+    const remaining = Math.max(0, limit - count);
+    const success = count <= limit;
+
+    logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
+    return { success, remaining, reset: now + windowSeconds * 1000, count };
+  } catch (error) {
+    logStep("Rate limit error, allowing request", { error: String(error) });
+    return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+  }
+}
+
+function getClientIP(req: Request): string {
+  return (
+    req.headers.get("cf-connecting-ip") ||
+    req.headers.get("x-real-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
+
 // Generate a secure random token
 function generateToken(): string {
   const array = new Uint8Array(32);
@@ -25,6 +99,28 @@ serve(async (req) => {
   }
 
   try {
+    const clientIP = getClientIP(req);
+    
+    // Rate limit by IP (20 requests per hour)
+    const ipRateLimit = await checkRateLimit(clientIP, "password-reset-ip", 20, 3600);
+    if (!ipRateLimit.success) {
+      logStep("Rate limited by IP", { ip: clientIP });
+      return new Response(
+        JSON.stringify({ 
+          error: "Muitas solicitações. Aguarde alguns minutos antes de tentar novamente.",
+          retryAfter: Math.ceil((ipRateLimit.reset - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "Retry-After": Math.ceil((ipRateLimit.reset - Date.now()) / 1000).toString()
+          } 
+        }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -43,6 +139,27 @@ serve(async (req) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail) || normalizedEmail.length > 255) {
+      throw new Error("Formato de e-mail inválido");
+    }
+
+    // Rate limit by email (5 requests per hour)
+    const emailRateLimit = await checkRateLimit(normalizedEmail, "password-reset-email", 5, 3600);
+    if (!emailRateLimit.success) {
+      logStep("Rate limited by email", { email: normalizedEmail });
+      // Return success to prevent email enumeration, but don't actually process
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Se este e-mail estiver cadastrado, você receberá um link de recuperação." 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
     logStep("Password reset requested", { email: normalizedEmail });
 
     // Find profile by email
