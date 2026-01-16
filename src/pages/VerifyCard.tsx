@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, AlertCircle, Loader2, Shield } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Loader2, Shield, ShieldCheck, ShieldX } from "lucide-react";
 import { motion } from "framer-motion";
+import { useI18n } from "@/contexts/I18nContext";
 
 interface CardVerification {
   isValid: boolean;
@@ -13,6 +14,17 @@ interface CardVerification {
   validUntil: string | null;
   tenantName: string;
   sportType: string;
+  hashVerified: boolean | null;
+  storedHash: string | null;
+}
+
+// Calculate SHA-256 hash in browser
+async function calculateSHA256(data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export default function VerifyCard() {
@@ -20,11 +32,12 @@ export default function VerifyCard() {
   const [loading, setLoading] = useState(true);
   const [verification, setVerification] = useState<CardVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     async function verifyCard() {
       if (!cardId || !tenantSlug) {
-        setError("Dados insuficientes para verificação");
+        setError(t('verification.insufficientData'));
         setLoading(false);
         return;
       }
@@ -36,14 +49,19 @@ export default function VerifyCard() {
           .select(`
             id,
             valid_until,
+            content_hash_sha256,
             membership:memberships!inner(
               id,
               status,
               end_date,
+              start_date,
+              type,
               athlete:athletes!inner(
+                id,
                 full_name
               ),
               tenant:tenants!inner(
+                id,
                 name,
                 slug,
                 sport_types
@@ -54,23 +72,51 @@ export default function VerifyCard() {
           .maybeSingle();
 
         if (cardError || !card) {
-          setError("Carteira não encontrada ou inválida");
+          setError(t('verification.cardNotFound'));
           setLoading(false);
           return;
         }
 
         const membership = card.membership as {
+          id: string;
           status: string;
           end_date: string | null;
-          athlete: { full_name: string };
-          tenant: { name: string; slug: string; sport_types: string[] };
+          start_date: string | null;
+          type: string;
+          athlete: { id: string; full_name: string };
+          tenant: { id: string; name: string; slug: string; sport_types: string[] };
         };
 
         // Verify tenant slug matches
         if (membership.tenant.slug !== tenantSlug) {
-          setError("Documento não encontrado ou inválido");
+          setError(t('verification.documentNotFound'));
           setLoading(false);
           return;
+        }
+
+        // Verify SHA-256 hash if present
+        let hashVerified: boolean | null = null;
+        if (card.content_hash_sha256) {
+          try {
+            // Recreate the canonical payload (same structure as edge function)
+            const canonicalPayload = {
+              cardId: card.id,
+              membershipId: membership.id,
+              athleteId: membership.athlete.id,
+              athleteName: membership.athlete.full_name,
+              tenantId: membership.tenant.id,
+              validUntil: card.valid_until,
+              membershipType: membership.type,
+              startDate: membership.start_date,
+              endDate: membership.end_date,
+            };
+            
+            const calculatedHash = await calculateSHA256(JSON.stringify(canonicalPayload));
+            hashVerified = calculatedHash === card.content_hash_sha256;
+          } catch (hashErr) {
+            console.error("Hash verification error:", hashErr);
+            hashVerified = false;
+          }
         }
 
         // Mask athlete name for LGPD compliance
@@ -87,34 +133,36 @@ export default function VerifyCard() {
 
         // Map status for display
         const statusMap: Record<string, string> = {
-          ACTIVE: "ATIVA",
-          APPROVED: "ATIVA",
-          PENDING_REVIEW: "PENDENTE",
-          PENDING_PAYMENT: "AGUARDANDO PAGAMENTO",
-          EXPIRED: "EXPIRADA",
-          CANCELLED: "CANCELADA",
-          REJECTED: "REJEITADA",
-          DRAFT: "RASCUNHO",
+          ACTIVE: t('verification.statusActive'),
+          APPROVED: t('verification.statusActive'),
+          PENDING_REVIEW: t('verification.statusPending'),
+          PENDING_PAYMENT: t('verification.statusPendingPayment'),
+          EXPIRED: t('verification.statusExpired'),
+          CANCELLED: t('verification.statusCancelled'),
+          REJECTED: t('verification.statusRejected'),
+          DRAFT: t('verification.statusDraft'),
         };
 
         setVerification({
           isValid,
           athleteName: maskedName,
-          status: isExpired ? "EXPIRADA" : (statusMap[membership.status] || membership.status),
+          status: isExpired ? t('verification.statusExpired') : (statusMap[membership.status] || membership.status),
           validUntil: endDate,
           tenantName: membership.tenant.name,
-          sportType: membership.tenant.sport_types?.[0] || "Esporte de Combate",
+          sportType: membership.tenant.sport_types?.[0] || t('verification.combatSport'),
+          hashVerified,
+          storedHash: card.content_hash_sha256,
         });
       } catch (err) {
         console.error("Verification error:", err);
-        setError("Erro ao verificar carteira");
+        setError(t('verification.cardError'));
       } finally {
         setLoading(false);
       }
     }
 
     verifyCard();
-  }, [cardId, tenantSlug]);
+  }, [cardId, tenantSlug, t]);
 
   if (loading) {
     return (
@@ -125,7 +173,7 @@ export default function VerifyCard() {
           className="text-center"
         >
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Verificando documento...</p>
+          <p className="text-muted-foreground">{t('verification.verifyingDocument')}</p>
         </motion.div>
       </div>
     );
@@ -141,7 +189,7 @@ export default function VerifyCard() {
           <Card className="max-w-md w-full border-destructive/50">
             <CardHeader className="text-center">
               <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-              <CardTitle className="text-destructive">Verificação Falhou</CardTitle>
+              <CardTitle className="text-destructive">{t('verification.failed')}</CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-muted-foreground">{error}</p>
@@ -180,7 +228,7 @@ export default function VerifyCard() {
                 variant={verification.isValid ? "default" : "secondary"}
                 className={`text-lg px-4 py-1 ${verification.isValid ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"}`}
               >
-                {verification.isValid ? "DOCUMENTO VÁLIDO" : verification.status}
+                {verification.isValid ? t('verification.documentValid') : verification.status}
               </Badge>
             </div>
 
@@ -190,27 +238,57 @@ export default function VerifyCard() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Organização</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.organization')}</p>
                 <p className="font-semibold mt-1">{verification.tenantName}</p>
               </div>
               <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Modalidade</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.modality')}</p>
                 <p className="font-semibold mt-1">{verification.sportType}</p>
               </div>
             </div>
 
             {verification.validUntil && (
               <div className="text-center bg-muted/50 rounded-lg p-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Válido até</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.validUntil')}</p>
                 <p className="font-semibold text-lg mt-1">
                   {new Date(verification.validUntil).toLocaleDateString("pt-BR")}
                 </p>
               </div>
             )}
 
+            {/* SHA-256 Integrity Verification Seal */}
+            {verification.storedHash && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 }}
+                className={`rounded-lg p-4 border-2 ${
+                  verification.hashVerified 
+                    ? "bg-green-500/5 border-green-500/30" 
+                    : "bg-destructive/5 border-destructive/30"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {verification.hashVerified ? (
+                    <ShieldCheck className="h-8 w-8 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <ShieldX className="h-8 w-8 text-destructive flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold ${verification.hashVerified ? "text-green-600" : "text-destructive"}`}>
+                      {verification.hashVerified ? t('verification.integrityVerified') : t('verification.integrityFailed')}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      SHA-256: {verification.storedHash.substring(0, 16)}...
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
               <Shield className="h-4 w-4" />
-              <span>Verificação autêntica emitida por {verification.tenantName}</span>
+              <span>{t('verification.authenticDocument')} {verification.tenantName}</span>
             </div>
           </CardContent>
         </Card>
