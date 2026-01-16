@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 type SupabaseClientAny = SupabaseClient<any, any, any>;
 
@@ -237,6 +238,31 @@ async function handleCheckoutCompleted(
 
   logStep("Membership updated successfully", { membershipId });
 
+  // Get tenant_id and athlete_id for audit log
+  const { data: membershipDetails } = await supabase
+    .from("memberships")
+    .select("tenant_id, athlete_id")
+    .eq("id", membershipId)
+    .single();
+
+  // Log payment success to audit
+  if (membershipDetails) {
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.MEMBERSHIP_PAID,
+      tenant_id: membershipDetails.tenant_id,
+      metadata: {
+        membership_id: membershipId,
+        athlete_id: membershipDetails.athlete_id,
+        amount_cents: session.amount_total,
+        currency: session.currency?.toUpperCase() || 'BRL',
+        stripe_session_id: session.id,
+        stripe_payment_intent: session.payment_intent as string,
+        automatic: false,
+        source: 'stripe_webhook',
+      }
+    });
+  }
+
   // Trigger digital card generation
   const generateCardUrl = `${supabaseUrl}/functions/v1/generate-digital-card`;
   fetch(generateCardUrl, {
@@ -456,6 +482,18 @@ async function handleSubscriptionDeleted(
     .eq("id", billing.tenant_id);
 
   logStep("Subscription deleted, tenant deactivated", { tenantId: billing.tenant_id });
+
+  // Log to audit
+  await createAuditLog(supabase, {
+    event_type: AUDIT_EVENTS.TENANT_SUBSCRIPTION_CANCELLED,
+    tenant_id: billing.tenant_id,
+    metadata: {
+      stripe_subscription_id: subscription.id,
+      reason: 'subscription_deleted',
+      automatic: true,
+      source: 'stripe_webhook',
+    }
+  });
 
   // Send blocked email
   sendBillingEmail(supabaseUrl, supabaseServiceKey, "TENANT_BLOCKED", billing.tenant_id);
