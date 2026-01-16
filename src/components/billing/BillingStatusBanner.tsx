@@ -3,13 +3,23 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle, ExternalLink, Loader2, FileText } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Map billing status to StatusBadge status type
+const billingStatusMap: Record<string, StatusType> = {
+  ACTIVE: 'ACTIVE',
+  TRIALING: 'TRIALING',
+  PAST_DUE: 'PAST_DUE',
+  CANCELED: 'CANCELLED',
+  INCOMPLETE: 'INCOMPLETE',
+  UNPAID: 'UNPAID',
+};
 
 interface TenantBilling {
   id: string;
@@ -197,9 +207,12 @@ export function BillingStatusBanner() {
       <Icon className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
         {trialEndingSoon ? t('billing.trialEndingSoonTitle') : t(config.titleKey as any)}
-        <Badge variant="outline" className="ml-2 text-xs">
-          {billing.plan_name}
-        </Badge>
+        <StatusBadge 
+          status={billingStatusMap[billing.status] || 'neutral'} 
+          label={billing.plan_name}
+          size="sm"
+          className="ml-2"
+        />
       </AlertTitle>
       <AlertDescription>
         <p>{getDescription()}</p>
