@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, AlertCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +16,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import {
   AthleteFormData,
   GenderType,
@@ -35,6 +36,8 @@ export function AdultMembershipForm() {
   const [athleteData, setAthleteData] = useState<AthleteFormData | null>(null);
   const [documents, setDocuments] = useState<{ idDocument?: File; medicalCertificate?: File }>({});
   const [membershipId, setMembershipId] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   const stepOneSchema = z.object({
     fullName: z.string().min(3, t('membership.validation.nameMin')),
@@ -214,20 +217,33 @@ export function AdultMembershipForm() {
             tenantSlug: tenantSlug,
             successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
             cancelUrl: `${window.location.origin}/${tenantSlug}/membership/adult`,
+            captchaToken: captchaToken,
           },
         }
       );
 
       if (checkoutError) throw checkoutError;
 
+      // Handle specific error responses
+      if (checkoutData?.error) {
+        if (checkoutData.captchaRequired) {
+          setCaptchaError(checkoutData.error);
+          setCaptchaToken(null);
+          throw new Error(checkoutData.error);
+        }
+        throw new Error(checkoutData.error);
+      }
+
       if (checkoutData?.url) {
         window.location.href = checkoutData.url;
       } else {
         throw new Error(t('membership.errorPaymentSession'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
-      toast.error(t('membership.errorGeneric'));
+      // Show specific error message if available
+      const errorMessage = error?.message || t('membership.errorGeneric');
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -635,9 +651,28 @@ export function AdultMembershipForm() {
                     </p>
                   </div>
 
+                  {/* Security verification (CAPTCHA) */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">{t('membership.securityVerification') || 'Verificação de Segurança'}</Label>
+                    <TurnstileWidget
+                      onSuccess={(token) => {
+                        setCaptchaToken(token);
+                        setCaptchaError(null);
+                      }}
+                      onError={(error) => {
+                        setCaptchaError(error);
+                        setCaptchaToken(null);
+                      }}
+                      onExpire={() => {
+                        setCaptchaToken(null);
+                      }}
+                    />
+                    {captchaError && <TurnstileError message={captchaError} />}
+                  </div>
+
                   <Button
                     onClick={handlePayment}
-                    disabled={isLoading}
+                    disabled={isLoading || !captchaToken}
                     className="w-full"
                     size="lg"
                   >

@@ -114,6 +114,9 @@ export const en: Record<TranslationKey, string> = {
   'membership.errorIdDocumentYouth': 'Please upload the athlete\'s ID document.',
   'membership.errorGeneric': 'An error occurred. Please try again.',
   'membership.errorPaymentSession': 'Error creating payment session',
+  'membership.securityVerification': 'Security Verification',
+  'membership.errorRateLimit': 'Too many attempts. Please wait a few minutes.',
+  'membership.errorCaptchaRequired': 'Please complete the security verification.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Minor Athlete Membership',

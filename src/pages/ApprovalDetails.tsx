@@ -255,6 +255,25 @@ export default function ApprovalDetails() {
 
       if (updateError) throw updateError;
 
+      // Create audit log entry for the approval
+      await supabase.from('audit_logs').insert({
+        event_type: 'MEMBERSHIP_APPROVED',
+        tenant_id: membership.athlete ? tenant?.id : null,
+        profile_id: currentUser.id,
+        metadata: {
+          membership_id: membershipId,
+          athlete_id: membership.athlete?.id,
+          athlete_name: membership.athlete?.full_name,
+          academy_id: selectedAcademyId || null,
+          coach_id: selectedCoachId || null,
+          reviewed_by: currentUser.id,
+          review_notes: reviewNotes || null,
+          start_date: startDate,
+          end_date: endDate,
+          occurred_at: new Date().toISOString(),
+        },
+      });
+
       // Update athlete's current academy and coach if this is their first/active membership
       if (membership.athlete?.id && (selectedAcademyId || selectedCoachId)) {
         const athleteUpdate: Record<string, string | null> = {};
@@ -331,6 +350,22 @@ export default function ApprovalDetails() {
         .eq('id', membershipId);
 
       if (error) throw error;
+
+      // Create audit log entry for the rejection
+      await supabase.from('audit_logs').insert({
+        event_type: 'MEMBERSHIP_REJECTED',
+        tenant_id: membership?.athlete ? tenant?.id : null,
+        profile_id: currentUser.id,
+        metadata: {
+          membership_id: membershipId,
+          athlete_id: membership?.athlete?.id,
+          athlete_name: membership?.athlete?.full_name,
+          reviewed_by: currentUser.id,
+          review_notes: reviewNotes || 'Filiação rejeitada',
+          reason: reviewNotes || 'Rejected by reviewer',
+          occurred_at: new Date().toISOString(),
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });
