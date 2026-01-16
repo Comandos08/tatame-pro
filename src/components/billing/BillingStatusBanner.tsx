@@ -10,6 +10,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
 interface TenantBilling {
   id: string;
   status: string;
@@ -19,54 +20,10 @@ interface TenantBilling {
   stripe_customer_id: string | null;
 }
 
-const statusConfig: Record<string, { 
-  variant: 'default' | 'destructive'; 
-  icon: React.ElementType; 
-  title: string;
-  showBanner: boolean;
-}> = {
-  ACTIVE: { 
-    variant: 'default', 
-    icon: CheckCircle, 
-    title: 'Assinatura ativa',
-    showBanner: false,
-  },
-  TRIALING: { 
-    variant: 'default', 
-    icon: Clock, 
-    title: 'Período de trial',
-    showBanner: true,
-  },
-  PAST_DUE: { 
-    variant: 'destructive', 
-    icon: AlertCircle, 
-    title: 'Pagamento em atraso',
-    showBanner: true,
-  },
-  CANCELED: { 
-    variant: 'destructive', 
-    icon: XCircle, 
-    title: 'Assinatura cancelada',
-    showBanner: true,
-  },
-  INCOMPLETE: { 
-    variant: 'destructive', 
-    icon: Clock, 
-    title: 'Assinatura incompleta',
-    showBanner: true,
-  },
-  UNPAID: { 
-    variant: 'destructive', 
-    icon: AlertCircle, 
-    title: 'Assinatura não paga',
-    showBanner: true,
-  },
-};
-
 export function BillingStatusBanner() {
   const { tenant } = useTenant();
   const { hasRole, currentUser } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   const canSeeBilling = tenant?.id && currentUser && (
@@ -115,6 +72,20 @@ export function BillingStatusBanner() {
     }
   };
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return null;
+    const localeMap: Record<string, string> = {
+      'pt-BR': 'pt-BR',
+      'en': 'en-US',
+      'es': 'es-ES',
+    };
+    return new Date(dateString).toLocaleDateString(localeMap[locale] || 'pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
   const tenantSlug = tenant?.slug;
   if (!canSeeBilling) return null;
   if (isLoading) return null;
@@ -123,53 +94,91 @@ export function BillingStatusBanner() {
     return (
       <Alert variant="destructive" className="mb-6">
         <CreditCard className="h-4 w-4" />
-        <AlertTitle>Assinatura não configurada</AlertTitle>
+        <AlertTitle>{t('billing.notConfigured')}</AlertTitle>
         <AlertDescription>
-          Esta organização ainda não possui uma assinatura ativa. 
-          Entre em contato com o suporte para ativar sua assinatura.
+          {t('billing.notConfiguredDesc')}
         </AlertDescription>
       </Alert>
     );
   }
+
+  const statusConfig: Record<string, { 
+    variant: 'default' | 'destructive'; 
+    icon: React.ElementType; 
+    titleKey: string;
+    showBanner: boolean;
+  }> = {
+    ACTIVE: { 
+      variant: 'default', 
+      icon: CheckCircle, 
+      titleKey: 'billing.subscriptionActive',
+      showBanner: false,
+    },
+    TRIALING: { 
+      variant: 'default', 
+      icon: Clock, 
+      titleKey: 'billing.subscriptionTrialing',
+      showBanner: true,
+    },
+    PAST_DUE: { 
+      variant: 'destructive', 
+      icon: AlertCircle, 
+      titleKey: 'billing.subscriptionPastDue',
+      showBanner: true,
+    },
+    CANCELED: { 
+      variant: 'destructive', 
+      icon: XCircle, 
+      titleKey: 'billing.subscriptionCanceled',
+      showBanner: true,
+    },
+    INCOMPLETE: { 
+      variant: 'destructive', 
+      icon: Clock, 
+      titleKey: 'billing.subscriptionIncomplete',
+      showBanner: true,
+    },
+    UNPAID: { 
+      variant: 'destructive', 
+      icon: AlertCircle, 
+      titleKey: 'billing.subscriptionUnpaid',
+      showBanner: true,
+    },
+  };
 
   const config = statusConfig[billing.status];
   
   if (!config?.showBanner) return null;
 
   const Icon = config.icon;
-  const periodEnd = billing.current_period_end 
-    ? new Date(billing.current_period_end).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
-    : null;
+  const periodEnd = formatDate(billing.current_period_end);
 
   const getDescription = () => {
     switch (billing.status) {
       case 'TRIALING':
-        return `Seu período de trial termina em ${periodEnd}. Após essa data, será necessário efetuar o pagamento.`;
+        return t('billing.trialEndsAt').replace('{date}', periodEnd || '');
       case 'PAST_DUE':
-        return 'O pagamento da sua assinatura está em atraso. Por favor, regularize para evitar suspensão.';
+        return t('billing.pastDueDesc');
       case 'CANCELED':
-        return 'Sua assinatura foi cancelada. Entre em contato com o suporte para reativar.';
+        return t('billing.canceledDesc');
       case 'INCOMPLETE':
-        return 'Sua assinatura está incompleta. Por favor, complete o pagamento para ativar.';
+        return t('billing.incompleteDesc');
       case 'UNPAID':
-        return 'Sua assinatura está suspensa por falta de pagamento. Entre em contato para regularizar.';
+        return t('billing.unpaidDesc');
       default:
-        return 'Status da assinatura requer atenção.';
+        return '';
     }
   };
 
+  // Show manage button for trialing (to add payment method) or payment issues
   const canManagePayment = billing.stripe_customer_id && 
-    ['PAST_DUE', 'INCOMPLETE', 'UNPAID'].includes(billing.status);
+    ['TRIALING', 'PAST_DUE', 'INCOMPLETE', 'UNPAID'].includes(billing.status);
 
   return (
     <Alert variant={config.variant} className="mb-6">
       <Icon className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
-        {config.title}
+        {t(config.titleKey as any)}
         <Badge variant="outline" className="ml-2 text-xs">
           {billing.plan_name}
         </Badge>
@@ -178,7 +187,7 @@ export function BillingStatusBanner() {
         <p>{getDescription()}</p>
         {periodEnd && billing.status !== 'CANCELED' && (
           <span className="block mt-1 text-sm opacity-80">
-            Válido até: {periodEnd}
+            {t('billing.validUntil').replace('{date}', periodEnd)}
           </span>
         )}
         <div className="flex flex-wrap gap-2 mt-3">
@@ -194,7 +203,7 @@ export function BillingStatusBanner() {
               ) : (
                 <ExternalLink className="h-4 w-4 mr-2" />
               )}
-              {t('billing.managePayment')}
+              {billing.status === 'TRIALING' ? t('billing.manageSubscription') : t('billing.managePayment')}
             </Button>
           )}
           {tenantSlug && (
