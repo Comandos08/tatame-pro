@@ -21,6 +21,7 @@ import {
   CreditCard,
   UserCircle
 } from 'lucide-react';
+import logoIppon from '@/assets/logoIppon.png';
 import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -111,12 +112,18 @@ export function AppShell({ children }: AppShellProps) {
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
             <Link to={`/${tenantSlug}`} className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <Shield className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-display font-bold text-foreground">
-                {tenant?.name || 'IPPON'}
-              </span>
+              {tenant?.logoUrl ? (
+                <>
+                  <img src={tenant.logoUrl} alt={tenant.name} className="h-8 w-8 rounded-lg object-cover" />
+                  <span className="font-display font-bold text-foreground">{tenant.name}</span>
+                </>
+              ) : (
+                <img 
+                  src={logoIppon} 
+                  alt="IPPON" 
+                  className="h-8 w-auto object-contain" 
+                />
+              )}
             </Link>
             <Button
               variant="ghost"
