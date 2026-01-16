@@ -4,12 +4,21 @@ import { CreditCard, ExternalLink, FileText, Loader2, TrendingUp, Clock, Calenda
 import { AppShell } from '@/layouts/AppShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+
+// Map invoice status to StatusBadge status type
+const invoiceStatusMap: Record<string, StatusType> = {
+  paid: 'PAID',
+  open: 'PENDING_PAYMENT',
+  draft: 'DRAFT',
+  void: 'CANCELLED',
+  uncollectible: 'FAILED',
+};
 
 interface TenantInvoice {
   id: string;
@@ -30,13 +39,6 @@ export default function TenantBilling() {
   const { t, locale } = useI18n();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    paid: { label: t('billing.filterPaid'), variant: 'default' },
-    open: { label: t('billing.filterOpen'), variant: 'secondary' },
-    draft: { label: 'Draft', variant: 'outline' },
-    void: { label: t('status.cancelled'), variant: 'destructive' },
-    uncollectible: { label: 'Uncollectible', variant: 'destructive' },
-  };
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['tenant-invoices', tenant?.id],
@@ -214,7 +216,7 @@ export default function TenantBilling() {
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices.map((invoice) => {
-                    const status = statusConfig[invoice.status] || { label: invoice.status, variant: 'outline' as const };
+                    const statusType = invoiceStatusMap[invoice.status] || 'neutral';
                     return (
                       <TableRow key={invoice.id}>
                         <TableCell>{formatDate(invoice.created_at)}</TableCell>
@@ -222,7 +224,7 @@ export default function TenantBilling() {
                           {formatCurrency(invoice.amount_cents, invoice.currency)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={status.variant}>{status.label}</Badge>
+                          <StatusBadge status={statusType} size="sm" />
                         </TableCell>
                         <TableCell>{formatDate(invoice.paid_at)}</TableCell>
                         <TableCell className="text-right">
