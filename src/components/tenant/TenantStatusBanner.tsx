@@ -1,0 +1,169 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, Clock, XCircle, CreditCard, ExternalLink, X, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export function TenantStatusBanner() {
+  const status = useTenantStatus();
+  const { tenant } = useTenant();
+  const { t, locale } = useI18n();
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  const handleOpenPortal = async () => {
+    if (!tenant?.id) return;
+
+    setIsOpeningPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
+        body: { tenant_id: tenant.id },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error('Portal URL not returned');
+      }
+    } catch (err) {
+      console.error('Error opening portal:', err);
+      toast.error(t('billing.openPortalError'));
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return '';
+    const localeMap: Record<string, string> = {
+      'pt-BR': 'pt-BR',
+      'en': 'en-US',
+      'es': 'es-ES',
+    };
+    return date.toLocaleDateString(localeMap[locale] || 'pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
+  // Don't show if dismissed, loading, or user can't see
+  if (dismissed || status.isLoading || !status.canSeeBanner) return null;
+
+  // Determine what to show
+  let variant: 'default' | 'destructive' = 'default';
+  let icon: React.ElementType = Clock;
+  let message = '';
+  let showCTA = false;
+  let canDismiss = true;
+
+  if (status.isBlocked) {
+    variant = 'destructive';
+    icon = XCircle;
+    message = t('tenantStatus.blocked');
+    showCTA = true;
+    canDismiss = false;
+  } else if (status.hasBillingIssue) {
+    variant = 'destructive';
+    icon = AlertTriangle;
+    message = t('tenantStatus.billingIssue');
+    showCTA = true;
+    canDismiss = false;
+  } else if (status.isTrialExpired) {
+    variant = 'destructive';
+    icon = XCircle;
+    message = t('tenantStatus.trialExpired');
+    showCTA = true;
+    canDismiss = false;
+  } else if (status.isTrialEndingSoon) {
+    variant = 'destructive';
+    icon = AlertTriangle;
+    message = t('tenantStatus.trialEndingSoon').replace(
+      '{days}',
+      String(status.daysToTrialEnd)
+    );
+    showCTA = true;
+  } else if (status.isOnTrial && status.daysToTrialEnd !== null && status.daysToTrialEnd > 7) {
+    // Neutral trial message
+    variant = 'default';
+    icon = Clock;
+    message = t('tenantStatus.onTrial').replace('{date}', formatDate(status.currentPeriodEnd));
+    showCTA = false;
+  } else {
+    // No banner needed
+    return null;
+  }
+
+  const Icon = icon;
+  const tenantSlug = tenant?.slug;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="mb-4"
+      >
+        <Alert variant={variant} className="relative">
+          <div className="flex items-start gap-3">
+            <Icon className="h-5 w-5 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <AlertDescription className="text-sm">
+                {message}
+              </AlertDescription>
+              {showCTA && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Button
+                    variant={variant === 'destructive' ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={handleOpenPortal}
+                    disabled={isOpeningPortal}
+                    className={variant === 'destructive' ? 'border-destructive-foreground/30 hover:bg-destructive-foreground/10' : ''}
+                  >
+                    {isOpeningPortal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    {t('tenantStatus.manageBilling')}
+                  </Button>
+                  {tenantSlug && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className={variant === 'destructive' ? 'text-destructive-foreground hover:bg-destructive-foreground/10' : ''}
+                    >
+                      <Link to={`/${tenantSlug}/app/billing`}>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        {t('tenantStatus.viewDetails')}
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            {canDismiss && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => setDismissed(true)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </Alert>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

@@ -618,4 +618,35 @@ export const es: Record<TranslationKey, string> = {
   'health.noData': 'Sin datos de ejecución',
   'health.jobsRunning': 'Trabajos en ejecución',
   'health.allSystemsOperational': 'Sistemas operativos',
+  
+  // Tenant Status Banners
+  'tenantStatus.blocked': 'Su organización está bloqueada. Contacte al soporte o regularice el pago para continuar.',
+  'tenantStatus.billingIssue': 'Hay un problema con su pago. Actualice sus datos de facturación para evitar interrupción del servicio.',
+  'tenantStatus.trialExpired': 'Su período de prueba ha expirado. Active su suscripción para continuar usando la plataforma.',
+  'tenantStatus.trialEndingSoon': 'Su período de prueba expira en {days} días. Configure su pago para continuar después del trial.',
+  'tenantStatus.onTrial': 'Está en período de prueba hasta {date}.',
+  'tenantStatus.manageBilling': 'Gestionar Facturación',
+  'tenantStatus.viewDetails': 'Ver Detalles',
+  
+  // Export CSV
+  'export.exportCsv': 'Exportar CSV',
+  'export.noData': 'Sin datos para exportar',
+  'export.success': '{count} registros exportados con éxito',
+  'export.error': 'Error al exportar. Intente de nuevo.',
+  
+  // Admin - Tenant Management
+  'admin.tenants': 'Organizaciones',
+  'admin.tenantStatus': 'Estado',
+  'admin.tenantActivate': 'Activar',
+  'admin.tenantDeactivate': 'Desactivar',
+  'admin.tenantActivated': 'Organización activada con éxito',
+  'admin.tenantDeactivated': 'Organización desactivada con éxito',
+  'admin.tenantFilter.all': 'Todas',
+  'admin.tenantFilter.active': 'Activas',
+  'admin.tenantFilter.inactive': 'Inactivas',
+  'admin.tenantFilter.trial': 'En Prueba',
+  'admin.tenantFilter.billingIssue': 'Con Problemas',
+  'admin.searchTenant': 'Buscar organización...',
+  'admin.confirmDeactivate': '¿Está seguro de que desea desactivar esta organización? Los usuarios no podrán acceder.',
+  'admin.confirmActivate': '¿Está seguro de que desea activar esta organización?',
 };
