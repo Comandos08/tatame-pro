@@ -248,14 +248,18 @@ serve(async (req) => {
     logStep("Tenant isActive updated", { isActive });
 
     // Send trial started email for new tenants
-    if (isNewTenant && billingStatus === "TRIALING") {
-      sendBillingEmail(supabaseUrl, supabaseServiceKey, "TRIAL_STARTED", tenantId, {
-        trial_end_date: new Date(subscription.current_period_end * 1000).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        }),
-      });
+    if (isNewTenant && billingStatus === "TRIALING" && subscription.current_period_end) {
+      const trialEndDate = new Date(subscription.current_period_end * 1000);
+      // Validate the date before using it
+      if (!isNaN(trialEndDate.getTime())) {
+        sendBillingEmail(supabaseUrl, supabaseServiceKey, "TRIAL_STARTED", tenantId, {
+          trial_end_date: trialEndDate.toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          }),
+        });
+      }
     }
 
     // Get payment intent for checkout
