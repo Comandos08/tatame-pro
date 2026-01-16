@@ -13,58 +13,71 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   AthleteFormData,
   GuardianFormData,
   GenderType,
-  GENDER_LABELS,
-  GUARDIAN_RELATIONSHIP_LABELS,
+  GuardianRelationship,
   MEMBERSHIP_PRICE_CENTS,
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
-
-const guardianSchema = z.object({
-  fullName: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  nationalId: z.string().min(1, 'Documento é obrigatório'),
-  email: z.string().email('E-mail inválido'),
-  phone: z.string().min(10, 'Telefone inválido'),
-  relationship: z.enum(['PARENT', 'GUARDIAN', 'OTHER']),
-});
-
-const athleteSchema = z.object({
-  fullName: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  birthDate: z.string().min(1, 'Data de nascimento é obrigatória'),
-  nationalId: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
-  phone: z.string().optional(),
-  addressLine1: z.string().min(5, 'Endereço é obrigatório'),
-  addressLine2: z.string().optional(),
-  city: z.string().min(2, 'Cidade é obrigatória'),
-  state: z.string().min(2, 'Estado é obrigatório'),
-  postalCode: z.string().min(5, 'CEP é obrigatório'),
-  country: z.string().default('BR'),
-});
-
-const STEPS = [
-  { id: 1, title: 'Responsável' },
-  { id: 2, title: 'Atleta' },
-  { id: 3, title: 'Documentos' },
-  { id: 4, title: 'Pagamento' },
-];
 
 export function YouthMembershipForm() {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { tenant } = useTenant();
+  const { t, locale } = useI18n();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [guardianData, setGuardianData] = useState<GuardianFormData | null>(null);
   const [athleteData, setAthleteData] = useState<AthleteFormData | null>(null);
   const [documents, setDocuments] = useState<{ idDocument?: File; medicalCertificate?: File }>({});
+
+  const guardianSchema = z.object({
+    fullName: z.string().min(3, t('membership.validation.nameMin')),
+    nationalId: z.string().min(1, t('membership.validation.documentRequired')),
+    email: z.string().email(t('membership.validation.emailInvalid')),
+    phone: z.string().min(10, t('membership.validation.phoneInvalid')),
+    relationship: z.enum(['PARENT', 'GUARDIAN', 'OTHER']),
+  });
+
+  const athleteSchema = z.object({
+    fullName: z.string().min(3, t('membership.validation.nameMin')),
+    birthDate: z.string().min(1, t('membership.validation.birthDateRequired')),
+    nationalId: z.string().optional(),
+    gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+    email: z.string().email(t('membership.validation.emailInvalid')).optional().or(z.literal('')),
+    phone: z.string().optional(),
+    addressLine1: z.string().min(5, t('membership.validation.addressRequired')),
+    addressLine2: z.string().optional(),
+    city: z.string().min(2, t('membership.validation.cityRequired')),
+    state: z.string().min(2, t('membership.validation.stateRequired')),
+    postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
+    country: z.string().default('BR'),
+  });
+
+  const STEPS = [
+    { id: 1, title: t('membership.stepGuardian') },
+    { id: 2, title: t('membership.stepAthlete') },
+    { id: 3, title: t('membership.stepDocuments') },
+    { id: 4, title: t('membership.payment') },
+  ];
+
+  const GENDER_LABELS: Record<GenderType, string> = {
+    MALE: t('membership.male'),
+    FEMALE: t('membership.female'),
+    OTHER: t('membership.other'),
+  };
+
+  const GUARDIAN_RELATIONSHIP_LABELS: Record<GuardianRelationship, string> = {
+    PARENT: locale === 'en' ? 'Parent' : locale === 'es' ? 'Padre/Madre' : 'Pai/Mãe',
+    GUARDIAN: locale === 'en' ? 'Legal Guardian' : locale === 'es' ? 'Tutor Legal' : 'Responsável Legal',
+    OTHER: t('membership.other'),
+  };
 
   const guardianForm = useForm<z.infer<typeof guardianSchema>>({
     resolver: zodResolver(guardianSchema),
@@ -107,7 +120,7 @@ export function YouthMembershipForm() {
     const age = today.getFullYear() - birthDate.getFullYear();
     
     if (age >= 18) {
-      toast.error('O atleta deve ter menos de 18 anos para esta categoria.');
+      toast.error(t('membership.errorYouthAge'));
       return;
     }
 
@@ -126,7 +139,7 @@ export function YouthMembershipForm() {
 
   const handleStepThreeSubmit = () => {
     if (!documents.idDocument) {
-      toast.error('Por favor, envie o documento de identidade do atleta.');
+      toast.error(t('membership.errorIdDocumentYouth'));
       return;
     }
     setStep(4);
@@ -265,11 +278,11 @@ export function YouthMembershipForm() {
       if (checkoutData?.url) {
         window.location.href = checkoutData.url;
       } else {
-        throw new Error('Erro ao criar sessão de pagamento');
+        throw new Error(t('membership.errorPaymentSession'));
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Ocorreu um erro. Por favor, tente novamente.');
+      toast.error(t('membership.errorGeneric'));
     } finally {
       setIsLoading(false);
     }
@@ -298,11 +311,11 @@ export function YouthMembershipForm() {
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
+            {t('common.back')}
           </Button>
           
           <h1 className="font-display text-2xl md:text-3xl font-bold mb-2">
-            Filiação de Atleta Menor
+            {t('membership.youthTitle')}
           </h1>
           <p className="text-muted-foreground">
             {tenant?.name}
@@ -345,9 +358,9 @@ export function YouthMembershipForm() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Dados do Responsável</CardTitle>
+                  <CardTitle>{t('membership.guardianTitle')}</CardTitle>
                   <CardDescription>
-                    Informações do responsável legal pelo atleta
+                    {t('membership.guardianDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -358,9 +371,9 @@ export function YouthMembershipForm() {
                         name="fullName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nome Completo</FormLabel>
+                            <FormLabel>{t('membership.fullName')}</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nome do responsável" {...field} />
+                              <Input placeholder={t('membership.guardianNamePlaceholder')} {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -373,9 +386,9 @@ export function YouthMembershipForm() {
                           name="nationalId"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>CPF / Documento</FormLabel>
+                              <FormLabel>{t('membership.nationalIdLabel')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="000.000.000-00" {...field} />
+                                <Input placeholder={t('membership.nationalIdPlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -387,11 +400,11 @@ export function YouthMembershipForm() {
                           name="relationship"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Parentesco</FormLabel>
+                              <FormLabel>{t('membership.relationship')}</FormLabel>
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecione" />
+                                    <SelectValue placeholder={t('membership.selectPlaceholder')} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -414,9 +427,9 @@ export function YouthMembershipForm() {
                           name="email"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>E-mail</FormLabel>
+                              <FormLabel>{t('common.email')}</FormLabel>
                               <FormControl>
-                                <Input type="email" placeholder="responsavel@email.com" {...field} />
+                                <Input type="email" placeholder={t('membership.guardianEmailPlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -428,9 +441,9 @@ export function YouthMembershipForm() {
                           name="phone"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Telefone</FormLabel>
+                              <FormLabel>{t('common.phone')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="(11) 99999-9999" {...field} />
+                                <Input placeholder={t('membership.phonePlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -440,7 +453,7 @@ export function YouthMembershipForm() {
 
                       <div className="pt-4">
                         <Button type="submit" className="w-full">
-                          Continuar
+                          {t('membership.proceed')}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </div>
@@ -460,9 +473,9 @@ export function YouthMembershipForm() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Dados do Atleta</CardTitle>
+                  <CardTitle>{t('membership.athleteTitle')}</CardTitle>
                   <CardDescription>
-                    Informações do atleta menor de idade
+                    {t('membership.athleteDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -474,9 +487,9 @@ export function YouthMembershipForm() {
                           name="fullName"
                           render={({ field }) => (
                             <FormItem className="sm:col-span-2">
-                              <FormLabel>Nome Completo do Atleta</FormLabel>
+                              <FormLabel>{t('membership.athleteNameLabel')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="Nome completo" {...field} />
+                                <Input placeholder={t('membership.athleteNamePlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -488,7 +501,7 @@ export function YouthMembershipForm() {
                           name="birthDate"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Data de Nascimento</FormLabel>
+                              <FormLabel>{t('membership.birthDate')}</FormLabel>
                               <FormControl>
                                 <Input type="date" {...field} />
                               </FormControl>
@@ -502,11 +515,11 @@ export function YouthMembershipForm() {
                           name="gender"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Gênero</FormLabel>
+                              <FormLabel>{t('membership.gender')}</FormLabel>
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecione" />
+                                    <SelectValue placeholder={t('membership.selectPlaceholder')} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -527,9 +540,9 @@ export function YouthMembershipForm() {
                           name="nationalId"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Documento (opcional)</FormLabel>
+                              <FormLabel>{t('membership.documentOptional')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="RG ou Certidão" {...field} />
+                                <Input placeholder={t('membership.documentOptionalPlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -537,7 +550,7 @@ export function YouthMembershipForm() {
                         />
 
                         <div className="sm:col-span-2 pt-4">
-                          <h3 className="text-sm font-medium mb-4">Endereço</h3>
+                          <h3 className="text-sm font-medium mb-4">{t('membership.addressSection')}</h3>
                         </div>
 
                         <FormField
@@ -545,9 +558,9 @@ export function YouthMembershipForm() {
                           name="addressLine1"
                           render={({ field }) => (
                             <FormItem className="sm:col-span-2">
-                              <FormLabel>Endereço</FormLabel>
+                              <FormLabel>{t('membership.addressLine1')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="Rua, número" {...field} />
+                                <Input placeholder={t('membership.addressPlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -559,9 +572,9 @@ export function YouthMembershipForm() {
                           name="city"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Cidade</FormLabel>
+                              <FormLabel>{t('membership.city')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="São Paulo" {...field} />
+                                <Input placeholder={t('membership.cityPlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -573,9 +586,9 @@ export function YouthMembershipForm() {
                           name="state"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Estado</FormLabel>
+                              <FormLabel>{t('membership.state')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="SP" {...field} />
+                                <Input placeholder={t('membership.statePlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -587,9 +600,9 @@ export function YouthMembershipForm() {
                           name="postalCode"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>CEP</FormLabel>
+                              <FormLabel>{t('membership.postalCode')}</FormLabel>
                               <FormControl>
-                                <Input placeholder="00000-000" {...field} />
+                                <Input placeholder={t('membership.postalCodePlaceholder')} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -599,7 +612,7 @@ export function YouthMembershipForm() {
 
                       <div className="pt-4">
                         <Button type="submit" className="w-full">
-                          Continuar
+                          {t('membership.proceed')}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </div>
@@ -619,14 +632,14 @@ export function YouthMembershipForm() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Documentos do Atleta</CardTitle>
+                  <CardTitle>{t('membership.athleteDocsTitle')}</CardTitle>
                   <CardDescription>
-                    Envie os documentos necessários para a filiação
+                    {t('membership.athleteDocsDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label>Documento de Identidade (RG/Certidão) *</Label>
+                    <Label>{t('membership.idDocumentYouthLabel')}</Label>
                     <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input
                         type="file"
@@ -645,7 +658,7 @@ export function YouthMembershipForm() {
                           <>
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                             <p className="text-sm text-muted-foreground">
-                              Clique para enviar ou arraste o arquivo
+                              {t('membership.uploadHint')}
                             </p>
                           </>
                         )}
@@ -654,7 +667,7 @@ export function YouthMembershipForm() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Atestado Médico (opcional)</Label>
+                    <Label>{t('membership.medicalCertLabel')}</Label>
                     <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input
                         type="file"
@@ -673,7 +686,7 @@ export function YouthMembershipForm() {
                           <>
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                             <p className="text-sm text-muted-foreground">
-                              Clique para enviar ou arraste o arquivo
+                              {t('membership.uploadHint')}
                             </p>
                           </>
                         )}
@@ -682,7 +695,7 @@ export function YouthMembershipForm() {
                   </div>
 
                   <Button onClick={handleStepThreeSubmit} className="w-full">
-                    Continuar
+                    {t('membership.proceed')}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </CardContent>
@@ -699,22 +712,22 @@ export function YouthMembershipForm() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Resumo e Pagamento</CardTitle>
+                  <CardTitle>{t('membership.summaryTitle')}</CardTitle>
                   <CardDescription>
-                    Confira os dados e finalize a filiação
+                    {t('membership.summaryDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {guardianData && (
                     <div className="space-y-2">
-                      <h3 className="text-sm font-medium text-muted-foreground">Responsável</h3>
+                      <h3 className="text-sm font-medium text-muted-foreground">{t('membership.summaryGuardian')}</h3>
                       <div className="grid sm:grid-cols-2 gap-2 text-sm">
                         <div>
-                          <p className="text-muted-foreground">Nome</p>
+                          <p className="text-muted-foreground">{t('membership.summaryName')}</p>
                           <p className="font-medium">{guardianData.fullName}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">E-mail</p>
+                          <p className="text-muted-foreground">{t('membership.summaryEmail')}</p>
                           <p className="font-medium">{guardianData.email}</p>
                         </div>
                       </div>
@@ -723,16 +736,16 @@ export function YouthMembershipForm() {
 
                   {athleteData && (
                     <div className="space-y-2 border-t border-border pt-4">
-                      <h3 className="text-sm font-medium text-muted-foreground">Atleta</h3>
+                      <h3 className="text-sm font-medium text-muted-foreground">{t('membership.summaryAthlete')}</h3>
                       <div className="grid sm:grid-cols-2 gap-2 text-sm">
                         <div>
-                          <p className="text-muted-foreground">Nome</p>
+                          <p className="text-muted-foreground">{t('membership.summaryName')}</p>
                           <p className="font-medium">{athleteData.fullName}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Data de Nascimento</p>
+                          <p className="text-muted-foreground">{t('membership.summaryBirthDate')}</p>
                           <p className="font-medium">
-                            {new Date(athleteData.birthDate).toLocaleDateString('pt-BR')}
+                            {new Date(athleteData.birthDate).toLocaleDateString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}
                           </p>
                         </div>
                       </div>
@@ -741,13 +754,13 @@ export function YouthMembershipForm() {
 
                   <div className="bg-muted/50 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-muted-foreground">Filiação Anual - {tenant?.name}</span>
+                      <span className="text-muted-foreground">{t('membership.annualMembership')} - {tenant?.name}</span>
                       <span className="font-display font-bold text-lg">
                         {formatCurrency(MEMBERSHIP_PRICE_CENTS)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Válida por 12 meses a partir da aprovação
+                      {t('membership.validFor12Months')}
                     </p>
                   </div>
 
@@ -760,18 +773,18 @@ export function YouthMembershipForm() {
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processando...
+                        {t('membership.processing')}
                       </>
                     ) : (
                       <>
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Pagar e Finalizar Filiação
+                        {t('membership.payAndFinish')}
                       </>
                     )}
                   </Button>
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Você será redirecionado para o ambiente seguro de pagamento
+                    {t('membership.redirectHint')}
                   </p>
                 </CardContent>
               </Card>
