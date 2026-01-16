@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Shield, Zap, Users, Award, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PublicHeader from '@/components/PublicHeader';
+import iconLogo from '@/assets/iconLogo.png';
 
 const features = [
   {
@@ -195,9 +196,7 @@ export default function Landing() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <Shield className="h-4 w-4 text-primary-foreground" />
-              </div>
+              <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
               <span className="font-display font-bold">TATAME</span>
             </div>
             <p className="text-sm text-muted-foreground">
