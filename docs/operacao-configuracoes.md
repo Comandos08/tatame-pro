@@ -200,35 +200,58 @@ Atualmente: `noreply@tatame.pro`
 ## Checklist de Produção
 
 ### 1. Autenticação (Supabase Auth)
-- [ ] Habilitar **Leaked Password Protection** em Authentication → Providers → Email
-- [ ] Configurar domínios permitidos (se aplicável)
+- [ ] Habilitar **Leaked Password Protection** em Authentication → Providers → Email → "Enable Leaked password protection"
+- [ ] Configurar domínios permitidos (se aplicável) em Authentication → URL Configuration
 - [ ] Verificar política de senhas (mínimo 8 caracteres recomendado)
+- [ ] Habilitar auto-confirm de emails (para desenvolvimento) ou configurar SMTP (produção)
 
 ### 2. CAPTCHA (Cloudflare Turnstile)
-- [ ] Criar site no [Cloudflare Turnstile](https://dash.cloudflare.com/)
-- [ ] Adicionar `TURNSTILE_SECRET_KEY` nos secrets do Supabase
+- [ ] Criar site no [Cloudflare Turnstile](https://dash.cloudflare.com/) → Turnstile → Add Site
+- [ ] Adicionar `TURNSTILE_SECRET_KEY` nos secrets do Supabase (Edge Functions → Secrets)
+- [ ] Configurar domínio correto no Turnstile (ex: tatame-pro.lovable.app)
 
 ### 3. Rate Limiting (Upstash Redis)
 - [ ] Criar database no [Upstash Console](https://console.upstash.com/)
 - [ ] Adicionar `UPSTASH_REDIS_REST_URL` nos secrets
 - [ ] Adicionar `UPSTASH_REDIS_REST_TOKEN` nos secrets
+- [ ] Testar rate limiting com múltiplas requisições
 
 ### 4. Cron Jobs (Agendamento)
-- [ ] Habilitar extensões `pg_cron` e `pg_net` no Supabase
+- [ ] Habilitar extensões `pg_cron` e `pg_net` no Supabase (Database → Extensions)
 - [ ] Executar SQL de agendamento para:
   - `expire-memberships` (03:00 UTC)
   - `cleanup-abandoned-memberships` (04:00 UTC)
   - `check-membership-renewal` (09:00 UTC)
   - `check-trial-ending` (10:00 UTC)
+- [ ] Verificar jobs com: `SELECT * FROM cron.job;`
 
 ### 5. Pagamentos (Stripe)
 - [ ] Configurar webhook URL: `https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/stripe-webhook`
-- [ ] Verificar `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`
-- [ ] Habilitar eventos necessários no webhook
+- [ ] Verificar `STRIPE_SECRET_KEY` nos secrets
+- [ ] Verificar `STRIPE_WEBHOOK_SECRET` nos secrets
+- [ ] Habilitar eventos: checkout.session.completed, customer.subscription.*, invoice.*
 
 ### 6. E-mails (Resend)
-- [ ] Verificar `RESEND_API_KEY`
-- [ ] Configurar domínio de envio (DNS)
+- [ ] Verificar `RESEND_API_KEY` nos secrets
+- [ ] Configurar domínio de envio (DNS) no Resend Dashboard
+- [ ] Testar envio de email de teste
+
+---
+
+## Fluxo de Validação Pós-Deploy (Smoke Test)
+
+Execute estes passos após cada deploy para verificar que tudo funciona:
+
+1. **Acesso público**: Acessar `/{tenant-slug}` e verificar página de landing carrega
+2. **Filiação teste**: Iniciar filiação de adulto, preencher dados, verificar CAPTCHA aparece
+3. **Checkout Stripe**: Completar pagamento no modo teste (card: 4242 4242 4242 4242)
+4. **Verificar membership**: Confirmar que filiação aparece como PENDING_REVIEW no dashboard
+5. **Aprovar filiação**: Como admin, aprovar a filiação e verificar carteira é gerada
+6. **Área do atleta**: Logar como atleta e verificar dados aparecem corretamente
+7. **Dashboard admin**: Verificar estatísticas e atividade recente no dashboard
+8. **Rankings**: Verificar páginas de rankings internos e públicos carregam sem erros
+9. **Verificar logs**: Checar audit_logs para eventos esperados (MEMBERSHIP_PAID, etc)
+10. **Health check**: Verificar card de saúde do sistema no dashboard (se jobs estão rodando)
 
 ---
 

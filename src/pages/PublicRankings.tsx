@@ -165,9 +165,10 @@ export default function PublicRankings() {
 
   // Mask name for privacy (e.g., "João Silva" -> "João S.")
   const maskName = (name: string) => {
-    const parts = name.split(' ');
-    if (parts.length <= 1) return name;
-    return `${parts[0]} ${parts.slice(1).map(p => p[0] + '.').join(' ')}`;
+    if (!name) return '—';
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length <= 1) return parts[0] || '—';
+    return `${parts[0]} ${parts.slice(1).map(p => p[0] ? p[0] + '.' : '').join(' ')}`;
   };
 
   return (
@@ -225,8 +226,12 @@ export default function PublicRankings() {
                   </CardHeader>
                   <CardContent>
                     {academyRankings.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        {t('rankings.noData')}
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="font-medium">{t('rankings.noData')}</p>
+                        <p className="text-sm mt-1">
+                          {t('rankings.noAcademiesHint') || 'As academias aparecerão aqui conforme atletas se filiarem.'}
+                        </p>
                       </div>
                     ) : (
                       <Table>
@@ -282,8 +287,12 @@ export default function PublicRankings() {
                   </CardHeader>
                   <CardContent>
                     {athleteRankings.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        {t('rankings.noData')}
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="font-medium">{t('rankings.noData')}</p>
+                        <p className="text-sm mt-1">
+                          {t('rankings.noAthletesHint') || 'Os atletas aparecerão aqui conforme receberem graduações.'}
+                        </p>
                       </div>
                     ) : (
                       <Table>

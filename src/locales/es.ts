@@ -182,6 +182,8 @@ export const es: Record<TranslationKey, string> = {
   'rankings.position': 'Posición',
   'rankings.academy': 'Academia',
   'rankings.noData': 'Sin datos de ranking disponibles',
+  'rankings.noAcademiesHint': 'Las academias aparecerán aquí cuando los atletas se afilien.',
+  'rankings.noAthletesHint': 'Los atletas aparecerán aquí cuando reciban graduaciones.',
   'rankings.publicNote': 'Mostrando rankings públicos. Para datos detallados, acceda al portal.',
 
   // Dashboard
@@ -572,4 +574,48 @@ export const es: Record<TranslationKey, string> = {
   // Pagination
   'pagination.previous': 'Anterior',
   'pagination.next': 'Siguiente',
+  
+  // Renewal Banner
+  'renewal.expired': 'Su afiliación ha expirado',
+  'renewal.expiresInDays': 'Su afiliación expira en {days} días',
+  'renewal.expiredDesc': 'Renueve ahora para continuar participando en eventos y mantener su tarjeta digital activa.',
+  'renewal.urgentDesc': 'Su afiliación vence el {date}. Renueve con urgencia para no perder acceso.',
+  'renewal.comfortableDesc': 'Su afiliación vence el {date}. Renueve con anticipación para seguir disfrutando de los beneficios.',
+  'renewal.renewNow': 'Renovar Ahora',
+  
+  // Dashboard - Quick Actions i18n
+  'dashboard.approveMembers': 'Aprobar Afiliaciones',
+  'dashboard.pendingCount': '{count} pendientes',
+  'dashboard.expiringMemberships': 'Afiliaciones Expirando',
+  'dashboard.expiringCount': '{count} en 30 días',
+  'dashboard.issueDiploma': 'Emitir Diploma',
+  'dashboard.newGrading': 'Nueva graduación',
+  'dashboard.registerAcademy': 'Registrar Academia',
+  'dashboard.newAcademy': 'Nueva academia',
+  'dashboard.viewFullHistory': 'Ver historial completo',
+  
+  // Audit event labels
+  'audit.membershipCreated': 'Afiliación Creada',
+  'audit.membershipPaid': 'Pago Confirmado',
+  'audit.membershipApproved': 'Afiliación Aprobada',
+  'audit.membershipRejected': 'Afiliación Rechazada',
+  'audit.membershipExpired': 'Afiliación Expirada',
+  'audit.membershipCleanup': 'Afiliación Abandonada Eliminada',
+  'audit.diplomaIssued': 'Diploma Emitido',
+  'audit.gradingRecorded': 'Graduación Registrada',
+  'audit.renewalReminder': 'Recordatorio de Renovación',
+  'audit.settingsUpdated': 'Configuración Actualizada',
+  
+  // System Health
+  'health.title': 'Salud del Sistema',
+  'health.titleDesc': 'Monitoreo de trabajos y automatizaciones',
+  'health.lastExpireRun': 'Última ejecución de expiración',
+  'health.lastCleanupRun': 'Última ejecución de limpieza',
+  'health.expiredLast24h': 'Expiradas (24h)',
+  'health.cleanedLast24h': 'Limpiadas (24h)',
+  'health.expiredLast7d': 'Expiradas (7 días)',
+  'health.cleanedLast7d': 'Limpiadas (7 días)',
+  'health.noData': 'Sin datos de ejecución',
+  'health.jobsRunning': 'Trabajos en ejecución',
+  'health.allSystemsOperational': 'Sistemas operativos',
 };
