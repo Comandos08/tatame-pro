@@ -254,4 +254,21 @@ export const es: Record<TranslationKey, string> = {
   'admin.tenantsActive': 'Activos',
   'admin.tenantsWithIssues': 'Con Problemas',
   'admin.monthlyRevenue': 'Ingresos del Mes',
+
+  // Branding Settings
+  'settings.brandingAssets': 'Archivos de Marca',
+  'settings.brandingAssetsDesc': 'Logo y plantillas personalizadas para tarjetas y diplomas',
+  'settings.organizationLogo': 'Logo de la Organización',
+  'settings.logoDesc': 'Logo mostrado en documentos y tarjetas digitales',
+  'settings.cardTemplate': 'Plantilla de Tarjeta Digital',
+  'settings.cardTemplateDesc': 'Imagen de fondo para tarjetas digitales (opcional)',
+  'settings.diplomaTemplate': 'Plantilla de Diploma',
+  'settings.diplomaTemplateDesc': 'Imagen de fondo para diplomas (opcional)',
+
+  // Verification
+  'verification.integrityVerified': 'Integridad Verificada',
+  'verification.integrityVerifiedDesc': 'Documento auténtico y no alterado',
+  'verification.integrityFailed': 'Integridad Comprometida',
+  'verification.integrityFailedDesc': 'Este documento puede haber sido alterado',
+  'verification.hashPrefix': 'Hash SHA-256',
 };

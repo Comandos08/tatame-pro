@@ -2,7 +2,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import { encode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
+// Calculate SHA-256 hash of canonical payload
+async function calculateContentHash(payload: Record<string, unknown>): Promise<string> {
+  const jsonStr = JSON.stringify(payload);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(jsonStr);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = new Uint8Array(hashBuffer);
+  return new TextDecoder().decode(encode(hashArray));
+}
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -285,7 +295,20 @@ serve(async (req) => {
     const { data: pdfUrlData } = supabase.storage.from('cards').getPublicUrl(pdfFileName);
     const pdfUrl = pdfUrlData?.publicUrl;
 
-    // Create diploma record
+    // Calculate content hash for integrity verification
+    const canonicalPayload = {
+      tenant_id: tenantId,
+      athlete_id: athleteId,
+      grading_level_id: gradingLevelId,
+      promotion_date: promotionDate,
+      serial_number: serialNumber,
+      academy_id: academyId || null,
+      coach_id: coachId || null,
+    };
+    const contentHash = await calculateContentHash(canonicalPayload);
+    console.log("Diploma content hash:", contentHash.substring(0, 12) + "...");
+
+    // Create diploma record with content hash
     const { data: diploma, error: diplomaError } = await supabase
       .from('diplomas')
       .insert({
@@ -301,6 +324,7 @@ serve(async (req) => {
         qr_code_image_url: qrCodeImageUrl,
         status: 'ISSUED',
         issued_at: new Date().toISOString(),
+        content_hash_sha256: contentHash,
       })
       .select()
       .single();

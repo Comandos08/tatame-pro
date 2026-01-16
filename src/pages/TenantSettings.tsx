@@ -12,6 +12,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 
 export default function TenantSettings() {
   const { tenant } = useTenant();
@@ -24,11 +25,15 @@ export default function TenantSettings() {
   const [defaultLocale, setDefaultLocale] = useState<string>('pt-BR');
   const [primaryColor, setPrimaryColor] = useState('#dc2626');
   const [billingEmail, setBillingEmail] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [cardTemplateUrl, setCardTemplateUrl] = useState<string | null>(null);
+  const [diplomaTemplateUrl, setDiplomaTemplateUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (tenant) {
       setDescription(tenant.description || '');
       setPrimaryColor(tenant.primaryColor || '#dc2626');
+      setLogoUrl(tenant.logoUrl || null);
       fetchTenantDetails();
     }
   }, [tenant?.id]);
@@ -39,13 +44,16 @@ export default function TenantSettings() {
     
     const { data } = await supabase
       .from('tenants')
-      .select('default_locale, billing_email')
+      .select('default_locale, billing_email, logo_url, card_template_url, diploma_template_url')
       .eq('id', tenant.id)
       .single();
     
     if (data) {
       setDefaultLocale(data.default_locale || 'pt-BR');
       setBillingEmail(data.billing_email || '');
+      setLogoUrl(data.logo_url);
+      setCardTemplateUrl(data.card_template_url);
+      setDiplomaTemplateUrl(data.diploma_template_url);
     }
     setLoading(false);
   }
@@ -62,6 +70,9 @@ export default function TenantSettings() {
           default_locale: defaultLocale,
           primary_color: primaryColor,
           billing_email: billingEmail || null,
+          logo_url: logoUrl,
+          card_template_url: cardTemplateUrl,
+          diploma_template_url: diplomaTemplateUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', tenant.id);
@@ -77,6 +88,7 @@ export default function TenantSettings() {
             description: description !== tenant.description,
             default_locale: true,
             primary_color: primaryColor !== tenant.primaryColor,
+            branding: true,
           }
         }
       });
@@ -88,6 +100,12 @@ export default function TenantSettings() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleBrandingUpdate(field: string, url: string | null) {
+    if (field === 'logo_url') setLogoUrl(url);
+    if (field === 'card_template_url') setCardTemplateUrl(url);
+    if (field === 'diploma_template_url') setDiplomaTemplateUrl(url);
   }
 
   if (!tenant) return null;
@@ -296,6 +314,15 @@ export default function TenantSettings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Branding Assets Upload */}
+            <BrandingUploadSection
+              tenantId={tenant.id}
+              logoUrl={logoUrl}
+              cardTemplateUrl={cardTemplateUrl}
+              diplomaTemplateUrl={diplomaTemplateUrl}
+              onUpdate={handleBrandingUpdate}
+            />
 
             {/* Save Button */}
             <div className="flex justify-end">

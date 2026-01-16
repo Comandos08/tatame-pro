@@ -252,6 +252,23 @@ export const ptBR = {
   'admin.tenantsActive': 'Ativos',
   'admin.tenantsWithIssues': 'Com Problemas',
   'admin.monthlyRevenue': 'Receita do Mês',
+
+  // Branding Settings
+  'settings.brandingAssets': 'Arquivos de Branding',
+  'settings.brandingAssetsDesc': 'Logo e templates personalizados para carteiras e diplomas',
+  'settings.organizationLogo': 'Logo da Organização',
+  'settings.logoDesc': 'Logo exibida em documentos e carteiras digitais',
+  'settings.cardTemplate': 'Template de Carteira Digital',
+  'settings.cardTemplateDesc': 'Imagem de fundo para carteiras digitais (opcional)',
+  'settings.diplomaTemplate': 'Template de Diploma',
+  'settings.diplomaTemplateDesc': 'Imagem de fundo para diplomas (opcional)',
+
+  // Verification
+  'verification.integrityVerified': 'Integridade Verificada',
+  'verification.integrityVerifiedDesc': 'Documento autêntico e não adulterado',
+  'verification.integrityFailed': 'Integridade Comprometida',
+  'verification.integrityFailedDesc': 'Este documento pode ter sido alterado',
+  'verification.hashPrefix': 'Hash SHA-256',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
