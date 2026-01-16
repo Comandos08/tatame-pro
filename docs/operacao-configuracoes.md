@@ -239,17 +239,62 @@ Acesse via Supabase Dashboard → Edge Functions → Logs
 
 ### Audit Logs (tabela `audit_logs`)
 Eventos críticos registrados automaticamente:
-- `MEMBERSHIP_PAID` - Pagamento de filiação confirmado
-- `MEMBERSHIP_APPROVED` - Filiação aprovada
-- `MEMBERSHIP_EXPIRED` - Filiação expirada (automático)
-- `MEMBERSHIP_ABANDONED_CLEANUP` - Filiação abandonada limpa (automático)
+
+**Filiações:**
+- `MEMBERSHIP_CREATED` - Nova filiação criada
+- `MEMBERSHIP_PAID` - Pagamento de filiação confirmado via Stripe webhook
+- `MEMBERSHIP_APPROVED` - Filiação aprovada por admin/staff
+- `MEMBERSHIP_REJECTED` - Filiação rejeitada por admin/staff
+- `MEMBERSHIP_EXPIRED` - Filiação expirada (automático via cron)
+- `MEMBERSHIP_CANCELLED` - Filiação cancelada
+- `MEMBERSHIP_ABANDONED_CLEANUP` - Filiação abandonada limpa (automático via cron)
+- `RENEWAL_REMINDER_SENT` - Lembrete de renovação enviado
+
+**Diplomas e Graduações:**
 - `DIPLOMA_ISSUED` - Diploma emitido
+- `DIPLOMA_REVOKED` - Diploma revogado
 - `GRADING_RECORDED` - Graduação registrada
 - `GRADING_NOTIFICATION_SENT` - Notificação de graduação enviada
+- `DIGITAL_CARD_GENERATED` - Carteira digital gerada
+
+**Billing de Tenant:**
 - `TENANT_BILLING_UPDATED` - Billing de tenant atualizado
+- `TENANT_SUBSCRIPTION_CREATED` - Assinatura criada
 - `TENANT_SUBSCRIPTION_CANCELLED` - Assinatura cancelada
-- `RENEWAL_REMINDER_SENT` - Lembrete de renovação enviado
+- `TENANT_PAYMENT_SUCCEEDED` - Pagamento bem-sucedido
+- `TENANT_PAYMENT_FAILED` - Pagamento falhou
 - `TRIAL_END_NOTIFICATION_SENT` - Notificação de fim de trial
+
+**Autenticação:**
+- `PASSWORD_RESET_REQUESTED` - Reset de senha solicitado
+- `PASSWORD_RESET_COMPLETED` - Senha redefinida com sucesso
 
 ### Webhook Events (tabela `webhook_events`)
 Registra todos os eventos do Stripe processados com status e erros.
+
+---
+
+## Testes Automatizados
+
+### Edge Functions
+O projeto inclui testes automatizados para as edge functions críticas:
+
+```bash
+# Rodar todos os testes
+deno test --allow-env --allow-net supabase/functions/_tests/
+
+# Rodar teste específico
+deno test --allow-env --allow-net supabase/functions/_tests/edge-functions.test.ts
+```
+
+### Funções Testadas
+- `request-password-reset`: Normalização de email, validação de formato, resposta genérica
+- `reset-password`: Validação de senha, formato de token, expiração
+- `create-membership-checkout`: Validação de UUID, status de pagamento, rate limiting
+- `expire-memberships`: Identificação de filiações a expirar, idempotência
+- `cleanup-abandoned-memberships`: Identificação de drafts abandonados
+
+### CAPTCHA e Rate Limiting
+- Validação de lógica de fail-open quando não configurado
+- Teste de janelas de tempo para rate limiting
+- Validação de tokens Turnstile

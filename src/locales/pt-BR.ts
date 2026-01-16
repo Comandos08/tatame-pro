@@ -112,6 +112,9 @@ export const ptBR = {
   'membership.errorIdDocumentYouth': 'Por favor, envie o documento de identidade do atleta.',
   'membership.errorGeneric': 'Ocorreu um erro. Por favor, tente novamente.',
   'membership.errorPaymentSession': 'Erro ao criar sessão de pagamento',
+  'membership.securityVerification': 'Verificação de Segurança',
+  'membership.errorRateLimit': 'Muitas tentativas. Aguarde alguns minutos.',
+  'membership.errorCaptchaRequired': 'Por favor, complete a verificação de segurança.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Filiação de Atleta Menor',
