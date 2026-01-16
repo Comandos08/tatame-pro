@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Shield, Building2, Users, LogOut, Activity, ExternalLink, 
-  Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check,
+  Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
   Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
   const { currentUser, signOut, isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
 
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
@@ -273,21 +273,37 @@ export default function AdminDashboard() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Theme toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                >
-                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {/* Theme selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  {resolvedTheme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-              </TooltipContent>
-            </Tooltip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Sun className="h-4 w-4" />
+                    {t('theme.light')}
+                  </span>
+                  {theme === 'light' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Moon className="h-4 w-4" />
+                    {t('theme.dark')}
+                  </span>
+                  {theme === 'dark' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4" />
+                    {t('theme.system')}
+                  </span>
+                  {theme === 'system' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Help button */}
             <Tooltip>

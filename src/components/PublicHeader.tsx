@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Globe, ArrowLeft, ArrowRight, Trophy, Shield } from 'lucide-react';
+import { Sun, Moon, Monitor, Globe, ArrowLeft, ArrowRight, Trophy, Shield, Check } from 'lucide-react';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
 import { Button } from '@/components/ui/button';
@@ -33,12 +33,8 @@ const localeLabels: Record<Locale, string> = {
 };
 
 export default function PublicHeader({ tenant, showBackButton, backTo }: PublicHeaderProps) {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
-
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-  };
 
   // For IPPON main landing (no tenant)
   if (!tenant) {
@@ -74,14 +70,37 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Theme Toggle */}
-            <Button variant="ghost" size="icon" onClick={toggleTheme} title={resolvedTheme === 'dark' ? t('theme.light') : t('theme.dark')}>
-              {resolvedTheme === 'dark' ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
+            {/* Theme Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" title={t('theme.select')}>
+                  {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Sun className="h-4 w-4" />
+                    {t('theme.light')}
+                  </span>
+                  {theme === 'light' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Moon className="h-4 w-4" />
+                    {t('theme.dark')}
+                  </span>
+                  {theme === 'dark' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4" />
+                    {t('theme.system')}
+                  </span>
+                  {theme === 'system' && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Auth Links */}
             <Link to="/login" className="hidden md:block text-muted-foreground hover:text-foreground transition-colors">
@@ -147,14 +166,37 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Theme Toggle */}
-          <Button variant="ghost" size="icon" onClick={toggleTheme} title={resolvedTheme === 'dark' ? t('theme.light') : t('theme.dark')}>
-            {resolvedTheme === 'dark' ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </Button>
+          {/* Theme Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title={t('theme.select')}>
+                {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Sun className="h-4 w-4" />
+                  {t('theme.light')}
+                </span>
+                {theme === 'light' && <Check className="h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Moon className="h-4 w-4" />
+                  {t('theme.dark')}
+                </span>
+                {theme === 'dark' && <Check className="h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4" />
+                  {t('theme.system')}
+                </span>
+                {theme === 'system' && <Check className="h-4 w-4" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Back or CTA */}
           {showBackButton ? (

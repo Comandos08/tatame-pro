@@ -40,6 +40,7 @@ export const es: Record<TranslationKey, string> = {
   'common.back': 'Volver',
 
   // Theme
+  'theme.select': 'Tema',
   'theme.light': 'Tema Claro',
   'theme.dark': 'Tema Oscuro',
   'theme.system': 'Sistema',

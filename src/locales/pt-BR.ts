@@ -38,6 +38,7 @@ export const ptBR = {
   'common.back': 'Voltar',
 
   // Theme
+  'theme.select': 'Tema',
   'theme.light': 'Tema Claro',
   'theme.dark': 'Tema Escuro',
   'theme.system': 'Sistema',
