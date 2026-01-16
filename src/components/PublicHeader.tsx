@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Sun, Moon, Globe, ArrowLeft, ArrowRight, Trophy, HelpCircle } from 'lucide-react';
+import { Shield, Sun, Moon, Globe, ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import logoIppon from '@/assets/logoIppon.png';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -43,11 +44,12 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
     return (
       <header className="relative z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0">
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="font-display text-xl font-bold">IPPON</span>
+          <Link to="/" className="flex items-center">
+            <img 
+              src={logoIppon} 
+              alt="IPPON" 
+              className="h-10 w-auto object-contain" 
+            />
           </Link>
           
           <div className="flex items-center gap-2">
