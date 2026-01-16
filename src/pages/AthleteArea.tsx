@@ -8,9 +8,6 @@ import {
   FileText, 
   Calendar,
   Building2,
-  Mail,
-  Phone,
-  MapPin,
   Download,
   QrCode,
   Shield,
@@ -27,10 +24,11 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { MEMBERSHIP_STATUS_LABELS } from '@/types/membership';
+import { EditablePersonalData } from '@/components/athlete/EditablePersonalData';
+import { DocumentsSection } from '@/components/athlete/DocumentsSection';
 
 interface AthleteData {
   id: string;
@@ -43,6 +41,9 @@ interface AthleteData {
   city: string | null;
   state: string | null;
   country: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
   current_academy_id: string | null;
   current_main_coach_id: string | null;
   current_academy: {
@@ -153,6 +154,9 @@ export default function AthleteArea() {
           city,
           state,
           country,
+          address_line1,
+          address_line2,
+          postal_code,
           current_academy_id,
           current_main_coach_id,
           current_academy:academies!current_academy_id(id, name),
@@ -391,78 +395,13 @@ export default function AthleteArea() {
         </motion.div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Personal Data Card */}
+          {/* Personal Data Card - Editable */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  {t('athleteArea.personalData')}
-                </CardTitle>
-                <CardDescription>{t('athleteArea.personalDataDesc')}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('membership.fullName')}</p>
-                    <p className="font-medium">{athlete.full_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('membership.birthDate')}</p>
-                    <p className="font-medium">{formatDate(athlete.birth_date)}</p>
-                  </div>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('membership.nationalId')}</p>
-                    <p className="font-medium">{maskNationalId(athlete.national_id)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('membership.gender')}</p>
-                    <p className="font-medium capitalize">
-                      {athlete.gender === 'MALE' ? t('membership.male') : 
-                       athlete.gender === 'FEMALE' ? t('membership.female') : t('membership.other')}
-                    </p>
-                  </div>
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{athlete.email}</span>
-                  </div>
-                  {athlete.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>{athlete.phone}</span>
-                    </div>
-                  )}
-                  {(athlete.city || athlete.state) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{[athlete.city, athlete.state].filter(Boolean).join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-                {athlete.current_academy && (
-                  <>
-                    <Separator />
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">{t('athleteArea.currentAcademy')}</p>
-                        <p className="font-medium">{athlete.current_academy.name}</p>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <EditablePersonalData athlete={athlete} tenantId={tenant.id} />
           </motion.div>
 
           {/* Digital Card */}
@@ -600,6 +539,15 @@ export default function AthleteArea() {
               )}
             </CardContent>
           </Card>
+        </motion.div>
+
+        {/* Documents Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <DocumentsSection athleteId={athlete.id} tenantId={tenant.id} />
         </motion.div>
 
         {/* Diplomas */}

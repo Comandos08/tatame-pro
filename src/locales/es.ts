@@ -336,4 +336,6 @@ export const es: Record<TranslationKey, string> = {
   'athleteArea.adminMessageDesc': 'Esta área es para atletas. Como administrador, puedes gestionar atletas a través del menú de Atletas.',
   'athleteArea.noAthleteFound': 'Perfil de Atleta no encontrado',
   'athleteArea.noAthleteFoundDesc': 'Aún no tienes un registro de atleta vinculado a esta organización. Completa tu afiliación para acceder a esta área.',
+  'athleteArea.dataSaved': '¡Datos guardados con éxito!',
+  'athleteArea.saveError': 'Error al guardar datos',
 };
