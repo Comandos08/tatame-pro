@@ -39,8 +39,8 @@ export const ptBR = {
 
   // Theme
   'theme.select': 'Tema',
-  'theme.light': 'Tema Claro',
-  'theme.dark': 'Tema Escuro',
+  'theme.light': 'Claro',
+  'theme.dark': 'Escuro',
   'theme.system': 'Sistema',
 
   // Language
