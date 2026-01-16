@@ -268,8 +268,25 @@ Quando um tenant está com problema de billing (`hasBillingIssue`, `isBlocked`, 
 2. **Criação de filiações bloqueada**: A página de seleção de tipo de filiação (`/membership/new`) mostra aviso e desabilita botões
 3. **Leitura permitida**: Dashboard, relatórios, rankings e área do atleta continuam funcionando normalmente
 
+### Política de Falhas de Pagamento (v1)
+
+A política segue o modelo intermediário de mercado:
+
+| Situação | Status | Efeito |
+|----------|--------|--------|
+| 1ª falha de pagamento | PAST_DUE | Banner de aviso + bloqueio de novas filiações |
+| 2-3 falhas na mesma fatura (7 dias) | PAST_DUE mantido | Stripe continua tentando (dunning automático) |
+| Dunning esgotado sem sucesso | UNPAID ou CANCELED | Tenant completamente bloqueado |
+| Pagamento regularizado | ACTIVE | Tudo liberado automaticamente |
+
+**Notas importantes:**
+- O Stripe gerencia as retentativas via dunning (configurável no Stripe Dashboard)
+- Cada falha gera evento `TENANT_PAYMENT_FAILED` no audit_log para monitoramento
+- Admin do tenant recebe e-mail a cada falha com link para atualizar cartão
+- Leitura de dados permanece funcional durante PAST_DUE
+
 ### Estados Detectados
-- `isBlocked`: Tenant inativo ou assinatura cancelada
+- `isBlocked`: Tenant inativo ou assinatura cancelada (CANCELED/UNPAID)
 - `hasBillingIssue`: Status PAST_DUE, UNPAID ou INCOMPLETE
 - `isTrialExpired`: Trial com período expirado
 
@@ -324,6 +341,39 @@ Execute estes 15 passos após cada deploy para verificar que tudo funciona:
 13. **Health check**: Verificar card de saúde do sistema no dashboard (se jobs estão rodando)
 14. **Cenário trial**: (Ambiente teste) Verificar banner de trial aparece para tenant em trial
 15. **Cenário bloqueio**: (Ambiente teste) Verificar que tenant bloqueado não permite criar novas filiações
+
+---
+
+## Monitoramento de Jobs (Importante!)
+
+### Interpretação de Ausência de Eventos
+
+**⚠️ NOTA CRÍTICA**: A ausência de eventos `MEMBERSHIP_EXPIRED` ou `MEMBERSHIP_ABANDONED_CLEANUP` por mais de 24-48h indica **problema técnico nos cron jobs**, não uma punição aos usuários ou tenants.
+
+| Situação | Significado | Ação Necessária |
+|----------|-------------|-----------------|
+| Nenhum `MEMBERSHIP_EXPIRED` em 24h | Jobs podem estar parados | Verificar pg_cron e pg_net |
+| Job "Atrasado" no PlatformHealthCard | Mais de 24h desde última execução | Verificar cron.job e logs |
+| Job "Erro" no PlatformHealthCard | Mais de 48h sem execução | Ação técnica urgente |
+
+### O que NÃO significa
+- Não significa que usuários/atletas perdem acesso
+- Não significa que tenants devem ser bloqueados
+- Apenas significa que filiações vencidas não estão sendo marcadas automaticamente
+
+### Como diagnosticar
+```sql
+-- Ver jobs agendados
+SELECT jobname, schedule, command FROM cron.job;
+
+-- Ver execuções recentes
+SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
+
+-- Ver audit logs recentes do job
+SELECT * FROM audit_logs 
+WHERE event_type = 'MEMBERSHIP_EXPIRED' 
+ORDER BY created_at DESC LIMIT 10;
+```
 
 ---
 

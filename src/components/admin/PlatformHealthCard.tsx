@@ -154,14 +154,34 @@ export function PlatformHealthCard() {
     return format(date, 'dd/MM HH:mm');
   };
 
-  const getJobStatus = (lastRun: string | null) => {
-    if (!lastRun) return { status: 'unknown', color: 'secondary' as const };
+  const getJobStatus = (lastRun: string | null): { status: string; color: 'default' | 'secondary' | 'destructive'; label: string; tooltip: string } => {
+    if (!lastRun) return { 
+      status: 'unknown', 
+      color: 'secondary', 
+      label: 'Sem dados',
+      tooltip: 'Nenhuma execução registrada. Verifique se os cron jobs estão configurados.'
+    };
     
     const hoursSinceRun = (Date.now() - new Date(lastRun).getTime()) / 3600000;
     
-    if (hoursSinceRun < 25) return { status: 'ok', color: 'default' as const };
-    if (hoursSinceRun < 48) return { status: 'warning', color: 'secondary' as const };
-    return { status: 'error', color: 'destructive' as const };
+    if (hoursSinceRun < 25) return { 
+      status: 'ok', 
+      color: 'default',
+      label: 'OK',
+      tooltip: 'Job executado nas últimas 24h. Funcionando normalmente.'
+    };
+    if (hoursSinceRun < 48) return { 
+      status: 'warning', 
+      color: 'secondary',
+      label: 'Atrasado',
+      tooltip: 'Job não executou há mais de 24h. Investigar cron/pg_net.'
+    };
+    return { 
+      status: 'error', 
+      color: 'destructive',
+      label: 'Erro',
+      tooltip: 'Job não executou há mais de 48h. Ação técnica necessária.'
+    };
   };
 
   const hasIssues = metrics && (
@@ -215,7 +235,10 @@ export function PlatformHealthCard() {
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Status dos jobs automáticos e métricas de erros
+          Status dos jobs automáticos e métricas de erros.
+          <span className="block mt-1 text-muted-foreground/70">
+            Nota: Ausência de eventos indica possível problema técnico nos jobs, não impacto direto nos usuários.
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -237,9 +260,12 @@ export function PlatformHealthCard() {
                     <p className="text-xs text-muted-foreground">Expirar Filiações</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastExpireMembershipsRun)}</p>
                   </div>
-                  <Badge variant={getJobStatus(metrics.lastExpireMembershipsRun).color} className="text-xs">
-                    {getJobStatus(metrics.lastExpireMembershipsRun).status === 'ok' ? 'OK' : 
-                     getJobStatus(metrics.lastExpireMembershipsRun).status === 'warning' ? 'Atrasado' : 'Erro'}
+                  <Badge 
+                    variant={getJobStatus(metrics.lastExpireMembershipsRun).color} 
+                    className="text-xs cursor-help"
+                    title={getJobStatus(metrics.lastExpireMembershipsRun).tooltip}
+                  >
+                    {getJobStatus(metrics.lastExpireMembershipsRun).label}
                   </Badge>
                 </div>
                 
@@ -248,9 +274,12 @@ export function PlatformHealthCard() {
                     <p className="text-xs text-muted-foreground">Limpar Abandonados</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastCleanupAbandonedRun)}</p>
                   </div>
-                  <Badge variant={getJobStatus(metrics.lastCleanupAbandonedRun).color} className="text-xs">
-                    {getJobStatus(metrics.lastCleanupAbandonedRun).status === 'ok' ? 'OK' : 
-                     getJobStatus(metrics.lastCleanupAbandonedRun).status === 'warning' ? 'Atrasado' : 'Erro'}
+                  <Badge 
+                    variant={getJobStatus(metrics.lastCleanupAbandonedRun).color} 
+                    className="text-xs cursor-help"
+                    title={getJobStatus(metrics.lastCleanupAbandonedRun).tooltip}
+                  >
+                    {getJobStatus(metrics.lastCleanupAbandonedRun).label}
                   </Badge>
                 </div>
                 
@@ -259,9 +288,12 @@ export function PlatformHealthCard() {
                     <p className="text-xs text-muted-foreground">Checar Trials</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastTrialCheckRun)}</p>
                   </div>
-                  <Badge variant={getJobStatus(metrics.lastTrialCheckRun).color} className="text-xs">
-                    {getJobStatus(metrics.lastTrialCheckRun).status === 'ok' ? 'OK' : 
-                     getJobStatus(metrics.lastTrialCheckRun).status === 'warning' ? 'Atrasado' : '-'}
+                  <Badge 
+                    variant={getJobStatus(metrics.lastTrialCheckRun).color} 
+                    className="text-xs cursor-help"
+                    title={getJobStatus(metrics.lastTrialCheckRun).tooltip}
+                  >
+                    {getJobStatus(metrics.lastTrialCheckRun).label}
                   </Badge>
                 </div>
               </div>
