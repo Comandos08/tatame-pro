@@ -17,6 +17,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -55,16 +56,6 @@ interface Academy {
   id: string;
   name: string;
 }
-
-const STATUS_COLORS: Record<MembershipStatus, string> = {
-  DRAFT: 'bg-muted text-muted-foreground',
-  PENDING_PAYMENT: 'bg-warning/20 text-warning',
-  PENDING_REVIEW: 'bg-warning/20 text-warning',
-  APPROVED: 'bg-info/20 text-info',
-  ACTIVE: 'bg-success/20 text-success',
-  EXPIRED: 'bg-destructive/20 text-destructive',
-  CANCELLED: 'bg-destructive/20 text-destructive',
-};
 
 export default function AthletesList() {
   const { tenant } = useTenant();
@@ -278,9 +269,10 @@ export default function AthletesList() {
                       </TableCell>
                       <TableCell>
                         {athlete.latest_membership ? (
-                          <Badge className={STATUS_COLORS[athlete.latest_membership.status]}>
-                            {MEMBERSHIP_STATUS_LABELS[athlete.latest_membership.status]}
-                          </Badge>
+                          <StatusBadge 
+                            status={athlete.latest_membership.status} 
+                            label={MEMBERSHIP_STATUS_LABELS[athlete.latest_membership.status]}
+                          />
                         ) : (
                           <Badge variant="outline">Sem filiação</Badge>
                         )}
