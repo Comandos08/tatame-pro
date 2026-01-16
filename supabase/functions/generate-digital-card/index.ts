@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import QRCode from "https://esm.sh/qrcode@1.5.3";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { encode } from "https://deno.land/std@0.190.0/encoding/hex.ts";
+import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +11,12 @@ const corsHeaders = {
 
 interface GenerateCardRequest {
   membershipId: string;
+}
+
+// Generate QR code as base64 PNG data URL
+async function generateQRCodeDataUrl(data: string): Promise<string> {
+  const qrDataUrl = await qrcode(data, { size: 300 }) as unknown as string;
+  return qrDataUrl;
 }
 
 // Calculate SHA-256 hash of canonical payload
@@ -107,11 +113,7 @@ serve(async (req) => {
     const qrCodeData = JSON.stringify(qrPayload);
 
     // Generate QR code as data URL
-    const qrCodeDataUrl = await QRCode.toDataURL(qrCodeData, {
-      width: 300,
-      margin: 2,
-      color: { dark: "#000000", light: "#FFFFFF" },
-    });
+    const qrCodeDataUrl = await generateQRCodeDataUrl(qrCodeData);
 
     // Parse primary color or use default
     const primaryColor = tenant.primary_color || "#dc2626";
