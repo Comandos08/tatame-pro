@@ -43,7 +43,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, signOut, isGlobalSuperadmin } = useCurrentUser();
+  const { currentUser, signOut, isGlobalSuperadmin, hasRole } = useCurrentUser();
   const { tenant } = useTenant();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
@@ -61,6 +61,11 @@ export function AppShell({ children }: AppShellProps) {
 
   const tenantSlug = tenant?.slug || '';
   
+  // Check if user has admin roles for billing visibility
+  const hasAdminRole = tenant?.id && (
+    hasRole('ADMIN_TENANT', tenant.id) || hasRole('STAFF_ORGANIZACAO', tenant.id)
+  );
+  
   const navigation = [
     { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home },
     { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users },
@@ -71,7 +76,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings },
     { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy },
     { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText },
-    { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard },
+    ...(hasAdminRole || isGlobalSuperadmin ? [{ name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard }] : []),
     { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings },
   ];
 
