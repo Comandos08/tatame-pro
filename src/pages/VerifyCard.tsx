@@ -3,7 +3,8 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, AlertCircle, Loader2, Shield, ShieldCheck, ShieldX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, XCircle, AlertCircle, Loader2, Shield, ShieldCheck, ShieldX, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -16,6 +17,7 @@ interface CardVerification {
   sportType: string;
   hashVerified: boolean | null;
   storedHash: string | null;
+  pdfUrl: string | null;
 }
 
 // Calculate SHA-256 hash in browser
@@ -50,6 +52,10 @@ export default function VerifyCard() {
             id,
             valid_until,
             content_hash_sha256,
+            pdf_url,
+            tenant_id,
+            membership_id,
+            created_at,
             membership:memberships!inner(
               id,
               status,
@@ -98,17 +104,16 @@ export default function VerifyCard() {
         let hashVerified: boolean | null = null;
         if (card.content_hash_sha256) {
           try {
-            // Recreate the canonical payload (same structure as edge function)
+            // Recreate the canonical payload (MUST match edge function exactly)
+            // Extract created_at date in YYYY-MM-DD format
+            const createdAtDate = card.created_at ? card.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+            
             const canonicalPayload = {
-              cardId: card.id,
-              membershipId: membership.id,
-              athleteId: membership.athlete.id,
-              athleteName: membership.athlete.full_name,
-              tenantId: membership.tenant.id,
-              validUntil: card.valid_until,
-              membershipType: membership.type,
-              startDate: membership.start_date,
-              endDate: membership.end_date,
+              tenant_id: card.tenant_id,
+              athlete_id: membership.athlete.id,
+              membership_id: card.membership_id,
+              valid_until: card.valid_until,
+              created_at: createdAtDate,
             };
             
             const calculatedHash = await calculateSHA256(JSON.stringify(canonicalPayload));
@@ -152,6 +157,7 @@ export default function VerifyCard() {
           sportType: membership.tenant.sport_types?.[0] || t('verification.combatSport'),
           hashVerified,
           storedHash: card.content_hash_sha256,
+          pdfUrl: card.pdf_url,
         });
       } catch (err) {
         console.error("Verification error:", err);
@@ -163,6 +169,12 @@ export default function VerifyCard() {
 
     verifyCard();
   }, [cardId, tenantSlug, t]);
+
+  const handleDownload = () => {
+    if (verification?.pdfUrl) {
+      window.open(verification.pdfUrl, '_blank');
+    }
+  };
 
   if (loading) {
     return (
@@ -284,6 +296,18 @@ export default function VerifyCard() {
                   </div>
                 </div>
               </motion.div>
+            )}
+
+            {/* Download PDF Button */}
+            {verification.pdfUrl && verification.isValid && (
+              <Button 
+                onClick={handleDownload}
+                variant="outline"
+                className="w-full"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {t('verification.downloadCard')}
+              </Button>
             )}
 
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">

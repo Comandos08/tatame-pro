@@ -300,6 +300,8 @@ export const ptBR = {
   'verification.statusDraft': 'RASCUNHO',
   'verification.diplomaStatusValid': 'VÁLIDO',
   'verification.diplomaStatusRevoked': 'REVOGADO',
+  'verification.downloadDiploma': 'Baixar Diploma',
+  'verification.downloadCard': 'Baixar Carteira Digital',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
