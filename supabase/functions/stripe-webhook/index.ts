@@ -660,6 +660,26 @@ async function handleInvoicePaymentFailed(
 
   logStep("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id });
 
+  // Log payment failure to audit for tracking policy (2-3 failures in 7 days = PAST_DUE maintained)
+  // This event is used by PlatformHealthCard to show billing errors count
+  await createAuditLog(supabase, {
+    event_type: AUDIT_EVENTS.TENANT_PAYMENT_FAILED,
+    tenant_id: billing.tenant_id,
+    metadata: {
+      stripe_invoice_id: invoice.id,
+      amount_cents: invoice.amount_due || 0,
+      currency: invoice.currency || "brl",
+      attempt_count: invoice.attempt_count || 1,
+      next_attempt: invoice.next_payment_attempt 
+        ? new Date(invoice.next_payment_attempt * 1000).toISOString() 
+        : null,
+      // Policy note: 2-3 failures in 7 days maintains PAST_DUE status
+      // Stripe's dunning handles retry logic, we just track and block new memberships
+      automatic: true,
+      source: 'stripe_webhook',
+    }
+  });
+
   // Send payment failed email
   sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", billing.tenant_id);
 }
