@@ -18,6 +18,7 @@ interface TenantBilling {
   current_period_end: string | null;
   cancel_at: string | null;
   stripe_customer_id: string | null;
+  trial_end_notification_sent: boolean | null;
 }
 
 export function BillingStatusBanner() {
@@ -39,7 +40,7 @@ export function BillingStatusBanner() {
       
       const { data, error } = await supabase
         .from('tenant_billing')
-        .select('id, status, plan_name, current_period_end, cancel_at, stripe_customer_id')
+        .select('id, status, plan_name, current_period_end, cancel_at, stripe_customer_id, trial_end_notification_sent')
         .eq('tenant_id', tenant.id)
         .maybeSingle();
       
@@ -153,9 +154,23 @@ export function BillingStatusBanner() {
   const Icon = config.icon;
   const periodEnd = formatDate(billing.current_period_end);
 
+  // Check if trial is ending soon (within 3 days)
+  const isTrialEndingSoon = () => {
+    if (billing.status !== 'TRIALING' || !billing.current_period_end) return false;
+    const endDate = new Date(billing.current_period_end);
+    const now = new Date();
+    const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 3 && diffDays > 0;
+  };
+
+  const trialEndingSoon = isTrialEndingSoon();
+
   const getDescription = () => {
     switch (billing.status) {
       case 'TRIALING':
+        if (trialEndingSoon) {
+          return t('billing.trialEndingSoon').replace('{date}', periodEnd || '');
+        }
         return t('billing.trialEndsAt').replace('{date}', periodEnd || '');
       case 'PAST_DUE':
         return t('billing.pastDueDesc');
@@ -174,11 +189,14 @@ export function BillingStatusBanner() {
   const canManagePayment = billing.stripe_customer_id && 
     ['TRIALING', 'PAST_DUE', 'INCOMPLETE', 'UNPAID'].includes(billing.status);
 
+  // Determine alert variant based on trial ending soon
+  const alertVariant = trialEndingSoon ? 'destructive' : config.variant;
+
   return (
-    <Alert variant={config.variant} className="mb-6">
+    <Alert variant={alertVariant} className="mb-6">
       <Icon className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
-        {t(config.titleKey as any)}
+        {trialEndingSoon ? t('billing.trialEndingSoonTitle') : t(config.titleKey as any)}
         <Badge variant="outline" className="ml-2 text-xs">
           {billing.plan_name}
         </Badge>

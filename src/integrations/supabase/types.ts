@@ -1013,6 +1013,7 @@ export type Database = {
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           tenant_id: string
+          trial_end_notification_sent: boolean | null
           updated_at: string
         }
         Insert: {
@@ -1028,6 +1029,7 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tenant_id: string
+          trial_end_notification_sent?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -1043,6 +1045,7 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tenant_id?: string
+          trial_end_notification_sent?: boolean | null
           updated_at?: string
         }
         Relationships: [

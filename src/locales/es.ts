@@ -245,4 +245,13 @@ export const es: Record<TranslationKey, string> = {
   'billing.nextInvoice': 'Próxima Factura',
   'billing.dueDate': 'Vencimiento',
   'billing.noOpenInvoices': 'Sin facturas abiertas',
+  'billing.trialEndingSoon': 'Su período de prueba termina el {date}. ¡Configure el pago ahora para no perder el acceso!',
+  'billing.trialEndingSoonTitle': '⏰ ¡Prueba terminando!',
+
+  // Admin Billing Metrics
+  'admin.billingMetrics': 'Métricas de Facturación',
+  'admin.tenantsTrialing': 'En Prueba',
+  'admin.tenantsActive': 'Activos',
+  'admin.tenantsWithIssues': 'Con Problemas',
+  'admin.monthlyRevenue': 'Ingresos del Mes',
 };

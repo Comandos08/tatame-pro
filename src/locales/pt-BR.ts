@@ -243,6 +243,15 @@ export const ptBR = {
   'billing.nextInvoice': 'Próxima Fatura',
   'billing.dueDate': 'Vencimento',
   'billing.noOpenInvoices': 'Sem faturas abertas',
+  'billing.trialEndingSoon': 'Seu período de teste termina em {date}. Configure o pagamento agora para não perder o acesso!',
+  'billing.trialEndingSoonTitle': '⏰ Trial terminando!',
+
+  // Admin Billing Metrics
+  'admin.billingMetrics': 'Métricas de Billing',
+  'admin.tenantsTrialing': 'Em Trial',
+  'admin.tenantsActive': 'Ativos',
+  'admin.tenantsWithIssues': 'Com Problemas',
+  'admin.monthlyRevenue': 'Receita do Mês',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
