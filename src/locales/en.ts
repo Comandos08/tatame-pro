@@ -41,8 +41,8 @@ export const en: Record<TranslationKey, string> = {
 
   // Theme
   'theme.select': 'Theme',
-  'theme.light': 'Light Theme',
-  'theme.dark': 'Dark Theme',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
   'theme.system': 'System',
 
   // Language
