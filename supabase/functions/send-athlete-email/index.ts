@@ -16,7 +16,8 @@ type EmailType =
   | "MEMBERSHIP_APPROVED"
   | "NEW_MEMBERSHIP_PENDING"
   | "MEMBERSHIP_REJECTED"
-  | "NEW_GRADING";
+  | "NEW_GRADING"
+  | "RENEWAL_REMINDER";
 
 interface AthleteEmailRequest {
   email_type: EmailType;
@@ -32,6 +33,8 @@ interface AthleteEmailRequest {
     level_name?: string;
     rejection_reason?: string;
     admin_emails?: string[];
+    end_date?: string;
+    days_remaining?: number;
   };
 }
 
@@ -136,12 +139,127 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
   };
 }
 
+function getNewGradingEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
+  return {
+    subject: `🎖️ Parabéns! Você foi graduado para ${data?.level_name || "nova faixa"}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
+        </div>
+        
+        <h2 style="color: #7c3aed;">🎖️ Parabéns pela sua graduação!</h2>
+        
+        <p style="line-height: 1.6;">
+          Olá <strong>${data?.athlete_name || "Atleta"}</strong>,
+        </p>
+        
+        <p style="line-height: 1.6;">
+          É com grande satisfação que comunicamos sua nova graduação pela <strong>${data?.tenant_name || "federação"}</strong>!
+        </p>
+        
+        <div style="background: #f5f3ff; border: 1px solid #7c3aed; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+          <p style="margin: 0 0 10px; color: #5b21b6; font-size: 14px;">Nova Graduação</p>
+          <p style="margin: 0; color: #5b21b6; font-size: 24px; font-weight: 700;">
+            ${data?.level_name || "Nova Faixa"}
+          </p>
+        </div>
+        
+        ${data?.diploma_url ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.diploma_url}" 
+             style="background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
+            Ver meu diploma
+          </a>
+        </div>
+        ` : `
+        <p style="line-height: 1.6; color: #666;">
+          Seu diploma será gerado em breve e estará disponível na sua área do atleta.
+        </p>
+        `}
+        
+        <p style="line-height: 1.6;">
+          Continue treinando com dedicação e disciplina. Cada graduação é um marco importante na sua jornada!
+        </p>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
+        </p>
+      </body>
+      </html>
+    `,
+  };
+}
+
+function getRenewalReminderEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
+  const daysText = data?.days_remaining === 1 ? "1 dia" : `${data?.days_remaining || 7} dias`;
+  const urgencyColor = (data?.days_remaining || 7) <= 3 ? "#ef4444" : "#f59e0b";
+  
+  return {
+    subject: `⏰ Sua filiação vence em ${daysText} - ${data?.tenant_name || "Federação"}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
+        </div>
+        
+        <h2 style="color: ${urgencyColor};">⏰ Sua filiação está prestes a vencer!</h2>
+        
+        <p style="line-height: 1.6;">
+          Olá <strong>${data?.athlete_name || "Atleta"}</strong>,
+        </p>
+        
+        <p style="line-height: 1.6;">
+          Sua filiação à <strong>${data?.tenant_name || "federação"}</strong> vence em <strong>${daysText}</strong> 
+          (${data?.end_date || "em breve"}).
+        </p>
+        
+        <div style="background: #fef3c7; border: 1px solid ${urgencyColor}; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #92400e; font-weight: 600;">
+            Renove agora para não perder seu status de atleta ativo e continuar participando de competições!
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${BASE_URL}" 
+             style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
+            Renovar minha filiação
+          </a>
+        </div>
+        
+        <p style="line-height: 1.6; color: #666;">
+          Após o vencimento, sua carteirinha digital será desativada e você não poderá participar de eventos oficiais até regularizar sua situação.
+        </p>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
+        </p>
+      </body>
+      </html>
+    `,
+  };
+}
+
 function getEmailContent(emailType: EmailType, data: AthleteEmailRequest["data"]): { subject: string; html: string } {
   switch (emailType) {
     case "MEMBERSHIP_APPROVED":
       return getMembershipApprovedEmail(data);
     case "NEW_MEMBERSHIP_PENDING":
       return getNewMembershipPendingEmail(data);
+    case "NEW_GRADING":
+      return getNewGradingEmail(data);
+    case "RENEWAL_REMINDER":
+      return getRenewalReminderEmail(data);
     default:
       throw new Error(`Unknown email_type: ${emailType}`);
   }
