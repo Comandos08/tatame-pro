@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import QRCode from "https://esm.sh/qrcode@1.5.3";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { encode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
+import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
+
+// Generate QR code as base64 PNG data URL
+async function generateQRCodeDataUrl(data: string): Promise<string> {
+  const qrDataUrl = await qrcode(data, { size: 150 }) as unknown as string;
+  return qrDataUrl;
+}
 
 // Calculate SHA-256 hash of canonical payload
 async function calculateContentHash(payload: Record<string, unknown>): Promise<string> {
@@ -13,6 +19,7 @@ async function calculateContentHash(payload: Record<string, unknown>): Promise<s
   const hashArray = new Uint8Array(hashBuffer);
   return new TextDecoder().decode(encode(hashArray));
 }
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -152,11 +159,7 @@ serve(async (req) => {
     });
 
     // Generate QR code image
-    const qrCodeDataUrl = await QRCode.toDataURL(qrCodeData, {
-      width: 150,
-      margin: 1,
-      color: { dark: '#1a1a1a', light: '#ffffff' },
-    });
+    const qrCodeDataUrl = await generateQRCodeDataUrl(qrCodeData);
 
     // Create PDF diploma (landscape A4)
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
