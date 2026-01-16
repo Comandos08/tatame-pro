@@ -3,7 +3,8 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, AlertCircle, Loader2, Shield, Award, ShieldCheck, ShieldX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { XCircle, AlertCircle, Loader2, Shield, Award, ShieldCheck, ShieldX, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -21,6 +22,7 @@ interface DiplomaVerification {
   coachName: string | null;
   hashVerified: boolean | null;
   storedHash: string | null;
+  pdfUrl: string | null;
 }
 
 // Calculate SHA-256 hash in browser
@@ -57,6 +59,12 @@ export default function VerifyDiploma() {
             status,
             promotion_date,
             content_hash_sha256,
+            pdf_url,
+            tenant_id,
+            athlete_id,
+            grading_level_id,
+            academy_id,
+            coach_id,
             athlete:athletes!inner(
               id,
               full_name
@@ -117,24 +125,15 @@ export default function VerifyDiploma() {
         let hashVerified: boolean | null = null;
         if (diploma.content_hash_sha256) {
           try {
-            // Recreate the canonical payload (same structure as edge function)
+            // Recreate the canonical payload (MUST match edge function exactly)
             const canonicalPayload = {
-              diplomaId: diploma.id,
-              serialNumber: diploma.serial_number,
-              athleteId: athlete.id,
-              athleteName: athlete.full_name,
-              tenantId: tenant.id,
-              gradingLevelId: gradingLevel.id,
-              gradingLevelCode: gradingLevel.code,
-              gradingLevelName: gradingLevel.display_name,
-              gradingSchemeId: gradingLevel.grading_scheme.id,
-              gradingSchemeName: gradingLevel.grading_scheme.name,
-              sportType: gradingLevel.grading_scheme.sport_type,
-              promotionDate: diploma.promotion_date,
-              academyId: academy?.id || null,
-              academyName: academy?.name || null,
-              coachId: coach?.id || null,
-              coachName: coach?.full_name || null,
+              tenant_id: diploma.tenant_id,
+              athlete_id: diploma.athlete_id,
+              grading_level_id: diploma.grading_level_id,
+              promotion_date: diploma.promotion_date,
+              serial_number: diploma.serial_number,
+              academy_id: diploma.academy_id || null,
+              coach_id: diploma.coach_id || null,
             };
             
             const calculatedHash = await calculateSHA256(JSON.stringify(canonicalPayload));
@@ -174,6 +173,7 @@ export default function VerifyDiploma() {
           coachName: coach ? `${coach.full_name.split(" ")[0]} ${coach.full_name.split(" ").pop()?.charAt(0) || ""}.` : null,
           hashVerified,
           storedHash: diploma.content_hash_sha256,
+          pdfUrl: diploma.pdf_url,
         });
       } catch (err) {
         console.error("Verification error:", err);
@@ -185,6 +185,12 @@ export default function VerifyDiploma() {
 
     verifyDiploma();
   }, [diplomaId, tenantSlug, t]);
+
+  const handleDownload = () => {
+    if (verification?.pdfUrl) {
+      window.open(verification.pdfUrl, '_blank');
+    }
+  };
 
   if (loading) {
     return (
@@ -329,6 +335,18 @@ export default function VerifyDiploma() {
                   </div>
                 </div>
               </motion.div>
+            )}
+
+            {/* Download PDF Button */}
+            {verification.pdfUrl && verification.isValid && (
+              <Button 
+                onClick={handleDownload}
+                variant="outline"
+                className="w-full"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {t('verification.downloadDiploma')}
+              </Button>
             )}
 
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">

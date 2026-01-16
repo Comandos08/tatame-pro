@@ -90,27 +90,26 @@ serve(async (req) => {
       throw new Error("Invalid membership data");
     }
 
+    // Pre-generate card ID for QR code URL
+    const cardId = crypto.randomUUID();
+    const createdAtDate = new Date().toISOString().split('T')[0];
+
     // Create canonical payload for SHA-256 hash
     const canonicalPayload = {
       tenant_id: tenant.id,
       athlete_id: athlete.id,
       membership_id: membership.id,
       valid_until: membership.end_date,
-      created_at: new Date().toISOString().split('T')[0],
+      created_at: createdAtDate,
     };
 
     // Calculate content hash
     const contentHash = await calculateContentHash(canonicalPayload);
     console.log("Content hash calculated:", contentHash.substring(0, 12) + "...");
 
-    // Generate QR code data - contains verification URL
-    const qrPayload = {
-      tenantSlug: tenant.slug,
-      membershipId: membership.id,
-      athleteId: athlete.id,
-      validUntil: membership.end_date,
-    };
-    const qrCodeData = JSON.stringify(qrPayload);
+    // Generate QR code data with verification URL
+    const verificationUrl = `https://tatame-pro.lovable.app/${tenant.slug}/verify/card/${cardId}`;
+    const qrCodeData = verificationUrl;
 
     // Generate QR code as data URL
     const qrCodeDataUrl = await generateQRCodeDataUrl(qrCodeData);
@@ -257,10 +256,11 @@ serve(async (req) => {
 
     const { data: pdfUrl } = supabase.storage.from("cards").getPublicUrl(pdfFileName);
 
-    // Create digital_card record with content hash
+    // Create digital_card record with content hash (using pre-generated ID)
     const { data: digitalCard, error: cardError } = await supabase
       .from("digital_cards")
       .insert({
+        id: cardId,
         tenant_id: tenant.id,
         membership_id: membership.id,
         qr_code_data: qrCodeData,
@@ -268,6 +268,7 @@ serve(async (req) => {
         pdf_url: pdfUrl.publicUrl,
         valid_until: membership.end_date,
         content_hash_sha256: contentHash,
+        created_at: new Date().toISOString(),
       })
       .select()
       .single();

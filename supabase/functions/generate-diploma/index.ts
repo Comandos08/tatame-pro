@@ -147,16 +147,12 @@ serve(async (req) => {
 
     const serialNumber = serialData;
 
-    // Create QR code data
-    const qrCodeData = JSON.stringify({
-      type: 'diploma',
-      tenantSlug: tenant.slug,
-      athleteId,
-      gradingLevelId,
-      promotionDate,
-      serialNumber,
-      issuedAt: new Date().toISOString(),
-    });
+    // Create diploma ID first (we'll use it for QR code URL)
+    const diplomaId = crypto.randomUUID();
+
+    // Create QR code data with verification URL
+    const verificationUrl = `https://tatame-pro.lovable.app/${tenant.slug}/verify/diploma/${diplomaId}`;
+    const qrCodeData = verificationUrl;
 
     // Generate QR code image
     const qrCodeDataUrl = await generateQRCodeDataUrl(qrCodeData);
@@ -311,10 +307,11 @@ serve(async (req) => {
     const contentHash = await calculateContentHash(canonicalPayload);
     console.log("Diploma content hash:", contentHash.substring(0, 12) + "...");
 
-    // Create diploma record with content hash
+    // Create diploma record with content hash (using pre-generated ID)
     const { data: diploma, error: diplomaError } = await supabase
       .from('diplomas')
       .insert({
+        id: diplomaId,
         tenant_id: tenantId,
         athlete_id: athleteId,
         grading_level_id: gradingLevelId,

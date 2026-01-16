@@ -302,4 +302,6 @@ export const es: Record<TranslationKey, string> = {
   'verification.statusDraft': 'BORRADOR',
   'verification.diplomaStatusValid': 'VÁLIDO',
   'verification.diplomaStatusRevoked': 'REVOCADO',
+  'verification.downloadDiploma': 'Descargar Diploma',
+  'verification.downloadCard': 'Descargar Carnet Digital',
 };
