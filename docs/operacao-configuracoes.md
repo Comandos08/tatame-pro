@@ -2,19 +2,58 @@
 
 Este documento descreve as configurações externas necessárias para o sistema TATAME funcionar em produção.
 
+---
+
+## ⚠️ PRÉ-REQUISITOS OBRIGATÓRIOS PARA TESTES QUENTES
+
+Antes de iniciar testes quentes ou ir para produção, **OBRIGATORIAMENTE** verifique:
+
+1. ✅ **Leaked Password Protection** ativada (Seção 1)
+2. ✅ **Cron Jobs agendados** e funcionando (Seção 4)
+
+**Testes quentes/produção NÃO devem rodar sem esses dois itens verificados.**
+
+---
+
 ## 1. Supabase Auth - Leaked Password Protection
 
 ### O que é
-Proteção contra senhas vazadas em data breaches conhecidos. Impede usuários de usar senhas comprometidas.
+Proteção contra senhas vazadas em data breaches conhecidos. Impede usuários de usar senhas comprometidas, aumentando significativamente a segurança das contas.
 
-### Como habilitar
-1. Acesse o [Dashboard do Supabase](https://supabase.com/dashboard)
-2. Vá para **Authentication** → **Providers** → **Email**
-3. Habilite **"Leaked password protection"**
-4. Configure o nível mínimo de senha (recomendado: 8 caracteres)
+### 🔴 CRÍTICO: Como ativar
 
-### Status atual
-⚠️ **DESABILITADO** - Linter do Supabase indica que está desativado.
+**Passo a passo no Supabase Dashboard:**
+
+1. Acesse o [Supabase Dashboard](https://supabase.com/dashboard)
+2. Selecione o projeto TATAME
+3. No menu lateral, vá para **Authentication** → **Providers**
+4. Clique na aba **Email**
+5. Role até encontrar **"Leaked password protection"**
+6. **Ative o toggle** para habilitar
+7. Clique em **Save**
+
+### Configuração recomendada para TATAME v1.0
+- **Leaked password protection**: ✅ Ativado
+- **Minimum password length**: 8 caracteres
+- **Password requirements**: Pelo menos 1 letra e 1 número (opcional, mas recomendado)
+
+### Verificação por ambiente
+
+| Ambiente | URL do Dashboard | Como verificar |
+|----------|------------------|----------------|
+| Staging | `supabase.com/dashboard/project/[staging-id]` | Auth → Providers → Email → Leaked password protection = ON |
+| Produção | `supabase.com/dashboard/project/kotxhtveuegrywzyvdnl` | Auth → Providers → Email → Leaked password protection = ON |
+
+### Teste manual (opcional)
+Para verificar se a proteção está funcionando:
+1. Tente criar uma conta com senha comum: `password123` ou `123456789`
+2. O sistema deve **recusar** a senha com mensagem sobre senha comprometida
+3. Se aceitar, a proteção NÃO está ativa!
+
+### Checklist de verificação
+- [ ] Acessei Authentication → Providers → Email
+- [ ] Confirmei que "Leaked password protection" está **ON**
+- [ ] (Opcional) Testei com senha vazada conhecida e foi recusada
 
 ---
 
@@ -67,18 +106,49 @@ Rate limiting em edge functions sensíveis para proteção contra brute force e 
 
 ---
 
-## 4. Cron Jobs (Agendamento de Tarefas)
+## 4. Cron Jobs (Agendamento de Tarefas) 🔴 CRÍTICO
 
-### Pré-requisito
+### Por que é crítico
+Os cron jobs são responsáveis por:
+- Expirar filiações vencidas automaticamente
+- Limpar filiações abandonadas
+- Enviar lembretes de renovação
+- Notificar sobre trials expirando
+
+**Sem os cron jobs configurados, essas tarefas NÃO acontecem automaticamente!**
+
+### Pré-requisito: Extensões do PostgreSQL
 O Supabase precisa ter as extensões `pg_cron` e `pg_net` habilitadas:
 
 ```sql
--- Execute no SQL Editor do Supabase
+-- Execute no SQL Editor do Supabase (Database → SQL Editor)
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 ```
 
-### Jobs a serem agendados
+**Como verificar se estão ativas:**
+```sql
+SELECT * FROM pg_extension WHERE extname IN ('pg_cron', 'pg_net');
+```
+Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
+
+---
+
+### Jobs obrigatórios para v1.0
+
+| Job | Função | Horário (UTC) | Criticidade |
+|-----|--------|---------------|-------------|
+| `expire-memberships-daily` | Marca filiações vencidas como EXPIRED | 03:00 | 🔴 Alta |
+| `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
+| `check-membership-renewal-daily` | Envia lembretes de renovação | 09:00 | 🟡 Média |
+| `check-trial-ending-daily` | Notifica tenants sobre trial | 10:00 | 🟡 Média |
+
+---
+
+### Comandos SQL para agendar cada job
+
+**⚠️ IMPORTANTE:** Substitua `SEU_ANON_KEY` pela anon key real do projeto:
+`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0`
 
 #### expire-memberships (diário às 03:00 UTC)
 Marca filiações vencidas como EXPIRED.
@@ -90,7 +160,7 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-memberships',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer SEU_ANON_KEY"}'::jsonb,
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0"}'::jsonb,
     body:='{"scheduled": true}'::jsonb
   );
   $$
@@ -107,7 +177,7 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-abandoned-memberships',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer SEU_ANON_KEY"}'::jsonb,
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0"}'::jsonb,
     body:='{"scheduled": true}'::jsonb
   );
   $$
@@ -124,7 +194,7 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/check-membership-renewal',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer SEU_ANON_KEY"}'::jsonb,
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0"}'::jsonb,
     body:='{"scheduled": true}'::jsonb
   );
   $$
@@ -141,22 +211,78 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/check-trial-ending',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer SEU_ANON_KEY"}'::jsonb,
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0"}'::jsonb,
     body:='{"scheduled": true}'::jsonb
   );
   $$
 );
 ```
 
-### Verificar jobs agendados
+---
+
+### 🔍 Verificação de Jobs
+
+#### 1. Ver todos os jobs agendados
 ```sql
-SELECT * FROM cron.job;
+SELECT jobid, jobname, schedule, active FROM cron.job ORDER BY jobname;
 ```
 
-### Remover um job
+**Resultado esperado:** 4 jobs com `active = true`
+
+#### 2. Ver execuções recentes
 ```sql
-SELECT cron.unschedule('nome-do-job');
+SELECT 
+  jobid,
+  runid,
+  job_pid,
+  status,
+  start_time,
+  end_time
+FROM cron.job_run_details 
+ORDER BY start_time DESC 
+LIMIT 20;
 ```
+
+**O que verificar:**
+- `status = 'succeeded'` para execuções bem-sucedidas
+- `start_time` recente (últimas 24-48h)
+
+#### 3. Verificar via audit_logs
+```sql
+SELECT event_type, created_at, metadata
+FROM audit_logs 
+WHERE event_type IN ('MEMBERSHIP_EXPIRED', 'MEMBERSHIP_ABANDONED_CLEANUP', 'TRIAL_END_NOTIFICATION_SENT')
+ORDER BY created_at DESC 
+LIMIT 10;
+```
+
+#### 4. Verificar no PlatformHealthCard (Superadmin)
+No Admin Global Dashboard, o card "Saúde da Plataforma" mostra:
+- Última execução de cada job
+- Status: OK (< 24h), Atrasado (24-48h), Erro (> 48h)
+- Tooltip com diagnóstico
+
+---
+
+### Remover/Reagendar um job
+
+```sql
+-- Remover job existente
+SELECT cron.unschedule('nome-do-job');
+
+-- Exemplo: reagendar expire-memberships para 02:00 UTC
+SELECT cron.unschedule('expire-memberships-daily');
+-- Depois execute o schedule novamente com novo horário
+```
+
+---
+
+### Checklist de verificação (cron jobs)
+- [ ] Extensões `pg_cron` e `pg_net` estão ativas
+- [ ] `SELECT * FROM cron.job` retorna 4 jobs
+- [ ] Todos os jobs mostram `active = true`
+- [ ] `cron.job_run_details` mostra execuções recentes com `status = 'succeeded'`
+- [ ] PlatformHealthCard no Admin Global mostra status "OK" ou "Operacional"
 
 ---
 

@@ -1,3 +1,17 @@
+/**
+ * Check Membership Renewal Job
+ * 
+ * ⚠️ DEPENDÊNCIA DE CRON: Esta função DEVE ser agendada via pg_cron para funcionar.
+ * Sem o agendamento, lembretes de renovação NÃO serão enviados.
+ * 
+ * Veja: docs/operacao-configuracoes.md → Seção "4. Cron Jobs"
+ * 
+ * This function runs on a schedule (daily at 09:00 UTC) to:
+ * 1. Find memberships expiring in 7 days
+ * 2. Send renewal reminder emails
+ * 3. Log the reminder in audit_logs
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
