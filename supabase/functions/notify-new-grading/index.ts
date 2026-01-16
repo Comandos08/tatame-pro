@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,15 +101,17 @@ serve(async (req) => {
       throw new Error(`Email API error: ${errorText}`);
     }
 
-    // Log to audit
-    await supabase.from("audit_logs").insert({
-      event_type: "GRADING_NOTIFICATION_SENT",
-      tenant_id: tenant?.id,
+    // Log to audit using shared logger
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.GRADING_NOTIFICATION_SENT,
+      tenant_id: tenant?.id || null,
       metadata: {
         grading_id,
         athlete_id: athlete.id,
         athlete_email: athlete.email,
         level_name: gradingLevel?.display_name,
+        has_diploma: diploma?.status === 'ISSUED',
+        source: 'notify-new-grading',
       },
     });
 

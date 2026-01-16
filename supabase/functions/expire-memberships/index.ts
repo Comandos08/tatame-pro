@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,17 +87,19 @@ serve(async (req) => {
           throw new Error(updateError.message);
         }
 
-        // Log to audit
-        await supabase.from("audit_logs").insert({
-          event_type: "MEMBERSHIP_EXPIRED",
+        // Log to audit using shared logger
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.MEMBERSHIP_EXPIRED,
           tenant_id: membership.tenant_id,
           metadata: {
             membership_id: membership.id,
             athlete_id: membership.athlete_id,
             previous_status: membership.status,
+            new_status: 'EXPIRED',
             end_date: membership.end_date,
-            expired_at: new Date().toISOString(),
             automatic: true,
+            scheduled: true,
+            source: 'expire-memberships-job',
           },
         });
 

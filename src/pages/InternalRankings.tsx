@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Building2, Users, Medal, Loader2 } from 'lucide-react';
+import { Trophy, Building2, Users, Medal, Loader2, AlertCircle, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -25,14 +26,28 @@ interface AthleteRanking {
   id: string;
   full_name: string;
   academy_name: string | null;
+  current_academy_id: string | null;
   grading_count: number;
   last_grading_level: string | null;
 }
 
+/**
+ * Internal Rankings Page
+ * 
+ * Ranking Logic:
+ * - Academies: Ranked by number of ACTIVE memberships (athlete_count)
+ * - Athletes: Ranked by total number of gradings recorded (grading_count)
+ * 
+ * Note: This is a simple count-based ranking. Future improvements could include:
+ * - Weighted scoring based on grading level
+ * - Time-based decay for older gradings
+ * - Category-specific rankings (by sport, age group, etc.)
+ */
 export default function InternalRankings() {
   const { tenant } = useTenant();
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [academyRankings, setAcademyRankings] = useState<AcademyRanking[]>([]);
   const [athleteRankings, setAthleteRankings] = useState<AthleteRanking[]>([]);
   const [sportFilter, setSportFilter] = useState<string>('all');
@@ -45,16 +60,18 @@ export default function InternalRankings() {
 
     async function fetchRankings() {
       setLoading(true);
+      setError(null);
 
       try {
         // Fetch academies for filter dropdown
-        const { data: academiesData } = await supabase
+        const { data: academiesData, error: academiesError } = await supabase
           .from('academies')
           .select('id, name')
           .eq('tenant_id', tenant.id)
           .eq('is_active', true)
           .order('name');
 
+        if (academiesError) throw academiesError;
         if (academiesData) setAcademies(academiesData);
 
         // Fetch all active academies with their details
@@ -169,8 +186,9 @@ export default function InternalRankings() {
           athleteRankingsData.sort((a, b) => b.grading_count - a.grading_count);
           setAthleteRankings(athleteRankingsData);
         }
-      } catch (error) {
-        console.error('Error fetching internal rankings:', error);
+      } catch (err) {
+        console.error('Error fetching internal rankings:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load rankings');
       } finally {
         setLoading(false);
       }
@@ -179,21 +197,35 @@ export default function InternalRankings() {
     fetchRankings();
   }, [tenant?.id]);
 
+  // Memoized filtered results for better performance
+  const filteredAcademies = useMemo(() => {
+    return academyRankings.filter(a => {
+      if (sportFilter !== 'all' && a.sport_type !== sportFilter) return false;
+      if (parseInt(minAthletes) > 0 && a.athlete_count < parseInt(minAthletes)) return false;
+      return true;
+    });
+  }, [academyRankings, sportFilter, minAthletes]);
+
+  const filteredAthletes = useMemo(() => {
+    return athleteRankings.filter(a => {
+      if (academyFilter !== 'all' && a.current_academy_id !== academyFilter) return false;
+      return true;
+    });
+  }, [athleteRankings, academyFilter]);
+
+  const sportTypes = useMemo(() => {
+    return [...new Set(academyRankings.map(a => a.sport_type).filter(Boolean))];
+  }, [academyRankings]);
+
+  // Medal icon helper
+  const getMedalIcon = (position: number) => {
+    if (position === 1) return <Medal className="h-5 w-5 text-yellow-500" />;
+    if (position === 2) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (position === 3) return <Medal className="h-5 w-5 text-amber-600" />;
+    return null;
+  };
+
   if (!tenant) return null;
-
-  // Apply filters
-  const filteredAcademies = academyRankings.filter(a => {
-    if (sportFilter !== 'all' && a.sport_type !== sportFilter) return false;
-    if (parseInt(minAthletes) > 0 && a.athlete_count < parseInt(minAthletes)) return false;
-    return true;
-  });
-
-  const filteredAthletes = athleteRankings.filter(a => {
-    if (academyFilter !== 'all' && (a as any).current_academy_id !== academyFilter) return false;
-    return true;
-  });
-
-  const sportTypes = [...new Set(academyRankings.map(a => a.sport_type).filter(Boolean))];
 
   return (
     <AppShell>
@@ -210,20 +242,36 @@ export default function InternalRankings() {
           <p className="text-muted-foreground">{t('rankings.internalDesc')}</p>
         </div>
 
+        {/* Info about ranking methodology */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Academias são ranqueadas por filiações ativas. Atletas são ranqueados por número de graduações registradas.
+          </AlertDescription>
+        </Alert>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           </div>
         ) : (
           <Tabs defaultValue="academies" className="space-y-6">
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="academies" className="flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                {t('rankings.academies')}
+                {t('rankings.academies')} ({filteredAcademies.length})
               </TabsTrigger>
               <TabsTrigger value="athletes" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                {t('rankings.athletes')}
+                {t('rankings.athletes')} ({filteredAthletes.length})
               </TabsTrigger>
             </TabsList>
 
@@ -276,8 +324,14 @@ export default function InternalRankings() {
                 </CardHeader>
                 <CardContent>
                   {filteredAcademies.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      {t('rankings.noData')}
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Building2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                      <p className="text-muted-foreground font-medium">{t('rankings.noData')}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {academyRankings.length > 0 
+                          ? 'Tente ajustar os filtros para ver mais resultados.'
+                          : 'Nenhuma academia com atletas ativos ainda.'}
+                      </p>
                     </div>
                   ) : (
                     <Table>
@@ -293,21 +347,28 @@ export default function InternalRankings() {
                       </TableHeader>
                       <TableBody>
                         {filteredAcademies.map((academy, index) => (
-                          <TableRow key={academy.id}>
+                          <TableRow key={academy.id} className="hover:bg-muted/50">
                             <TableCell>
-                              <Badge variant={index < 3 ? 'default' : 'secondary'} className="w-8 justify-center">
-                                {index + 1}
-                              </Badge>
+                              <div className="flex items-center justify-center gap-1">
+                                {getMedalIcon(index + 1)}
+                                <Badge variant={index < 3 ? 'default' : 'secondary'} className="w-8 justify-center">
+                                  {index + 1}
+                                </Badge>
+                              </div>
                             </TableCell>
                             <TableCell className="font-medium">{academy.name}</TableCell>
-                            <TableCell>{academy.city}, {academy.state}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {[academy.city, academy.state].filter(Boolean).join(', ') || '—'}
+                            </TableCell>
                             <TableCell>
-                              {academy.sport_type && (
+                              {academy.sport_type ? (
                                 <Badge variant="outline">{academy.sport_type}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
                               )}
                             </TableCell>
                             <TableCell className="text-right font-semibold">{academy.athlete_count}</TableCell>
-                            <TableCell className="text-right">{academy.diploma_count}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{academy.diploma_count}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

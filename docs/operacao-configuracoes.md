@@ -199,13 +199,36 @@ Atualmente: `noreply@tatame.pro`
 
 ## Checklist de Produção
 
-- [ ] Habilitar Leaked Password Protection no Supabase Auth
-- [ ] Adicionar `TURNSTILE_SECRET_KEY` nos secrets
-- [ ] Verificar `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`
-- [ ] Habilitar extensões `pg_cron` e `pg_net`
-- [ ] Agendar todos os cron jobs
-- [ ] Configurar webhook do Stripe
-- [ ] Verificar domínio do Resend
+### 1. Autenticação (Supabase Auth)
+- [ ] Habilitar **Leaked Password Protection** em Authentication → Providers → Email
+- [ ] Configurar domínios permitidos (se aplicável)
+- [ ] Verificar política de senhas (mínimo 8 caracteres recomendado)
+
+### 2. CAPTCHA (Cloudflare Turnstile)
+- [ ] Criar site no [Cloudflare Turnstile](https://dash.cloudflare.com/)
+- [ ] Adicionar `TURNSTILE_SECRET_KEY` nos secrets do Supabase
+
+### 3. Rate Limiting (Upstash Redis)
+- [ ] Criar database no [Upstash Console](https://console.upstash.com/)
+- [ ] Adicionar `UPSTASH_REDIS_REST_URL` nos secrets
+- [ ] Adicionar `UPSTASH_REDIS_REST_TOKEN` nos secrets
+
+### 4. Cron Jobs (Agendamento)
+- [ ] Habilitar extensões `pg_cron` e `pg_net` no Supabase
+- [ ] Executar SQL de agendamento para:
+  - `expire-memberships` (03:00 UTC)
+  - `cleanup-abandoned-memberships` (04:00 UTC)
+  - `check-membership-renewal` (09:00 UTC)
+  - `check-trial-ending` (10:00 UTC)
+
+### 5. Pagamentos (Stripe)
+- [ ] Configurar webhook URL: `https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/stripe-webhook`
+- [ ] Verificar `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`
+- [ ] Habilitar eventos necessários no webhook
+
+### 6. E-mails (Resend)
+- [ ] Verificar `RESEND_API_KEY`
+- [ ] Configurar domínio de envio (DNS)
 
 ---
 
@@ -214,12 +237,19 @@ Atualmente: `noreply@tatame.pro`
 ### Logs de Edge Functions
 Acesse via Supabase Dashboard → Edge Functions → Logs
 
-### Audit Logs
-Tabela `audit_logs` registra:
-- `MEMBERSHIP_EXPIRED` - Filiações expiradas automaticamente
-- `MEMBERSHIP_ABANDONED_CLEANUP` - Filiações abandonadas limpas
-- `RENEWAL_REMINDER_SENT` - Lembretes de renovação enviados
-- `TRIAL_END_NOTIFICATION_SENT` - Notificações de fim de trial
+### Audit Logs (tabela `audit_logs`)
+Eventos críticos registrados automaticamente:
+- `MEMBERSHIP_PAID` - Pagamento de filiação confirmado
+- `MEMBERSHIP_APPROVED` - Filiação aprovada
+- `MEMBERSHIP_EXPIRED` - Filiação expirada (automático)
+- `MEMBERSHIP_ABANDONED_CLEANUP` - Filiação abandonada limpa (automático)
+- `DIPLOMA_ISSUED` - Diploma emitido
+- `GRADING_RECORDED` - Graduação registrada
+- `GRADING_NOTIFICATION_SENT` - Notificação de graduação enviada
+- `TENANT_BILLING_UPDATED` - Billing de tenant atualizado
+- `TENANT_SUBSCRIPTION_CANCELLED` - Assinatura cancelada
+- `RENEWAL_REMINDER_SENT` - Lembrete de renovação enviado
+- `TRIAL_END_NOTIFICATION_SENT` - Notificação de fim de trial
 
-### Webhook Events
-Tabela `webhook_events` registra todos os eventos do Stripe processados.
+### Webhook Events (tabela `webhook_events`)
+Registra todos os eventos do Stripe processados com status e erros.
