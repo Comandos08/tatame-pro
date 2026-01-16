@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Shield, ArrowRight, Users, Award, Calendar, Building2, 
+  ArrowRight, Users, Award, Calendar, Building2, 
   QrCode, MapPin, ChevronRight, Trophy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

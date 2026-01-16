@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Users, Award, CreditCard, FileText, ArrowLeft, HelpCircle } from 'lucide-react';
+import { Users, Award, CreditCard, FileText, ArrowLeft, HelpCircle } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/contexts/I18nContext';
@@ -63,9 +64,7 @@ export default function Help() {
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-                <Shield className="h-6 w-6 text-primary-foreground" />
-              </div>
+              <img src={iconLogo} alt="TATAME" className="h-10 w-10 rounded-lg object-contain" />
               <span className="font-display text-lg font-bold">TATAME</span>
             </Link>
           </div>
