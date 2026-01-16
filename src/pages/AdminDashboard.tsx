@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -50,13 +51,14 @@ interface TenantBilling {
   current_period_end: string | null;
 }
 
-const billingStatusLabels: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: 'Ativo', color: 'text-success' },
-  TRIALING: { label: 'Trial', color: 'text-info' },
-  PAST_DUE: { label: 'Em atraso', color: 'text-warning' },
-  CANCELED: { label: 'Cancelado', color: 'text-destructive' },
-  INCOMPLETE: { label: 'Incompleto', color: 'text-muted-foreground' },
-  UNPAID: { label: 'Não pago', color: 'text-destructive' },
+// Map billing status to StatusBadge status type
+const billingStatusMap: Record<string, StatusType> = {
+  ACTIVE: 'ACTIVE',
+  TRIALING: 'TRIALING',
+  PAST_DUE: 'PAST_DUE',
+  CANCELED: 'CANCELLED',
+  INCOMPLETE: 'INCOMPLETE',
+  UNPAID: 'UNPAID',
 };
 
 export default function AdminDashboard() {
@@ -481,13 +483,13 @@ export default function AdminDashboard() {
                                   </Button>
                                 );
                               }
-                              const statusInfo = billingStatusLabels[billing.status];
+                              const statusType = billingStatusMap[billing.status] || 'neutral';
                               return (
                                 <button
                                   onClick={() => setBillingTenant(tenant)}
-                                  className={`text-xs font-medium ${statusInfo?.color || 'text-muted-foreground'} hover:underline cursor-pointer`}
+                                  className="hover:opacity-80 cursor-pointer"
                                 >
-                                  {statusInfo?.label || billing.status}
+                                  <StatusBadge status={statusType} size="sm" />
                                 </button>
                               );
                             })()}
