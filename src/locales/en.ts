@@ -245,4 +245,13 @@ export const en: Record<TranslationKey, string> = {
   'billing.nextInvoice': 'Next Invoice',
   'billing.dueDate': 'Due Date',
   'billing.noOpenInvoices': 'No open invoices',
+  'billing.trialEndingSoon': 'Your trial period ends on {date}. Configure payment now to avoid losing access!',
+  'billing.trialEndingSoonTitle': '⏰ Trial ending soon!',
+
+  // Admin Billing Metrics
+  'admin.billingMetrics': 'Billing Metrics',
+  'admin.tenantsTrialing': 'In Trial',
+  'admin.tenantsActive': 'Active',
+  'admin.tenantsWithIssues': 'With Issues',
+  'admin.monthlyRevenue': 'Monthly Revenue',
 };

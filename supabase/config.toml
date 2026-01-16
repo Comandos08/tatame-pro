@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.create-tenant-subscription]
 verify_jwt = false
+
+[functions.check-trial-ending]
+verify_jwt = false

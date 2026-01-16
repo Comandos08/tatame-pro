@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   Shield, Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar, CreditCard
+  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -137,6 +137,53 @@ export default function AdminDashboard() {
     enabled: isGlobalSuperadmin,
   });
 
+  // Fetch billing metrics for admin dashboard
+  const { data: billingMetrics } = useQuery({
+    queryKey: ['admin-billing-metrics'],
+    queryFn: async () => {
+      // Get billing status counts
+      const { data: billingStats, error: billingError } = await supabase
+        .from('tenant_billing')
+        .select('status');
+      
+      if (billingError) throw billingError;
+
+      const statusCounts = {
+        trialing: 0,
+        active: 0,
+        withIssues: 0,
+      };
+
+      (billingStats || []).forEach((b) => {
+        if (b.status === 'TRIALING') statusCounts.trialing++;
+        else if (b.status === 'ACTIVE') statusCounts.active++;
+        else if (['PAST_DUE', 'UNPAID', 'CANCELED', 'INCOMPLETE'].includes(b.status)) {
+          statusCounts.withIssues++;
+        }
+      });
+
+      // Get monthly revenue from paid invoices this month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      const { data: invoices, error: invoicesError } = await supabase
+        .from('tenant_invoices')
+        .select('amount_cents, currency')
+        .eq('status', 'paid')
+        .gte('paid_at', startOfMonth.toISOString());
+
+      if (invoicesError) throw invoicesError;
+
+      const monthlyRevenue = (invoices || []).reduce((sum, inv) => sum + (inv.amount_cents || 0), 0);
+
+      return {
+        ...statusCounts,
+        monthlyRevenue,
+      };
+    },
+    enabled: isGlobalSuperadmin,
+  });
+
   // Toggle tenant active status
   const toggleTenantMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -171,6 +218,13 @@ export default function AdminDashboard() {
     { label: 'Usuários Totais', value: stats?.totalUsers || 0, icon: Users, color: 'text-info' },
     { label: 'Atletas Cadastrados', value: stats?.totalAthletes || 0, icon: Activity, color: 'text-success' },
     { label: 'Filiações Ativas', value: stats?.activeMemberships || 0, icon: Calendar, color: 'text-warning' },
+  ];
+
+  const billingCards = [
+    { labelKey: 'admin.tenantsTrialing', value: billingMetrics?.trialing || 0, icon: Clock, color: 'text-info' },
+    { labelKey: 'admin.tenantsActive', value: billingMetrics?.active || 0, icon: TrendingUp, color: 'text-success' },
+    { labelKey: 'admin.tenantsWithIssues', value: billingMetrics?.withIssues || 0, icon: AlertTriangle, color: 'text-destructive' },
+    { labelKey: 'admin.monthlyRevenue', value: `R$ ${((billingMetrics?.monthlyRevenue || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: CreditCard, color: 'text-primary', isText: true },
   ];
 
   if (authLoading) {
@@ -296,6 +350,38 @@ export default function AdminDashboard() {
                 </Card>
               </motion.div>
             ))}
+          </div>
+
+          {/* Billing Metrics */}
+          <div className="mb-8">
+            <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              {t('admin.billingMetrics')}
+            </h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {billingCards.map((card, index) => (
+                <motion.div
+                  key={card.labelKey}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.4 + index * 0.1 }}
+                >
+                  <Card className="card-hover">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        {t(card.labelKey as any)}
+                      </CardTitle>
+                      <card.icon className={`h-5 w-5 ${card.color}`} />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-display font-bold">
+                        {card.isText ? card.value : (card.value as number).toLocaleString('pt-BR')}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
           </div>
 
           {/* Tenants Table */}
