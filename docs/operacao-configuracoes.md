@@ -238,20 +238,92 @@ Atualmente: `noreply@tatame.pro`
 
 ---
 
+## Exportação de Dados (CSV)
+
+O sistema permite exportar dados em formato CSV para planilhas e relatórios.
+
+### Telas com Exportação
+
+| Tela | Rota | Colunas Exportadas |
+|------|------|-------------------|
+| Atletas | `/{tenant}/app/athletes` | Nome, E-mail, Data Nascimento, Academia, Status Filiação, Período |
+| Aprovações | `/{tenant}/app/approvals` | Atleta, E-mail, Status, Pagamento, Datas, Academia, Valor |
+| Graduações | `/{tenant}/app/athletes/{id}/gradings` | Atleta, Nível/Faixa, Esporte, Data, Academia, Professor, Diploma Emitido |
+
+### Comportamento
+- O botão "Exportar CSV" aparece no topo de cada listagem
+- Exporta os dados **conforme filtros atuais** da tela
+- Mostra toast de erro se não houver dados
+- Nome do arquivo inclui timestamp: `atletas_tenant-slug_2025-01-16.csv`
+
+---
+
+## Bloqueio de Tenant (v1)
+
+### Comportamento Quando Tenant Está Bloqueado/Inadimplente
+
+Quando um tenant está com problema de billing (`hasBillingIssue`, `isBlocked`, ou `isTrialExpired`):
+
+1. **Banners exibidos**: Usuários admin/staff veem banner vermelho no topo das páginas com CTA para gerenciar cobrança
+2. **Criação de filiações bloqueada**: A página de seleção de tipo de filiação (`/membership/new`) mostra aviso e desabilita botões
+3. **Leitura permitida**: Dashboard, relatórios, rankings e área do atleta continuam funcionando normalmente
+
+### Estados Detectados
+- `isBlocked`: Tenant inativo ou assinatura cancelada
+- `hasBillingIssue`: Status PAST_DUE, UNPAID ou INCOMPLETE
+- `isTrialExpired`: Trial com período expirado
+
+---
+
+## Rankings (v1)
+
+### Lógica de Cálculo
+
+**Ranking de Academias:**
+- Ordenadas por **número de filiações ATIVAS** (membership status = ACTIVE)
+- Exibe também contagem de diplomas emitidos (informativo)
+
+**Ranking de Atletas:**
+- Ordenados por **número total de graduações registradas** (athlete_gradings)
+- Exibe última graduação e academia atual
+
+### Filtros Disponíveis
+- Academias: por esporte, mínimo de atletas
+- Atletas: por academia
+
+### Observações
+- Rankings são por tenant (dados não vazam entre organizações)
+- Campos nulos são tratados graciosamente (exibem "—")
+- Empty states informativos quando não há dados
+
+---
+
 ## Fluxo de Validação Pós-Deploy (Smoke Test)
 
-Execute estes passos após cada deploy para verificar que tudo funciona:
+Execute estes 15 passos após cada deploy para verificar que tudo funciona:
 
+### Funcionalidades Básicas
 1. **Acesso público**: Acessar `/{tenant-slug}` e verificar página de landing carrega
 2. **Filiação teste**: Iniciar filiação de adulto, preencher dados, verificar CAPTCHA aparece
 3. **Checkout Stripe**: Completar pagamento no modo teste (card: 4242 4242 4242 4242)
 4. **Verificar membership**: Confirmar que filiação aparece como PENDING_REVIEW no dashboard
 5. **Aprovar filiação**: Como admin, aprovar a filiação e verificar carteira é gerada
+
+### Área do Usuário
 6. **Área do atleta**: Logar como atleta e verificar dados aparecem corretamente
 7. **Dashboard admin**: Verificar estatísticas e atividade recente no dashboard
 8. **Rankings**: Verificar páginas de rankings internos e públicos carregam sem erros
-9. **Verificar logs**: Checar audit_logs para eventos esperados (MEMBERSHIP_PAID, etc)
-10. **Health check**: Verificar card de saúde do sistema no dashboard (se jobs estão rodando)
+
+### Export e Audit
+9. **Export CSV - Atletas**: Na lista de atletas, clicar "Exportar CSV" e verificar download
+10. **Export CSV - Aprovações**: Na lista de aprovações, exportar e verificar dados
+11. **Export CSV - Graduações**: Na página de graduações de um atleta, exportar
+12. **Verificar logs**: Checar audit_logs para eventos esperados (MEMBERSHIP_PAID, etc)
+
+### Billing e Saúde
+13. **Health check**: Verificar card de saúde do sistema no dashboard (se jobs estão rodando)
+14. **Cenário trial**: (Ambiente teste) Verificar banner de trial aparece para tenant em trial
+15. **Cenário bloqueio**: (Ambiente teste) Verificar que tenant bloqueado não permite criar novas filiações
 
 ---
 

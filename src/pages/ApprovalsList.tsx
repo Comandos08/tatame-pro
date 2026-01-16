@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, CreditCard, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -6,9 +6,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { ExportCsvButton } from '@/components/export/ExportCsvButton';
+import { formatDateForCsv, formatCurrencyForCsv } from '@/lib/exportCsv';
 import { supabase } from '@/integrations/supabase/client';
 import {
   MembershipStatus,
@@ -22,6 +25,10 @@ interface MembershipForApproval {
   status: MembershipStatus;
   payment_status: PaymentStatus;
   created_at: string;
+  start_date: string | null;
+  end_date: string | null;
+  price_cents: number;
+  currency: string;
   athlete: {
     id: string;
     full_name: string;
@@ -38,6 +45,7 @@ export default function ApprovalsList() {
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
+  const { t } = useI18n();
 
   // Check if user has approval permissions
   const canApprove = isGlobalSuperadmin || 
@@ -60,6 +68,10 @@ export default function ApprovalsList() {
           status,
           payment_status,
           created_at,
+          start_date,
+          end_date,
+          price_cents,
+          currency,
           academy_id,
           athlete:athletes(id, full_name, email),
           academy:academies(id, name)
@@ -116,6 +128,19 @@ export default function ApprovalsList() {
     });
   };
 
+  // CSV columns for export
+  const csvColumns = useMemo(() => [
+    { key: 'athlete', label: 'Atleta', format: (_: unknown, row: MembershipForApproval) => row.athlete?.full_name || '' },
+    { key: 'email', label: 'E-mail', format: (_: unknown, row: MembershipForApproval) => row.athlete?.email || '' },
+    { key: 'status', label: 'Status', format: (v: MembershipStatus) => MEMBERSHIP_STATUS_LABELS[v] || v },
+    { key: 'payment_status', label: 'Pagamento', format: (v: PaymentStatus) => PAYMENT_STATUS_LABELS[v] || v },
+    { key: 'created_at', label: 'Data Solicitação', format: (v: string) => formatDateForCsv(v) },
+    { key: 'start_date', label: 'Início', format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'end_date', label: 'Fim', format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'academy', label: 'Academia', format: (_: unknown, row: MembershipForApproval) => row.academy?.name || '-' },
+    { key: 'price_cents', label: 'Valor', format: (v: number, row: MembershipForApproval) => formatCurrencyForCsv(v, row.currency) },
+  ], []);
+
   if (!tenant) return null;
 
   if (!canApprove) {
@@ -147,10 +172,18 @@ export default function ApprovalsList() {
               Revise e aprove as filiações pendentes da {tenant.name}
             </p>
           </div>
-          <Badge variant="outline" className="w-fit">
-            <Clock className="h-3 w-3 mr-1" />
-            {memberships?.length || 0} pendentes
-          </Badge>
+          <div className="flex items-center gap-3">
+            <ExportCsvButton
+              filename={`filiacoes_pendentes_${tenant?.slug || 'export'}`}
+              columns={csvColumns}
+              data={memberships || []}
+              isLoading={isLoading}
+            />
+            <Badge variant="outline" className="w-fit">
+              <Clock className="h-3 w-3 mr-1" />
+              {memberships?.length || 0} pendentes
+            </Badge>
+          </div>
         </motion.div>
 
         {isLoading ? (
