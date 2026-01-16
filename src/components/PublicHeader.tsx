@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Monitor, Globe, ArrowLeft, ArrowRight, Trophy, Shield, Check } from 'lucide-react';
+import { Sun, Moon, Monitor, Globe, ArrowLeft, ArrowRight, Trophy, Check } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
 import { Button } from '@/components/ui/button';
@@ -124,12 +125,7 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             {tenant.logoUrl ? (
               <img src={tenant.logoUrl} alt={tenant.name} className="h-10 w-10 rounded-lg object-cover" />
             ) : (
-              <div 
-                className="h-10 w-10 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: tenant.primaryColor }}
-              >
-                <Shield className="h-6 w-6 text-white" />
-              </div>
+              <img src={iconLogo} alt={tenant.name} className="h-10 w-10 rounded-lg object-contain" />
             )}
             <span className="font-display text-lg font-bold">{tenant.name}</span>
           </Link>

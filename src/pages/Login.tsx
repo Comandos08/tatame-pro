@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -101,9 +102,7 @@ export default function Login() {
         >
           <div className="mb-8">
             <Link to="/" className="inline-flex items-center gap-2 mb-8">
-              <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-                <Shield className="h-6 w-6 text-primary-foreground" />
-              </div>
+              <img src={iconLogo} alt="TATAME" className="h-10 w-10 rounded-xl object-contain" />
               <span className="font-display text-xl font-bold">TATAME</span>
             </Link>
             <h1 className="font-display text-3xl font-bold mb-2">
@@ -210,8 +209,8 @@ export default function Login() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="relative z-10 text-center p-8"
         >
-          <div className="h-24 w-24 rounded-2xl bg-primary mx-auto flex items-center justify-center mb-8 glow-primary">
-            <Shield className="h-12 w-12 text-primary-foreground" />
+          <div className="h-24 w-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary">
+            <img src={iconLogo} alt="TATAME" className="h-24 w-24 rounded-2xl object-contain" />
           </div>
           <h2 className="font-display text-3xl font-bold mb-4">
             {t('auth.manageOrganization')}

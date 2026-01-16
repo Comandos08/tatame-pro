@@ -9,7 +9,6 @@ import {
   LogOut, 
   Menu,
   X,
-  Shield,
   Building2,
   Sun,
   Moon,
@@ -21,8 +20,10 @@ import {
   Trophy,
   CreditCard,
   UserCircle,
-  Check
+  Check,
+  UserCheck
 } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
 import { useState } from 'react';
@@ -75,7 +76,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.athleteArea'), href: `/${tenantSlug}/app/me`, icon: UserCircle },
     { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home },
     { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users },
-    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: Shield },
+    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: UserCheck },
     { name: t('nav.academies'), href: `/${tenantSlug}/app/academies`, icon: Building2 },
     { name: t('nav.coaches'), href: `/${tenantSlug}/app/coaches`, icon: Award },
     { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
@@ -187,7 +188,7 @@ export function AppShell({ children }: AppShellProps) {
                 <DropdownMenuSeparator />
                 {isGlobalSuperadmin && (
                   <DropdownMenuItem onClick={() => navigate('/admin')}>
-                    <Shield className="mr-2 h-4 w-4" />
+                    <img src={iconLogo} alt="Admin" className="mr-2 h-4 w-4 rounded object-contain" />
                     {t('nav.globalAdmin')}
                   </DropdownMenuItem>
                 )}

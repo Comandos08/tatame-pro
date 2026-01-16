@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Shield, Building2, Users, LogOut, Activity, ExternalLink, 
+  Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock
+  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, LogIn
 } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -243,9 +244,7 @@ export default function AdminDashboard() {
       <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img src={iconLogo} alt="TATAME" className="h-10 w-10 rounded-xl object-contain" />
             <div>
               <h1 className="font-display text-lg font-bold">TATAME Admin</h1>
               <p className="text-xs text-muted-foreground">Painel Global</p>
@@ -540,7 +539,7 @@ export default function AdminDashboard() {
                                   Abrir portal
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}/app`, '_blank')}>
-                                  <Shield className="h-4 w-4 mr-2" />
+                                  <LogIn className="h-4 w-4 mr-2" />
                                   Entrar como admin
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
