@@ -247,6 +247,20 @@ async function handleCheckoutCompleted(
     },
     body: JSON.stringify({ membershipId }),
   }).catch((err) => logStep("Failed to trigger card generation", { error: err.message }));
+
+  // Send notification to admin about new pending membership
+  const sendAthleteEmailUrl = `${supabaseUrl}/functions/v1/send-athlete-email`;
+  fetch(sendAthleteEmailUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({ 
+      email_type: "NEW_MEMBERSHIP_PENDING",
+      membership_id: membershipId,
+    }),
+  }).catch((err) => logStep("Failed to send pending membership email", { error: err.message }));
 }
 
 async function handlePaymentSucceeded(

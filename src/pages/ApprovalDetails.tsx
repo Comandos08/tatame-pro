@@ -288,6 +288,19 @@ export default function ApprovalDetails() {
           console.error('Error generating digital card:', cardError);
         }
       }
+
+      // Send approval email to athlete
+      try {
+        await supabase.functions.invoke('send-athlete-email', {
+          body: { 
+            email_type: 'MEMBERSHIP_APPROVED',
+            membership_id: membershipId,
+          },
+        });
+      } catch (emailError) {
+        console.error('Error sending approval email:', emailError);
+        // Don't fail the approval if email fails
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });

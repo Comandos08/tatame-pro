@@ -352,7 +352,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "IPPON <onboarding@resend.dev>",
+        from: "IPPON <noreply@tatame.pro>",
         to: uniqueRecipients,
         subject: template.subject,
         html: template.getHtml(tenant.name, data),
