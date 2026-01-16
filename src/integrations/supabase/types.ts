@@ -1314,8 +1314,20 @@ export type Database = {
       }
     }
     Functions: {
+      athlete_has_active_membership: {
+        Args: { _athlete_id: string }
+        Returns: boolean
+      }
+      athlete_has_issued_diploma: {
+        Args: { _athlete_id: string }
+        Returns: boolean
+      }
       can_approve_membership: {
         Args: { _membership_id: string }
+        Returns: boolean
+      }
+      coach_has_issued_diploma: {
+        Args: { _coach_id: string }
         Returns: boolean
       }
       get_next_diploma_serial: {
@@ -1338,6 +1350,10 @@ export type Database = {
       is_member_of_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
+      membership_has_digital_card: {
+        Args: { _membership_id: string }
+        Returns: boolean
+      }
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
         Returns: boolean
