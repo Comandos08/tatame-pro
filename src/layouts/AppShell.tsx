@@ -13,13 +13,15 @@ import {
   Building2,
   Sun,
   Moon,
+  Monitor,
   HelpCircle,
   Globe,
   FileText,
   CheckCircle,
   Trophy,
   CreditCard,
-  UserCircle
+  UserCircle,
+  Check
 } from 'lucide-react';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
@@ -237,25 +239,37 @@ export function AppShell({ children }: AppShellProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Theme toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-              >
-                {resolvedTheme === 'dark' ? (
-                  <Sun className="h-5 w-5" />
-                ) : (
-                  <Moon className="h-5 w-5" />
-                )}
+          {/* Theme selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {resolvedTheme === 'dark' ? t('theme.light') : t('theme.dark')}
-            </TooltipContent>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Sun className="h-4 w-4" />
+                  {t('theme.light')}
+                </span>
+                {theme === 'light' && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Moon className="h-4 w-4" />
+                  {t('theme.dark')}
+                </span>
+                {theme === 'dark' && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4" />
+                  {t('theme.system')}
+                </span>
+                {theme === 'system' && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Help */}
           <Tooltip>
