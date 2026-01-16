@@ -193,6 +193,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "athlete_gradings_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "athlete_gradings_coach_id_fkey"
             columns: ["coach_id"]
             isOneToOne: false
@@ -541,6 +548,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "diplomas_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "diplomas_coach_id_fkey"
             columns: ["coach_id"]
             isOneToOne: false
@@ -609,6 +623,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
             referencedColumns: ["id"]
           },
           {
@@ -752,6 +773,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardian_links_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
             referencedColumns: ["id"]
           },
           {
@@ -901,6 +929,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
             referencedColumns: ["id"]
           },
           {
@@ -1251,7 +1286,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      athletes_public_verification: {
+        Row: {
+          full_name: string | null
+          id: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          full_name?: string | null
+          id?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          full_name?: string | null
+          id?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_approve_membership: {
