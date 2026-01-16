@@ -179,10 +179,10 @@ export default function ResetPassword() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          <Card className="border-green-500/50">
+          <Card className="border-success/50">
             <CardHeader className="text-center space-y-4">
-              <div className="mx-auto bg-green-500/10 rounded-full p-4 w-fit">
-                <CheckCircle className="h-12 w-12 text-green-500" />
+              <div className="mx-auto bg-success/10 rounded-full p-4 w-fit">
+                <CheckCircle className="h-12 w-12 text-success" />
               </div>
               <CardTitle className="text-2xl">{t('auth.passwordChanged')}</CardTitle>
               <CardDescription className="text-base">
@@ -260,10 +260,10 @@ export default function ResetPassword() {
               </div>
 
               <div className="text-xs text-muted-foreground space-y-1">
-                <p className={password.length >= 8 ? "text-green-500" : ""}>
+                <p className={password.length >= 8 ? "text-success" : ""}>
                   ✓ {t('auth.minCharsCheck')}
                 </p>
-                <p className={password && password === confirmPassword ? "text-green-500" : ""}>
+                <p className={password && password === confirmPassword ? "text-success" : ""}>
                   ✓ {t('auth.passwordsMatchCheck')}
                 </p>
               </div>

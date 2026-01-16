@@ -135,7 +135,7 @@ export default function TenantBilling() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <div className="text-2xl font-bold text-success">
                 {formatCurrency(summaryStats.totalPaid, summaryStats.currency)}
               </div>
             </CardContent>

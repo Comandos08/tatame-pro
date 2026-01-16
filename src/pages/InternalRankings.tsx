@@ -269,7 +269,7 @@ export default function InternalRankings() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    <Trophy className="h-5 w-5 text-warning" />
                     {t('rankings.topAcademies')}
                   </CardTitle>
                   <CardDescription>{t('rankings.byActiveAthletes')}</CardDescription>
@@ -344,7 +344,7 @@ export default function InternalRankings() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Medal className="h-5 w-5 text-yellow-500" />
+                    <Medal className="h-5 w-5 text-warning" />
                     {t('rankings.topAthletes')}
                   </CardTitle>
                   <CardDescription>{t('rankings.byGradings')}</CardDescription>

@@ -237,12 +237,12 @@ export default function VerifyDiploma() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <Card className={`border-2 ${verification.isValid ? "border-green-500/50" : "border-destructive/50"}`}>
+        <Card className={`border-2 ${verification.isValid ? "border-success/50" : "border-destructive/50"}`}>
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto">
               {verification.isValid ? (
-                <div className="bg-green-500/10 rounded-full p-4">
-                  <Award className="h-16 w-16 text-green-500" />
+                <div className="bg-success/10 rounded-full p-4">
+                  <Award className="h-16 w-16 text-success" />
                 </div>
               ) : (
                 <div className="bg-destructive/10 rounded-full p-4">
@@ -254,7 +254,7 @@ export default function VerifyDiploma() {
             <div>
               <Badge 
                 variant={verification.isValid ? "default" : "destructive"}
-                className={`text-lg px-4 py-1 ${verification.isValid ? "bg-green-500 hover:bg-green-600" : ""}`}
+                className={`text-lg px-4 py-1 ${verification.isValid ? "bg-success hover:bg-success/90" : ""}`}
               >
                 {verification.isValid ? t('verification.diplomaValid') : verification.status}
               </Badge>
@@ -315,18 +315,18 @@ export default function VerifyDiploma() {
                 transition={{ delay: 0.3 }}
                 className={`rounded-lg p-4 border-2 ${
                   verification.hashVerified 
-                    ? "bg-green-500/5 border-green-500/30" 
+                    ? "bg-success/5 border-success/30" 
                     : "bg-destructive/5 border-destructive/30"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   {verification.hashVerified ? (
-                    <ShieldCheck className="h-8 w-8 text-green-500 flex-shrink-0" />
+                    <ShieldCheck className="h-8 w-8 text-success flex-shrink-0" />
                   ) : (
                     <ShieldX className="h-8 w-8 text-destructive flex-shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold ${verification.hashVerified ? "text-green-600" : "text-destructive"}`}>
+                    <p className={`font-semibold ${verification.hashVerified ? "text-success" : "text-destructive"}`}>
                       {verification.hashVerified ? t('verification.integrityVerified') : t('verification.integrityFailed')}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
