@@ -94,7 +94,7 @@ export default function Landing() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" className="text-lg h-12 px-8" asChild>
-                <Link to="/demo-bjj">Ver Demo</Link>
+                <Link to="/help">Saiba Mais</Link>
               </Button>
             </motion.div>
           </motion.div>

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Login() {
@@ -20,6 +21,7 @@ export default function Login() {
   const { signIn, signUp, isGlobalSuperadmin, currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useI18n();
 
   // Redirect if already logged in
   React.useEffect(() => {
@@ -64,22 +66,22 @@ export default function Login() {
       if (isSignUp) {
         await signUp(email, password, name);
         toast({
-          title: 'Conta criada!',
-          description: 'Sua conta foi criada com sucesso. Você já pode fazer login.',
+          title: t('auth.accountCreated'),
+          description: t('auth.accountCreatedDesc'),
         });
         setIsSignUp(false);
       } else {
         await signIn(email, password);
         toast({
-          title: 'Bem-vindo!',
-          description: 'Login realizado com sucesso.',
+          title: t('auth.welcome'),
+          description: t('auth.loginSuccess'),
         });
       }
     } catch (error) {
       console.error('Auth error:', error);
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Ocorreu um erro. Tente novamente.',
+        title: t('auth.error'),
+        description: error instanceof Error ? error.message : t('auth.genericError'),
         variant: 'destructive',
       });
     } finally {
@@ -105,23 +107,21 @@ export default function Login() {
               <span className="font-display text-xl font-bold">IPPON</span>
             </Link>
             <h1 className="font-display text-3xl font-bold mb-2">
-              {isSignUp ? 'Criar conta' : 'Entrar'}
+              {isSignUp ? t('auth.signUpTitle') : t('auth.loginTitle')}
             </h1>
             <p className="text-muted-foreground">
-              {isSignUp
-                ? 'Preencha os dados para criar sua conta'
-                : 'Entre com suas credenciais para acessar'}
+              {isSignUp ? t('auth.signUpDesc') : t('auth.loginDesc')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
               <div className="space-y-2">
-                <Label htmlFor="name">Nome completo</Label>
+                <Label htmlFor="name">{t('auth.fullName')}</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Seu nome"
+                  placeholder={t('auth.fullNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required={isSignUp}
@@ -130,13 +130,13 @@ export default function Login() {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">{t('auth.emailLabel')}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="seu@email.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   className="pl-10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -146,13 +146,13 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{t('auth.passwordLabel')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder={t('auth.passwordPlaceholder')}
                   className="pl-10 pr-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -173,9 +173,9 @@ export default function Login() {
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isSignUp ? (
-                'Criar conta'
+                t('auth.createAccount')
               ) : (
-                'Entrar'
+                t('auth.login')
               )}
             </Button>
           </form>
@@ -183,19 +183,19 @@ export default function Login() {
           {!isSignUp && (
             <div className="mt-4 text-center">
               <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
-                Esqueceu sua senha?
+                {t('auth.forgotPassword')}
               </Link>
             </div>
           )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}{' '}
+            {isSignUp ? t('auth.alreadyHaveAccount') : t('auth.dontHaveAccount')}{' '}
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-primary hover:underline font-medium"
             >
-              {isSignUp ? 'Entrar' : 'Criar conta'}
+              {isSignUp ? t('auth.login') : t('auth.createAccount')}
             </button>
           </p>
         </motion.div>
@@ -214,11 +214,10 @@ export default function Login() {
             <Shield className="h-12 w-12 text-primary-foreground" />
           </div>
           <h2 className="font-display text-3xl font-bold mb-4">
-            Gerencie sua federação
+            {t('auth.manageOrganization')}
           </h2>
           <p className="text-muted-foreground max-w-sm">
-            Sistema completo para organizações de esportes de combate. 
-            BJJ, Judô, Wrestling, Muay Thai e muito mais.
+            {t('auth.manageOrganizationDesc')}
           </p>
         </motion.div>
       </div>

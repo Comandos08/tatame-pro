@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/contexts/I18nContext";
 import { Loader2, Lock, ArrowLeft, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -15,6 +16,7 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
+  const { t } = useI18n();
   
   const [validationState, setValidationState] = useState<ValidationState>("loading");
   const [validationMessage, setValidationMessage] = useState("");
@@ -32,7 +34,7 @@ export default function ResetPassword() {
     async function validateToken() {
       if (!token) {
         setValidationState("invalid");
-        setValidationMessage("Link inválido. Solicite um novo link de recuperação.");
+        setValidationMessage(t('auth.requestNewLink'));
         return;
       }
 
@@ -48,25 +50,25 @@ export default function ResetPassword() {
           setMaskedEmail(data.email || "");
         } else {
           setValidationState("invalid");
-          setValidationMessage(data.message || "Token inválido.");
+          setValidationMessage(data.message || t('auth.invalidLink'));
         }
       } catch (error) {
         console.error("Token validation error:", error);
         setValidationState("invalid");
-        setValidationMessage("Erro ao validar o link. Tente novamente.");
+        setValidationMessage(t('auth.genericError'));
       }
     }
 
     validateToken();
-  }, [token]);
+  }, [token, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (password.length < 8) {
       toast({
-        title: "Senha muito curta",
-        description: "A senha deve ter pelo menos 8 caracteres.",
+        title: t('auth.passwordTooShort'),
+        description: t('auth.passwordTooShortDesc'),
         variant: "destructive",
       });
       return;
@@ -74,8 +76,8 @@ export default function ResetPassword() {
 
     if (password !== confirmPassword) {
       toast({
-        title: "Senhas não conferem",
-        description: "As senhas digitadas não são iguais.",
+        title: t('auth.passwordsDontMatch'),
+        description: t('auth.passwordsDontMatchDesc'),
         variant: "destructive",
       });
       return;
@@ -96,8 +98,8 @@ export default function ResetPassword() {
 
       setIsSuccess(true);
       toast({
-        title: "Senha alterada!",
-        description: "Sua senha foi redefinida com sucesso.",
+        title: t('auth.passwordChanged'),
+        description: t('auth.passwordChangedDesc'),
       });
 
       // Redirect to login after 3 seconds
@@ -107,8 +109,8 @@ export default function ResetPassword() {
     } catch (error) {
       console.error("Password reset error:", error);
       toast({
-        title: "Erro ao redefinir senha",
-        description: error instanceof Error ? error.message : "Tente novamente.",
+        title: t('auth.resetError'),
+        description: error instanceof Error ? error.message : t('auth.genericError'),
         variant: "destructive",
       });
     } finally {
@@ -126,7 +128,7 @@ export default function ResetPassword() {
           className="text-center"
         >
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Validando link...</p>
+          <p className="text-muted-foreground">{t('auth.validatingLink')}</p>
         </motion.div>
       </div>
     );
@@ -146,19 +148,19 @@ export default function ResetPassword() {
               <div className="mx-auto bg-destructive/10 rounded-full p-4 w-fit">
                 <XCircle className="h-12 w-12 text-destructive" />
               </div>
-              <CardTitle className="text-2xl">Link Inválido</CardTitle>
+              <CardTitle className="text-2xl">{t('auth.invalidLink')}</CardTitle>
               <CardDescription className="text-base">
                 {validationMessage}
               </CardDescription>
             </CardHeader>
             <CardFooter className="flex flex-col gap-4">
               <Button className="w-full" asChild>
-                <Link to="/forgot-password">Solicitar novo link</Link>
+                <Link to="/forgot-password">{t('auth.requestNewLink')}</Link>
               </Button>
               <Button variant="ghost" className="w-full" asChild>
                 <Link to="/login">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Voltar para o login
+                  {t('auth.backToLogin')}
                 </Link>
               </Button>
             </CardFooter>
@@ -182,14 +184,14 @@ export default function ResetPassword() {
               <div className="mx-auto bg-green-500/10 rounded-full p-4 w-fit">
                 <CheckCircle className="h-12 w-12 text-green-500" />
               </div>
-              <CardTitle className="text-2xl">Senha Alterada!</CardTitle>
+              <CardTitle className="text-2xl">{t('auth.passwordChanged')}</CardTitle>
               <CardDescription className="text-base">
-                Sua senha foi redefinida com sucesso. Você será redirecionado para o login.
+                {t('auth.passwordChangedDesc')}
               </CardDescription>
             </CardHeader>
             <CardFooter>
               <Button className="w-full" asChild>
-                <Link to="/login">Fazer login agora</Link>
+                <Link to="/login">{t('auth.loginNow')}</Link>
               </Button>
             </CardFooter>
           </Card>
@@ -211,21 +213,21 @@ export default function ResetPassword() {
             <div className="mx-auto bg-primary/10 rounded-full p-4 w-fit mb-2">
               <Lock className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Redefinir Senha</CardTitle>
+            <CardTitle className="text-2xl">{t('auth.resetPassword')}</CardTitle>
             <CardDescription>
-              {maskedEmail && `Criando nova senha para ${maskedEmail}`}
+              {maskedEmail && `${t('auth.creatingPasswordFor')} ${maskedEmail}`}
             </CardDescription>
           </CardHeader>
 
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Nova senha</Label>
+                <Label htmlFor="password">{t('auth.newPassword')}</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder={t('auth.minChars')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
@@ -245,11 +247,11 @@ export default function ResetPassword() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Digite a senha novamente"
+                  placeholder={t('auth.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isLoading}
@@ -259,10 +261,10 @@ export default function ResetPassword() {
 
               <div className="text-xs text-muted-foreground space-y-1">
                 <p className={password.length >= 8 ? "text-green-500" : ""}>
-                  ✓ Mínimo de 8 caracteres
+                  ✓ {t('auth.minCharsCheck')}
                 </p>
                 <p className={password && password === confirmPassword ? "text-green-500" : ""}>
-                  ✓ Senhas conferem
+                  ✓ {t('auth.passwordsMatchCheck')}
                 </p>
               </div>
             </CardContent>
@@ -276,17 +278,17 @@ export default function ResetPassword() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
+                    {t('auth.saving')}
                   </>
                 ) : (
-                  "Salvar nova senha"
+                  t('auth.saveNewPassword')
                 )}
               </Button>
 
               <Button variant="ghost" className="w-full" asChild>
                 <Link to="/login">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Voltar para o login
+                  {t('auth.backToLogin')}
                 </Link>
               </Button>
             </CardFooter>

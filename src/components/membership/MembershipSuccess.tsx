@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export function MembershipSuccess() {
@@ -12,6 +13,7 @@ export function MembershipSuccess() {
   const { tenantSlug } = useParams();
   const [searchParams] = useSearchParams();
   const { tenant } = useTenant();
+  const { t } = useI18n();
   
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -23,7 +25,7 @@ export function MembershipSuccess() {
     const confirmPayment = async () => {
       if (!membershipId || !sessionId) {
         setStatus('error');
-        setMessage('Parâmetros inválidos');
+        setMessage(t('membershipSuccess.invalidParams'));
         return;
       }
 
@@ -36,20 +38,20 @@ export function MembershipSuccess() {
 
         if (data?.success) {
           setStatus('success');
-          setMessage('Sua filiação foi registrada com sucesso!');
+          setMessage(t('membershipSuccess.successMessage'));
         } else {
           setStatus('error');
-          setMessage(data?.message || 'Erro ao confirmar pagamento');
+          setMessage(data?.message || t('membershipSuccess.confirmError'));
         }
       } catch (error) {
         console.error('Error confirming payment:', error);
         setStatus('error');
-        setMessage('Erro ao processar pagamento. Entre em contato conosco.');
+        setMessage(t('membershipSuccess.processError'));
       }
     };
 
     confirmPayment();
-  }, [membershipId, sessionId]);
+  }, [membershipId, sessionId, t]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -77,12 +79,12 @@ export function MembershipSuccess() {
             )}
             
             <CardTitle className="text-2xl">
-              {status === 'loading' && 'Processando...'}
-              {status === 'success' && 'Pagamento Confirmado!'}
-              {status === 'error' && 'Ops!'}
+              {status === 'loading' && t('membershipSuccess.processing')}
+              {status === 'success' && t('membershipSuccess.paymentConfirmed')}
+              {status === 'error' && t('membershipSuccess.oops')}
             </CardTitle>
             <CardDescription className="text-base">
-              {status === 'loading' && 'Aguarde enquanto confirmamos seu pagamento'}
+              {status === 'loading' && t('membershipSuccess.waitingPayment')}
               {status === 'success' && message}
               {status === 'error' && message}
             </CardDescription>
@@ -91,12 +93,11 @@ export function MembershipSuccess() {
             {status === 'success' && (
               <>
                 <div className="bg-muted/50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-muted-foreground mb-1">Status da Filiação</p>
-                  <p className="font-medium text-warning">Aguardando Aprovação</p>
+                  <p className="text-sm text-muted-foreground mb-1">{t('membershipSuccess.membershipStatus')}</p>
+                  <p className="font-medium text-warning">{t('membershipSuccess.pendingApproval')}</p>
                 </div>
                 <p className="text-sm text-muted-foreground text-center">
-                  Sua filiação está em análise pela {tenant?.name}. 
-                  Você receberá uma notificação quando for aprovada.
+                  {t('membershipSuccess.pendingApprovalDesc').replace('{tenant}', tenant?.name || '')}
                 </p>
               </>
             )}
@@ -106,7 +107,7 @@ export function MembershipSuccess() {
                 onClick={() => navigate(`/${tenantSlug}`)}
                 variant={status === 'success' ? 'default' : 'outline'}
               >
-                Voltar para {tenant?.name || 'Início'}
+                {t('membershipSuccess.backTo').replace('{tenant}', tenant?.name || '')}
               </Button>
               
               {status === 'error' && (
@@ -114,7 +115,7 @@ export function MembershipSuccess() {
                   onClick={() => navigate(`/${tenantSlug}/membership/new`)}
                   variant="default"
                 >
-                  Tentar novamente
+                  {t('membershipSuccess.tryAgain')}
                 </Button>
               )}
             </div>
