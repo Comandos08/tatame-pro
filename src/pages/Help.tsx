@@ -66,7 +66,7 @@ export default function Help() {
               <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
                 <Shield className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="font-display text-lg font-bold">IPPON</span>
+              <span className="font-display text-lg font-bold">TATAME</span>
             </Link>
           </div>
           <Button variant="outline" asChild>
@@ -93,7 +93,7 @@ export default function Help() {
               {t('help.title')}
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Guia completo sobre como utilizar o sistema IPPON para gestão de federações esportivas.
+              Guia completo sobre como utilizar o sistema TATAME para gestão de federações esportivas.
             </p>
           </div>
 

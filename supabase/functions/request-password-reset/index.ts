@@ -98,9 +98,9 @@ serve(async (req) => {
 
     // Send email
     const { error: emailError } = await resend.emails.send({
-      from: "IPPON <noreply@tatame.pro>",
+      from: "TATAME <noreply@tatame.pro>",
       to: [normalizedEmail],
-      subject: "Recuperação de Senha - IPPON",
+      subject: "Recuperação de Senha - TATAME",
       html: `
         <!DOCTYPE html>
         <html>
@@ -110,7 +110,7 @@ serve(async (req) => {
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">🥋 IPPON</h1>
+            <h1 style="color: white; margin: 0; font-size: 28px;">🥋 TATAME</h1>
             <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">Sistema de Gestão Esportiva</p>
           </div>
           

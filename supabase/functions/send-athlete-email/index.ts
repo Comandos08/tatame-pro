@@ -38,7 +38,7 @@ interface AthleteEmailRequest {
   };
 }
 
-const EMAIL_FROM = "IPPON <noreply@tatame.pro>";
+const EMAIL_FROM = "TATAME <noreply@tatame.pro>";
 const BASE_URL = "https://tatame-pro.lovable.app";
 
 function getMembershipApprovedEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
@@ -50,7 +50,7 @@ function getMembershipApprovedEmail(data: AthleteEmailRequest["data"]): { subjec
       <head><meta charset="utf-8"></head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -82,7 +82,7 @@ function getMembershipApprovedEmail(data: AthleteEmailRequest["data"]): { subjec
         </ul>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
           <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
         </p>
       </body>
@@ -100,7 +100,7 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
       <head><meta charset="utf-8"></head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -130,7 +130,7 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
         </p>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
           <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
         </p>
       </body>
@@ -148,7 +148,7 @@ function getNewGradingEmail(data: AthleteEmailRequest["data"]): { subject: strin
       <head><meta charset="utf-8"></head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -187,7 +187,7 @@ function getNewGradingEmail(data: AthleteEmailRequest["data"]): { subject: strin
         </p>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
           <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
         </p>
       </body>
@@ -208,7 +208,7 @@ function getRenewalReminderEmail(data: AthleteEmailRequest["data"]): { subject: 
       <head><meta charset="utf-8"></head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -241,7 +241,7 @@ function getRenewalReminderEmail(data: AthleteEmailRequest["data"]): { subject: 
         </p>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate<br>
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
           <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
         </p>
       </body>

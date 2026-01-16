@@ -21,8 +21,8 @@ import {
   CreditCard,
   UserCircle
 } from 'lucide-react';
-import logoIppon from '@/assets/logoIppon.png';
-import logoIpponDark from '@/assets/logoIpponDark.png';
+import logoTatameLight from '@/assets/logoTatameLight.png';
+import logoTatameDark from '@/assets/logoTatameDark.png';
 import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -120,8 +120,8 @@ export function AppShell({ children }: AppShellProps) {
                 </>
               ) : (
                 <img 
-                  src={resolvedTheme === 'dark' ? logoIpponDark : logoIppon} 
-                  alt="IPPON" 
+                  src={resolvedTheme === 'dark' ? logoTatameDark : logoTatameLight} 
+                  alt="TATAME" 
                   className="h-8 w-auto object-contain" 
                 />
               )}

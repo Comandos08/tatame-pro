@@ -198,10 +198,10 @@ export default function Landing() {
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
                 <Shield className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold">IPPON</span>
+              <span className="font-display font-bold">TATAME</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} IPPON Tatame Pro. Todos os direitos reservados.
+              © {new Date().getFullYear()} TATAME Pro. Todos os direitos reservados.
             </p>
           </div>
         </div>
