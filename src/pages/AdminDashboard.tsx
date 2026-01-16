@@ -25,6 +25,7 @@ import { CreateTenantDialog } from '@/components/admin/CreateTenantDialog';
 import { EditTenantDialog } from '@/components/admin/EditTenantDialog';
 import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
 import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
+import { PlatformHealthCard } from '@/components/admin/PlatformHealthCard';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -401,7 +402,9 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Tenants Table */}
+          {/* Platform Health Card */}
+          <PlatformHealthCard />
+
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
