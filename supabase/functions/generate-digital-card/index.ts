@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import { encode } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,16 @@ const corsHeaders = {
 
 interface GenerateCardRequest {
   membershipId: string;
+}
+
+// Calculate SHA-256 hash of canonical payload
+async function calculateContentHash(payload: Record<string, unknown>): Promise<string> {
+  const jsonStr = JSON.stringify(payload);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(jsonStr);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = new Uint8Array(hashBuffer);
+  return new TextDecoder().decode(encode(hashArray));
 }
 
 serve(async (req) => {
@@ -73,7 +84,20 @@ serve(async (req) => {
       throw new Error("Invalid membership data");
     }
 
-    // Generate QR code data
+    // Create canonical payload for SHA-256 hash
+    const canonicalPayload = {
+      tenant_id: tenant.id,
+      athlete_id: athlete.id,
+      membership_id: membership.id,
+      valid_until: membership.end_date,
+      created_at: new Date().toISOString().split('T')[0],
+    };
+
+    // Calculate content hash
+    const contentHash = await calculateContentHash(canonicalPayload);
+    console.log("Content hash calculated:", contentHash.substring(0, 12) + "...");
+
+    // Generate QR code data - contains verification URL
     const qrPayload = {
       tenantSlug: tenant.slug,
       membershipId: membership.id,
@@ -89,20 +113,53 @@ serve(async (req) => {
       color: { dark: "#000000", light: "#FFFFFF" },
     });
 
+    // Parse primary color or use default
+    const primaryColor = tenant.primary_color || "#dc2626";
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 220, g: 38, b: 38 };
+    };
+    const rgb = hexToRgb(primaryColor);
+    const sportType = tenant.sport_types?.[0] || "Esporte de Combate";
+
     // Generate PDF
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: [85.6, 140], // Credit card ratio but taller
+      format: [85.6, 140],
     });
 
-    // Background
-    doc.setFillColor(20, 20, 25);
-    doc.rect(0, 0, 85.6, 140, "F");
-
-    // Header accent
-    doc.setFillColor(220, 38, 38); // Primary red
-    doc.rect(0, 0, 85.6, 8, "F");
+    // Check if tenant has custom card template
+    if (tenant.card_template_url) {
+      try {
+        const templateResponse = await fetch(tenant.card_template_url);
+        if (templateResponse.ok) {
+          const templateBlob = await templateResponse.blob();
+          const templateBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(templateBlob);
+          });
+          const base64Data = templateBase64.split(',')[1];
+          doc.addImage(base64Data, "PNG", 0, 0, 85.6, 140, undefined, "FAST");
+        }
+      } catch (e) {
+        console.error("Failed to load card template:", e);
+        doc.setFillColor(20, 20, 25);
+        doc.rect(0, 0, 85.6, 140, "F");
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.rect(0, 0, 85.6, 8, "F");
+      }
+    } else {
+      doc.setFillColor(20, 20, 25);
+      doc.rect(0, 0, 85.6, 140, "F");
+      doc.setFillColor(rgb.r, rgb.g, rgb.b);
+      doc.rect(0, 0, 85.6, 8, "F");
+    }
 
     // Tenant name
     doc.setTextColor(255, 255, 255);
@@ -112,7 +169,6 @@ serve(async (req) => {
     doc.text(tenantName, 42.8, 18, { align: "center" });
 
     // Sport type
-    const sportType = tenant.sport_types?.[0] || "Esporte de Combate";
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 180);
@@ -130,7 +186,7 @@ serve(async (req) => {
     doc.text(athleteName, 42.8, 38, { align: "center" });
 
     // Status badge
-    doc.setFillColor(34, 197, 94); // Green for valid
+    doc.setFillColor(34, 197, 94);
     doc.roundedRect(28, 42, 30, 6, 1, 1, "F");
     doc.setFontSize(7);
     doc.setTextColor(255, 255, 255);
@@ -159,12 +215,14 @@ serve(async (req) => {
     doc.setFont("helvetica", "normal");
     doc.text(`ID: ${membership.id.substring(0, 8).toUpperCase()}`, 42.8, 115, { align: "center" });
 
-    // Footer
+    // Footer with hash
     doc.setFillColor(30, 30, 35);
-    doc.rect(0, 125, 85.6, 15, "F");
+    doc.rect(0, 122, 85.6, 18, "F");
     doc.setTextColor(100, 100, 110);
-    doc.setFontSize(6);
-    doc.text("Escaneie o QR code para verificar autenticidade", 42.8, 132, { align: "center" });
+    doc.setFontSize(5);
+    doc.text("Escaneie o QR code para verificar autenticidade", 42.8, 128, { align: "center" });
+    doc.setFontSize(4);
+    doc.text(`SHA-256: ${contentHash.substring(0, 16)}...`, 42.8, 134, { align: "center" });
 
     // Get PDF as array buffer
     const pdfArrayBuffer = doc.output("arraybuffer");
@@ -197,7 +255,7 @@ serve(async (req) => {
 
     const { data: pdfUrl } = supabase.storage.from("cards").getPublicUrl(pdfFileName);
 
-    // Create digital_card record
+    // Create digital_card record with content hash
     const { data: digitalCard, error: cardError } = await supabase
       .from("digital_cards")
       .insert({
@@ -207,6 +265,7 @@ serve(async (req) => {
         qr_code_image_url: qrUrl.publicUrl,
         pdf_url: pdfUrl.publicUrl,
         valid_until: membership.end_date,
+        content_hash_sha256: contentHash,
       })
       .select()
       .single();
@@ -222,6 +281,7 @@ serve(async (req) => {
           id: digitalCard.id,
           qrCodeUrl: qrUrl.publicUrl,
           pdfUrl: pdfUrl.publicUrl,
+          contentHash: contentHash,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }

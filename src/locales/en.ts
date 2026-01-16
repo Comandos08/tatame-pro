@@ -254,4 +254,21 @@ export const en: Record<TranslationKey, string> = {
   'admin.tenantsActive': 'Active',
   'admin.tenantsWithIssues': 'With Issues',
   'admin.monthlyRevenue': 'Monthly Revenue',
+
+  // Branding Settings
+  'settings.brandingAssets': 'Branding Assets',
+  'settings.brandingAssetsDesc': 'Logo and custom templates for cards and diplomas',
+  'settings.organizationLogo': 'Organization Logo',
+  'settings.logoDesc': 'Logo displayed on documents and digital cards',
+  'settings.cardTemplate': 'Digital Card Template',
+  'settings.cardTemplateDesc': 'Background image for digital cards (optional)',
+  'settings.diplomaTemplate': 'Diploma Template',
+  'settings.diplomaTemplateDesc': 'Background image for diplomas (optional)',
+
+  // Verification
+  'verification.integrityVerified': 'Integrity Verified',
+  'verification.integrityVerifiedDesc': 'Authentic and unaltered document',
+  'verification.integrityFailed': 'Integrity Compromised',
+  'verification.integrityFailedDesc': 'This document may have been altered',
+  'verification.hashPrefix': 'SHA-256 Hash',
 };

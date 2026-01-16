@@ -412,6 +412,7 @@ export type Database = {
       }
       digital_cards: {
         Row: {
+          content_hash_sha256: string | null
           created_at: string | null
           id: string
           membership_id: string
@@ -423,6 +424,7 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          content_hash_sha256?: string | null
           created_at?: string | null
           id?: string
           membership_id: string
@@ -434,6 +436,7 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          content_hash_sha256?: string | null
           created_at?: string | null
           id?: string
           membership_id?: string
@@ -466,6 +469,7 @@ export type Database = {
           academy_id: string | null
           athlete_id: string
           coach_id: string | null
+          content_hash_sha256: string | null
           created_at: string | null
           grading_level_id: string
           id: string
@@ -485,6 +489,7 @@ export type Database = {
           academy_id?: string | null
           athlete_id: string
           coach_id?: string | null
+          content_hash_sha256?: string | null
           created_at?: string | null
           grading_level_id: string
           id?: string
@@ -504,6 +509,7 @@ export type Database = {
           academy_id?: string | null
           athlete_id?: string
           coach_id?: string | null
+          content_hash_sha256?: string | null
           created_at?: string | null
           grading_level_id?: string
           id?: string
@@ -1120,9 +1126,11 @@ export type Database = {
       tenants: {
         Row: {
           billing_email: string | null
+          card_template_url: string | null
           created_at: string | null
           default_locale: string | null
           description: string | null
+          diploma_template_url: string | null
           id: string
           is_active: boolean | null
           logo_url: string | null
@@ -1135,9 +1143,11 @@ export type Database = {
         }
         Insert: {
           billing_email?: string | null
+          card_template_url?: string | null
           created_at?: string | null
           default_locale?: string | null
           description?: string | null
+          diploma_template_url?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
@@ -1150,9 +1160,11 @@ export type Database = {
         }
         Update: {
           billing_email?: string | null
+          card_template_url?: string | null
           created_at?: string | null
           default_locale?: string | null
           description?: string | null
+          diploma_template_url?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
