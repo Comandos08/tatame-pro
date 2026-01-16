@@ -15,7 +15,12 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
 /**
  * Cleanup Abandoned Memberships Job
  * 
- * This function runs on a schedule (daily) to:
+ * ⚠️ DEPENDÊNCIA DE CRON: Esta função DEVE ser agendada via pg_cron para funcionar.
+ * Sem o agendamento, filiações abandonadas NÃO serão limpas automaticamente.
+ * 
+ * Veja: docs/operacao-configuracoes.md → Seção "4. Cron Jobs"
+ * 
+ * This function runs on a schedule (daily at 04:00 UTC) to:
  * 1. Find memberships in DRAFT status that are older than 24 hours
  * 2. Mark them as ABANDONED (preserves data for audit)
  * 3. Log the cleanup in audit_logs

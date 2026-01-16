@@ -1,3 +1,17 @@
+/**
+ * Check Trial Ending Job
+ * 
+ * ⚠️ DEPENDÊNCIA DE CRON: Esta função DEVE ser agendada via pg_cron para funcionar.
+ * Sem o agendamento, notificações de fim de trial NÃO serão enviadas.
+ * 
+ * Veja: docs/operacao-configuracoes.md → Seção "4. Cron Jobs"
+ * 
+ * This function runs on a schedule (daily at 10:00 UTC) to:
+ * 1. Find tenants with trial ending in DAYS_BEFORE_TRIAL_END days
+ * 2. Send notification emails
+ * 3. Mark notification as sent to avoid duplicates
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 

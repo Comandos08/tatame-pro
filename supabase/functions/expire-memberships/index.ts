@@ -15,7 +15,12 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
 /**
  * Expire Memberships Job
  * 
- * This function runs on a schedule (daily) to:
+ * ⚠️ DEPENDÊNCIA DE CRON: Esta função DEVE ser agendada via pg_cron para funcionar.
+ * Sem o agendamento, filiações vencidas NÃO serão expiradas automaticamente.
+ * 
+ * Veja: docs/operacao-configuracoes.md → Seção "4. Cron Jobs"
+ * 
+ * This function runs on a schedule (daily at 03:00 UTC) to:
  * 1. Find all memberships with status ACTIVE/APPROVED where end_date < today
  * 2. Update their status to EXPIRED
  * 3. Log the change in audit_logs
