@@ -548,7 +548,7 @@ export const en: Record<TranslationKey, string> = {
   'landing.ctaSupport': 'Specialized support',
   'landing.ctaStripe': 'Stripe integration included',
   'landing.createFreeAccount': 'Create Free Account',
-  'landing.copyright': '© {year} IPPON Tatame Pro. All rights reserved.',
+  'landing.copyright': '© {year} TATAME Pro. All rights reserved.',
 
   // Membership Success page
   'membershipSuccess.processing': 'Processing...',

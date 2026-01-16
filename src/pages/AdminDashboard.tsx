@@ -245,7 +245,7 @@ export default function AdminDashboard() {
               <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-display text-lg font-bold">IPPON Admin</h1>
+              <h1 className="font-display text-lg font-bold">TATAME Admin</h1>
               <p className="text-xs text-muted-foreground">Painel Global</p>
             </div>
           </div>
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
               Painel de Administração Global
             </h2>
             <p className="text-muted-foreground">
-              Gerencie todas as organizações de esportes de combate da plataforma IPPON.
+              Gerencie todas as organizações de esportes de combate da plataforma TATAME.
             </p>
           </div>
 

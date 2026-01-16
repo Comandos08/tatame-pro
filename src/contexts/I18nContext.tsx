@@ -19,7 +19,7 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
-const GLOBAL_STORAGE_KEY = 'ippon-locale';
+const GLOBAL_STORAGE_KEY = 'tatame-locale';
 
 function getTenantSlugFromPath(): string | null {
   if (typeof window === 'undefined') return null;
@@ -32,7 +32,7 @@ function getTenantSlugFromPath(): string | null {
 }
 
 function getStorageKey(tenantSlug: string | null): string {
-  return tenantSlug ? `ippon-locale-${tenantSlug}` : GLOBAL_STORAGE_KEY;
+  return tenantSlug ? `tatame-locale-${tenantSlug}` : GLOBAL_STORAGE_KEY;
 }
 
 function getDefaultLocale(tenantSlug: string | null): Locale {

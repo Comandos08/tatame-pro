@@ -546,7 +546,7 @@ export const ptBR = {
   'landing.ctaSupport': 'Suporte especializado',
   'landing.ctaStripe': 'Integração Stripe incluída',
   'landing.createFreeAccount': 'Criar Conta Grátis',
-  'landing.copyright': '© {year} IPPON Tatame Pro. Todos os direitos reservados.',
+  'landing.copyright': '© {year} TATAME Pro. Todos os direitos reservados.',
 
   // Membership Success page
   'membershipSuccess.processing': 'Processando...',

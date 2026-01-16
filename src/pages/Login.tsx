@@ -104,7 +104,7 @@ export default function Login() {
               <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
                 <Shield className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="font-display text-xl font-bold">IPPON</span>
+              <span className="font-display text-xl font-bold">TATAME</span>
             </Link>
             <h1 className="font-display text-3xl font-bold mb-2">
               {isSignUp ? t('auth.signUpTitle') : t('auth.loginTitle')}

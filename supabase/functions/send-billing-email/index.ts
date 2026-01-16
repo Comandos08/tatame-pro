@@ -31,11 +31,11 @@ interface BillingEmailRequest {
 
 const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: string, data?: BillingEmailRequest["data"]) => string }> = {
   TRIAL_STARTED: {
-    subject: "Bem-vindo ao IPPON - Seu período de teste começou!",
+    subject: "Bem-vindo ao TATAME - Seu período de teste começou!",
     getHtml: (tenantName, data) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -43,7 +43,7 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         
         <p style="color: #555; line-height: 1.6;">
           Seu período de teste gratuito começou! Você tem acesso completo a todas as funcionalidades 
-          da plataforma IPPON até <strong>${data?.trial_end_date || "o final do período de teste"}</strong>.
+          da plataforma TATAME até <strong>${data?.trial_end_date || "o final do período de teste"}</strong>.
         </p>
         
         <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -69,17 +69,17 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
   },
   TRIAL_ENDING_SOON: {
-    subject: "⏰ Seu período de teste termina em 3 dias - IPPON",
+    subject: "⏰ Seu período de teste termina em 3 dias - TATAME",
     getHtml: (tenantName, data) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
           <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
         </div>
         
@@ -108,17 +108,17 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
   },
   INVOICE_PAYMENT_SUCCEEDED: {
-    subject: "Pagamento confirmado - IPPON",
+    subject: "Pagamento confirmado - TATAME",
     getHtml: (tenantName, data) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
         </div>
         
         <h2 style="color: #333;">Pagamento confirmado! ✅</h2>
@@ -141,21 +141,21 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         ` : ""}
         
         <p style="color: #555; line-height: 1.6;">
-          Obrigado por confiar na plataforma IPPON!
+          Obrigado por confiar na plataforma TATAME!
         </p>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
   },
   PAYMENT_FAILED: {
-    subject: "⚠️ Problema com seu pagamento - IPPON",
+    subject: "⚠️ Problema com seu pagamento - TATAME",
     getHtml: (tenantName) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
         </div>
         
         <h2 style="color: #ef4444;">Problema com seu pagamento</h2>
@@ -183,17 +183,17 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
   },
   TENANT_WILL_BE_BLOCKED: {
-    subject: "🚨 Ação necessária: Sua assinatura será suspensa - IPPON",
+    subject: "🚨 Ação necessária: Sua assinatura será suspensa - TATAME",
     getHtml: (tenantName) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
         </div>
         
         <h2 style="color: #ef4444;">⚠️ Atenção: Suspensão iminente</h2>
@@ -220,23 +220,23 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
   },
   TENANT_BLOCKED: {
-    subject: "🔒 Acesso suspenso - IPPON",
+    subject: "🔒 Acesso suspenso - TATAME",
     getHtml: (tenantName) => `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">IPPON</h1>
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
         </div>
         
         <h2 style="color: #ef4444;">Acesso suspenso</h2>
         
         <p style="color: #555; line-height: 1.6;">
-          Olá ${tenantName}, infelizmente seu acesso ao IPPON foi suspenso devido a pendências no pagamento.
+          Olá ${tenantName}, infelizmente seu acesso ao TATAME foi suspenso devido a pendências no pagamento.
         </p>
         
         <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -254,7 +254,7 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
-          IPPON - Plataforma de Gestão para Federações de Esportes de Combate
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
       </div>
     `,
@@ -352,7 +352,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "IPPON <noreply@tatame.pro>",
+        from: "TATAME <noreply@tatame.pro>",
         to: uniqueRecipients,
         subject: template.subject,
         html: template.getHtml(tenant.name, data),
