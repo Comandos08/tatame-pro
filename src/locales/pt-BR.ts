@@ -336,6 +336,72 @@ export const ptBR = {
   'athleteArea.noAthleteFoundDesc': 'Você ainda não possui um cadastro de atleta vinculado a esta organização. Faça sua filiação para acessar esta área.',
   'athleteArea.dataSaved': 'Dados salvos com sucesso!',
   'athleteArea.saveError': 'Erro ao salvar dados',
+  'athleteArea.documents': 'Documentos',
+  'athleteArea.documentsDesc': 'Documentos enviados para a organização',
+  'athleteArea.noDocuments': 'Nenhum documento enviado ainda',
+  'athleteArea.documentApproved': 'Aprovado',
+  'athleteArea.documentExpired': 'Expirado',
+
+  // Grading Levels
+  'gradingLevels.title': 'Níveis de Graduação',
+  'gradingLevels.levels': 'Níveis',
+  'gradingLevels.dragToReorder': 'Arraste para reordenar a progressão das faixas/níveis',
+  'gradingLevels.noLevels': 'Nenhum nível configurado para este esquema.',
+  'gradingLevels.addFirst': 'Adicionar primeiro nível',
+  'gradingLevels.newLevel': 'Novo Nível',
+  'gradingLevels.editLevel': 'Editar Nível',
+  'gradingLevels.newLevelTitle': 'Novo Nível de Graduação',
+  'gradingLevels.configureLevel': 'Configure um nível/faixa dentro do esquema de graduação.',
+  'gradingLevels.code': 'Código',
+  'gradingLevels.order': 'Ordem',
+  'gradingLevels.displayName': 'Nome de Exibição',
+  'gradingLevels.minTimeMonths': 'Tempo Mínimo (meses)',
+  'gradingLevels.minAge': 'Idade Mínima',
+  'gradingLevels.optional': 'Opcional',
+  'gradingLevels.levelActive': 'Nível ativo',
+  'gradingLevels.inactive': 'Inativo',
+  'gradingLevels.minMonths': 'Min. {n} meses',
+  'gradingLevels.minYears': 'Min. {n} anos',
+  'gradingLevels.created': 'Nível criado!',
+  'gradingLevels.updated': 'Nível atualizado!',
+  'gradingLevels.createError': 'Erro ao criar nível',
+  'gradingLevels.updateError': 'Erro ao atualizar nível',
+
+  // Audit Log
+  'audit.recentEvents': 'Eventos Recentes',
+  'audit.recentEventsDesc': 'Últimos 100 eventos registrados no sistema',
+  'audit.systemActivity': 'Histórico de atividades do sistema',
+  'audit.user': 'Usuário',
+  'audit.system': 'Sistema',
+
+  // Admin dialogs
+  'admin.newOrganization': 'Nova Organização',
+  'admin.createOrganization': 'Criar Nova Organização',
+  'admin.createOrganizationDesc': 'Preencha os dados para criar uma nova organização na plataforma.',
+  'admin.organizationName': 'Nome da organização',
+  'admin.slugUrl': 'Slug (URL)',
+  'admin.modalities': 'Modalidades',
+  'admin.defaultLanguage': 'Idioma padrão',
+  'admin.primaryColor': 'Cor primária',
+  'admin.descriptionOptional': 'Descrição (opcional)',
+  'admin.descriptionPlaceholder': 'Breve descrição da organização...',
+  'admin.creating': 'Criando...',
+
+  // Password reset
+  'auth.checkEmail': 'Verifique seu e-mail',
+  'auth.emailSentMessage': 'Se o e-mail {email} estiver cadastrado, você receberá um link para redefinir sua senha.',
+  'auth.linkExpires': 'O link expira em 1 hora',
+  'auth.dontShare': 'Não compartilhe este link com ninguém',
+  'auth.backToLogin': 'Voltar para o login',
+  'auth.didntReceive': 'Não recebeu? Tentar novamente',
+  'auth.forgotPassword': 'Esqueceu sua senha?',
+  'auth.forgotPasswordDesc': 'Digite seu e-mail e enviaremos um link para redefinir sua senha.',
+  'auth.sendRecoveryLink': 'Enviar link de recuperação',
+  'auth.sending': 'Enviando...',
+
+  // Pagination
+  'pagination.previous': 'Anterior',
+  'pagination.next': 'Próximo',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

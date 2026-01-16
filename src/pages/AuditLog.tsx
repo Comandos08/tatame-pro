@@ -93,7 +93,7 @@ export default function AuditLog() {
                 {t('audit.title')}
               </h1>
               <p className="text-muted-foreground">
-                Histórico de atividades do sistema
+                {t('audit.systemActivity')}
               </p>
             </div>
           </div>
@@ -101,9 +101,9 @@ export default function AuditLog() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Eventos Recentes</CardTitle>
+            <CardTitle>{t('audit.recentEvents')}</CardTitle>
             <CardDescription>
-              Últimos 100 eventos registrados no sistema
+              {t('audit.recentEventsDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -123,7 +123,7 @@ export default function AuditLog() {
                     <TableRow>
                       <TableHead className="w-[180px]">{t('audit.timestamp')}</TableHead>
                       <TableHead className="w-[180px]">{t('audit.eventType')}</TableHead>
-                      <TableHead>Usuário</TableHead>
+                      <TableHead>{t('audit.user')}</TableHead>
                       <TableHead>{t('audit.details')}</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -150,7 +150,7 @@ export default function AuditLog() {
                                 <span>{log.profile.name || log.profile.email}</span>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground">Sistema</span>
+                              <span className="text-muted-foreground">{t('audit.system')}</span>
                             )}
                           </TableCell>
                           <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
