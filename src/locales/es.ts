@@ -240,4 +240,9 @@ export const es: Record<TranslationKey, string> = {
   'billing.unpaidDesc': 'Su suscripción está suspendida por falta de pago. Contáctenos para resolver.',
   'billing.validUntil': 'Válido hasta: {date}',
   'billing.openPortalError': 'Error al abrir el portal de pago',
+  'billing.totalPaid': 'Total Pagado',
+  'billing.totalPending': 'Total Pendiente',
+  'billing.nextInvoice': 'Próxima Factura',
+  'billing.dueDate': 'Vencimiento',
+  'billing.noOpenInvoices': 'Sin facturas abiertas',
 };

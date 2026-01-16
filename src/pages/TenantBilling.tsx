@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CreditCard, ExternalLink, FileText, Loader2 } from 'lucide-react';
+import { CreditCard, ExternalLink, FileText, Loader2, TrendingUp, Clock, CalendarCheck } from 'lucide-react';
 import { AppShell } from '@/layouts/AppShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -63,6 +63,31 @@ export default function TenantBilling() {
     return invoices;
   }, [invoices, statusFilter]);
 
+  // Calculate summary stats
+  const summaryStats = useMemo(() => {
+    if (!invoices) return { totalPaid: 0, totalPending: 0, nextInvoice: null as TenantInvoice | null, currency: 'BRL' };
+    
+    const currency = invoices[0]?.currency || 'BRL';
+    const totalPaid = invoices
+      .filter(inv => inv.status === 'paid')
+      .reduce((sum, inv) => sum + inv.amount_cents, 0);
+    
+    const totalPending = invoices
+      .filter(inv => ['open', 'draft'].includes(inv.status))
+      .reduce((sum, inv) => sum + inv.amount_cents, 0);
+    
+    // Next invoice is the oldest open/draft invoice
+    const nextInvoice = invoices
+      .filter(inv => ['open', 'draft'].includes(inv.status))
+      .sort((a, b) => {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      })[0] || null;
+    
+    return { totalPaid, totalPending, nextInvoice, currency };
+  }, [invoices]);
+
   const formatCurrency = (cents: number, currency: string) => {
     const localeMap: Record<string, string> = {
       'pt-BR': 'pt-BR',
@@ -100,6 +125,54 @@ export default function TenantBilling() {
           <p className="text-muted-foreground">
             {t('billing.invoiceHistory')}
           </p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{t('billing.totalPaid')}</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {formatCurrency(summaryStats.totalPaid, summaryStats.currency)}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{t('billing.totalPending')}</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {formatCurrency(summaryStats.totalPending, summaryStats.currency)}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{t('billing.nextInvoice')}</CardTitle>
+              <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {summaryStats.nextInvoice ? (
+                <div>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(summaryStats.nextInvoice.amount_cents, summaryStats.nextInvoice.currency)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t('billing.dueDate')}: {formatDate(summaryStats.nextInvoice.due_date)}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">{t('billing.noOpenInvoices')}</div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Card>

@@ -238,6 +238,11 @@ export const ptBR = {
   'billing.unpaidDesc': 'Sua assinatura está suspensa por falta de pagamento. Entre em contato para regularizar.',
   'billing.validUntil': 'Válido até: {date}',
   'billing.openPortalError': 'Erro ao abrir portal de pagamento',
+  'billing.totalPaid': 'Total Pago',
+  'billing.totalPending': 'Total Pendente',
+  'billing.nextInvoice': 'Próxima Fatura',
+  'billing.dueDate': 'Vencimento',
+  'billing.noOpenInvoices': 'Sem faturas abertas',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
