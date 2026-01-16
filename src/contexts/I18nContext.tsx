@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import { ptBR, TranslationKey } from '@/locales/pt-BR';
 import { en } from '@/locales/en';
 import { es } from '@/locales/es';
