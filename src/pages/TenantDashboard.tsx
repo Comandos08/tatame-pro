@@ -121,11 +121,11 @@ export default function TenantDashboard() {
   if (!tenant) return null;
 
   const statCards = [
-    { label: t('dashboard.activeAthletes'), value: stats?.activeAthletes ?? 0, icon: Users, color: tenant.primaryColor },
-    { label: t('dashboard.activeMemberships'), value: stats?.activeMemberships ?? 0, icon: FileText, color: '#22c55e' },
-    { label: t('dashboard.pendingMemberships'), value: stats?.pendingMemberships ?? 0, icon: TrendingUp, color: '#f59e0b' },
-    { label: t('dashboard.activeAcademies'), value: stats?.activeAcademies ?? 0, icon: Building2, color: '#8b5cf6' },
-    { label: t('dashboard.diplomasIssued'), value: stats?.diplomasIssued ?? 0, icon: Award, color: '#ec4899' },
+    { label: t('dashboard.activeAthletes'), value: stats?.activeAthletes ?? 0, icon: Users, color: 'hsl(var(--primary))' },
+    { label: t('dashboard.activeMemberships'), value: stats?.activeMemberships ?? 0, icon: FileText, color: 'hsl(var(--success))' },
+    { label: t('dashboard.pendingMemberships'), value: stats?.pendingMemberships ?? 0, icon: TrendingUp, color: 'hsl(var(--warning))' },
+    { label: t('dashboard.activeAcademies'), value: stats?.activeAcademies ?? 0, icon: Building2, color: 'hsl(var(--chart-4))' },
+    { label: t('dashboard.diplomasIssued'), value: stats?.diplomasIssued ?? 0, icon: Award, color: 'hsl(var(--chart-5))' },
   ];
 
   const chartConfig = {

@@ -147,7 +147,7 @@ export default function TenantBilling() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              <div className="text-2xl font-bold text-warning">
                 {formatCurrency(summaryStats.totalPending, summaryStats.currency)}
               </div>
             </CardContent>

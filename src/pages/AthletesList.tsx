@@ -58,11 +58,11 @@ interface Academy {
 
 const STATUS_COLORS: Record<MembershipStatus, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
-  PENDING_PAYMENT: 'bg-yellow-500/20 text-yellow-500',
-  PENDING_REVIEW: 'bg-orange-500/20 text-orange-500',
+  PENDING_PAYMENT: 'bg-warning/20 text-warning',
+  PENDING_REVIEW: 'bg-warning/20 text-warning',
   APPROVED: 'bg-blue-500/20 text-blue-500',
-  ACTIVE: 'bg-green-500/20 text-green-500',
-  EXPIRED: 'bg-red-500/20 text-red-500',
+  ACTIVE: 'bg-success/20 text-success',
+  EXPIRED: 'bg-destructive/20 text-destructive',
   CANCELLED: 'bg-destructive/20 text-destructive',
 };
 

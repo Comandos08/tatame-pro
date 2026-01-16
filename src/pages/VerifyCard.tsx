@@ -221,16 +221,16 @@ export default function VerifyCard() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <Card className={`border-2 ${verification.isValid ? "border-green-500/50" : "border-amber-500/50"}`}>
+        <Card className={`border-2 ${verification.isValid ? "border-success/50" : "border-warning/50"}`}>
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto">
               {verification.isValid ? (
-                <div className="bg-green-500/10 rounded-full p-4">
-                  <CheckCircle className="h-16 w-16 text-green-500" />
+                <div className="bg-success/10 rounded-full p-4">
+                  <CheckCircle className="h-16 w-16 text-success" />
                 </div>
               ) : (
-                <div className="bg-amber-500/10 rounded-full p-4">
-                  <AlertCircle className="h-16 w-16 text-amber-500" />
+                <div className="bg-warning/10 rounded-full p-4">
+                  <AlertCircle className="h-16 w-16 text-warning" />
                 </div>
               )}
             </div>
@@ -238,7 +238,7 @@ export default function VerifyCard() {
             <div>
               <Badge 
                 variant={verification.isValid ? "default" : "secondary"}
-                className={`text-lg px-4 py-1 ${verification.isValid ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"}`}
+                className={`text-lg px-4 py-1 ${verification.isValid ? "bg-success hover:bg-success/90" : "bg-warning hover:bg-warning/90"}`}
               >
                 {verification.isValid ? t('verification.documentValid') : verification.status}
               </Badge>
