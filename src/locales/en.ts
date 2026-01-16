@@ -182,6 +182,8 @@ export const en: Record<TranslationKey, string> = {
   'rankings.position': 'Position',
   'rankings.academy': 'Academy',
   'rankings.noData': 'No ranking data available',
+  'rankings.noAcademiesHint': 'Academies will appear here as athletes register.',
+  'rankings.noAthletesHint': 'Athletes will appear here as they receive gradings.',
   'rankings.publicNote': 'Showing public rankings. For detailed data, access the portal.',
 
   // Dashboard
@@ -572,4 +574,48 @@ export const en: Record<TranslationKey, string> = {
   // Pagination
   'pagination.previous': 'Previous',
   'pagination.next': 'Next',
+  
+  // Renewal Banner
+  'renewal.expired': 'Your membership has expired',
+  'renewal.expiresInDays': 'Your membership expires in {days} days',
+  'renewal.expiredDesc': 'Renew now to continue participating in events and keep your digital card active.',
+  'renewal.urgentDesc': 'Your membership expires on {date}. Renew urgently to avoid losing access.',
+  'renewal.comfortableDesc': 'Your membership expires on {date}. Renew early to continue enjoying benefits.',
+  'renewal.renewNow': 'Renew Now',
+  
+  // Dashboard - Quick Actions i18n
+  'dashboard.approveMembers': 'Approve Memberships',
+  'dashboard.pendingCount': '{count} pending',
+  'dashboard.expiringMemberships': 'Expiring Memberships',
+  'dashboard.expiringCount': '{count} in 30 days',
+  'dashboard.issueDiploma': 'Issue Diploma',
+  'dashboard.newGrading': 'New grading',
+  'dashboard.registerAcademy': 'Register Academy',
+  'dashboard.newAcademy': 'New academy',
+  'dashboard.viewFullHistory': 'View full history',
+  
+  // Audit event labels
+  'audit.membershipCreated': 'Membership Created',
+  'audit.membershipPaid': 'Payment Confirmed',
+  'audit.membershipApproved': 'Membership Approved',
+  'audit.membershipRejected': 'Membership Rejected',
+  'audit.membershipExpired': 'Membership Expired',
+  'audit.membershipCleanup': 'Abandoned Membership Removed',
+  'audit.diplomaIssued': 'Diploma Issued',
+  'audit.gradingRecorded': 'Grading Recorded',
+  'audit.renewalReminder': 'Renewal Reminder',
+  'audit.settingsUpdated': 'Settings Updated',
+  
+  // System Health
+  'health.title': 'System Health',
+  'health.titleDesc': 'Jobs and automation monitoring',
+  'health.lastExpireRun': 'Last expiration run',
+  'health.lastCleanupRun': 'Last cleanup run',
+  'health.expiredLast24h': 'Expired (24h)',
+  'health.cleanedLast24h': 'Cleaned (24h)',
+  'health.expiredLast7d': 'Expired (7 days)',
+  'health.cleanedLast7d': 'Cleaned (7 days)',
+  'health.noData': 'No execution data',
+  'health.jobsRunning': 'Jobs running',
+  'health.allSystemsOperational': 'Systems operational',
 };

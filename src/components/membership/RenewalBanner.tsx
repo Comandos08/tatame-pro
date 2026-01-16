@@ -1,9 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Clock, CreditCard, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Clock, CreditCard, ArrowRight, CheckCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/contexts/I18nContext';
 
 interface RenewalBannerProps {
   membershipId: string;
@@ -15,13 +16,16 @@ interface RenewalBannerProps {
 export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }: RenewalBannerProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
+  const { t } = useI18n();
 
+  // Don't show for memberships with more than 30 days remaining (unless expired)
   if (daysUntilExpiry > 30 && status !== 'EXPIRED') {
     return null;
   }
 
   const isExpired = status === 'EXPIRED' || daysUntilExpiry < 0;
   const isUrgent = daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
+  const isComfortable = daysUntilExpiry > 7 && daysUntilExpiry <= 30;
 
   const formattedEndDate = new Date(endDate).toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -34,24 +38,45 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
   };
 
   const getTitle = () => {
-    if (isExpired) return 'Sua filiação expirou';
-    if (isUrgent) return `Sua filiação expira em ${daysUntilExpiry} dias`;
-    return `Sua filiação expira em ${daysUntilExpiry} dias`;
+    if (isExpired) return t('renewal.expired') || 'Sua filiação expirou';
+    if (isUrgent) return (t('renewal.expiresInDays') || 'Sua filiação expira em {days} dias').replace('{days}', String(daysUntilExpiry));
+    return (t('renewal.expiresInDays') || 'Sua filiação expira em {days} dias').replace('{days}', String(daysUntilExpiry));
   };
 
   const getDescription = () => {
     if (isExpired) {
-      return 'Renove agora para continuar participando de eventos e manter sua carteira digital ativa.';
+      return t('renewal.expiredDesc') || 'Renove agora para continuar participando de eventos e manter sua carteira digital ativa.';
     }
-    return `Sua filiação vence em ${formattedEndDate}. Renove com antecedência para não perder acesso.`;
+    if (isUrgent) {
+      return (t('renewal.urgentDesc') || 'Sua filiação vence em {date}. Renove com urgência para não perder acesso.').replace('{date}', formattedEndDate);
+    }
+    return (t('renewal.comfortableDesc') || 'Sua filiação vence em {date}. Renove com antecedência para continuar aproveitando os benefícios.').replace('{date}', formattedEndDate);
+  };
+
+  const getVariant = () => {
+    if (isExpired) return 'destructive';
+    if (isUrgent) return 'warning';
+    return 'default';
+  };
+
+  const getBgClass = () => {
+    if (isExpired) return 'border-destructive bg-destructive/10';
+    if (isUrgent) return 'border-warning bg-warning/10';
+    return 'border-primary/30 bg-primary/5';
+  };
+
+  const getIconColor = () => {
+    if (isExpired) return 'text-destructive';
+    if (isUrgent) return 'text-warning';
+    return 'text-primary';
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-      <Alert className={`mb-6 ${isExpired ? 'border-destructive bg-destructive/10' : isUrgent ? 'border-warning bg-warning/10' : 'border-primary/50 bg-primary/5'}`}>
+      <Alert className={`mb-6 ${getBgClass()}`}>
         <div className="flex items-start gap-4">
-          <div className={`mt-0.5 ${isExpired ? 'text-destructive' : isUrgent ? 'text-warning' : 'text-primary'}`}>
-            {isExpired ? <AlertTriangle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+          <div className={`mt-0.5 ${getIconColor()}`}>
+            {isExpired ? <AlertTriangle className="h-5 w-5" /> : isUrgent ? <Clock className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
           </div>
           <div className="flex-1">
             <AlertTitle className={`text-base font-semibold ${isExpired ? 'text-destructive' : ''}`}>
@@ -61,9 +86,14 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
               {getDescription()}
             </AlertDescription>
           </div>
-          <Button onClick={handleRenew} variant={isExpired ? 'destructive' : 'default'} size="sm" className="shrink-0">
+          <Button 
+            onClick={handleRenew} 
+            variant={isExpired ? 'destructive' : isUrgent ? 'default' : 'outline'} 
+            size="sm" 
+            className="shrink-0"
+          >
             <CreditCard className="h-4 w-4 mr-2" />
-            Renovar Agora
+            {t('renewal.renewNow') || 'Renovar Agora'}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>

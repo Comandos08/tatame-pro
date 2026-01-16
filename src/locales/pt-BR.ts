@@ -180,6 +180,8 @@ export const ptBR = {
   'rankings.position': 'Posição',
   'rankings.academy': 'Academia',
   'rankings.noData': 'Sem dados de ranking disponíveis',
+  'rankings.noAcademiesHint': 'As academias aparecerão aqui conforme atletas se filiarem.',
+  'rankings.noAthletesHint': 'Os atletas aparecerão aqui conforme receberem graduações.',
   'rankings.publicNote': 'Exibindo rankings públicos. Para dados detalhados, acesse o portal.',
 
   // Dashboard
@@ -568,6 +570,50 @@ export const ptBR = {
   // Pagination
   'pagination.previous': 'Anterior',
   'pagination.next': 'Próximo',
+  
+  // Renewal Banner
+  'renewal.expired': 'Sua filiação expirou',
+  'renewal.expiresInDays': 'Sua filiação expira em {days} dias',
+  'renewal.expiredDesc': 'Renove agora para continuar participando de eventos e manter sua carteira digital ativa.',
+  'renewal.urgentDesc': 'Sua filiação vence em {date}. Renove com urgência para não perder acesso.',
+  'renewal.comfortableDesc': 'Sua filiação vence em {date}. Renove com antecedência para continuar aproveitando os benefícios.',
+  'renewal.renewNow': 'Renovar Agora',
+  
+  // Dashboard - Quick Actions i18n
+  'dashboard.approveMembers': 'Aprovar Filiações',
+  'dashboard.pendingCount': '{count} pendentes',
+  'dashboard.expiringMemberships': 'Filiações Expirando',
+  'dashboard.expiringCount': '{count} em 30 dias',
+  'dashboard.issueDiploma': 'Emitir Diploma',
+  'dashboard.newGrading': 'Nova graduação',
+  'dashboard.registerAcademy': 'Cadastrar Academia',
+  'dashboard.newAcademy': 'Nova academia',
+  'dashboard.viewFullHistory': 'Ver todo o histórico',
+  
+  // Audit event labels
+  'audit.membershipCreated': 'Filiação Criada',
+  'audit.membershipPaid': 'Pagamento Confirmado',
+  'audit.membershipApproved': 'Filiação Aprovada',
+  'audit.membershipRejected': 'Filiação Rejeitada',
+  'audit.membershipExpired': 'Filiação Expirada',
+  'audit.membershipCleanup': 'Filiação Abandonada Removida',
+  'audit.diplomaIssued': 'Diploma Emitido',
+  'audit.gradingRecorded': 'Graduação Registrada',
+  'audit.renewalReminder': 'Lembrete de Renovação',
+  'audit.settingsUpdated': 'Configurações Atualizadas',
+  
+  // System Health
+  'health.title': 'Saúde do Sistema',
+  'health.titleDesc': 'Monitoramento de jobs e automações',
+  'health.lastExpireRun': 'Última execução de expiração',
+  'health.lastCleanupRun': 'Última execução de limpeza',
+  'health.expiredLast24h': 'Expiradas (24h)',
+  'health.cleanedLast24h': 'Limpas (24h)',
+  'health.expiredLast7d': 'Expiradas (7 dias)',
+  'health.cleanedLast7d': 'Limpas (7 dias)',
+  'health.noData': 'Sem dados de execução',
+  'health.jobsRunning': 'Jobs em execução',
+  'health.allSystemsOperational': 'Sistemas operacionais',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

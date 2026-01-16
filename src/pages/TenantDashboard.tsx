@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
 import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
+import { SystemHealthCard } from '@/components/dashboard/SystemHealthCard';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -40,16 +41,19 @@ interface AuditLogEntry {
   profile?: { name: string | null; email: string } | null;
 }
 
-const eventTypeLabels: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  MEMBERSHIP_CREATED: { label: 'Filiação Criada', icon: <UserPlus className="h-4 w-4" />, color: 'text-info' },
-  MEMBERSHIP_PAID: { label: 'Pagamento Confirmado', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
-  MEMBERSHIP_APPROVED: { label: 'Filiação Aprovada', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
-  MEMBERSHIP_EXPIRED: { label: 'Filiação Expirada', icon: <Clock className="h-4 w-4" />, color: 'text-warning' },
-  DIPLOMA_ISSUED: { label: 'Diploma Emitido', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
-  GRADING_RECORDED: { label: 'Graduação Registrada', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
-  RENEWAL_REMINDER_SENT: { label: 'Lembrete de Renovação', icon: <AlertTriangle className="h-4 w-4" />, color: 'text-warning' },
-  TENANT_SETTINGS_UPDATED: { label: 'Configurações Atualizadas', icon: <FileText className="h-4 w-4" />, color: 'text-muted-foreground' },
-};
+// Maps event types to user-friendly labels - uses i18n keys where possible
+const getEventTypeLabels = (t: (key: string) => string): Record<string, { label: string; icon: React.ReactNode; color: string }> => ({
+  MEMBERSHIP_CREATED: { label: t('audit.membershipCreated') || 'Filiação Criada', icon: <UserPlus className="h-4 w-4" />, color: 'text-info' },
+  MEMBERSHIP_PAID: { label: t('audit.membershipPaid') || 'Pagamento Confirmado', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
+  MEMBERSHIP_APPROVED: { label: t('audit.membershipApproved') || 'Filiação Aprovada', icon: <CheckCircle className="h-4 w-4" />, color: 'text-success' },
+  MEMBERSHIP_REJECTED: { label: t('audit.membershipRejected') || 'Filiação Rejeitada', icon: <AlertTriangle className="h-4 w-4" />, color: 'text-destructive' },
+  MEMBERSHIP_EXPIRED: { label: t('audit.membershipExpired') || 'Filiação Expirada', icon: <Clock className="h-4 w-4" />, color: 'text-warning' },
+  MEMBERSHIP_ABANDONED_CLEANUP: { label: t('audit.membershipCleanup') || 'Filiação Abandonada Removida', icon: <FileText className="h-4 w-4" />, color: 'text-muted-foreground' },
+  DIPLOMA_ISSUED: { label: t('audit.diplomaIssued') || 'Diploma Emitido', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
+  GRADING_RECORDED: { label: t('audit.gradingRecorded') || 'Graduação Registrada', icon: <Award className="h-4 w-4" />, color: 'text-primary' },
+  RENEWAL_REMINDER_SENT: { label: t('audit.renewalReminder') || 'Lembrete de Renovação', icon: <AlertTriangle className="h-4 w-4" />, color: 'text-warning' },
+  TENANT_SETTINGS_UPDATED: { label: t('audit.settingsUpdated') || 'Configurações Atualizadas', icon: <FileText className="h-4 w-4" />, color: 'text-muted-foreground' },
+});
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
@@ -188,32 +192,32 @@ export default function TenantDashboard() {
 
   const quickActions = [
     { 
-      label: 'Aprovar Filiações', 
-      description: `${stats?.pendingMemberships || 0} pendentes`,
+      label: t('dashboard.approveMembers') || 'Aprovar Filiações', 
+      description: (t('dashboard.pendingCount') || '{count} pendentes').replace('{count}', String(stats?.pendingMemberships || 0)),
       href: `/${tenantSlug}/aprovacoes`, 
       icon: CheckCircle,
       variant: stats?.pendingMemberships ? 'default' : 'outline' as const,
       highlight: (stats?.pendingMemberships || 0) > 0,
     },
     { 
-      label: 'Filiações Expirando', 
-      description: `${stats?.expiringMemberships || 0} em 30 dias`,
+      label: t('dashboard.expiringMemberships') || 'Filiações Expirando', 
+      description: (t('dashboard.expiringCount') || '{count} em 30 dias').replace('{count}', String(stats?.expiringMemberships || 0)),
       href: `/${tenantSlug}/atletas`, 
       icon: Calendar,
       variant: stats?.expiringMemberships ? 'warning' : 'outline' as const,
       highlight: (stats?.expiringMemberships || 0) > 0,
     },
     { 
-      label: 'Emitir Diploma', 
-      description: 'Nova graduação',
+      label: t('dashboard.issueDiploma') || 'Emitir Diploma', 
+      description: t('dashboard.newGrading') || 'Nova graduação',
       href: `/${tenantSlug}/graduacoes`, 
       icon: Award,
       variant: 'outline' as const,
       highlight: false,
     },
     { 
-      label: 'Cadastrar Academia', 
-      description: 'Nova academia',
+      label: t('dashboard.registerAcademy') || 'Cadastrar Academia', 
+      description: t('dashboard.newAcademy') || 'Nova academia',
       href: `/${tenantSlug}/academias`, 
       icon: Building2,
       variant: 'outline' as const,
@@ -235,9 +239,11 @@ export default function TenantDashboard() {
     return date.toLocaleDateString('pt-BR');
   };
 
+  const eventTypeLabels = getEventTypeLabels(t);
+  
   const getEventInfo = (eventType: string) => {
     return eventTypeLabels[eventType] || { 
-      label: eventType, 
+      label: eventType.replace(/_/g, ' '), 
       icon: <FileText className="h-4 w-4" />, 
       color: 'text-muted-foreground' 
     };
@@ -353,7 +359,7 @@ export default function TenantDashboard() {
                         to={`/${tenantSlug}/audit-log`}
                         className="block text-center text-sm text-primary hover:underline pt-2"
                       >
-                        Ver todo o histórico →
+                        {t('dashboard.viewFullHistory') || 'Ver todo o histórico'} →
                       </Link>
                     </div>
                   )}
@@ -395,6 +401,15 @@ export default function TenantDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* System Health Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <SystemHealthCard />
+            </motion.div>
           </>
         )}
       </div>
