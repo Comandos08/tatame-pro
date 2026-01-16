@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +35,7 @@ export default function GradingLevelsList() {
   const { tenantSlug, schemeId } = useParams<{ tenantSlug: string; schemeId: string }>();
   const navigate = useNavigate();
   const { tenant } = useTenant();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLevel, setEditingLevel] = useState<GradingLevel | null>(null);
@@ -90,11 +92,11 @@ export default function GradingLevelsList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grading-levels', schemeId] });
-      toast.success('Nível criado!');
+      toast.success(t('gradingLevels.created'));
       closeDialog();
     },
     onError: (error: Error) => {
-      toast.error('Erro ao criar nível: ' + error.message);
+      toast.error(`${t('gradingLevels.createError')}: ${error.message}`);
     },
   });
 
@@ -115,11 +117,11 @@ export default function GradingLevelsList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grading-levels', schemeId] });
-      toast.success('Nível atualizado!');
+      toast.success(t('gradingLevels.updated'));
       closeDialog();
     },
     onError: (error: Error) => {
-      toast.error('Erro ao atualizar nível: ' + error.message);
+      toast.error(`${t('gradingLevels.updateError')}: ${error.message}`);
     },
   });
 
@@ -187,7 +189,7 @@ export default function GradingLevelsList() {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-display font-bold text-foreground">
-              Níveis de Graduação
+              {t('gradingLevels.title')}
             </h1>
             {scheme && (
               <p className="text-muted-foreground">
@@ -197,7 +199,7 @@ export default function GradingLevelsList() {
           </div>
           <Button onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />
-            Novo Nível
+            {t('gradingLevels.newLevel')}
           </Button>
         </div>
 
@@ -210,20 +212,20 @@ export default function GradingLevelsList() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Award className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhum nível configurado para este esquema.
+                {t('gradingLevels.noLevels')}
               </p>
               <Button onClick={openCreateDialog} variant="outline" className="mt-4">
                 <Plus className="mr-2 h-4 w-4" />
-                Adicionar primeiro nível
+                {t('gradingLevels.addFirst')}
               </Button>
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Níveis ({levels.length})</CardTitle>
+              <CardTitle>{t('gradingLevels.levels')} ({levels.length})</CardTitle>
               <CardDescription>
-                Arraste para reordenar a progressão das faixas/níveis
+                {t('gradingLevels.dragToReorder')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -249,15 +251,15 @@ export default function GradingLevelsList() {
                           {level.code}
                         </Badge>
                         {!level.is_active && (
-                          <Badge variant="secondary">Inativo</Badge>
+                          <Badge variant="secondary">{t('gradingLevels.inactive')}</Badge>
                         )}
                       </div>
                       <div className="flex gap-4 text-xs text-muted-foreground mt-1">
                         {level.min_time_months && (
-                          <span>Min. {level.min_time_months} meses</span>
+                          <span>{t('gradingLevels.minMonths').replace('{n}', String(level.min_time_months))}</span>
                         )}
                         {level.min_age && (
-                          <span>Min. {level.min_age} anos</span>
+                          <span>{t('gradingLevels.minYears').replace('{n}', String(level.min_age))}</span>
                         )}
                       </div>
                     </div>
@@ -281,16 +283,16 @@ export default function GradingLevelsList() {
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>
-                {editingLevel ? 'Editar Nível' : 'Novo Nível de Graduação'}
+                {editingLevel ? t('gradingLevels.editLevel') : t('gradingLevels.newLevelTitle')}
               </DialogTitle>
               <DialogDescription>
-                Configure um nível/faixa dentro do esquema de graduação.
+                {t('gradingLevels.configureLevel')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code">Código</Label>
+                  <Label htmlFor="code">{t('gradingLevels.code')}</Label>
                   <Input
                     id="code"
                     value={formData.code}
@@ -300,7 +302,7 @@ export default function GradingLevelsList() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="order_index">Ordem</Label>
+                  <Label htmlFor="order_index">{t('gradingLevels.order')}</Label>
                   <Input
                     id="order_index"
                     type="number"
@@ -312,7 +314,7 @@ export default function GradingLevelsList() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="display_name">Nome de Exibição</Label>
+                <Label htmlFor="display_name">{t('gradingLevels.displayName')}</Label>
                 <Input
                   id="display_name"
                   value={formData.display_name}
@@ -323,24 +325,24 @@ export default function GradingLevelsList() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="min_time_months">Tempo Mínimo (meses)</Label>
+                  <Label htmlFor="min_time_months">{t('gradingLevels.minTimeMonths')}</Label>
                   <Input
                     id="min_time_months"
                     type="number"
                     value={formData.min_time_months}
                     onChange={(e) => setFormData({ ...formData, min_time_months: e.target.value })}
-                    placeholder="Opcional"
+                    placeholder={t('gradingLevels.optional')}
                     min={0}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="min_age">Idade Mínima</Label>
+                  <Label htmlFor="min_age">{t('gradingLevels.minAge')}</Label>
                   <Input
                     id="min_age"
                     type="number"
                     value={formData.min_age}
                     onChange={(e) => setFormData({ ...formData, min_age: e.target.value })}
-                    placeholder="Opcional"
+                    placeholder={t('gradingLevels.optional')}
                     min={0}
                   />
                 </div>
@@ -351,12 +353,12 @@ export default function GradingLevelsList() {
                   checked={formData.is_active}
                   onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                 />
-                <Label htmlFor="is_active">Nível ativo</Label>
+                <Label htmlFor="is_active">{t('gradingLevels.levelActive')}</Label>
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialog}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -365,7 +367,7 @@ export default function GradingLevelsList() {
                 {(createMutation.isPending || updateMutation.isPending) && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {editingLevel ? 'Salvar' : 'Criar'}
+                {editingLevel ? t('common.save') : t('gradingLevels.newLevel')}
               </Button>
             </DialogFooter>
           </form>
