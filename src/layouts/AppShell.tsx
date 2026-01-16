@@ -18,7 +18,8 @@ import {
   FileText,
   CheckCircle,
   Trophy,
-  CreditCard
+  CreditCard,
+  UserCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -67,6 +68,7 @@ export function AppShell({ children }: AppShellProps) {
   );
   
   const navigation = [
+    { name: t('nav.athleteArea'), href: `/${tenantSlug}/app/me`, icon: UserCircle },
     { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home },
     { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users },
     { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: Shield },
