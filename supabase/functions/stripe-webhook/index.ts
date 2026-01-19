@@ -16,6 +16,89 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
+// Retry configuration
+const RETRY_CONFIG = {
+  maxAttempts: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 5000,
+};
+
+// Helper function for retrying async operations with exponential backoff
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  config = RETRY_CONFIG
+): Promise<{ success: boolean; result?: T; error?: string; attempts: number }> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    try {
+      const result = await operation();
+      logStep(`${operationName} succeeded`, { attempt });
+      return { success: true, result, attempts: attempt };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      logStep(`${operationName} failed (attempt ${attempt}/${config.maxAttempts})`, { 
+        error: lastError.message,
+        attempt 
+      });
+      
+      if (attempt < config.maxAttempts) {
+        // Exponential backoff with jitter
+        const delay = Math.min(
+          config.baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500,
+          config.maxDelayMs
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  logStep(`${operationName} exhausted all retries`, { 
+    error: lastError?.message,
+    maxAttempts: config.maxAttempts 
+  });
+  
+  return { 
+    success: false, 
+    error: lastError?.message || "Unknown error", 
+    attempts: config.maxAttempts 
+  };
+}
+
+// Helper to call edge function with retry
+async function callEdgeFunctionWithRetry(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  functionName: string,
+  payload: Record<string, unknown>
+): Promise<{ success: boolean; error?: string }> {
+  const url = `${supabaseUrl}/functions/v1/${functionName}`;
+  
+  const result = await withRetry(
+    async () => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      return response.json();
+    },
+    `Edge function ${functionName}`
+  );
+  
+  return { success: result.success, error: result.error };
+}
+
 async function sendBillingEmail(
   supabaseUrl: string,
   supabaseServiceKey: string,
@@ -23,19 +106,15 @@ async function sendBillingEmail(
   tenantId: string,
   data?: Record<string, unknown>
 ) {
-  try {
-    const emailUrl = `${supabaseUrl}/functions/v1/send-billing-email`;
-    await fetch(emailUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
-    });
-    logStep("Billing email triggered", { eventType, tenantId });
-  } catch (err) {
-    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+  const result = await callEdgeFunctionWithRetry(
+    supabaseUrl,
+    supabaseServiceKey,
+    "send-billing-email",
+    { event_type: eventType, tenant_id: tenantId, data }
+  );
+  
+  if (!result.success) {
+    logStep("Failed to send billing email after retries", { eventType, tenantId, error: result.error });
   }
 }
 
@@ -263,30 +342,53 @@ async function handleCheckoutCompleted(
     });
   }
 
-  // Trigger digital card generation
-  const generateCardUrl = `${supabaseUrl}/functions/v1/generate-digital-card`;
-  fetch(generateCardUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${supabaseServiceKey}`,
-    },
-    body: JSON.stringify({ membershipId }),
-  }).catch((err) => logStep("Failed to trigger card generation", { error: err.message }));
+  // Trigger digital card generation with retry (not fire-and-forget)
+  const cardResult = await callEdgeFunctionWithRetry(
+    supabaseUrl,
+    supabaseServiceKey,
+    "generate-digital-card",
+    { membershipId }
+  );
+  
+  if (!cardResult.success) {
+    // Log failure but don't throw - card can be regenerated later via admin action
+    // or when membership is approved
+    logStep("Digital card generation failed after retries - will be generated on approval", { 
+      membershipId,
+      error: cardResult.error 
+    });
+    
+    // Record the failure for monitoring
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.MEMBERSHIP_UPDATED,
+      tenant_id: membershipDetails?.tenant_id,
+      metadata: {
+        membership_id: membershipId,
+        action: 'card_generation_failed',
+        error: cardResult.error,
+        will_retry_on_approval: true,
+        source: 'stripe_webhook',
+      }
+    });
+  }
 
-  // Send notification to admin about new pending membership
-  const sendAthleteEmailUrl = `${supabaseUrl}/functions/v1/send-athlete-email`;
-  fetch(sendAthleteEmailUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${supabaseServiceKey}`,
-    },
-    body: JSON.stringify({ 
+  // Send notification to admin about new pending membership (with retry)
+  const emailResult = await callEdgeFunctionWithRetry(
+    supabaseUrl,
+    supabaseServiceKey,
+    "send-athlete-email",
+    { 
       email_type: "NEW_MEMBERSHIP_PENDING",
       membership_id: membershipId,
-    }),
-  }).catch((err) => logStep("Failed to send pending membership email", { error: err.message }));
+    }
+  );
+  
+  if (!emailResult.success) {
+    logStep("Failed to send pending membership email after retries", { 
+      membershipId,
+      error: emailResult.error 
+    });
+  }
 }
 
 async function handlePaymentSucceeded(
