@@ -402,6 +402,9 @@ async function handleSubscriptionChange(
   const previousStatus = existingBilling?.status;
 
   // Upsert billing record
+  const planType = subscription.metadata?.plan_type || 'annual';
+  const planName = planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
+  
   const billingData = {
     tenant_id: actualTenantId,
     stripe_customer_id: customerId,
@@ -419,10 +422,12 @@ async function handleSubscriptionChange(
       .update(billingData as Record<string, unknown>)
       .eq("id", existingBilling.id);
   } else {
+    // Get price ID from subscription items
+    const priceId = subscription.items.data[0]?.price?.id || '';
     await supabase.from("tenant_billing").insert({
       ...billingData,
-      plan_name: "Plano Federação Anual",
-      plan_price_id: "price_1Spz03HH533PC5DdDUbCe7fS",
+      plan_name: planName,
+      plan_price_id: priceId,
     } as Record<string, unknown>);
   }
 
