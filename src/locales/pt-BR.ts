@@ -650,6 +650,39 @@ export const ptBR = {
   'membership.blockedByBilling': 'Novas filiações estão temporariamente indisponíveis. Entre em contato com a organização.',
   'membership.billingBlockedTitle': 'Filiações Temporariamente Indisponíveis',
   'membership.billingBlockedDesc': 'A organização está com pendências de pagamento. Novas filiações serão habilitadas após regularização.',
+  
+  // Provisional Card
+  'athleteArea.provisionalCard': 'Carteira Provisória',
+  'athleteArea.provisionalCardDesc': 'Sua carteira digital está sendo processada',
+  'athleteArea.provisionalAwaitingPayment': 'Aguardando confirmação de pagamento',
+  'athleteArea.provisionalProcessing': 'Processando sua carteira digital',
+  'athleteArea.provisionalAwaitingApproval': 'Aguardando aprovação da organização',
+  'athleteArea.provisionalQrHint': 'Use este QR para verificar sua filiação',
+  'athleteArea.verifyMembership': 'Verificar Filiação',
+  'athleteArea.noActiveMembership': 'Sem filiação ativa',
+  'athleteArea.noActiveMembershipDesc': 'Faça sua filiação para obter sua carteira digital',
+  'athleteArea.startMembership': 'Iniciar Filiação',
+  
+  // Verify Membership Page
+  'verification.membershipTitle': 'Verificação de Filiação',
+  'verification.membershipValid': 'FILIAÇÃO VÁLIDA',
+  'verification.membershipValidDesc': 'Esta filiação está ativa e em conformidade',
+  'verification.membershipPending': 'FILIAÇÃO PENDENTE',
+  'verification.membershipPendingDesc': 'Esta filiação está aguardando aprovação ou pagamento',
+  'verification.membershipExpired': 'FILIAÇÃO EXPIRADA',
+  'verification.membershipExpiredDesc': 'Esta filiação expirou e precisa ser renovada',
+  'verification.membershipInvalid': 'FILIAÇÃO INVÁLIDA',
+  'verification.membershipInvalidDesc': 'Esta filiação não está ativa',
+  'verification.membershipNotFound': 'FILIAÇÃO NÃO ENCONTRADA',
+  'verification.membershipNotFoundDesc': 'Não foi possível localizar esta filiação',
+  'verification.cardProcessing': 'Carteira Digital em Processamento',
+  'verification.cardProcessingDesc': 'A carteira digital será emitida após aprovação da filiação',
+  'verification.cardReady': 'Carteira Digital Disponível',
+  'verification.viewFullCard': 'Ver Carteira Completa',
+  'verification.provisionalNotice': 'Esta é uma verificação provisória. A carteira digital completa será emitida após aprovação.',
+  'verification.athlete': 'Atleta',
+  'verification.validityPeriod': 'Período de Validade',
+  'verification.shareQr': 'Compartilhe este QR',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

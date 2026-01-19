@@ -34,6 +34,7 @@ import {
   PAYMENT_STATUS_LABELS,
 } from '@/types/membership';
 import type { AthleteGrading, GradingLevel, GradingScheme, Diploma } from '@/types/grading';
+import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 
 interface MembershipDetails {
   id: string;
@@ -364,16 +365,18 @@ export default function MembershipDetailsPage() {
                           Baixar PDF da Carteira
                         </Button>
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-8 text-center">
-                        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                          <Clock className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <p className="text-muted-foreground text-sm max-w-xs">
-                          Sua carteira digital será gerada automaticamente após a aprovação da sua filiação pela organização.
-                        </p>
-                      </div>
-                    )}
+                    ) : membership ? (
+                      <ProvisionalCard
+                        athleteName={membership.athlete?.full_name || ''}
+                        tenantName={tenant?.name || ''}
+                        tenantSlug={tenantSlug || ''}
+                        membershipId={membership.id}
+                        membershipStatus={membership.status}
+                        paymentStatus={membership.payment_status}
+                        endDate={membership.end_date}
+                        sportTypes={tenant?.sportTypes || []}
+                      />
+                    ) : null}
                   </CardContent>
                 </Card>
               </motion.div>
