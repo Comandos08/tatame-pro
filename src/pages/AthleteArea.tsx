@@ -29,6 +29,7 @@ import { MEMBERSHIP_STATUS_LABELS } from '@/types/membership';
 import { EditablePersonalData } from '@/components/athlete/EditablePersonalData';
 import { DocumentsSection } from '@/components/athlete/DocumentsSection';
 import { RenewalBanner } from '@/components/membership/RenewalBanner';
+import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 
 interface AthleteData {
   id: string;
@@ -495,14 +496,30 @@ export default function AthleteArea() {
                       )}
                     </div>
                   </div>
+                ) : activeMembership ? (
+                  <ProvisionalCard
+                    athleteName={athlete.full_name}
+                    tenantName={tenant.name}
+                    tenantSlug={tenant.slug}
+                    membershipId={activeMembership.id}
+                    membershipStatus={activeMembership.status}
+                    paymentStatus={activeMembership.payment_status}
+                    endDate={activeMembership.end_date}
+                    sportTypes={tenant.sportTypes || []}
+                  />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                       <CreditCard className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <p className="text-muted-foreground text-sm max-w-xs">
-                      {t('athleteArea.digitalCardPendingDesc')}
+                    <p className="text-muted-foreground text-sm mb-4">
+                      {t('athleteArea.noActiveMembershipDesc')}
                     </p>
+                    <Button asChild>
+                      <Link to={`/${tenant.slug}/membership/new`}>
+                        {t('athleteArea.startMembership')}
+                      </Link>
+                    </Button>
                   </div>
                 )}
               </CardContent>

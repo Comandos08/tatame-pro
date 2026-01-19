@@ -22,6 +22,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import VerifyCard from '@/pages/VerifyCard';
 import VerifyDiploma from '@/pages/VerifyDiploma';
+import VerifyMembership from '@/pages/VerifyMembership';
 import NotFound from '@/pages/NotFound';
 import Help from '@/pages/Help';
 import TenantHelp from '@/pages/TenantHelp';
@@ -112,6 +113,7 @@ export function AppRoutes() {
         {/* Public verification routes */}
         <Route path="verify/card/:cardId" element={<VerifyCard />} />
         <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
+        <Route path="verify/membership/:membershipId" element={<VerifyMembership />} />
         <Route path="academies" element={<PublicAcademies />} />
         <Route path="rankings" element={<PublicRankings />} />
         
