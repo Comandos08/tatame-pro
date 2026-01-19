@@ -10,6 +10,22 @@ const corsHeaders = {
 // Trial period in days for new tenants
 const TRIAL_PERIOD_DAYS = 14;
 
+// Price IDs from environment - support monthly and annual plans
+const getPriceId = (planType: 'monthly' | 'annual' | null): string => {
+  const monthlyPrice = Deno.env.get("STRIPE_PRICE_MONTHLY");
+  const yearlyPrice = Deno.env.get("STRIPE_PRICE_YEARLY");
+  
+  if (planType === 'monthly' && monthlyPrice) {
+    return monthlyPrice;
+  }
+  // Default to annual
+  return yearlyPrice || "price_1SrPnhHH533PC5DdmXxmsrRk";
+};
+
+const getPlanName = (planType: 'monthly' | 'annual' | null): string => {
+  return planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
+};
+
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CREATE-TENANT-SUBSCRIPTION] ${step}${detailsStr}`);
@@ -85,15 +101,16 @@ serve(async (req) => {
 
     // Get request body
     const body = await req.json();
-    const { tenantId, planPriceId } = body;
+    const { tenantId, planType } = body as { tenantId: string; planType?: 'monthly' | 'annual' };
 
     if (!tenantId) {
       throw new Error("Missing tenantId");
     }
 
-    // Default price ID for annual federation plan
-    const priceId = planPriceId || "price_1Spz03HH533PC5DdDUbCe7fS";
-    logStep("Creating subscription", { tenantId, priceId });
+    // Get price ID from environment based on plan type
+    const priceId = getPriceId(planType || 'annual');
+    const planName = getPlanName(planType || 'annual');
+    logStep("Creating subscription", { tenantId, priceId, planType: planType || 'annual', planName });
 
     // Get tenant data
     const { data: tenant, error: tenantError } = await supabase
@@ -184,6 +201,7 @@ serve(async (req) => {
       metadata: {
         tenant_id: tenantId,
         tenant_slug: tenant.slug,
+        plan_type: planType || 'annual',
       },
     };
 
@@ -218,7 +236,7 @@ serve(async (req) => {
       tenant_id: tenantId,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: subscription.id,
-      plan_name: "Plano Federação Anual",
+      plan_name: planName,
       plan_price_id: priceId,
       status: billingStatus,
       current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),

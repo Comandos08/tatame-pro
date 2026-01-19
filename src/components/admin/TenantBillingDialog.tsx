@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Loader2, ExternalLink } from 'lucide-react';
+import { CreditCard, Loader2, ExternalLink, Calendar } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, StatusType } from '@/components/ui/status-badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -38,6 +40,8 @@ interface TenantBilling {
   canceled_at: string | null;
 }
 
+type PlanType = 'monthly' | 'annual';
+
 // Map billing status to StatusBadge status type
 const billingStatusMap: Record<string, StatusType> = {
   ACTIVE: 'ACTIVE',
@@ -52,6 +56,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
 
   const { data: billing, isLoading } = useQuery({
     queryKey: ['tenant-billing', tenant.id],
@@ -69,12 +74,12 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
   });
 
   const createSubscriptionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (planType: PlanType) => {
       setIsCreating(true);
       const { data: { session } } = await supabase.auth.getSession();
       
       const response = await supabase.functions.invoke('create-tenant-subscription', {
-        body: { tenantId: tenant.id },
+        body: { tenantId: tenant.id, planType },
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
         },
@@ -215,7 +220,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
               {(billing.status === 'CANCELED' || billing.status === 'INCOMPLETE') && (
                 <Button 
                   className="w-full" 
-                  onClick={() => createSubscriptionMutation.mutate()}
+                  onClick={() => createSubscriptionMutation.mutate(selectedPlan)}
                   disabled={isCreating}
                 >
                   {isCreating ? (
@@ -229,18 +234,50 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
             </div>
           </div>
         ) : (
-          <div className="text-center py-6 space-y-4">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto">
-              <CreditCard className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-medium">Sem assinatura ativa</p>
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto">
+                <CreditCard className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium mt-3">Sem assinatura ativa</p>
               <p className="text-sm text-muted-foreground">
-                Esta organização ainda não possui uma assinatura configurada.
+                Escolha o plano para esta organização
               </p>
             </div>
+
+            <RadioGroup
+              value={selectedPlan}
+              onValueChange={(value) => setSelectedPlan(value as PlanType)}
+              className="grid gap-3"
+            >
+              <Label 
+                htmlFor="plan-monthly"
+                className={`flex items-center space-x-3 rounded-lg border p-4 cursor-pointer transition-colors ${selectedPlan === 'monthly' ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
+              >
+                <RadioGroupItem value="monthly" id="plan-monthly" />
+                <div className="flex-1">
+                  <span className="font-medium">Plano Mensal</span>
+                  <p className="text-sm text-muted-foreground">Cobrança mensal, cancele quando quiser</p>
+                </div>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </Label>
+
+              <Label 
+                htmlFor="plan-annual"
+                className={`flex items-center space-x-3 rounded-lg border p-4 cursor-pointer transition-colors ${selectedPlan === 'annual' ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
+              >
+                <RadioGroupItem value="annual" id="plan-annual" />
+                <div className="flex-1">
+                  <span className="font-medium">Plano Anual</span>
+                  <p className="text-sm text-muted-foreground">Economia com cobrança anual</p>
+                </div>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </Label>
+            </RadioGroup>
+
             <Button 
-              onClick={() => createSubscriptionMutation.mutate()}
+              className="w-full"
+              onClick={() => createSubscriptionMutation.mutate(selectedPlan)}
               disabled={isCreating}
             >
               {isCreating ? (
@@ -248,7 +285,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
               ) : (
                 <CreditCard className="h-4 w-4 mr-2" />
               )}
-              Criar assinatura anual
+              Criar assinatura {selectedPlan === 'monthly' ? 'mensal' : 'anual'}
             </Button>
           </div>
         )}

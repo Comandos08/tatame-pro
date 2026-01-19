@@ -5,21 +5,34 @@ identificando pontos de extensão para futuras versões.
 
 ## 1. Visão Geral
 
-O billing do TATAME é baseado em **Stripe Subscriptions** com um modelo simples:
-- **Um plano único**: "Plano Federação Anual"
+O billing do TATAME é baseado em **Stripe Subscriptions** com suporte a dois planos:
+- **Plano Federação Mensal**: Cobrança mensal
+- **Plano Federação Anual**: Cobrança anual (padrão)
 - **Trial de 14 dias** para novos tenants
-- **Cobrança anual** após o trial
+
+### 1.1 Configuração Stripe
+
+Os seguintes identificadores estão configurados como secrets no ambiente:
+
+| Secret | Valor | Descrição |
+|--------|-------|-----------|
+| `STRIPE_PRODUCT_ID` | `prod_TnaAE6ZdWWsMPp` | Produto principal |
+| `STRIPE_PRICE_MONTHLY` | `price_1SrOU8HH533PC5Ddq3h54ooX` | Preço mensal |
+| `STRIPE_PRICE_YEARLY` | `price_1SrPnhHH533PC5DdmXxmsrRk` | Preço anual |
+| `STRIPE_SECRET_KEY` | Configurado via connector | Chave API |
+| `STRIPE_WEBHOOK_SECRET` | Configurado | Validação de webhooks |
 
 ## 2. Fluxo Atual
 
 ### 2.1 Criação de Tenant
 
 1. Superadmin cria tenant via `AdminDashboard`
-2. `create-tenant-subscription` é chamada
-3. Stripe Customer é criado (se não existir)
-4. Stripe Subscription é criada com trial de 14 dias
-5. `tenant_billing` é criado com status `TRIALING`
-6. Email de boas-vindas é enviado
+2. Abre dialog de billing e escolhe plano (mensal/anual)
+3. `create-tenant-subscription` é chamada com `planType`
+4. Stripe Customer é criado (se não existir) com `stripe_customer_id`
+5. Stripe Subscription é criada com trial de 14 dias
+6. `tenant_billing` é criado com status `TRIALING`
+7. Email de boas-vindas é enviado
 
 ### 2.2 Durante o Trial
 
@@ -47,10 +60,10 @@ Quando status é `PAST_DUE`, `CANCELED`, `UNPAID` ou `INCOMPLETE`:
 ```sql
 - id: UUID
 - tenant_id: UUID (FK → tenants)
-- stripe_customer_id: TEXT
+- stripe_customer_id: TEXT (obrigatório para subscription)
 - stripe_subscription_id: TEXT
-- plan_name: TEXT (fixo: "Plano Federação Anual")
-- plan_price_id: TEXT (price_1Spz03HH533PC5DdDUbCe7fS)
+- plan_name: TEXT ("Plano Federação Mensal" ou "Plano Federação Anual")
+- plan_price_id: TEXT (price_1SrOU8HH533PC5Ddq3h54ooX ou price_1SrPnhHH533PC5DdmXxmsrRk)
 - status: billing_status ENUM
 - current_period_start: TIMESTAMP
 - current_period_end: TIMESTAMP
