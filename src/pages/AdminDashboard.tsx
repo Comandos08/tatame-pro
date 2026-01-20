@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { 
   Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, LogIn
+  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, LogIn,
+  Shield
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -557,6 +558,10 @@ export default function AdminDashboard() {
                                 <DropdownMenuItem onClick={() => setManagingAdminsTenant(tenant)}>
                                   <UserCog className="h-4 w-4 mr-2" />
                                   Gerenciar admins
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/admin/tenants/${tenant.id}/control`)}>
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  Control Tower
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

@@ -36,6 +36,8 @@ export const ptBR = {
   'common.address': 'Endereço',
   'common.viewAll': 'Ver Todos',
   'common.back': 'Voltar',
+  'common.error': 'Erro',
+  'common.success': 'Sucesso',
 
   // Theme
   'theme.select': 'Tema',
