@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.cleanup-abandoned-memberships]
 verify_jwt = false
+
+[functions.admin-billing-control]
+verify_jwt = false

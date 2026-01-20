@@ -38,6 +38,8 @@ export const es: Record<TranslationKey, string> = {
   'common.address': 'Dirección',
   'common.viewAll': 'Ver Todos',
   'common.back': 'Volver',
+  'common.error': 'Error',
+  'common.success': 'Éxito',
 
   // Theme
   'theme.select': 'Tema',

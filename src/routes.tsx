@@ -33,6 +33,7 @@ import InternalRankings from '@/pages/InternalRankings';
 import TenantSettings from '@/pages/TenantSettings';
 import TenantBilling from '@/pages/TenantBilling';
 import AthleteArea from '@/pages/AthleteArea';
+import TenantControl from '@/pages/TenantControl';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -101,6 +102,14 @@ export function AppRoutes() {
         element={
           <AdminRoute>
             <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/tenants/:tenantId/control"
+        element={
+          <AdminRoute>
+            <TenantControl />
           </AdminRoute>
         }
       />
