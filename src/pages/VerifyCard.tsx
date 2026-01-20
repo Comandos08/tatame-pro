@@ -45,56 +45,71 @@ export default function VerifyCard() {
       }
 
       try {
-        // Fetch digital card with related data
+        // Step 1: Fetch digital card basic info (RLS: Public can verify digital cards)
         const { data: card, error: cardError } = await supabase
           .from("digital_cards")
-          .select(`
-            id,
-            valid_until,
-            content_hash_sha256,
-            pdf_url,
-            tenant_id,
-            membership_id,
-            created_at,
-            membership:memberships!inner(
-              id,
-              status,
-              end_date,
-              start_date,
-              type,
-              athlete:athletes!inner(
-                id,
-                full_name
-              ),
-              tenant:tenants!inner(
-                id,
-                name,
-                slug,
-                sport_types
-              )
-            )
-          `)
+          .select("id, valid_until, content_hash_sha256, pdf_url, tenant_id, membership_id, created_at")
           .eq("id", cardId)
           .maybeSingle();
 
-        if (cardError || !card) {
+        if (cardError) {
+          console.error("Card verification query error:", cardError);
+          setError(t('verification.cardNotFound'));
+          setLoading(false);
+          return;
+        }
+        
+        if (!card) {
+          console.error("Card not found for ID:", cardId);
           setError(t('verification.cardNotFound'));
           setLoading(false);
           return;
         }
 
-        const membership = card.membership as {
-          id: string;
-          status: string;
-          end_date: string | null;
-          start_date: string | null;
-          type: string;
-          athlete: { id: string; full_name: string };
-          tenant: { id: string; name: string; slug: string; sport_types: string[] };
-        };
+        // Step 2: Fetch membership (RLS: Public can view membership via digital card)
+        const { data: membership, error: membershipError } = await supabase
+          .from("memberships")
+          .select("id, status, end_date, start_date, type, athlete_id, tenant_id")
+          .eq("id", card.membership_id)
+          .maybeSingle();
+
+        if (membershipError || !membership) {
+          console.error("Membership query error:", membershipError);
+          setError(t('verification.cardNotFound'));
+          setLoading(false);
+          return;
+        }
+
+        // Step 3: Fetch athlete (RLS: Public can view athlete via digital card verification)
+        const { data: athlete, error: athleteError } = await supabase
+          .from("athletes")
+          .select("id, full_name")
+          .eq("id", membership.athlete_id)
+          .maybeSingle();
+
+        if (athleteError || !athlete) {
+          console.error("Athlete query error:", athleteError);
+          setError(t('verification.cardNotFound'));
+          setLoading(false);
+          return;
+        }
+
+        // Step 4: Fetch tenant (RLS: Public can view active tenants)
+        const { data: tenant, error: tenantError } = await supabase
+          .from("tenants")
+          .select("id, name, slug, sport_types")
+          .eq("id", membership.tenant_id)
+          .maybeSingle();
+
+        if (tenantError || !tenant) {
+          console.error("Tenant query error:", tenantError);
+          setError(t('verification.cardNotFound'));
+          setLoading(false);
+          return;
+        }
 
         // Verify tenant slug matches
-        if (membership.tenant.slug !== tenantSlug) {
+        if (tenant.slug !== tenantSlug) {
           setError(t('verification.documentNotFound'));
           setLoading(false);
           return;
@@ -110,8 +125,8 @@ export default function VerifyCard() {
             const canonicalPayload = {
               // Athlete data
               atleta: {
-                id: membership.athlete.id,
-                nome: membership.athlete.full_name,
+                id: athlete.id,
+                nome: athlete.full_name,
               },
               // Grading data (null for membership cards)
               graduacao: null,
@@ -123,9 +138,9 @@ export default function VerifyCard() {
               // Entity (tenant) information
               entidade: {
                 id: card.tenant_id,
-                nome: membership.tenant.name,
-                slug: membership.tenant.slug,
-                modalidade: membership.tenant.sport_types?.[0] || "Esporte de Combate",
+                nome: tenant.name,
+                slug: tenant.slug,
+                modalidade: tenant.sport_types?.[0] || "Esporte de Combate",
               },
               // Responsible person (coach) - we don't have this info on verification page
               responsavel: null,
@@ -147,7 +162,7 @@ export default function VerifyCard() {
         }
 
         // Mask athlete name for LGPD compliance
-        const nameParts = membership.athlete.full_name.split(" ");
+        const nameParts = athlete.full_name.split(" ");
         const maskedName = nameParts.length > 1
           ? `${nameParts[0]} ${nameParts[nameParts.length - 1].charAt(0)}.`
           : nameParts[0];
@@ -175,8 +190,8 @@ export default function VerifyCard() {
           athleteName: maskedName,
           status: isExpired ? t('verification.statusExpired') : (statusMap[membership.status] || membership.status),
           validUntil: endDate,
-          tenantName: membership.tenant.name,
-          sportType: membership.tenant.sport_types?.[0] || t('verification.combatSport'),
+          tenantName: tenant.name,
+          sportType: tenant.sport_types?.[0] || t('verification.combatSport'),
           hashVerified,
           storedHash: card.content_hash_sha256,
           pdfUrl: card.pdf_url,
