@@ -1163,6 +1163,10 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          is_manual_override: boolean | null
+          override_at: string | null
+          override_by: string | null
+          override_reason: string | null
           plan_name: string
           plan_price_id: string
           status: Database["public"]["Enums"]["billing_status"]
@@ -1179,6 +1183,10 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_manual_override?: boolean | null
+          override_at?: string | null
+          override_by?: string | null
+          override_reason?: string | null
           plan_name?: string
           plan_price_id?: string
           status?: Database["public"]["Enums"]["billing_status"]
@@ -1195,6 +1203,10 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_manual_override?: boolean | null
+          override_at?: string | null
+          override_by?: string | null
+          override_reason?: string | null
           plan_name?: string
           plan_price_id?: string
           status?: Database["public"]["Enums"]["billing_status"]

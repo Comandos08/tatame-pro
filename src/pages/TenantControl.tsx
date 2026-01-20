@@ -16,7 +16,9 @@ import {
   Unlock,
   History,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  RotateCcw,
+  AlertOctagon
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,10 +36,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+
+// Production safeguards
+const MAX_TRIAL_DAYS = 90;
+const MAX_PAID_MONTHS = 12;
 
 interface TenantData {
   id: string;
@@ -58,6 +74,11 @@ interface BillingData {
   stripe_subscription_id: string | null;
   created_at: string;
   updated_at: string;
+  // Override tracking
+  is_manual_override: boolean | null;
+  override_by: string | null;
+  override_at: string | null;
+  override_reason: string | null;
 }
 
 interface AuditLogEntry {
@@ -73,10 +94,13 @@ interface AuditLogEntry {
     days?: number;
     until_date?: string;
     source?: string;
+    previous_mode?: string;
+    new_mode?: string;
+    operator?: string;
   };
 }
 
-type ActionType = 'extend-trial' | 'mark-as-paid' | 'block-tenant' | 'unblock-tenant';
+type ActionType = 'extend-trial' | 'mark-as-paid' | 'block-tenant' | 'unblock-tenant' | 'reset-to-stripe';
 
 export default function TenantControl() {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -97,6 +121,10 @@ export default function TenantControl() {
   const [reason, setReason] = useState('');
   const [days, setDays] = useState(30);
   const [untilDate, setUntilDate] = useState('');
+  
+  // Double confirmation state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ action: ActionType; payload: Record<string, unknown> } | null>(null);
 
   // Fetch tenant data
   const fetchData = async () => {
@@ -114,10 +142,10 @@ export default function TenantControl() {
       if (tenantError) throw tenantError;
       setTenant(tenantData);
 
-      // Fetch billing
+      // Fetch billing with override fields
       const { data: billingData, error: billingError } = await supabase
         .from('tenant_billing')
-        .select('*')
+        .select('id, tenant_id, status, plan_name, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, created_at, updated_at, is_manual_override, override_by, override_at, override_reason')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
@@ -173,8 +201,8 @@ export default function TenantControl() {
     setDialogOpen(true);
   };
 
-  // Execute action
-  const executeAction = async () => {
+  // Execute action (with optional double confirmation)
+  const executeAction = async (forceConfirm: boolean = false) => {
     if (!currentAction || !tenantId || !reason.trim()) {
       toast({
         title: t('common.error'),
@@ -184,23 +212,43 @@ export default function TenantControl() {
       return;
     }
 
+    // Check if double confirmation is needed
+    const needsDoubleConfirm = (currentAction === 'block-tenant' && billing?.status === 'ACTIVE') ||
+                               currentAction === 'mark-as-paid';
+
+    if (needsDoubleConfirm && !forceConfirm) {
+      setPendingAction({
+        action: currentAction as ActionType,
+        payload: {
+          action: currentAction,
+          tenantId,
+          reason: reason.trim(),
+          untilDate: currentAction === 'mark-as-paid' ? untilDate : undefined,
+          confirmBlock: currentAction === 'block-tenant' ? true : undefined,
+        },
+      });
+      setDialogOpen(false);
+      setConfirmDialogOpen(true);
+      return;
+    }
+
+    await performAction({
+      action: currentAction,
+      tenantId,
+      reason: reason.trim(),
+      days: currentAction === 'extend-trial' ? days : undefined,
+      untilDate: currentAction === 'mark-as-paid' ? untilDate : undefined,
+      confirmBlock: currentAction === 'block-tenant' ? forceConfirm : undefined,
+    });
+  };
+
+  // Actually perform the action
+  const performAction = async (payload: Record<string, unknown>) => {
     setActionLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
         throw new Error('Not authenticated');
-      }
-
-      const payload: Record<string, unknown> = {
-        action: currentAction,
-        tenantId,
-        reason: reason.trim(),
-      };
-
-      if (currentAction === 'extend-trial') {
-        payload.days = days;
-      } else if (currentAction === 'mark-as-paid') {
-        payload.untilDate = untilDate;
       }
 
       const response = await supabase.functions.invoke('admin-billing-control', {
@@ -221,6 +269,8 @@ export default function TenantControl() {
       });
 
       setDialogOpen(false);
+      setConfirmDialogOpen(false);
+      setPendingAction(null);
       fetchData(); // Refresh data
 
     } catch (error) {
@@ -233,6 +283,12 @@ export default function TenantControl() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Handle confirmed action from double confirmation dialog
+  const handleConfirmedAction = async () => {
+    if (!pendingAction) return;
+    await performAction(pendingAction.payload);
   };
 
   // Get status badge
@@ -275,6 +331,7 @@ export default function TenantControl() {
       'mark-as-paid': 'Marcar como Pago',
       'block-tenant': 'Bloquear Tenant',
       'unblock-tenant': 'Desbloquear Tenant',
+      'reset-to-stripe': 'Retornar ao Stripe',
     };
     return titles[action];
   };
@@ -282,12 +339,20 @@ export default function TenantControl() {
   // Get action description
   const getActionDescription = (action: ActionType) => {
     const descriptions: Record<ActionType, string> = {
-      'extend-trial': 'Adiciona dias extras ao período de trial do tenant.',
-      'mark-as-paid': 'Força o status ACTIVE até a data especificada.',
-      'block-tenant': 'Força o status PAST_DUE, bloqueando novas filiações.',
+      'extend-trial': `Adiciona dias extras ao período de trial do tenant (máx. ${MAX_TRIAL_DAYS} dias).`,
+      'mark-as-paid': `Força o status ACTIVE até a data especificada (máx. ${MAX_PAID_MONTHS} meses). Requer confirmação.`,
+      'block-tenant': 'Força o status PAST_DUE, bloqueando novas filiações. Requer confirmação se tenant estiver ACTIVE.',
       'unblock-tenant': 'Remove o bloqueio e define ACTIVE por 30 dias.',
+      'reset-to-stripe': 'Remove todos os overrides manuais e sincroniza com o status real do Stripe.',
     };
     return descriptions[action];
+  };
+
+  // Calculate max date for mark-as-paid
+  const getMaxPaidDate = () => {
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + MAX_PAID_MONTHS);
+    return maxDate.toISOString().split('T')[0];
   };
 
   if (authLoading || loading) {
@@ -313,6 +378,8 @@ export default function TenantControl() {
       </div>
     );
   }
+
+  const isManualOverride = billing?.is_manual_override === true;
 
   return (
     <div className="min-h-screen bg-background">
@@ -344,6 +411,43 @@ export default function TenantControl() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
+          {/* Manual Override Warning Banner */}
+          {isManualOverride && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-destructive/10 border border-destructive/30 rounded-lg p-4"
+            >
+              <div className="flex items-start gap-3">
+                <AlertOctagon className="h-6 w-6 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-destructive mb-1">STATUS SOB OVERRIDE MANUAL</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Este tenant está com status sobrescrito manualmente. O Stripe não está controlando o billing.
+                  </p>
+                  {billing?.override_reason && (
+                    <p className="text-sm mt-2">
+                      <span className="font-medium">Motivo:</span> {billing.override_reason}
+                    </p>
+                  )}
+                  {billing?.override_at && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Override aplicado em: {formatDate(billing.override_at)}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => openActionDialog('reset-to-stripe')}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Retornar ao Stripe
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
           {/* Current Status Card */}
           <Card>
             <CardHeader>
@@ -365,7 +469,12 @@ export default function TenantControl() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Status</p>
-                  {billing ? getStatusBadge(billing.status) : <Badge variant="outline">Sem registro</Badge>}
+                  <div className="flex items-center gap-2">
+                    {billing ? getStatusBadge(billing.status) : <Badge variant="outline">Sem registro</Badge>}
+                    {isManualOverride && (
+                      <Badge variant="destructive" className="text-xs">MANUAL</Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Plano</p>
@@ -386,8 +495,18 @@ export default function TenantControl() {
                   <p className="font-medium">{formatDate(billing?.current_period_end || null)}</p>
                 </div>
                 <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Modo de Controle</p>
+                  <Badge variant={isManualOverride ? 'destructive' : 'secondary'}>
+                    {isManualOverride ? 'MANUAL' : 'STRIPE'}
+                  </Badge>
+                </div>
+                <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Stripe Customer</p>
                   <p className="font-mono text-xs truncate">{billing?.stripe_customer_id || '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Stripe Subscription</p>
+                  <p className="font-mono text-xs truncate">{billing?.stripe_subscription_id || '-'}</p>
                 </div>
               </div>
             </CardContent>
@@ -401,11 +520,12 @@ export default function TenantControl() {
                 Ações de Override
               </CardTitle>
               <CardDescription>
-                Controles manuais para gerenciar o status de billing do tenant
+                Controles manuais para gerenciar o status de billing do tenant. 
+                Limites: Trial máx. {MAX_TRIAL_DAYS} dias, Pagamento máx. {MAX_PAID_MONTHS} meses.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Button
                   variant="outline"
                   className="h-auto py-4 flex flex-col items-center gap-2"
@@ -413,7 +533,7 @@ export default function TenantControl() {
                 >
                   <CalendarPlus className="h-6 w-6 text-blue-500" />
                   <span className="font-medium">Estender Trial</span>
-                  <span className="text-xs text-muted-foreground">Adicionar dias</span>
+                  <span className="text-xs text-muted-foreground">Máx. {MAX_TRIAL_DAYS} dias</span>
                 </Button>
 
                 <Button
@@ -423,7 +543,7 @@ export default function TenantControl() {
                 >
                   <DollarSign className="h-6 w-6 text-green-500" />
                   <span className="font-medium">Marcar Pago</span>
-                  <span className="text-xs text-muted-foreground">Forçar ACTIVE</span>
+                  <span className="text-xs text-muted-foreground">Requer confirmação</span>
                 </Button>
 
                 <Button
@@ -443,7 +563,18 @@ export default function TenantControl() {
                 >
                   <Unlock className="h-6 w-6 text-emerald-500" />
                   <span className="font-medium">Desbloquear</span>
-                  <span className="text-xs text-muted-foreground">Remover bloqueio</span>
+                  <span className="text-xs text-muted-foreground">+30 dias ACTIVE</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex flex-col items-center gap-2"
+                  onClick={() => openActionDialog('reset-to-stripe')}
+                  disabled={!isManualOverride}
+                >
+                  <RotateCcw className="h-6 w-6 text-primary" />
+                  <span className="font-medium">Reset Stripe</span>
+                  <span className="text-xs text-muted-foreground">Sincronizar</span>
                 </Button>
               </div>
             </CardContent>
@@ -476,10 +607,18 @@ export default function TenantControl() {
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <Badge variant="outline" className="text-xs">
                                 {log.event_type.replace('BILLING_OVERRIDE_', '')}
                               </Badge>
+                              {log.metadata?.previous_mode && log.metadata?.new_mode && (
+                                <Badge 
+                                  variant={log.metadata.new_mode === 'stripe' ? 'secondary' : 'destructive'} 
+                                  className="text-xs"
+                                >
+                                  {log.metadata.previous_mode} → {log.metadata.new_mode}
+                                </Badge>
+                              )}
                               <span className="text-xs text-muted-foreground">
                                 {formatDate(log.created_at)}
                               </span>
@@ -536,27 +675,28 @@ export default function TenantControl() {
           <div className="space-y-4 py-4">
             {currentAction === 'extend-trial' && (
               <div className="space-y-2">
-                <Label htmlFor="days">Dias a adicionar</Label>
+                <Label htmlFor="days">Dias a adicionar (máx. {MAX_TRIAL_DAYS})</Label>
                 <Input
                   id="days"
                   type="number"
                   min={1}
-                  max={365}
+                  max={MAX_TRIAL_DAYS}
                   value={days}
-                  onChange={(e) => setDays(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setDays(Math.min(parseInt(e.target.value) || 1, MAX_TRIAL_DAYS))}
                 />
               </div>
             )}
 
             {currentAction === 'mark-as-paid' && (
               <div className="space-y-2">
-                <Label htmlFor="untilDate">Válido até</Label>
+                <Label htmlFor="untilDate">Válido até (máx. {MAX_PAID_MONTHS} meses)</Label>
                 <Input
                   id="untilDate"
                   type="date"
                   value={untilDate}
                   onChange={(e) => setUntilDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
+                  max={getMaxPaidDate()}
                 />
               </div>
             )}
@@ -582,16 +722,55 @@ export default function TenantControl() {
               Cancelar
             </Button>
             <Button
-              onClick={executeAction}
+              onClick={() => executeAction(false)}
               disabled={actionLoading || !reason.trim()}
               variant={currentAction === 'block-tenant' ? 'destructive' : 'default'}
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirmar
+              {(currentAction === 'block-tenant' && billing?.status === 'ACTIVE') || currentAction === 'mark-as-paid' 
+                ? 'Continuar...' 
+                : 'Confirmar'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Double Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Confirmação Necessária
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.action === 'block-tenant' && (
+                <>
+                  Você está prestes a <strong>BLOQUEAR</strong> um tenant com status <strong>ACTIVE</strong>. 
+                  Isso impedirá a criação de novas filiações e pode afetar operações em andamento.
+                </>
+              )}
+              {pendingAction?.action === 'mark-as-paid' && (
+                <>
+                  Você está prestes a forçar o status <strong>ACTIVE</strong> manualmente, 
+                  sobrescrevendo qualquer controle do Stripe. Esta ação será registrada na auditoria.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmedAction}
+              disabled={actionLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirmar Ação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
