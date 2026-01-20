@@ -104,16 +104,38 @@ export default function VerifyCard() {
         let hashVerified: boolean | null = null;
         if (card.content_hash_sha256) {
           try {
-            // Recreate the canonical payload (MUST match edge function exactly)
-            // Extract created_at date in YYYY-MM-DD format
+            // Recreate the STANDARDIZED canonical payload (MUST match edge function exactly)
             const createdAtDate = card.created_at ? card.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
             
             const canonicalPayload = {
-              tenant_id: card.tenant_id,
-              athlete_id: membership.athlete.id,
-              membership_id: card.membership_id,
-              valid_until: card.valid_until,
-              created_at: createdAtDate,
+              // Athlete data
+              atleta: {
+                id: membership.athlete.id,
+                nome: membership.athlete.full_name,
+              },
+              // Grading data (null for membership cards)
+              graduacao: null,
+              // Date information
+              data: {
+                emissao: createdAtDate,
+                validade: card.valid_until,
+              },
+              // Entity (tenant) information
+              entidade: {
+                id: card.tenant_id,
+                nome: membership.tenant.name,
+                slug: membership.tenant.slug,
+                modalidade: membership.tenant.sport_types?.[0] || "Esporte de Combate",
+              },
+              // Responsible person (coach) - we don't have this info on verification page
+              responsavel: null,
+              // Document metadata
+              documento: {
+                tipo: "CARTEIRINHA",
+                id: card.id,
+                membership_id: card.membership_id,
+                status: membership.status,
+              },
             };
             
             const calculatedHash = await calculateSHA256(JSON.stringify(canonicalPayload));

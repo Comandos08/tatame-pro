@@ -295,14 +295,45 @@ serve(async (req) => {
     const pdfUrl = pdfUrlData?.publicUrl;
 
     // Calculate content hash for integrity verification
+    // STANDARDIZED canonical payload matching digital card structure
     const canonicalPayload = {
-      tenant_id: tenantId,
-      athlete_id: athleteId,
-      grading_level_id: gradingLevelId,
-      promotion_date: promotionDate,
-      serial_number: serialNumber,
-      academy_id: academyId || null,
-      coach_id: coachId || null,
+      // Athlete data
+      atleta: {
+        id: athleteId,
+        nome: athlete.full_name,
+      },
+      // Grading data
+      graduacao: {
+        id: gradingLevelId,
+        nivel: gradingLevel.display_name,
+        codigo: gradingLevel.code,
+        sistema: (gradingLevel.grading_schemes as any)?.name || null,
+      },
+      // Date information
+      data: {
+        emissao: new Date().toISOString().split('T')[0],
+        promocao: promotionDate,
+      },
+      // Entity (tenant) information
+      entidade: {
+        id: tenantId,
+        nome: tenant.name,
+        slug: tenant.slug,
+        modalidade: sportType,
+      },
+      // Responsible person (coach)
+      responsavel: coachName ? { 
+        id: coachId,
+        nome: coachName,
+      } : null,
+      // Document metadata
+      documento: {
+        tipo: "DIPLOMA",
+        id: diplomaId,
+        serial: serialNumber,
+        academia_id: academyId || null,
+        academia_nome: academyName || null,
+      },
     };
     const contentHash = await calculateContentHash(canonicalPayload);
     console.log("Diploma content hash:", contentHash.substring(0, 12) + "...");
