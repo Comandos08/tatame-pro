@@ -691,4 +691,5 @@ export const en: Record<TranslationKey, string> = {
   'verification.athlete': 'Athlete',
   'verification.validityPeriod': 'Validity Period',
   'verification.shareQr': 'Share this QR',
+  'verification.currentGrading': 'Current Grading',
 };
