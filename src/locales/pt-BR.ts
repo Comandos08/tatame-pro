@@ -382,6 +382,8 @@ export const ptBR = {
   'verification.diplomaStatusRevoked': 'REVOGADO',
   'verification.downloadDiploma': 'Baixar Diploma',
   'verification.downloadCard': 'Baixar Carteira Digital',
+  'verification.issuedAt': 'Emitido em',
+  'verification.grading': 'Graduação',
 
   // Athlete Area
   'nav.athleteArea': 'Meu Perfil',

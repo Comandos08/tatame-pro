@@ -92,30 +92,89 @@ serve(async (req) => {
 
     // Fetch coach name if preferred_coach_id exists
     let coachName: string | null = null;
+    let coachId: string | null = null;
     if (membership.preferred_coach_id) {
       const { data: coach } = await supabase
         .from("coaches")
-        .select("full_name")
+        .select("id, full_name")
         .eq("id", membership.preferred_coach_id)
         .maybeSingle();
       coachName = coach?.full_name || null;
+      coachId = coach?.id || null;
+    }
+
+    // Fetch academy name if academy_id exists
+    let academyName: string | null = null;
+    let academyId: string | null = null;
+    if (membership.academy_id) {
+      const { data: academy } = await supabase
+        .from("academies")
+        .select("id, name")
+        .eq("id", membership.academy_id)
+        .maybeSingle();
+      academyName = academy?.name || null;
+      academyId = academy?.id || null;
+    }
+
+    // Get default sport type from tenant
+    const defaultSportType = tenant.sport_types?.[0] || "Esporte de Combate";
+
+    // Fetch athlete's current grading level
+    let currentGrading: { levelName: string; levelCode: string; schemeName: string; sportType: string } | null = null;
+    const { data: latestGrading } = await supabase
+      .from("athlete_gradings")
+      .select(`
+        grading_level:grading_levels(
+          display_name,
+          code,
+          grading_scheme:grading_schemes(name, sport_type)
+        )
+      `)
+      .eq("athlete_id", athlete.id)
+      .eq("tenant_id", tenant.id)
+      .order("promotion_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestGrading?.grading_level) {
+      const level = latestGrading.grading_level as any;
+      currentGrading = {
+        levelName: level.display_name,
+        levelCode: level.code,
+        schemeName: level.grading_scheme?.name || null,
+        sportType: level.grading_scheme?.sport_type || defaultSportType,
+      };
     }
 
     // Pre-generate card ID for QR code URL
     const cardId = crypto.randomUUID();
     const createdAtDate = new Date().toISOString().split('T')[0];
-    const sportType = tenant.sport_types?.[0] || "Esporte de Combate";
+
+    // Helper to mask name for LGPD compliance
+    const maskName = (name: string): string => {
+      const parts = name.split(" ");
+      if (parts.length > 1) {
+        return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
+      }
+      return parts[0];
+    };
 
     // Create STANDARDIZED canonical payload for SHA-256 hash
     // This payload structure is used for both QR data and hash verification
     const canonicalPayload = {
-      // Athlete data
+      // Athlete data (masked for privacy)
       atleta: {
         id: athlete.id,
         nome: athlete.full_name,
+        nome_exibicao: maskName(athlete.full_name),
       },
-      // Grading data (null for membership cards)
-      graduacao: null,
+      // Grading data (current level if available)
+      graduacao: currentGrading ? {
+        nivel: currentGrading.levelName,
+        codigo: currentGrading.levelCode,
+        sistema: currentGrading.schemeName,
+        modalidade: currentGrading.sportType,
+      } : null,
       // Date information
       data: {
         emissao: createdAtDate,
@@ -126,10 +185,19 @@ serve(async (req) => {
         id: tenant.id,
         nome: tenant.name,
         slug: tenant.slug,
-        modalidade: sportType,
+        modalidade: currentGrading?.sportType || defaultSportType,
       },
-      // Responsible person (coach if available)
-      responsavel: coachName ? { nome: coachName } : null,
+      // Academy information
+      academia: academyName ? {
+        id: academyId,
+        nome: academyName,
+      } : null,
+      // Responsible person (coach)
+      responsavel: coachName ? { 
+        id: coachId,
+        nome: coachName,
+        nome_exibicao: maskName(coachName),
+      } : null,
       // Document metadata
       documento: {
         tipo: "CARTEIRINHA",
@@ -209,7 +277,7 @@ serve(async (req) => {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 180);
-    doc.text(sportType, 42.8, 24, { align: "center" });
+    doc.text(currentGrading?.sportType || defaultSportType, 42.8, 24, { align: "center" });
 
     // Divider
     doc.setDrawColor(60, 60, 70);
