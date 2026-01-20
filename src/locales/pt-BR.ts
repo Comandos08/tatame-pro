@@ -355,6 +355,8 @@ export const ptBR = {
   'verification.diplomaNotFound': 'Diploma não encontrado ou inválido',
   'verification.cardError': 'Erro ao verificar carteira',
   'verification.diplomaError': 'Erro ao verificar diploma',
+  'verification.membershipError': 'Erro ao verificar filiação',
+  'verification.organizationNotFound': 'Organização não encontrada',
   'verification.verifyingDocument': 'Verificando documento...',
   'verification.verifyingDiploma': 'Verificando diploma...',
   'verification.failed': 'Verificação Falhou',

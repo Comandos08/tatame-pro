@@ -359,6 +359,8 @@ export const es: Record<TranslationKey, string> = {
   'verification.diplomaNotFound': 'Diploma no encontrado o inválido',
   'verification.cardError': 'Error al verificar tarjeta',
   'verification.diplomaError': 'Error al verificar diploma',
+  'verification.membershipError': 'Error al verificar afiliación',
+  'verification.organizationNotFound': 'Organización no encontrada',
   'verification.verifyingDocument': 'Verificando documento...',
   'verification.verifyingDiploma': 'Verificando diploma...',
   'verification.failed': 'Verificación Fallida',
