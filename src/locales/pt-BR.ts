@@ -687,6 +687,7 @@ export const ptBR = {
   'verification.athlete': 'Atleta',
   'verification.validityPeriod': 'Período de Validade',
   'verification.shareQr': 'Compartilhe este QR',
+  'verification.currentGrading': 'Graduação Atual',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

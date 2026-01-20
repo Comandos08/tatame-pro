@@ -691,4 +691,5 @@ export const es: Record<TranslationKey, string> = {
   'verification.athlete': 'Atleta',
   'verification.validityPeriod': 'Período de Validez',
   'verification.shareQr': 'Comparte este QR',
+  'verification.currentGrading': 'Graduación Actual',
 };

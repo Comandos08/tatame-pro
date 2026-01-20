@@ -51,6 +51,12 @@ interface PublicVerificationData {
   card_valid_until: string | null;
   content_hash_sha256: string | null;
   card_created_at: string | null;
+  
+  // Current grading (from LATERAL join in view)
+  level_name: string | null;
+  level_code: string | null;
+  scheme_name: string | null;
+  grading_sport_type: string | null;
 }
 
 export default function VerifyMembership() {
@@ -76,7 +82,7 @@ export default function VerifyMembership() {
         // No PII exposed: no email, phone, address, birth_date, national_id
         const { data: verificationData, error: verificationError } = await supabase
           .from('membership_verification')
-          .select('membership_id, status, start_date, end_date, payment_status, type, tenant_id, tenant_name, tenant_slug, sport_types, athlete_name, digital_card_id, pdf_url, card_valid_until, content_hash_sha256, card_created_at')
+          .select('membership_id, status, start_date, end_date, payment_status, type, tenant_id, tenant_name, tenant_slug, sport_types, athlete_name, digital_card_id, pdf_url, card_valid_until, content_hash_sha256, card_created_at, level_name, level_code, scheme_name, grading_sport_type')
           .eq('membership_id', membershipId)
           .eq('tenant_slug', tenantSlug)
           .maybeSingle();
@@ -275,6 +281,26 @@ export default function VerifyMembership() {
                     </div>
                   </div>
                 )}
+
+                {/* Current Grading (if available) */}
+                {data.level_name && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <Award className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.currentGrading')}</p>
+                      <p className="font-medium">{data.level_name}</p>
+                      {(data.scheme_name || data.grading_sport_type) && (
+                        <p className="text-xs text-muted-foreground">
+                          {data.scheme_name && data.grading_sport_type 
+                            ? `${data.scheme_name} • ${data.grading_sport_type}`
+                            : data.scheme_name || data.grading_sport_type
+                          }
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Validity Period */}
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
