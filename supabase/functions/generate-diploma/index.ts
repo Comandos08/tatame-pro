@@ -294,24 +294,38 @@ serve(async (req) => {
     const { data: pdfUrlData } = supabase.storage.from('cards').getPublicUrl(pdfFileName);
     const pdfUrl = pdfUrlData?.publicUrl;
 
+    // Helper to mask name for LGPD compliance
+    const maskName = (name: string): string => {
+      const parts = name.split(" ");
+      if (parts.length > 1) {
+        return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
+      }
+      return parts[0];
+    };
+
+    const issuedAt = new Date().toISOString();
+    const issuedDate = issuedAt.split('T')[0];
+
     // Calculate content hash for integrity verification
-    // STANDARDIZED canonical payload matching digital card structure
+    // STANDARDIZED canonical payload with professional-level information
     const canonicalPayload = {
-      // Athlete data
+      // Athlete data (masked for privacy)
       atleta: {
         id: athleteId,
         nome: athlete.full_name,
+        nome_exibicao: maskName(athlete.full_name),
       },
-      // Grading data
+      // Grading data (complete graduation info)
       graduacao: {
         id: gradingLevelId,
         nivel: gradingLevel.display_name,
         codigo: gradingLevel.code,
         sistema: (gradingLevel.grading_schemes as any)?.name || null,
+        modalidade: sportType,
       },
       // Date information
       data: {
-        emissao: new Date().toISOString().split('T')[0],
+        emissao: issuedDate,
         promocao: promotionDate,
       },
       // Entity (tenant) information
@@ -321,18 +335,22 @@ serve(async (req) => {
         slug: tenant.slug,
         modalidade: sportType,
       },
-      // Responsible person (coach)
+      // Academy information
+      academia: academyName ? {
+        id: academyId,
+        nome: academyName,
+      } : null,
+      // Responsible person (coach who granted the graduation)
       responsavel: coachName ? { 
         id: coachId,
         nome: coachName,
+        nome_exibicao: maskName(coachName),
       } : null,
       // Document metadata
       documento: {
         tipo: "DIPLOMA",
         id: diplomaId,
         serial: serialNumber,
-        academia_id: academyId || null,
-        academia_nome: academyName || null,
       },
     };
     const contentHash = await calculateContentHash(canonicalPayload);
@@ -354,7 +372,7 @@ serve(async (req) => {
         qr_code_data: qrCodeData,
         qr_code_image_url: qrCodeImageUrl,
         status: 'ISSUED',
-        issued_at: new Date().toISOString(),
+        issued_at: issuedAt,
         content_hash_sha256: contentHash,
       })
       .select()

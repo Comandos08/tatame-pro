@@ -386,6 +386,8 @@ export const en: Record<TranslationKey, string> = {
   'verification.diplomaStatusRevoked': 'REVOKED',
   'verification.downloadDiploma': 'Download Diploma',
   'verification.downloadCard': 'Download Digital Card',
+  'verification.issuedAt': 'Issued on',
+  'verification.grading': 'Grading',
 
   // Athlete Area
   'nav.athleteArea': 'My Profile',
