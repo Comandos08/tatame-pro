@@ -459,6 +459,13 @@ export type Database = {
             foreignKeyName: "digital_cards_membership_id_fkey"
             columns: ["membership_id"]
             isOneToOne: true
+            referencedRelation: "membership_verification"
+            referencedColumns: ["membership_id"]
+          },
+          {
+            foreignKeyName: "digital_cards_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: true
             referencedRelation: "memberships"
             referencedColumns: ["id"]
           },
@@ -1308,6 +1315,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_verification: {
+        Row: {
+          academy_id: string | null
+          athlete_id: string | null
+          athlete_name: string | null
+          card_created_at: string | null
+          card_valid_until: string | null
+          content_hash_sha256: string | null
+          digital_card_id: string | null
+          end_date: string | null
+          membership_id: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
+          pdf_url: string | null
+          preferred_coach_id: string | null
+          sport_types: string[] | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["membership_status"] | null
+          tenant_id: string | null
+          tenant_name: string | null
+          tenant_slug: string | null
+          type: Database["public"]["Enums"]["membership_type"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_academy_id_fkey"
+            columns: ["academy_id"]
+            isOneToOne: false
+            referencedRelation: "academies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_preferred_coach_id_fkey"
+            columns: ["preferred_coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
