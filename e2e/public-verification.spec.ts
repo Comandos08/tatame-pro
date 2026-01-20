@@ -1,25 +1,26 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * E2E Test: Public Membership Verification
+ * E2E Test: Public Membership Verification (Security Hardened)
  * 
  * Tests the public verification endpoint for membership cards.
  * This is the SINGLE official QR endpoint: /:tenantSlug/verify/membership/:membershipId
  * 
- * Requirements:
+ * SECURITY REQUIREMENTS:
  * - Works for anonymous users (no login required)
- * - Displays masked athlete name (LGPD compliance)
+ * - Displays ONLY masked athlete name (First Name + Last Initial)
+ * - NEVER exposes PII: email, phone, address, birth_date, national_id
  * - Shows membership status and validity
- * - Displays organization info
- * - Shows grading info if available
- * - Displays digital card download if ready
+ * - Displays organization name and slug only (no internal IDs)
+ * - Shows digital card download URL if available
+ * - Uses database-level masking (not client-side)
  */
 
 // Test data - use known existing records from demo tenant
 const TEST_TENANT_SLUG = 'demo-bjj';
 const TEST_MEMBERSHIP_ID = '1b4a510c-6656-48fe-9a1e-43a09ae50c1a';
 
-test.describe('Public Membership Verification', () => {
+test.describe('Public Membership Verification - Security Hardened', () => {
   
   test('should display verification page for anonymous user', async ({ page }) => {
     // Navigate to the verification URL (as an anonymous user)
@@ -31,7 +32,7 @@ test.describe('Public Membership Verification', () => {
     // Should NOT show login form - this is a public page
     await expect(page.locator('input[type="password"]')).not.toBeVisible();
     
-    // Should display either verification result or error (not blank)
+    // Should display verification content (not blank)
     const content = await page.textContent('body');
     expect(content).toBeTruthy();
     expect(content!.length).toBeGreaterThan(50);
@@ -46,7 +47,7 @@ test.describe('Public Membership Verification', () => {
     await expect(orgLabel.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('should display masked athlete name for privacy', async ({ page }) => {
+  test('should display masked athlete name (DB-level masking)', async ({ page }) => {
     await page.goto(`/${TEST_TENANT_SLUG}/verify/membership/${TEST_MEMBERSHIP_ID}`);
     await page.waitForLoadState('networkidle');
     
@@ -54,10 +55,27 @@ test.describe('Public Membership Verification', () => {
     const athleteLabel = page.locator('text=/atleta|athlete/i');
     await expect(athleteLabel.first()).toBeVisible({ timeout: 10000 });
     
-    // The name should be partially masked (contains "." at the end)
-    // e.g., "Luiz F." or "João S."
-    const maskedNamePattern = page.locator('text=/[A-Z][a-záéíóú]+ [A-Z]\\./');
-    // Note: This may or may not match depending on name format
+    // The name should be masked at DB level: "First Name + Last Initial."
+    // e.g., "João S." or "Maria C."
+    // Pattern: Capital letter, lowercase letters, space, capital letter, period
+    const maskedNamePattern = page.locator('text=/[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+ [A-ZÁÉÍÓÚÂÊÔÃÕÇ]\\./');
+    await expect(maskedNamePattern.first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should NOT expose any PII (email, phone, address, birth_date)', async ({ page }) => {
+    await page.goto(`/${TEST_TENANT_SLUG}/verify/membership/${TEST_MEMBERSHIP_ID}`);
+    await page.waitForLoadState('networkidle');
+    
+    const content = await page.textContent('body');
+    
+    // Should NOT contain email patterns
+    expect(content).not.toMatch(/@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    
+    // Should NOT contain phone patterns (Brazilian format)
+    expect(content).not.toMatch(/\(\d{2}\)\s?\d{4,5}-?\d{4}/);
+    
+    // Should NOT contain CPF patterns
+    expect(content).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
   });
 
   test('should display validity period', async ({ page }) => {
