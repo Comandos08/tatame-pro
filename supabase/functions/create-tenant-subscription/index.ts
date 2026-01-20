@@ -129,10 +129,31 @@ serve(async (req) => {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check/create Stripe customer
+    // Check/create Stripe customer - handle mode mismatch (live vs test)
     let stripeCustomerId = tenant.stripe_customer_id;
+    let needsNewCustomer = !stripeCustomerId;
 
-    if (!stripeCustomerId) {
+    if (stripeCustomerId) {
+      // Validate the existing customer exists in current Stripe mode
+      try {
+        await stripe.customers.retrieve(stripeCustomerId);
+        logStep("Validated existing Stripe customer", { customerId: stripeCustomerId });
+      } catch (customerError: unknown) {
+        const errorMessage = customerError instanceof Error ? customerError.message : String(customerError);
+        // Customer doesn't exist in current mode - need to create new one
+        if (errorMessage.includes("No such customer") || errorMessage.includes("does not exist")) {
+          logStep("Customer not found in current Stripe mode, will create new", { 
+            oldCustomerId: stripeCustomerId,
+            error: errorMessage 
+          });
+          needsNewCustomer = true;
+        } else {
+          throw customerError;
+        }
+      }
+    }
+
+    if (needsNewCustomer) {
       logStep("Creating Stripe customer for tenant");
       
       const customer = await stripe.customers.create({
@@ -153,8 +174,6 @@ serve(async (req) => {
         .eq("id", tenantId);
 
       logStep("Stripe customer created", { customerId: stripeCustomerId });
-    } else {
-      logStep("Using existing Stripe customer", { customerId: stripeCustomerId });
     }
 
     // Check if subscription already exists
