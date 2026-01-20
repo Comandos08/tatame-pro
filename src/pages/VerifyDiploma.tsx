@@ -58,6 +58,7 @@ export default function VerifyDiploma() {
             serial_number,
             status,
             promotion_date,
+            issued_at,
             content_hash_sha256,
             pdf_url,
             tenant_id,
@@ -125,15 +126,45 @@ export default function VerifyDiploma() {
         let hashVerified: boolean | null = null;
         if (diploma.content_hash_sha256) {
           try {
-            // Recreate the canonical payload (MUST match edge function exactly)
+            // Recreate the STANDARDIZED canonical payload (MUST match edge function exactly)
             const canonicalPayload = {
-              tenant_id: diploma.tenant_id,
-              athlete_id: diploma.athlete_id,
-              grading_level_id: diploma.grading_level_id,
-              promotion_date: diploma.promotion_date,
-              serial_number: diploma.serial_number,
-              academy_id: diploma.academy_id || null,
-              coach_id: diploma.coach_id || null,
+              // Athlete data
+              atleta: {
+                id: diploma.athlete_id,
+                nome: athlete.full_name,
+              },
+              // Grading data
+              graduacao: {
+                id: diploma.grading_level_id,
+                nivel: gradingLevel.display_name,
+                codigo: gradingLevel.code,
+                sistema: gradingLevel.grading_scheme?.name || null,
+              },
+              // Date information
+              data: {
+                emissao: diploma.issued_at ? diploma.issued_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                promocao: diploma.promotion_date,
+              },
+              // Entity (tenant) information
+              entidade: {
+                id: diploma.tenant_id,
+                nome: tenant.name,
+                slug: tenant.slug,
+                modalidade: gradingLevel.grading_scheme.sport_type,
+              },
+              // Responsible person (coach)
+              responsavel: coach ? { 
+                id: diploma.coach_id,
+                nome: coach.full_name,
+              } : null,
+              // Document metadata
+              documento: {
+                tipo: "DIPLOMA",
+                id: diploma.id,
+                serial: diploma.serial_number,
+                academia_id: diploma.academy_id || null,
+                academia_nome: academy?.name || null,
+              },
             };
             
             const calculatedHash = await calculateSHA256(JSON.stringify(canonicalPayload));

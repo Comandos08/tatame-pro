@@ -90,20 +90,56 @@ serve(async (req) => {
       throw new Error("Invalid membership data");
     }
 
+    // Fetch coach name if preferred_coach_id exists
+    let coachName: string | null = null;
+    if (membership.preferred_coach_id) {
+      const { data: coach } = await supabase
+        .from("coaches")
+        .select("full_name")
+        .eq("id", membership.preferred_coach_id)
+        .maybeSingle();
+      coachName = coach?.full_name || null;
+    }
+
     // Pre-generate card ID for QR code URL
     const cardId = crypto.randomUUID();
     const createdAtDate = new Date().toISOString().split('T')[0];
+    const sportType = tenant.sport_types?.[0] || "Esporte de Combate";
 
-    // Create canonical payload for SHA-256 hash
+    // Create STANDARDIZED canonical payload for SHA-256 hash
+    // This payload structure is used for both QR data and hash verification
     const canonicalPayload = {
-      tenant_id: tenant.id,
-      athlete_id: athlete.id,
-      membership_id: membership.id,
-      valid_until: membership.end_date,
-      created_at: createdAtDate,
+      // Athlete data
+      atleta: {
+        id: athlete.id,
+        nome: athlete.full_name,
+      },
+      // Grading data (null for membership cards)
+      graduacao: null,
+      // Date information
+      data: {
+        emissao: createdAtDate,
+        validade: membership.end_date,
+      },
+      // Entity (tenant) information
+      entidade: {
+        id: tenant.id,
+        nome: tenant.name,
+        slug: tenant.slug,
+        modalidade: sportType,
+      },
+      // Responsible person (coach if available)
+      responsavel: coachName ? { nome: coachName } : null,
+      // Document metadata
+      documento: {
+        tipo: "CARTEIRINHA",
+        id: cardId,
+        membership_id: membership.id,
+        status: membership.status,
+      },
     };
 
-    // Calculate content hash
+    // Calculate content hash from canonical payload
     const contentHash = await calculateContentHash(canonicalPayload);
     console.log("Content hash calculated:", contentHash.substring(0, 12) + "...");
 
@@ -125,7 +161,7 @@ serve(async (req) => {
       } : { r: 220, g: 38, b: 38 };
     };
     const rgb = hexToRgb(primaryColor);
-    const sportType = tenant.sport_types?.[0] || "Esporte de Combate";
+    // sportType already defined above in canonicalPayload
 
     // Generate PDF
     const doc = new jsPDF({
