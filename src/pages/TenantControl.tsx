@@ -113,6 +113,7 @@ export default function TenantControl() {
   const [tenant, setTenant] = useState<TenantData | null>(null);
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [overrideOperator, setOverrideOperator] = useState<{ name: string | null; email: string } | null>(null);
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -151,6 +152,19 @@ export default function TenantControl() {
 
       if (billingError) throw billingError;
       setBilling(billingData);
+
+      // Fetch override operator profile if exists
+      if (billingData?.override_by) {
+        const { data: operatorData } = await supabase
+          .from('profiles')
+          .select('name, email')
+          .eq('id', billingData.override_by)
+          .maybeSingle();
+        
+        setOverrideOperator(operatorData);
+      } else {
+        setOverrideOperator(null);
+      }
 
       // Fetch audit logs related to billing overrides
       const { data: logsData, error: logsError } = await supabase
@@ -430,11 +444,16 @@ export default function TenantControl() {
                       <span className="font-medium">Motivo:</span> {billing.override_reason}
                     </p>
                   )}
-                  {billing?.override_at && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Override aplicado em: {formatDate(billing.override_at)}
-                    </p>
-                  )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                    {billing?.override_at && (
+                      <span>Override aplicado em: {formatDate(billing.override_at)}</span>
+                    )}
+                    {billing?.override_by && (
+                      <span>
+                        Por: {overrideOperator?.name || overrideOperator?.email || billing.override_by.slice(0, 8) + '...'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <Button
                   variant="destructive"
