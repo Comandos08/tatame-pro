@@ -53,6 +53,8 @@ interface TenantBilling {
   tenant_id: string;
   status: string;
   current_period_end: string | null;
+  is_manual_override: boolean;
+  override_at: string | null;
 }
 
 // Map billing status to StatusBadge status type
@@ -129,7 +131,7 @@ export default function AdminDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tenant_billing')
-        .select('id, tenant_id, status, current_period_end');
+        .select('id, tenant_id, status, current_period_end, is_manual_override, override_at');
       
       if (error) throw error;
       
@@ -410,6 +412,75 @@ export default function AdminDashboard() {
           {/* Card Diagnostics Panel */}
           <CardDiagnosticsPanel />
 
+          {/* Tenants em Override Manual */}
+          {billingData && (() => {
+            const tenantsInOverride = tenants?.filter(t => {
+              const billing = billingData.get(t.id);
+              return billing?.is_manual_override === true;
+            }) || [];
+            
+            if (tenantsInOverride.length === 0) return null;
+            
+            return (
+              <Card className="mb-8 border-destructive/50 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-5 w-5" />
+                    Tenants em Override Manual ({tenantsInOverride.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Tenants com billing controlado manualmente, fora do Stripe
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {tenantsInOverride.map(t => {
+                      const billing = billingData.get(t.id);
+                      
+                      // Blindagem contra data inválida
+                      const overrideAt = billing?.override_at ? new Date(billing.override_at) : null;
+                      const overrideDays = overrideAt && !isNaN(overrideAt.getTime())
+                        ? Math.floor((Date.now() - overrideAt.getTime()) / 86400000)
+                        : null;
+                      
+                      return (
+                        <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-background border">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                              style={{ backgroundColor: t.primary_color || '#dc2626' }}
+                            >
+                              {t.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium">{t.name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <StatusBadge status={billingStatusMap[billing?.status || ''] || 'neutral'} size="sm" />
+                                {overrideDays !== null && (
+                                  <span className={overrideDays > 30 ? 'text-destructive font-medium' : overrideDays > 7 ? 'text-yellow-600' : ''}>
+                                    há {overrideDays} dias
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => navigate(`/admin/tenants/${t.id}/control`)}
+                          >
+                            <Shield className="h-4 w-4 mr-2" />
+                            Control Tower
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -510,9 +581,21 @@ export default function AdminDashboard() {
                               return (
                                 <button
                                   onClick={() => setBillingTenant(tenant)}
-                                  className="hover:opacity-80 cursor-pointer"
+                                  className="hover:opacity-80 cursor-pointer flex items-center gap-1"
                                 >
                                   <StatusBadge status={statusType} size="sm" />
+                                  {billing.is_manual_override && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      MANUAL
+                                      {(() => {
+                                        const overrideAt = billing.override_at ? new Date(billing.override_at) : null;
+                                        const days = overrideAt && !isNaN(overrideAt.getTime())
+                                          ? Math.floor((Date.now() - overrideAt.getTime()) / 86400000)
+                                          : null;
+                                        return days !== null && days > 0 ? ` (${days}d)` : '';
+                                      })()}
+                                    </Badge>
+                                  )}
                                 </button>
                               );
                             })()}
