@@ -1434,6 +1434,56 @@ export type Database = {
       }
     }
     Views: {
+      athlete_current_grading: {
+        Row: {
+          athlete_id: string | null
+          grading_level_id: string | null
+          level_code: string | null
+          level_name: string | null
+          order_index: number | null
+          promotion_date: string | null
+          scheme_name: string | null
+          sport_type: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athlete_gradings_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_grading_level_id_fkey"
+            columns: ["grading_level_id"]
+            isOneToOne: false
+            referencedRelation: "grading_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athletes_public_verification: {
         Row: {
           full_name: string | null

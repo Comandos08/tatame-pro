@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Clock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { FileText, Clock, User, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -8,6 +8,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { AppShell } from '@/layouts/AppShell';
 import { supabase } from '@/integrations/supabase/client';
+import { formatAuditEvent } from '@/lib/formatAuditEvent';
 
 interface AuditLogEntry {
   id: string;
@@ -153,17 +154,31 @@ export default function AuditLog() {
                               <span className="text-muted-foreground">{t('audit.system')}</span>
                             )}
                           </TableCell>
-                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                            {log.metadata && Object.keys(log.metadata).length > 0 ? (
-                              <span title={JSON.stringify(log.metadata, null, 2)}>
-                                {Object.entries(log.metadata)
-                                  .slice(0, 3)
-                                  .map(([k, v]) => `${k}: ${v}`)
-                                  .join(', ')}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
+                          <TableCell className="max-w-md text-sm">
+                            {(() => {
+                              // Cast seguro para Record<string, unknown>
+                              const formatted = formatAuditEvent(
+                                log.event_type, 
+                                (log.metadata ?? {}) as Record<string, unknown>
+                              );
+                              return (
+                                <div className="space-y-1">
+                                  {formatted.description && (
+                                    <p className="text-foreground">{formatted.description}</p>
+                                  )}
+                                  {formatted.before && formatted.after && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Badge variant="outline">{formatted.before}</Badge>
+                                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                      <Badge>{formatted.after}</Badge>
+                                    </div>
+                                  )}
+                                  {formatted.meta && (
+                                    <p className="text-xs text-muted-foreground">{formatted.meta}</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       );
