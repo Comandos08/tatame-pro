@@ -207,6 +207,24 @@ export function formatAuditEvent(
         title: 'Aviso de Fim de Trial',
         description: 'Notificação de expiração do período de teste enviada',
       };
+    case 'TMP_DOCUMENT_CLEANED': {
+      const storagePath = typeof metadata.storage_path === 'string' ? metadata.storage_path : '';
+      const daysOld = typeof metadata.days_old === 'number' ? metadata.days_old : 0;
+      const cleanupReason = typeof metadata.reason === 'string' ? metadata.reason : '';
+      return {
+        title: 'Documento temporário removido',
+        description: `Arquivo removido após ${daysOld} dias`,
+        meta: cleanupReason ? `Motivo: ${cleanupReason}` : storagePath || undefined,
+      };
+    }
+    case 'TMP_DOCUMENT_CLEANUP_RUN': {
+      const deletedCount = typeof metadata.deleted_count === 'number' ? metadata.deleted_count : 0;
+      const skippedCleanupCount = typeof metadata.skipped_count === 'number' ? metadata.skipped_count : 0;
+      return {
+        title: 'Limpeza automática de documentos temporários',
+        description: `${deletedCount} removidos, ${skippedCleanupCount} ignorados`,
+      };
+    }
     default:
       // Fallback: humaniza o nome do evento
       return {

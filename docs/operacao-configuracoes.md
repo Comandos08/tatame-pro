@@ -139,6 +139,7 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 | Job | Função | Horário (UTC) | Criticidade |
 |-----|--------|---------------|-------------|
 | `expire-memberships-daily` | Marca filiações vencidas como EXPIRED | 03:00 | 🔴 Alta |
+| `cleanup-tmp-documents-daily` | Remove arquivos tmp/ > 7 dias | 03:30 | 🟡 Média |
 | `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
 | `check-membership-renewal-daily` | Envia lembretes de renovação | 09:00 | 🟡 Média |
 | `check-trial-ending-daily` | Notifica tenants sobre trial | 10:00 | 🟡 Média |
@@ -217,6 +218,31 @@ SELECT cron.schedule(
   $$
 );
 ```
+
+#### cleanup-tmp-documents (diário às 03:30 UTC)
+Remove arquivos temporários órfãos do bucket `documents/tmp/` após 7 dias.
+
+**⚠️ IMPORTANTE:** Este job usa autenticação via header `x-cron-secret`.  
+Substitua `SEU_CRON_SECRET` pelo valor configurado no secret `CRON_SECRET`.
+
+```sql
+SELECT cron.schedule(
+  'cleanup-tmp-documents-daily',
+  '30 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-tmp-documents',
+    headers:='{"Content-Type": "application/json", "x-cron-secret": "SEU_CRON_SECRET"}'::jsonb,
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+```
+
+**Regras de proteção:**
+- Arquivos com < 7 dias: **NÃO deletados**
+- Arquivos associados a memberships PENDING_REVIEW, APPROVED ou ACTIVE: **NÃO deletados**
+- Arquivos órfãos ou de memberships CANCELLED/REJECTED: **deletados**
 
 ---
 

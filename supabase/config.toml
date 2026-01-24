@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.reject-membership]
 verify_jwt = false
+
+[functions.cleanup-tmp-documents]
+verify_jwt = false
