@@ -38,7 +38,7 @@ import { EventStatusTransition } from '@/components/events/EventStatusTransition
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Event, EventCategory, EventRegistration, EventStatus, canPublishResults, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
 
 export default function EventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -135,7 +135,7 @@ export default function EventDetails() {
 
   // Update registration status
   const updateRegistration = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status }: { id: string; status: EventRegistrationStatus }) => {
       const { error } = await supabase
         .from('event_registrations')
         .update({ status })
