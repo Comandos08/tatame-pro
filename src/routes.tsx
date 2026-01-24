@@ -34,6 +34,7 @@ import TenantSettings from '@/pages/TenantSettings';
 import TenantBilling from '@/pages/TenantBilling';
 import AthleteArea from '@/pages/AthleteArea';
 import TenantControl from '@/pages/TenantControl';
+import AthletePortal from '@/pages/AthletePortal';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -131,6 +132,9 @@ export function AppRoutes() {
         <Route path="membership/adult" element={<AdultMembershipForm />} />
         <Route path="membership/youth" element={<YouthMembershipForm />} />
         <Route path="membership/success" element={<MembershipSuccess />} />
+        
+        {/* Portal do Aluno (Read-Only) - fora do /app */}
+        <Route path="portal" element={<ProtectedRoute><AthletePortal /></ProtectedRoute>} />
         
         {/* Protected tenant app */}
         <Route path="app" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
