@@ -21,7 +21,8 @@ import {
   CreditCard,
   UserCircle,
   Check,
-  UserCheck
+  UserCheck,
+  Calendar
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
@@ -83,6 +84,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
     { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings },
     { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy },
+    { name: t('nav.events' as any) || 'Eventos', href: `/${tenantSlug}/app/events`, icon: Calendar },
     { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText },
     ...(hasAdminRole || isGlobalSuperadmin ? [{ name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard }] : []),
     { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings },
