@@ -1893,6 +1893,13 @@ export type Database = {
         Args: { _coach_id: string }
         Returns: boolean
       }
+      find_memberships_by_tmp_storage_path: {
+        Args: { p_storage_path: string }
+        Returns: {
+          id: string
+          status: string
+        }[]
+      }
       get_next_diploma_serial: {
         Args: { p_sport_type: string; p_tenant_id: string }
         Returns: string
