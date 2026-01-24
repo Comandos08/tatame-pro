@@ -739,7 +739,66 @@ export const es: Record<TranslationKey, string> = {
   // Navegación - Eventos
   'nav.events': 'Eventos',
   
-  // Eventos
+  // Eventos - General
   'events.category': 'Categoría',
   'events.place': 'lugar',
+  'events.notFound': 'Evento no encontrado',
+  'events.backToEvents': 'Volver a eventos',
+  'events.dateTime': 'Fecha y Horario',
+  'events.location': 'Ubicación',
+  'events.selectCategoryToRegister': 'Selecciona una categoría para inscribirte',
+  'events.registered': 'inscritos',
+  'events.free': 'Gratis',
+  'events.full': 'Completo',
+  'events.registration': 'Inscripción',
+  'events.publicTitle': 'Eventos',
+  'events.publicDesc': 'Competiciones y seminarios',
+  'events.searchEvents': 'Buscar eventos...',
+  'events.noPublicEvents': 'Ningún evento disponible',
+  'events.noPublicEventsDesc': 'Nuevos eventos serán publicados pronto',
+  
+  // Eventos - Detalles Públicos
+  'events.details.title': 'Detalles del Evento',
+  'events.details.categories': 'Categorías',
+  'events.details.requirements': 'Requisitos y Reglas',
+  'events.details.price': 'Precio',
+  'events.details.participantsLimit': 'Límite de participantes',
+  'events.details.noLimit': 'Sin límite',
+  'events.details.registrationOpen': 'Inscripciones Abiertas',
+  'events.details.registrationClosed': 'Inscripciones No Disponibles',
+  'events.details.loginToRegister': 'Inicia sesión para inscribirte',
+  'events.details.registrationNotAvailable': 'Las inscripciones no están disponibles en este momento',
+  'events.details.req1': 'Inscripción sujeta a validación del organizador',
+  'events.details.req2': 'Pago obligatorio según categoría seleccionada',
+  'events.details.req3': 'Inscripciones abiertas solo cuando lo indique el estado del evento',
+  'events.details.req4': 'Resultados publicados después del cierre del evento',
+  
+  // Eventos - Acciones de Inscripción
+  'events.loginToRegister': 'Inicia sesión para inscribirte',
+  'events.registrationsClosed': 'Inscripciones cerradas',
+  'events.noCategoriesAvailable': 'Ninguna categoría disponible',
+  'events.selectCategory': 'Selecciona una categoría',
+  'events.register': 'Inscribirse',
+  'events.registeredIn': 'Inscrito en',
+  'events.cancelRegistration': 'Cancelar Inscripción',
+  'events.confirmCancellation': 'Confirmar Cancelación',
+  'events.cancellationWarning': '¿Estás seguro de que deseas cancelar tu inscripción? Esta acción no se puede deshacer.',
+  'events.confirmCancel': 'Sí, cancelar',
+  'events.registrationSuccess': '¡Inscripción realizada con éxito!',
+  'events.alreadyRegistered': 'Ya estás inscrito en esta categoría',
+  'events.registrationError': 'Error en la inscripción',
+  'events.cancellationSuccess': 'Inscripción cancelada',
+  'events.cancellationError': 'Error al cancelar inscripción',
+  
+  // Estado de Evento
+  'events.status.draft': 'Borrador',
+  'events.status.published': 'Publicado',
+  'events.status.registrationOpen': 'Inscripciones Abiertas',
+  'events.status.registrationClosed': 'Inscripciones Cerradas',
+  'events.status.ongoing': 'En Curso',
+  'events.status.finished': 'Finalizado',
+  'events.status.archived': 'Archivado',
+  
+  // Común - Adiciones
+  'common.tbd': 'Por definir',
 };

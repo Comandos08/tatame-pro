@@ -739,7 +739,66 @@ export const en: Record<TranslationKey, string> = {
   // Navigation - Events
   'nav.events': 'Events',
   
-  // Events
+  // Events - General
   'events.category': 'Category',
   'events.place': 'place',
+  'events.notFound': 'Event not found',
+  'events.backToEvents': 'Back to events',
+  'events.dateTime': 'Date and Time',
+  'events.location': 'Location',
+  'events.selectCategoryToRegister': 'Select a category to register',
+  'events.registered': 'registered',
+  'events.free': 'Free',
+  'events.full': 'Full',
+  'events.registration': 'Registration',
+  'events.publicTitle': 'Events',
+  'events.publicDesc': 'Competitions and seminars',
+  'events.searchEvents': 'Search events...',
+  'events.noPublicEvents': 'No events available',
+  'events.noPublicEventsDesc': 'New events will be published soon',
+  
+  // Events - Public Details
+  'events.details.title': 'Event Details',
+  'events.details.categories': 'Categories',
+  'events.details.requirements': 'Requirements and Rules',
+  'events.details.price': 'Price',
+  'events.details.participantsLimit': 'Participant limit',
+  'events.details.noLimit': 'No limit',
+  'events.details.registrationOpen': 'Registration Open',
+  'events.details.registrationClosed': 'Registration Unavailable',
+  'events.details.loginToRegister': 'Log in to register',
+  'events.details.registrationNotAvailable': 'Registration is not available at this time',
+  'events.details.req1': 'Registration subject to organizer validation',
+  'events.details.req2': 'Payment required according to selected category',
+  'events.details.req3': 'Registration open only when indicated by event status',
+  'events.details.req4': 'Results published after event ends',
+  
+  // Events - Registration Actions
+  'events.loginToRegister': 'Log in to register',
+  'events.registrationsClosed': 'Registrations closed',
+  'events.noCategoriesAvailable': 'No categories available',
+  'events.selectCategory': 'Select a category',
+  'events.register': 'Register',
+  'events.registeredIn': 'Registered in',
+  'events.cancelRegistration': 'Cancel Registration',
+  'events.confirmCancellation': 'Confirm Cancellation',
+  'events.cancellationWarning': 'Are you sure you want to cancel your registration? This action cannot be undone.',
+  'events.confirmCancel': 'Yes, cancel',
+  'events.registrationSuccess': 'Successfully registered!',
+  'events.alreadyRegistered': 'You are already registered in this category',
+  'events.registrationError': 'Registration error',
+  'events.cancellationSuccess': 'Registration cancelled',
+  'events.cancellationError': 'Error cancelling registration',
+  
+  // Event Status Labels
+  'events.status.draft': 'Draft',
+  'events.status.published': 'Published',
+  'events.status.registrationOpen': 'Registration Open',
+  'events.status.registrationClosed': 'Registration Closed',
+  'events.status.ongoing': 'Ongoing',
+  'events.status.finished': 'Finished',
+  'events.status.archived': 'Archived',
+  
+  // Common - Additions
+  'common.tbd': 'To be defined',
 };

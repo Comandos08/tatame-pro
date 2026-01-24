@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, MapPin, ArrowLeft, Users } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle } from 'lucide-react';
 
 import PublicHeader from '@/components/PublicHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EventStatusBadge } from '@/components/events/EventStatusBadge';
-import { EventRegistrationButton } from '@/components/events/EventRegistrationButton';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -77,9 +76,9 @@ export default function PublicEventDetails() {
 
   if (eventLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <PublicHeader />
-        <main className="container mx-auto px-4 py-8 max-w-4xl">
+        <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
           <Skeleton className="h-8 w-64 mb-4" />
           <Skeleton className="h-48 w-full" />
         </main>
@@ -89,11 +88,11 @@ export default function PublicEventDetails() {
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <PublicHeader />
-        <main className="container mx-auto px-4 py-8 max-w-4xl text-center">
+        <main className="container mx-auto px-4 py-8 max-w-4xl text-center flex-1">
           <h1 className="text-2xl font-bold mb-4">
-            {t('events.notFound' as any) || 'Evento não encontrado'}
+            {t('events.notFound')}
           </h1>
           <Button asChild>
             <Link to={`/${tenant?.slug}/events`}>{t('common.back')}</Link>
@@ -106,12 +105,13 @@ export default function PublicEventDetails() {
   const startDate = new Date(event.start_date);
   const endDate = new Date(event.end_date);
   const isSameDay = format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd');
+  const isRegistrationOpen = event.status === 'REGISTRATION_OPEN';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <PublicHeader />
       
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -121,7 +121,7 @@ export default function PublicEventDetails() {
           <Button variant="ghost" size="sm" asChild>
             <Link to={`/${tenant?.slug}/events`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              {t('events.backToEvents' as any) || 'Voltar aos eventos'}
+              {t('events.backToEvents')}
             </Link>
           </Button>
 
@@ -155,7 +155,7 @@ export default function PublicEventDetails() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  {t('events.dateTime' as any) || 'Data e Horário'}
+                  {t('events.dateTime')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -178,11 +178,11 @@ export default function PublicEventDetails() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  {t('events.location' as any) || 'Local'}
+                  {t('events.location')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="font-medium">{event.location || 'A definir'}</p>
+                <p className="font-medium">{event.location || t('common.tbd')}</p>
               </CardContent>
             </Card>
           </div>
@@ -191,7 +191,7 @@ export default function PublicEventDetails() {
           {event.description && (
             <Card>
               <CardHeader>
-                <CardTitle>{t('settings.description') || 'Descrição'}</CardTitle>
+                <CardTitle>{t('settings.description')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="whitespace-pre-wrap">{event.description}</p>
@@ -205,10 +205,10 @@ export default function PublicEventDetails() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  {t('events.categories' as any) || 'Categorias'}
+                  {t('events.details.categories')}
                 </CardTitle>
                 <CardDescription>
-                  {t('events.selectCategoryToRegister' as any) || 'Selecione uma categoria para se inscrever'}
+                  {t('events.selectCategoryToRegister')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -233,7 +233,11 @@ export default function PublicEventDetails() {
                             <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                               <Users className="h-3 w-3" />
                               <span>
-                                {count}{category.max_participants ? `/${category.max_participants}` : ''} {t('events.registered' as any) || 'inscritos'}
+                                {count}
+                                {category.max_participants 
+                                  ? `/${category.max_participants}` 
+                                  : ` — ${t('events.details.noLimit')}`
+                                } {t('events.registered')}
                               </span>
                             </div>
                           </div>
@@ -247,12 +251,12 @@ export default function PublicEventDetails() {
                               </p>
                             ) : (
                               <Badge variant="secondary">
-                                {t('events.free' as any) || 'Grátis'}
+                                {t('events.free')}
                               </Badge>
                             )}
                             {isFull && (
                               <Badge variant="destructive" className="mt-1">
-                                {t('events.full' as any) || 'Lotado'}
+                                {t('events.full')}
                               </Badge>
                             )}
                           </div>
@@ -265,22 +269,72 @@ export default function PublicEventDetails() {
             </Card>
           )}
 
-          {/* Registration Button */}
+          {/* Requirements Section */}
           <Card>
             <CardHeader>
-              <CardTitle>{t('events.registration' as any) || 'Inscrição'}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Info className="h-5 w-5" />
+                {t('events.details.requirements')}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <EventRegistrationButton
-                eventId={event.id}
-                eventStatus={event.status as EventStatus}
-                tenantId={event.tenant_id}
-                categories={categories}
-              />
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <CheckCircle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <span>{t('events.details.req1')}</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <CheckCircle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <span>{t('events.details.req2')}</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <CheckCircle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <span>{t('events.details.req3')}</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <CheckCircle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <span>{t('events.details.req4')}</span>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Registration CTA - Read Only */}
+          <Card className="border-2 border-dashed">
+            <CardContent className="py-6 text-center">
+              {isRegistrationOpen ? (
+              <>
+                  <Badge className="bg-primary/10 text-primary border-primary/20 mb-3">
+                    {t('events.details.registrationOpen')}
+                  </Badge>
+                  <p className="text-muted-foreground">
+                    {t('events.details.loginToRegister')}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Badge variant="secondary" className="mb-3">
+                    {t('events.details.registrationClosed')}
+                  </Badge>
+                  <p className="text-muted-foreground">
+                    {t('events.details.registrationNotAvailable')}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>
       </main>
+
+      {/* Footer */}
+      <footer className="py-8 border-t border-border mt-auto">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} {tenant?.name}. Powered by{' '}
+            <Link to="/" className="text-primary hover:underline">TATAME</Link>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
