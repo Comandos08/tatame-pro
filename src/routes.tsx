@@ -35,6 +35,10 @@ import TenantBilling from '@/pages/TenantBilling';
 import AthleteArea from '@/pages/AthleteArea';
 import TenantControl from '@/pages/TenantControl';
 import AthletePortal from '@/pages/AthletePortal';
+import EventsList from '@/pages/EventsList';
+import EventDetails from '@/pages/EventDetails';
+import PublicEventsList from '@/pages/PublicEventsList';
+import PublicEventDetails from '@/pages/PublicEventDetails';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -126,6 +130,8 @@ export function AppRoutes() {
         <Route path="verify/membership/:membershipId" element={<VerifyMembership />} />
         <Route path="academies" element={<PublicAcademies />} />
         <Route path="rankings" element={<PublicRankings />} />
+        <Route path="events" element={<PublicEventsList />} />
+        <Route path="events/:eventId" element={<PublicEventDetails />} />
         
         {/* Public membership routes */}
         <Route path="membership/new" element={<MembershipTypeSelector />} />
@@ -154,6 +160,8 @@ export function AppRoutes() {
         <Route path="app/me" element={<ProtectedRoute><AthleteArea /></ProtectedRoute>} />
         <Route path="app/help" element={<ProtectedRoute><TenantHelp /></ProtectedRoute>} />
         <Route path="app/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+        <Route path="app/events" element={<ProtectedRoute><EventsList /></ProtectedRoute>} />
+        <Route path="app/events/:eventId" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
         <Route path="app/*" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
       </Route>
 
