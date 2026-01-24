@@ -735,9 +735,68 @@ export const ptBR = {
   // Navegação - Eventos
   'nav.events': 'Eventos',
   
-  // Eventos
+  // Eventos - Geral
   'events.category': 'Categoria',
   'events.place': 'lugar',
+  'events.notFound': 'Evento não encontrado',
+  'events.backToEvents': 'Voltar aos eventos',
+  'events.dateTime': 'Data e Horário',
+  'events.location': 'Local',
+  'events.selectCategoryToRegister': 'Selecione uma categoria para se inscrever',
+  'events.registered': 'inscritos',
+  'events.free': 'Grátis',
+  'events.full': 'Lotado',
+  'events.registration': 'Inscrição',
+  'events.publicTitle': 'Eventos',
+  'events.publicDesc': 'Competições e seminários',
+  'events.searchEvents': 'Buscar eventos...',
+  'events.noPublicEvents': 'Nenhum evento disponível',
+  'events.noPublicEventsDesc': 'Novos eventos serão publicados em breve',
+  
+  // Eventos - Detalhes Públicos
+  'events.details.title': 'Detalhes do Evento',
+  'events.details.categories': 'Categorias',
+  'events.details.requirements': 'Requisitos e Regras',
+  'events.details.price': 'Valor',
+  'events.details.participantsLimit': 'Limite de participantes',
+  'events.details.noLimit': 'Sem limite',
+  'events.details.registrationOpen': 'Inscrições Abertas',
+  'events.details.registrationClosed': 'Inscrições Indisponíveis',
+  'events.details.loginToRegister': 'Faça login para se inscrever',
+  'events.details.registrationNotAvailable': 'As inscrições não estão disponíveis no momento',
+  'events.details.req1': 'Inscrição sujeita à validação do organizador',
+  'events.details.req2': 'Pagamento obrigatório conforme categoria selecionada',
+  'events.details.req3': 'Inscrições abertas apenas quando indicado pelo status do evento',
+  'events.details.req4': 'Resultados publicados após encerramento do evento',
+  
+  // Eventos - Ações de Inscrição
+  'events.loginToRegister': 'Faça login para se inscrever',
+  'events.registrationsClosed': 'Inscrições encerradas',
+  'events.noCategoriesAvailable': 'Nenhuma categoria disponível',
+  'events.selectCategory': 'Selecione uma categoria',
+  'events.register': 'Inscrever-se',
+  'events.registeredIn': 'Inscrito em',
+  'events.cancelRegistration': 'Cancelar Inscrição',
+  'events.confirmCancellation': 'Confirmar Cancelamento',
+  'events.cancellationWarning': 'Tem certeza que deseja cancelar sua inscrição? Esta ação não pode ser desfeita.',
+  'events.confirmCancel': 'Sim, cancelar',
+  'events.registrationSuccess': 'Inscrição realizada com sucesso!',
+  'events.alreadyRegistered': 'Você já está inscrito nesta categoria',
+  'events.registrationError': 'Erro ao realizar inscrição',
+  'events.cancellationSuccess': 'Inscrição cancelada',
+  'events.cancellationError': 'Erro ao cancelar inscrição',
+  
+  // Status de Evento
+  'events.status.draft': 'Rascunho',
+  'events.status.published': 'Publicado',
+  'events.status.registrationOpen': 'Inscrições Abertas',
+  'events.status.registrationClosed': 'Inscrições Encerradas',
+  'events.status.ongoing': 'Em Andamento',
+  'events.status.finished': 'Finalizado',
+  'events.status.archived': 'Arquivado',
+  
+  // Comum - Adições
+  'common.tbd': 'A definir',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
