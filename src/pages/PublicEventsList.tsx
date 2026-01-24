@@ -23,7 +23,7 @@ export default function PublicEventsList() {
   if (!tenant) return null;
 
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ['public-events', tenant.id],
+    queryKey: ['public-events', tenant.slug],
     queryFn: async () => {
       // Query with proper filters - RLS handles tenant isolation
       const { data, error } = await supabase
