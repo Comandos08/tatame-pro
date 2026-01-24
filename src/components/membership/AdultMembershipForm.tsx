@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
@@ -30,6 +31,7 @@ export function AdultMembershipForm() {
   const [searchParams] = useSearchParams();
   const { tenant } = useTenant();
   const { t } = useI18n();
+  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -118,89 +120,92 @@ export function AdultMembershipForm() {
   const handlePayment = async () => {
     if (!tenant || !athleteData) return;
 
+    // OBRIGATÓRIO: Exigir login antes de prosseguir
+    if (!isAuthenticated || !currentUser) {
+      sessionStorage.setItem('membershipFormData', JSON.stringify({
+        athleteData,
+        step: 2
+      }));
+      toast.info(t('membership.loginRequired'));
+      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/adult`);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // 1. Create athlete record
-      const { data: athlete, error: athleteError } = await supabase
-        .from('athletes')
-        .insert({
-          tenant_id: tenant.id,
-          full_name: athleteData.fullName,
-          birth_date: athleteData.birthDate,
-          national_id: athleteData.nationalId,
-          gender: athleteData.gender,
-          email: athleteData.email,
-          phone: athleteData.phone,
-          address_line1: athleteData.addressLine1,
-          address_line2: athleteData.addressLine2 || null,
-          city: athleteData.city,
-          state: athleteData.state,
-          postal_code: athleteData.postalCode,
-          country: athleteData.country,
-        })
-        .select()
-        .single();
+      // 1. Upload documentos para path temporário tmp/{userId}/{timestamp}/
+      const documentsUploaded: Array<{type: string; storage_path: string; file_type: string}> = [];
+      const timestamp = Date.now();
 
-      if (athleteError) throw athleteError;
-
-      // 2. Upload documents
       if (documents.idDocument) {
-        const fileName = `${tenant.id}/${athlete.id}/id_document_${Date.now()}`;
+        const storagePath = `tmp/${currentUser.id}/${timestamp}/id_document`;
         const { error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(fileName, documents.idDocument);
+          .upload(storagePath, documents.idDocument);
 
-        if (!uploadError) {
-          const { data: publicUrl } = supabase.storage
-            .from('documents')
-            .getPublicUrl(fileName);
-
-          await supabase.from('documents').insert({
-            tenant_id: tenant.id,
-            athlete_id: athlete.id,
-            type: 'ID_DOCUMENT',
-            file_url: publicUrl.publicUrl,
-            file_type: documents.idDocument.type,
-            file_size: documents.idDocument.size,
-          });
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast.error(t('membership.errorIdDocument'));
+          setIsLoading(false);
+          return;
         }
+
+        documentsUploaded.push({
+          type: 'ID_DOCUMENT',
+          storage_path: storagePath,
+          file_type: documents.idDocument.type,
+        });
       }
 
       if (documents.medicalCertificate) {
-        const fileName = `${tenant.id}/${athlete.id}/medical_${Date.now()}`;
+        const storagePath = `tmp/${currentUser.id}/${timestamp}/medical_certificate`;
         const { error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(fileName, documents.medicalCertificate);
+          .upload(storagePath, documents.medicalCertificate);
 
-        if (!uploadError) {
-          const { data: publicUrl } = supabase.storage
-            .from('documents')
-            .getPublicUrl(fileName);
-
-          await supabase.from('documents').insert({
-            tenant_id: tenant.id,
-            athlete_id: athlete.id,
-            type: 'MEDICAL_CERTIFICATE',
-            file_url: publicUrl.publicUrl,
-            file_type: documents.medicalCertificate.type,
-            file_size: documents.medicalCertificate.size,
-          });
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast.error(t('membership.errorGeneric'));
+          setIsLoading(false);
+          return;
         }
+
+        documentsUploaded.push({
+          type: 'MEDICAL_CERTIFICATE',
+          storage_path: storagePath,
+          file_type: documents.medicalCertificate.type,
+        });
       }
 
-      // 3. Create membership
+      // 2. Criar membership COM applicant_data (SEM athlete_id)
       const { data: membership, error: membershipError } = await supabase
         .from('memberships')
         .insert({
           tenant_id: tenant.id,
-          athlete_id: athlete.id,
+          athlete_id: null,
+          applicant_profile_id: currentUser.id,
+          applicant_data: {
+            full_name: athleteData.fullName,
+            birth_date: athleteData.birthDate,
+            national_id: athleteData.nationalId,
+            gender: athleteData.gender,
+            email: athleteData.email,
+            phone: athleteData.phone,
+            address_line1: athleteData.addressLine1,
+            address_line2: athleteData.addressLine2 || null,
+            city: athleteData.city,
+            state: athleteData.state,
+            postal_code: athleteData.postalCode,
+            country: athleteData.country,
+          },
+          documents_uploaded: documentsUploaded,
           status: 'DRAFT',
           type: 'FIRST_MEMBERSHIP',
           price_cents: MEMBERSHIP_PRICE_CENTS,
           currency: MEMBERSHIP_CURRENCY,
           payment_status: 'NOT_PAID',
-        })
+        } as any)
         .select()
         .single();
 
@@ -208,7 +213,7 @@ export function AdultMembershipForm() {
 
       setMembershipId(membership.id);
 
-      // 4. Create Stripe checkout session
+      // 3. Criar Stripe checkout session
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(
         'create-membership-checkout',
         {
@@ -224,7 +229,6 @@ export function AdultMembershipForm() {
 
       if (checkoutError) throw checkoutError;
 
-      // Handle specific error responses
       if (checkoutData?.error) {
         if (checkoutData.captchaRequired) {
           setCaptchaError(checkoutData.error);
@@ -241,7 +245,6 @@ export function AdultMembershipForm() {
       }
     } catch (error: any) {
       console.error('Error:', error);
-      // Show specific error message if available
       const errorMessage = error?.message || t('membership.errorGeneric');
       toast.error(errorMessage);
     } finally {

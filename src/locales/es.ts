@@ -119,6 +119,7 @@ export const es: Record<TranslationKey, string> = {
   'membership.securityVerification': 'Verificación de Seguridad',
   'membership.errorRateLimit': 'Demasiados intentos. Por favor, espere unos minutos.',
   'membership.errorCaptchaRequired': 'Por favor, complete la verificación de seguridad.',
+  'membership.loginRequired': 'Inicia sesión para continuar con el pago.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Afiliación de Atleta Menor',

@@ -117,6 +117,7 @@ export const ptBR = {
   'membership.securityVerification': 'Verificação de Segurança',
   'membership.errorRateLimit': 'Muitas tentativas. Aguarde alguns minutos.',
   'membership.errorCaptchaRequired': 'Por favor, complete a verificação de segurança.',
+  'membership.loginRequired': 'Faça login para continuar com o pagamento.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Filiação de Atleta Menor',

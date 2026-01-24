@@ -219,7 +219,7 @@ serve(async (req) => {
       );
     }
 
-    // Fetch membership with athlete and tenant data
+    // Fetch membership (pode ter ou não athlete)
     const { data: membership, error: membershipError } = await supabase
       .from("memberships")
       .select(`
@@ -238,18 +238,34 @@ serve(async (req) => {
       throw new Error("This membership has already been paid");
     }
 
-    const athlete = membership.athlete;
     const tenant = membership.tenant;
 
-    if (!athlete || !tenant) {
-      throw new Error("Invalid membership data");
+    if (!tenant) {
+      throw new Error("Invalid membership data: tenant not found");
     }
 
-    logStep("Creating checkout session", { membershipId, athleteEmail: athlete.email });
+    // Pegar email do athlete OU de applicant_data (parsing seguro)
+    let customerEmail: string | null = null;
+
+    if (membership.athlete && typeof membership.athlete === 'object' && 'email' in membership.athlete) {
+      customerEmail = membership.athlete.email as string;
+    } else if (
+      membership.applicant_data && 
+      typeof membership.applicant_data === 'object' && 
+      'email' in (membership.applicant_data as Record<string, unknown>)
+    ) {
+      customerEmail = (membership.applicant_data as Record<string, unknown>).email as string;
+    }
+
+    if (!customerEmail) {
+      throw new Error("Customer email not found");
+    }
+
+    logStep("Creating checkout session", { membershipId, customerEmail });
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
-      customer_email: athlete.email,
+      customer_email: customerEmail,
       line_items: [
         {
           price_data: {
@@ -269,7 +285,7 @@ serve(async (req) => {
       metadata: {
         membership_id: membershipId,
         tenant_id: tenant.id,
-        athlete_id: athlete.id,
+        athlete_id: membership.athlete?.id || null,
       },
     });
 
