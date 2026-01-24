@@ -802,6 +802,56 @@ export const ptBR = {
   
   // Comum - Adições
   'common.tbd': 'A definir',
+  'common.accessDenied': 'Você não tem permissão para acessar esta página',
+  'common.notFound': 'Não encontrado',
+  'common.value': 'Valor',
+  'common.academy': 'Academia',
+  'common.coach': 'Coach',
+  'common.location': 'Localização',
+  'common.noData': 'Sem dados disponíveis',
+  'common.noDocuments': 'Nenhum documento enviado',
+  'common.viewPdf': 'Ver PDF',
+  
+  // Approval
+  'approval.title': 'Aprovação de Filiações',
+  'approval.subtitle': 'Revise e aprove as filiações pendentes da',
+  'approval.pending': 'pendentes',
+  'approval.requestedAt': 'Solicitado em',
+  'approval.allCaughtUp': 'Tudo em dia!',
+  'approval.noApplications': 'Não há filiações pendentes de aprovação no momento.',
+  'approval.reviewTitle': 'Análise de Filiação',
+  'approval.athleteData': 'Dados do Candidato',
+  'approval.documentsUploaded': 'Documentos Enviados',
+  'approval.cardGenerated': 'Carteira já gerada para este atleta',
+  'approval.decisionAndLink': 'Decisão e Vínculo',
+  'approval.selectAcademyCoach': 'Defina a academia e coach do atleta antes de aprovar',
+  'approval.selectAcademy': 'Selecione a academia',
+  'approval.selectCoach': 'Selecione o coach',
+  'approval.notes': 'Observações (opcional)',
+  'approval.notesPlaceholder': 'Adicione observações sobre a análise...',
+  'approval.approve': 'Aprovar Filiação',
+  'approval.reject': 'Rejeitar',
+  'approval.confirmApprove': 'Confirmar Aprovação',
+  'approval.confirmApproveMessage': 'Você está prestes a aprovar a filiação de',
+  'approval.confirmReject': 'Confirmar Rejeição',
+  'approval.confirmRejectMessage': 'Você está prestes a rejeitar a filiação de',
+  'approval.rejectReason': 'Motivo da rejeição',
+  'approval.rejectReasonPlaceholder': 'Informe o motivo da rejeição...',
+  'approval.rejectReasonRequired': 'O motivo da rejeição é obrigatório',
+  'approval.successApprove': 'Filiação aprovada com sucesso!',
+  'approval.successReject': 'Filiação rejeitada',
+  'approval.errorApprove': 'Erro ao aprovar filiação',
+  'approval.errorReject': 'Erro ao rejeitar filiação',
+  
+  // Athlete
+  'athlete.digitalCard': 'Carteira Digital',
+  
+  // Membership form
+  'membership.form.fullName': 'Nome completo',
+  'membership.form.birthDate': 'Data de nascimento',
+  'membership.form.gender': 'Gênero',
+  'membership.form.nationalId': 'CPF/Documento',
+  'membership.form.address': 'Endereço',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

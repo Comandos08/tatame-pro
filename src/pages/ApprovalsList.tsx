@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, CreditCard, Calendar } from 'lucide-react';
+import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
@@ -20,7 +20,19 @@ import {
   PAYMENT_STATUS_LABELS,
 } from '@/types/membership';
 
-interface MembershipForApproval {
+// Type for applicant_data JSONB
+interface ApplicantData {
+  full_name: string;
+  email: string;
+  phone?: string;
+  birth_date?: string;
+  gender?: string;
+  national_id?: string;
+  city?: string;
+  state?: string;
+}
+
+interface MembershipApplication {
   id: string;
   status: MembershipStatus;
   payment_status: PaymentStatus;
@@ -29,11 +41,8 @@ interface MembershipForApproval {
   end_date: string | null;
   price_cents: number;
   currency: string;
-  athlete: {
-    id: string;
-    full_name: string;
-    email: string;
-  };
+  applicant_data: ApplicantData | null;
+  applicant_profile_id: string | null;
   academy: {
     id: string;
     name: string;
@@ -60,7 +69,7 @@ export default function ApprovalsList() {
     queryFn: async () => {
       if (!tenant || !currentUser) return [];
 
-      // First, get memberships pending review
+      // Query memberships with PENDING_REVIEW status using applicant_data
       let query = supabase
         .from('memberships')
         .select(`
@@ -72,8 +81,9 @@ export default function ApprovalsList() {
           end_date,
           price_cents,
           currency,
+          applicant_data,
+          applicant_profile_id,
           academy_id,
-          athlete:athletes(id, full_name, email),
           academy:academies(id, name)
         `)
         .eq('tenant_id', tenant.id)
@@ -113,7 +123,7 @@ export default function ApprovalsList() {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as unknown as MembershipForApproval[];
+      return data as unknown as MembershipApplication[];
     },
     enabled: !!tenant && !!currentUser && canApprove,
   });
@@ -130,16 +140,24 @@ export default function ApprovalsList() {
 
   // CSV columns for export
   const csvColumns = useMemo(() => [
-    { key: 'athlete', label: 'Atleta', format: (_: unknown, row: MembershipForApproval) => row.athlete?.full_name || '' },
-    { key: 'email', label: 'E-mail', format: (_: unknown, row: MembershipForApproval) => row.athlete?.email || '' },
+    { 
+      key: 'applicant', 
+      label: t('approval.athleteData'), 
+      format: (_: unknown, row: MembershipApplication) => row.applicant_data?.full_name || '' 
+    },
+    { 
+      key: 'email', 
+      label: 'E-mail', 
+      format: (_: unknown, row: MembershipApplication) => row.applicant_data?.email || '' 
+    },
     { key: 'status', label: 'Status', format: (v: MembershipStatus) => MEMBERSHIP_STATUS_LABELS[v] || v },
     { key: 'payment_status', label: 'Pagamento', format: (v: PaymentStatus) => PAYMENT_STATUS_LABELS[v] || v },
     { key: 'created_at', label: 'Data Solicitação', format: (v: string) => formatDateForCsv(v) },
     { key: 'start_date', label: 'Início', format: (v: string | null) => formatDateForCsv(v) },
     { key: 'end_date', label: 'Fim', format: (v: string | null) => formatDateForCsv(v) },
-    { key: 'academy', label: 'Academia', format: (_: unknown, row: MembershipForApproval) => row.academy?.name || '-' },
-    { key: 'price_cents', label: 'Valor', format: (v: number, row: MembershipForApproval) => formatCurrencyForCsv(v, row.currency) },
-  ], []);
+    { key: 'academy', label: 'Academia', format: (_: unknown, row: MembershipApplication) => row.academy?.name || '-' },
+    { key: 'price_cents', label: 'Valor', format: (v: number, row: MembershipApplication) => formatCurrencyForCsv(v, row.currency) },
+  ], [t]);
 
   if (!tenant) return null;
 
@@ -149,7 +167,7 @@ export default function ApprovalsList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta página</p>
+            <p className="text-muted-foreground">{t('common.accessDenied')}</p>
           </CardContent>
         </Card>
       </AppShell>
@@ -166,10 +184,10 @@ export default function ApprovalsList() {
         >
           <div>
             <h1 className="font-display text-2xl md:text-3xl font-bold">
-              Aprovação de Filiações
+              {t('approval.title')}
             </h1>
             <p className="text-muted-foreground">
-              Revise e aprove as filiações pendentes da {tenant.name}
+              {t('approval.subtitle')} {tenant.name}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -181,7 +199,7 @@ export default function ApprovalsList() {
             />
             <Badge variant="outline" className="w-fit">
               <Clock className="h-3 w-3 mr-1" />
-              {memberships?.length || 0} pendentes
+              {memberships?.length || 0} {t('approval.pending')}
             </Badge>
           </div>
         </motion.div>
@@ -194,7 +212,7 @@ export default function ApprovalsList() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Erro ao carregar filiações pendentes</p>
+              <p className="text-muted-foreground">{t('common.error')}</p>
             </CardContent>
           </Card>
         ) : memberships && memberships.length > 0 ? (
@@ -220,7 +238,7 @@ export default function ApprovalsList() {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <h3 className="font-medium flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            {membership.athlete?.full_name}
+                            {membership.applicant_data?.full_name || 'Nome não disponível'}
                           </h3>
                           <Badge variant="outline" className="text-xs">
                             #{membership.id.substring(0, 8).toUpperCase()}
@@ -228,7 +246,7 @@ export default function ApprovalsList() {
                         </div>
                         
                         <p className="text-sm text-muted-foreground mb-3">
-                          {membership.athlete?.email}
+                          {membership.applicant_data?.email || 'Email não disponível'}
                         </p>
                         
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -249,7 +267,7 @@ export default function ApprovalsList() {
                         
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          Solicitado em {formatDate(membership.created_at)}
+                          {t('approval.requestedAt')} {formatDate(membership.created_at)}
                         </div>
                       </div>
 
@@ -266,9 +284,9 @@ export default function ApprovalsList() {
               <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
                 <ClipboardCheck className="h-8 w-8 text-success" />
               </div>
-              <h3 className="font-display font-bold text-xl mb-2">Tudo em dia!</h3>
+              <h3 className="font-display font-bold text-xl mb-2">{t('approval.allCaughtUp')}</h3>
               <p className="text-muted-foreground text-sm max-w-md">
-                Não há filiações pendentes de aprovação no momento.
+                {t('approval.noApplications')}
               </p>
             </CardContent>
           </Card>
