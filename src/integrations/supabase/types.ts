@@ -711,6 +711,321 @@ export type Database = {
           },
         ]
       }
+      event_categories: {
+        Row: {
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          event_id: string
+          id: string
+          is_active: boolean | null
+          max_participants: number | null
+          name: string
+          price_cents: number | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean | null
+          max_participants?: number | null
+          name: string
+          price_cents?: number | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean | null
+          max_participants?: number | null
+          name?: string
+          price_cents?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_categories_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registrations: {
+        Row: {
+          athlete_id: string
+          category_id: string
+          created_at: string | null
+          event_id: string
+          id: string
+          notes: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          registered_by: string | null
+          status: Database["public"]["Enums"]["event_registration_status"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id: string
+          category_id: string
+          created_at?: string | null
+          event_id: string
+          id?: string
+          notes?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          registered_by?: string | null
+          status?: Database["public"]["Enums"]["event_registration_status"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          category_id?: string
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          notes?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          registered_by?: string | null
+          status?: Database["public"]["Enums"]["event_registration_status"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_registrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_results: {
+        Row: {
+          athlete_id: string
+          category_id: string
+          created_at: string | null
+          created_by: string | null
+          event_id: string
+          id: string
+          notes: string | null
+          position: number
+          tenant_id: string
+        }
+        Insert: {
+          athlete_id: string
+          category_id: string
+          created_at?: string | null
+          created_by?: string | null
+          event_id: string
+          id?: string
+          notes?: string | null
+          position: number
+          tenant_id: string
+        }
+        Update: {
+          athlete_id?: string
+          category_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          notes?: string | null
+          position?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_results_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_results_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes_public_verification"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_results_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_results_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          banner_url: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string
+          id: string
+          is_public: boolean
+          location: string | null
+          name: string
+          sport_type: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["event_status"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          banner_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date: string
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          name: string
+          sport_type?: string | null
+          start_date: string
+          status?: Database["public"]["Enums"]["event_status"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          banner_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          name?: string
+          sport_type?: string | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["event_status"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grading_levels: {
         Row: {
           code: string
@@ -1614,6 +1929,15 @@ export type Database = {
         | "MEDICAL_CERTIFICATE"
         | "ADDRESS_PROOF"
         | "OTHER"
+      event_registration_status: "PENDING" | "CONFIRMED" | "CANCELED"
+      event_status:
+        | "DRAFT"
+        | "PUBLISHED"
+        | "REGISTRATION_OPEN"
+        | "REGISTRATION_CLOSED"
+        | "ONGOING"
+        | "FINISHED"
+        | "ARCHIVED"
       gender_type: "MALE" | "FEMALE" | "OTHER"
       guardian_relationship: "PARENT" | "GUARDIAN" | "OTHER"
       membership_status:
@@ -1779,6 +2103,16 @@ export const Constants = {
         "MEDICAL_CERTIFICATE",
         "ADDRESS_PROOF",
         "OTHER",
+      ],
+      event_registration_status: ["PENDING", "CONFIRMED", "CANCELED"],
+      event_status: [
+        "DRAFT",
+        "PUBLISHED",
+        "REGISTRATION_OPEN",
+        "REGISTRATION_CLOSED",
+        "ONGOING",
+        "FINISHED",
+        "ARCHIVED",
       ],
       gender_type: ["MALE", "FEMALE", "OTHER"],
       guardian_relationship: ["PARENT", "GUARDIAN", "OTHER"],
