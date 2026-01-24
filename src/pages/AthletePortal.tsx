@@ -13,6 +13,7 @@ import { PaymentStatusCard } from '@/components/portal/PaymentStatusCard';
 import { DigitalCardSection } from '@/components/portal/DigitalCardSection';
 import { DiplomasListCard } from '@/components/portal/DiplomasListCard';
 import { GradingHistoryCard } from '@/components/portal/GradingHistoryCard';
+import { MyEventsCard } from '@/components/portal/MyEventsCard';
 
 interface AthleteData {
   id: string;
@@ -240,6 +241,15 @@ export default function AthletePortal() {
               <GradingHistoryCard gradings={gradings} />
             </motion.div>
           </div>
+
+          {/* Row 4: Meus Eventos */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} />
+          </motion.div>
         </div>
       </PortalAccessGate>
     </PortalLayout>

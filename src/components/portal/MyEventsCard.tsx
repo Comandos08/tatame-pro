@@ -21,6 +21,7 @@ interface MyEventsCardProps {
 interface RegistrationWithEvent {
   id: string;
   status: EventRegistrationStatus;
+  payment_status: string;
   created_at: string;
   event: {
     id: string;
@@ -47,6 +48,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
         .select(`
           id,
           status,
+          payment_status,
           created_at,
           event:events(id, name, start_date, location, status),
           category:event_categories(name)
@@ -62,6 +64,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
       return (data || []).map(item => ({
         id: item.id,
         status: item.status as EventRegistrationStatus,
+        payment_status: item.payment_status || 'PENDING',
         created_at: item.created_at,
         event: Array.isArray(item.event) ? item.event[0] : item.event,
         category: Array.isArray(item.category) ? item.category[0] : item.category,
@@ -131,6 +134,20 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
     );
   };
 
+  const getPaymentBadge = (status: string) => {
+    const configs: Record<string, { label: string; className: string }> = {
+      PAID: { label: t('portal.paymentPaid'), className: 'bg-green-500/10 text-green-600 dark:text-green-400' },
+      PENDING: { label: t('portal.paymentPending'), className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+      NOT_PAID: { label: t('portal.paymentNotPaid'), className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
+    };
+    const config = configs[status] || configs.NOT_PAID;
+    return (
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+    );
+  };
+
   const getPositionBadge = (position: number) => {
     const colors: Record<number, string> = {
       1: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30',
@@ -140,7 +157,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
     
     return (
       <Badge variant="outline" className={colors[position] || 'bg-muted'}>
-        {position}º {t('events.place' as any) || 'lugar'}
+        {position}º {t('events.place')}
       </Badge>
     );
   };
@@ -150,20 +167,20 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />
-          {t('portal.myEvents' as any) || 'Meus Eventos'}
+          {t('portal.myEvents')}
         </CardTitle>
         <CardDescription>
-          {t('portal.myEventsDesc' as any) || 'Suas inscrições e resultados em eventos'}
+          {t('portal.myEventsDesc')}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {registrations.length === 0 && results.length === 0 ? (
+      {registrations.length === 0 && results.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>{t('portal.noEvents' as any) || 'Você ainda não se inscreveu em nenhum evento'}</p>
+            <p>{t('portal.noEvents')}</p>
             <Button variant="link" asChild className="mt-2">
               <Link to={`/${tenantSlug}/events`}>
-                {t('portal.viewEvents' as any) || 'Ver eventos disponíveis'}
+                {t('portal.viewEvents')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -174,7 +191,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
             {registrations.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground">
-                  {t('portal.upcomingEvents' as any) || 'Próximos Eventos'}
+                  {t('portal.upcomingEvents')}
                 </h4>
                 {registrations.map((reg) => (
                   <div 
@@ -196,10 +213,13 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {t('events.category' as any) || 'Categoria'}: {reg.category?.name}
+                        {t('events.category')}: {reg.category?.name}
                       </p>
                     </div>
-                    {getStatusBadge(reg.status)}
+                    <div className="flex flex-col gap-1 items-end">
+                      {getStatusBadge(reg.status)}
+                      {getPaymentBadge(reg.payment_status)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -210,7 +230,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Trophy className="h-4 w-4" />
-                  {t('portal.myResults' as any) || 'Meus Resultados'}
+                  {t('portal.myResults')}
                 </h4>
                 {results.map((result: any) => (
                   <div 
@@ -231,7 +251,7 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
 
             <Button variant="outline" asChild className="w-full">
               <Link to={`/${tenantSlug}/events`}>
-                {t('portal.viewAllEvents' as any) || 'Ver todos os eventos'}
+                {t('portal.viewAllEvents')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
