@@ -320,11 +320,11 @@ async function handleCheckoutCompleted(
   // Get tenant_id and athlete_id for audit log
   const { data: membershipDetails } = await supabase
     .from("memberships")
-    .select("tenant_id, athlete_id")
+    .select("tenant_id, athlete_id, applicant_profile_id")
     .eq("id", membershipId)
     .single();
 
-  // Log payment success to audit
+  // Log payment success to audit (SEMPRE, independente de athlete_id)
   if (membershipDetails) {
     await createAuditLog(supabase, {
       event_type: AUDIT_EVENTS.MEMBERSHIP_PAID,
@@ -332,6 +332,7 @@ async function handleCheckoutCompleted(
       metadata: {
         membership_id: membershipId,
         athlete_id: membershipDetails.athlete_id,
+        applicant_profile_id: membershipDetails.applicant_profile_id,
         amount_cents: session.amount_total,
         currency: session.currency?.toUpperCase() || 'BRL',
         stripe_session_id: session.id,
@@ -342,52 +343,54 @@ async function handleCheckoutCompleted(
     });
   }
 
-  // Trigger digital card generation with retry (not fire-and-forget)
-  const cardResult = await callEdgeFunctionWithRetry(
-    supabaseUrl,
-    supabaseServiceKey,
-    "generate-digital-card",
-    { membershipId }
-  );
-  
-  if (!cardResult.success) {
-    // Log failure but don't throw - card can be regenerated later via admin action
-    // or when membership is approved
-    logStep("Digital card generation failed after retries - will be generated on approval", { 
-      membershipId,
-      error: cardResult.error 
-    });
+  // SÓ gerar card e enviar email se athlete existir
+  if (membershipDetails?.athlete_id) {
+    // Trigger digital card generation with retry
+    const cardResult = await callEdgeFunctionWithRetry(
+      supabaseUrl,
+      supabaseServiceKey,
+      "generate-digital-card",
+      { membershipId }
+    );
     
-    // Record the failure for monitoring
-    await createAuditLog(supabase, {
-      event_type: AUDIT_EVENTS.MEMBERSHIP_UPDATED,
-      tenant_id: membershipDetails?.tenant_id,
-      metadata: {
-        membership_id: membershipId,
-        action: 'card_generation_failed',
-        error: cardResult.error,
-        will_retry_on_approval: true,
-        source: 'stripe_webhook',
-      }
-    });
-  }
-
-  // Send notification to admin about new pending membership (with retry)
-  const emailResult = await callEdgeFunctionWithRetry(
-    supabaseUrl,
-    supabaseServiceKey,
-    "send-athlete-email",
-    { 
-      email_type: "NEW_MEMBERSHIP_PENDING",
-      membership_id: membershipId,
+    if (!cardResult.success) {
+      logStep("Digital card generation failed after retries", { 
+        membershipId,
+        error: cardResult.error 
+      });
+      
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.MEMBERSHIP_UPDATED,
+        tenant_id: membershipDetails?.tenant_id,
+        metadata: {
+          membership_id: membershipId,
+          action: 'card_generation_failed',
+          error: cardResult.error,
+          will_retry_on_approval: true,
+          source: 'stripe_webhook',
+        }
+      });
     }
-  );
-  
-  if (!emailResult.success) {
-    logStep("Failed to send pending membership email after retries", { 
-      membershipId,
-      error: emailResult.error 
-    });
+
+    // Send notification email
+    const emailResult = await callEdgeFunctionWithRetry(
+      supabaseUrl,
+      supabaseServiceKey,
+      "send-athlete-email",
+      { 
+        email_type: "NEW_MEMBERSHIP_PENDING",
+        membership_id: membershipId,
+      }
+    );
+    
+    if (!emailResult.success) {
+      logStep("Failed to send pending membership email after retries", { 
+        membershipId,
+        error: emailResult.error 
+      });
+    }
+  } else {
+    logStep("Skipping card generation and email - no athlete yet (pending approval)", { membershipId });
   }
 }
 

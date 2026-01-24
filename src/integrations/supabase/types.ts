@@ -1265,9 +1265,12 @@ export type Database = {
       memberships: {
         Row: {
           academy_id: string | null
-          athlete_id: string
+          applicant_data: Json | null
+          applicant_profile_id: string | null
+          athlete_id: string | null
           created_at: string | null
           currency: string
+          documents_uploaded: Json | null
           end_date: string | null
           id: string
           payment_status: Database["public"]["Enums"]["payment_status"]
@@ -1288,9 +1291,12 @@ export type Database = {
         }
         Insert: {
           academy_id?: string | null
-          athlete_id: string
+          applicant_data?: Json | null
+          applicant_profile_id?: string | null
+          athlete_id?: string | null
           created_at?: string | null
           currency?: string
+          documents_uploaded?: Json | null
           end_date?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -1311,9 +1317,12 @@ export type Database = {
         }
         Update: {
           academy_id?: string | null
-          athlete_id?: string
+          applicant_data?: Json | null
+          applicant_profile_id?: string | null
+          athlete_id?: string | null
           created_at?: string | null
           currency?: string
+          documents_uploaded?: Json | null
           end_date?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
