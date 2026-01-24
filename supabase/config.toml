@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.admin-billing-control]
 verify_jwt = false
+
+[functions.approve-membership]
+verify_jwt = false
+
+[functions.reject-membership]
+verify_jwt = false

@@ -13,16 +13,17 @@ import {
   Loader2,
   AlertCircle,
   CreditCard,
-  Clock,
   Building2,
   QrCode,
-  UserCheck
+  UserCheck,
+  MapPin
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,6 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSecureDocumentDownload } from '@/hooks/useSecureDocumentDownload';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -49,7 +49,30 @@ import {
   GenderType,
 } from '@/types/membership';
 
-interface MembershipDetails {
+// Type for applicant_data JSONB
+interface ApplicantData {
+  full_name: string;
+  birth_date: string;
+  national_id: string;
+  gender: GenderType;
+  email: string;
+  phone: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
+// Type for documents_uploaded JSONB
+interface DocumentUploaded {
+  type: string;
+  storage_path: string;
+  file_type: string;
+}
+
+interface MembershipApplication {
   id: string;
   status: MembershipStatus;
   payment_status: PaymentStatus;
@@ -63,17 +86,9 @@ interface MembershipDetails {
   reviewed_at: string | null;
   academy_id: string | null;
   preferred_coach_id: string | null;
-  athlete: {
-    id: string;
-    full_name: string;
-    email: string;
-    phone: string | null;
-    birth_date: string;
-    gender: GenderType;
-    national_id: string | null;
-    city: string | null;
-    state: string | null;
-  };
+  applicant_data: ApplicantData | null;
+  applicant_profile_id: string | null;
+  documents_uploaded: DocumentUploaded[] | null;
   academy: {
     id: string;
     name: string;
@@ -87,14 +102,6 @@ interface MembershipDetails {
     qr_code_image_url: string;
     pdf_url: string;
   }[];
-}
-
-interface Document {
-  id: string;
-  type: string;
-  file_url: string;
-  file_type: string | null;
-  created_at: string;
 }
 
 interface Academy {
@@ -120,13 +127,14 @@ export default function ApprovalDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
-  const { downloadDocument, isDownloading } = useSecureDocumentDownload();
+  const { t } = useI18n();
   
   const [reviewNotes, setReviewNotes] = useState('');
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [selectedAcademyId, setSelectedAcademyId] = useState<string>('');
   const [selectedCoachId, setSelectedCoachId] = useState<string>('');
+  const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
 
   const canApprove = isGlobalSuperadmin || 
     (tenant && (
@@ -156,7 +164,9 @@ export default function ApprovalDetails() {
           reviewed_at,
           academy_id,
           preferred_coach_id,
-          athlete:athletes(id, full_name, email, phone, birth_date, gender, national_id, city, state),
+          applicant_data,
+          applicant_profile_id,
+          documents_uploaded,
           academy:academies!academy_id(id, name),
           coach:coaches!preferred_coach_id(id, full_name),
           digital_cards(id, qr_code_image_url, pdf_url)
@@ -166,7 +176,7 @@ export default function ApprovalDetails() {
 
       if (error) throw error;
       
-      const result = data as unknown as MembershipDetails;
+      const result = data as unknown as MembershipApplication;
       
       // Initialize selections from existing data
       if (result?.academy_id) {
@@ -179,23 +189,6 @@ export default function ApprovalDetails() {
       return result;
     },
     enabled: !!membershipId,
-  });
-
-  const { data: documents } = useQuery({
-    queryKey: ['athlete-documents', membership?.athlete?.id],
-    queryFn: async () => {
-      if (!membership?.athlete?.id) return [];
-
-      const { data, error } = await supabase
-        .from('documents')
-        .select('id, type, file_url, file_type, created_at')
-        .eq('athlete_id', membership.athlete.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Document[];
-    },
-    enabled: !!membership?.athlete?.id,
   });
 
   // Fetch academies
@@ -230,152 +223,107 @@ export default function ApprovalDetails() {
     enabled: !!tenant?.id,
   });
 
+  // Download temporary document
+  const handleDownloadDocument = async (doc: DocumentUploaded) => {
+    setDownloadingDoc(doc.storage_path);
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(doc.storage_path);
+
+      if (error) throw error;
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.storage_path.split('/').pop() || 'document';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error:', err);
+      toast.error(t('common.error'));
+    } finally {
+      setDownloadingDoc(null);
+    }
+  };
+
+  // APPROVE via edge function
   const approveMutation = useMutation({
     mutationFn: async () => {
-      if (!membershipId || !currentUser || !membership) throw new Error('Missing data');
+      if (!membershipId) throw new Error('Missing data');
 
-      const now = new Date();
-      const startDate = now.toISOString().split('T')[0];
-      const endDate = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.access_token) {
+        throw new Error('Not authenticated');
+      }
 
-      // Update membership with academy and coach
-      const { error: updateError } = await supabase
-        .from('memberships')
-        .update({
-          status: 'APPROVED',
-          start_date: startDate,
-          end_date: endDate,
-          review_notes: reviewNotes || null,
-          reviewed_by_profile_id: currentUser.id,
-          reviewed_at: new Date().toISOString(),
-          academy_id: selectedAcademyId || null,
-          preferred_coach_id: selectedCoachId || null,
-        })
-        .eq('id', membershipId);
-
-      if (updateError) throw updateError;
-
-      // Create audit log entry for the approval
-      await supabase.from('audit_logs').insert({
-        event_type: 'MEMBERSHIP_APPROVED',
-        tenant_id: membership.athlete ? tenant?.id : null,
-        profile_id: currentUser.id,
-        metadata: {
-          membership_id: membershipId,
-          athlete_id: membership.athlete?.id,
-          athlete_name: membership.athlete?.full_name,
-          academy_id: selectedAcademyId || null,
-          coach_id: selectedCoachId || null,
-          reviewed_by: currentUser.id,
-          review_notes: reviewNotes || null,
-          start_date: startDate,
-          end_date: endDate,
-          occurred_at: new Date().toISOString(),
+      const { data, error } = await supabase.functions.invoke('approve-membership', {
+        body: {
+          membershipId,
+          academyId: selectedAcademyId || null,
+          coachId: selectedCoachId || null,
+          reviewNotes: reviewNotes || null,
         },
       });
 
-      // Update athlete's current academy and coach if this is their first/active membership
-      if (membership.athlete?.id && (selectedAcademyId || selectedCoachId)) {
-        const athleteUpdate: Record<string, string | null> = {};
-        if (selectedAcademyId) {
-          athleteUpdate.current_academy_id = selectedAcademyId;
-        }
-        if (selectedCoachId) {
-          athleteUpdate.current_main_coach_id = selectedCoachId;
-        }
-        
-        await supabase
-          .from('athletes')
-          .update(athleteUpdate)
-          .eq('id', membership.athlete.id);
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message);
       }
 
-      // Check if digital card already exists
-      const { data: existingCard } = await supabase
-        .from('digital_cards')
-        .select('id')
-        .eq('membership_id', membershipId)
-        .maybeSingle();
-
-      // If no card exists and payment is done, generate one
-      if (!existingCard && membership?.payment_status === 'PAID') {
-        try {
-          await supabase.functions.invoke('generate-digital-card', {
-            body: { membershipId },
-          });
-        } catch (cardError) {
-          console.error('Error generating digital card:', cardError);
-        }
-      }
-
-      // Send approval email to athlete
-      try {
-        await supabase.functions.invoke('send-athlete-email', {
-          body: { 
-            email_type: 'MEMBERSHIP_APPROVED',
-            membership_id: membershipId,
-          },
-        });
-      } catch (emailError) {
-        console.error('Error sending approval email:', emailError);
-        // Don't fail the approval if email fails
-      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['athletes-list'] });
       setIsApproveDialogOpen(false);
-      toast.success('Filiação aprovada com sucesso!');
+      toast.success(t('approval.successApprove'));
       navigate(`/${tenantSlug}/app/approvals`);
     },
     onError: (error) => {
-      toast.error('Erro ao aprovar filiação');
+      toast.error(t('approval.errorApprove'));
       console.error(error);
     },
   });
 
+  // REJECT via edge function
   const rejectMutation = useMutation({
     mutationFn: async () => {
-      if (!membershipId || !currentUser) throw new Error('Missing data');
+      if (!membershipId) throw new Error('Missing data');
 
-      const { error } = await supabase
-        .from('memberships')
-        .update({
-          status: 'CANCELLED',
-          review_notes: reviewNotes || 'Filiação rejeitada',
-          reviewed_by_profile_id: currentUser.id,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', membershipId);
+      if (!reviewNotes || reviewNotes.trim().length === 0) {
+        throw new Error(t('approval.rejectReasonRequired'));
+      }
 
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.access_token) {
+        throw new Error('Not authenticated');
+      }
 
-      // Create audit log entry for the rejection
-      await supabase.from('audit_logs').insert({
-        event_type: 'MEMBERSHIP_REJECTED',
-        tenant_id: membership?.athlete ? tenant?.id : null,
-        profile_id: currentUser.id,
-        metadata: {
-          membership_id: membershipId,
-          athlete_id: membership?.athlete?.id,
-          athlete_name: membership?.athlete?.full_name,
-          reviewed_by: currentUser.id,
-          review_notes: reviewNotes || 'Filiação rejeitada',
-          reason: reviewNotes || 'Rejected by reviewer',
-          occurred_at: new Date().toISOString(),
+      const { data, error } = await supabase.functions.invoke('reject-membership', {
+        body: {
+          membershipId,
+          reason: reviewNotes.trim(),
         },
       });
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message);
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
       setIsRejectDialogOpen(false);
-      toast.success('Filiação rejeitada');
+      toast.success(t('approval.successReject'));
       navigate(`/${tenantSlug}/app/approvals`);
     },
     onError: (error) => {
-      toast.error('Erro ao rejeitar filiação');
+      toast.error(error.message || t('approval.errorReject'));
       console.error(error);
     },
   });
@@ -414,7 +362,7 @@ export default function ApprovalDetails() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta página</p>
+            <p className="text-muted-foreground">{t('common.accessDenied')}</p>
           </CardContent>
         </Card>
       </AppShell>
@@ -423,6 +371,7 @@ export default function ApprovalDetails() {
 
   const digitalCard = membership?.digital_cards?.[0];
   const isPendingReview = membership?.status === 'PENDING_REVIEW';
+  const applicantData = membership?.applicant_data;
 
   return (
     <AppShell>
@@ -438,7 +387,7 @@ export default function ApprovalDetails() {
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para aprovações
+            {t('common.back')}
           </Button>
         </motion.div>
 
@@ -450,7 +399,7 @@ export default function ApprovalDetails() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Filiação não encontrada</p>
+              <p className="text-muted-foreground">{t('common.notFound')}</p>
             </CardContent>
           </Card>
         ) : (
@@ -465,7 +414,7 @@ export default function ApprovalDetails() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <CardTitle className="font-display text-2xl">
-                        Análise de Filiação
+                        {t('approval.reviewTitle')}
                       </CardTitle>
                       <CardDescription>
                         #{membership.id.substring(0, 8).toUpperCase()} - {tenant.name}
@@ -489,7 +438,7 @@ export default function ApprovalDetails() {
                         <Calendar className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Solicitado em</p>
+                        <p className="text-sm text-muted-foreground">{t('approval.requestedAt')}</p>
                         <p className="font-medium">{formatDate(membership.created_at)}</p>
                       </div>
                     </div>
@@ -498,7 +447,7 @@ export default function ApprovalDetails() {
                         <CreditCard className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Valor</p>
+                        <p className="text-sm text-muted-foreground">{t('common.value')}</p>
                         <p className="font-medium">{formatCurrency(membership.price_cents)}</p>
                       </div>
                     </div>
@@ -508,7 +457,7 @@ export default function ApprovalDetails() {
                           <Building2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Academia</p>
+                          <p className="text-sm text-muted-foreground">{t('common.academy')}</p>
                           <p className="font-medium">{membership.academy.name}</p>
                         </div>
                       </div>
@@ -519,7 +468,7 @@ export default function ApprovalDetails() {
             </motion.div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Athlete Info */}
+              {/* Applicant Info */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -529,53 +478,76 @@ export default function ApprovalDetails() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="h-5 w-5" />
-                      Dados do Atleta
+                      {t('approval.athleteData')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Nome completo</p>
-                      <p className="font-medium">{membership.athlete?.full_name}</p>
-                    </div>
-                    <Separator />
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Data de nascimento</p>
-                        <p className="font-medium">{formatDate(membership.athlete?.birth_date)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Gênero</p>
-                        <p className="font-medium">
-                          {GENDER_LABELS[membership.athlete?.gender]}
-                        </p>
-                      </div>
-                    </div>
-                    <Separator />
-                    <div>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Mail className="h-3 w-3" /> E-mail
-                      </p>
-                      <p className="font-medium">{membership.athlete?.email}</p>
-                    </div>
-                    {membership.athlete?.phone && (
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> Telefone
-                        </p>
-                        <p className="font-medium">{membership.athlete.phone}</p>
-                      </div>
-                    )}
-                    {membership.athlete?.national_id && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">CPF/Documento</p>
-                        <p className="font-medium">{membership.athlete.national_id}</p>
-                      </div>
-                    )}
-                    {(membership.athlete?.city || membership.athlete?.state) && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Localização</p>
-                        <p className="font-medium">
-                          {[membership.athlete.city, membership.athlete.state].filter(Boolean).join(', ')}
+                    {applicantData ? (
+                      <>
+                        <div>
+                          <p className="text-sm text-muted-foreground">{t('membership.form.fullName')}</p>
+                          <p className="font-medium">{applicantData.full_name}</p>
+                        </div>
+                        <Separator />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('membership.form.birthDate')}</p>
+                            <p className="font-medium">{formatDate(applicantData.birth_date)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('membership.form.gender')}</p>
+                            <p className="font-medium">
+                              {GENDER_LABELS[applicantData.gender] || applicantData.gender}
+                            </p>
+                          </div>
+                        </div>
+                        <Separator />
+                        <div>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Mail className="h-3 w-3" /> {t('common.email')}
+                          </p>
+                          <p className="font-medium">{applicantData.email}</p>
+                        </div>
+                        {applicantData.phone && (
+                          <div>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" /> {t('common.phone')}
+                            </p>
+                            <p className="font-medium">{applicantData.phone}</p>
+                          </div>
+                        )}
+                        {applicantData.national_id && (
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('membership.form.nationalId')}</p>
+                            <p className="font-medium">{applicantData.national_id}</p>
+                          </div>
+                        )}
+                        {(applicantData.city || applicantData.state) && (
+                          <div>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {t('common.location')}
+                            </p>
+                            <p className="font-medium">
+                              {[applicantData.city, applicantData.state].filter(Boolean).join(', ')}
+                            </p>
+                          </div>
+                        )}
+                        {applicantData.address_line1 && (
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('membership.form.address')}</p>
+                            <p className="font-medium text-sm">
+                              {applicantData.address_line1}
+                              {applicantData.address_line2 && `, ${applicantData.address_line2}`}
+                              {applicantData.postal_code && ` - ${applicantData.postal_code}`}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <User className="h-10 w-10 text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          {t('common.noData')}
                         </p>
                       </div>
                     )}
@@ -593,15 +565,15 @@ export default function ApprovalDetails() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      Documentos Enviados
+                      {t('approval.documentsUploaded')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {documents && documents.length > 0 ? (
+                    {membership.documents_uploaded && membership.documents_uploaded.length > 0 ? (
                       <div className="space-y-3">
-                        {documents.map((doc) => (
+                        {membership.documents_uploaded.map((doc, index) => (
                           <div 
-                            key={doc.id}
+                            key={index}
                             className="flex items-center justify-between p-3 rounded-lg border"
                           >
                             <div className="flex items-center gap-3">
@@ -611,17 +583,17 @@ export default function ApprovalDetails() {
                                   {DOCUMENT_TYPE_LABELS[doc.type] || doc.type}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  Enviado em {formatDate(doc.created_at)}
+                                  {doc.file_type}
                                 </p>
                               </div>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              disabled={isDownloading(doc.id)}
-                              onClick={() => downloadDocument(doc.id)}
+                              disabled={downloadingDoc === doc.storage_path}
+                              onClick={() => handleDownloadDocument(doc)}
                             >
-                              {isDownloading(doc.id) ? (
+                              {downloadingDoc === doc.storage_path ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <Download className="h-4 w-4" />
@@ -634,7 +606,7 @@ export default function ApprovalDetails() {
                       <div className="flex flex-col items-center justify-center py-8 text-center">
                         <FileText className="h-10 w-10 text-muted-foreground mb-2" />
                         <p className="text-sm text-muted-foreground">
-                          Nenhum documento enviado
+                          {t('common.noDocuments')}
                         </p>
                       </div>
                     )}
@@ -654,10 +626,10 @@ export default function ApprovalDetails() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <QrCode className="h-5 w-5" />
-                      Carteira Digital
+                      {t('athlete.digitalCard')}
                     </CardTitle>
                     <CardDescription>
-                      Carteira já gerada para este atleta
+                      {t('approval.cardGenerated')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -672,7 +644,7 @@ export default function ApprovalDetails() {
                         onClick={() => window.open(digitalCard.pdf_url, '_blank')}
                       >
                         <Download className="h-4 w-4 mr-2" />
-                        Ver PDF
+                        {t('common.viewPdf')}
                       </Button>
                     </div>
                   </CardContent>
@@ -691,20 +663,20 @@ export default function ApprovalDetails() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <UserCheck className="h-5 w-5" />
-                      Decisão e Vínculo
+                      {t('approval.decisionAndLink')}
                     </CardTitle>
                     <CardDescription>
-                      Defina a academia e coach do atleta antes de aprovar
+                      {t('approval.selectAcademyCoach')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Academy and Coach Selection */}
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="academy">Academia do Atleta</Label>
+                        <Label htmlFor="academy">{t('common.academy')}</Label>
                         <Select value={selectedAcademyId} onValueChange={setSelectedAcademyId}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione a academia" />
+                            <SelectValue placeholder={t('approval.selectAcademy')} />
                           </SelectTrigger>
                           <SelectContent>
                             {academies?.map((academy) => (
@@ -716,10 +688,10 @@ export default function ApprovalDetails() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="coach">Coach Responsável</Label>
+                        <Label htmlFor="coach">{t('common.coach')}</Label>
                         <Select value={selectedCoachId} onValueChange={setSelectedCoachId}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione o coach" />
+                            <SelectValue placeholder={t('approval.selectCoach')} />
                           </SelectTrigger>
                           <SelectContent>
                             {coaches?.map((coach) => (
@@ -735,10 +707,10 @@ export default function ApprovalDetails() {
                     <Separator />
                     
                     <div className="space-y-2">
-                      <Label htmlFor="notes">Observações (opcional)</Label>
+                      <Label htmlFor="notes">{t('approval.notes')}</Label>
                       <Textarea
                         id="notes"
-                        placeholder="Adicione observações sobre a análise..."
+                        placeholder={t('approval.notesPlaceholder')}
                         value={reviewNotes}
                         onChange={(e) => setReviewNotes(e.target.value)}
                         rows={3}
@@ -750,7 +722,7 @@ export default function ApprovalDetails() {
                         onClick={() => setIsApproveDialogOpen(true)}
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        Aprovar Filiação
+                        {t('approval.approve')}
                       </Button>
                       <Button 
                         variant="destructive"
@@ -758,7 +730,7 @@ export default function ApprovalDetails() {
                         onClick={() => setIsRejectDialogOpen(true)}
                       >
                         <XCircle className="h-4 w-4 mr-2" />
-                        Rejeitar
+                        {t('approval.reject')}
                       </Button>
                     </div>
                   </CardContent>
@@ -772,28 +744,28 @@ export default function ApprovalDetails() {
         <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Confirmar Aprovação</DialogTitle>
+              <DialogTitle>{t('approval.confirmApprove')}</DialogTitle>
               <DialogDescription>
-                Você está prestes a aprovar a filiação de {membership?.athlete?.full_name}.
+                {t('approval.confirmApproveMessage')} {applicantData?.full_name}.
                 {selectedAcademyId && academies && (
                   <span className="block mt-2">
-                    <strong>Academia:</strong> {academies.find(a => a.id === selectedAcademyId)?.name}
+                    <strong>{t('common.academy')}:</strong> {academies.find(a => a.id === selectedAcademyId)?.name}
                   </span>
                 )}
                 {selectedCoachId && coaches && (
                   <span className="block">
-                    <strong>Coach:</strong> {coaches.find(c => c.id === selectedCoachId)?.full_name}
+                    <strong>{t('common.coach')}:</strong> {coaches.find(c => c.id === selectedCoachId)?.full_name}
                   </span>
                 )}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}>
                 {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Confirmar Aprovação
+                {t('approval.confirmApprove')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -803,17 +775,16 @@ export default function ApprovalDetails() {
         <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Confirmar Rejeição</DialogTitle>
+              <DialogTitle>{t('approval.confirmReject')}</DialogTitle>
               <DialogDescription>
-                Você está prestes a rejeitar a filiação de {membership?.athlete?.full_name}.
-                Esta ação não pode ser desfeita.
+                {t('approval.confirmRejectMessage')} {applicantData?.full_name}.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
-              <Label htmlFor="reject-reason">Motivo da rejeição</Label>
+              <Label htmlFor="reject-reason">{t('approval.rejectReason')}</Label>
               <Textarea
                 id="reject-reason"
-                placeholder="Informe o motivo da rejeição..."
+                placeholder={t('approval.rejectReasonPlaceholder')}
                 value={reviewNotes}
                 onChange={(e) => setReviewNotes(e.target.value)}
                 rows={3}
@@ -821,15 +792,15 @@ export default function ApprovalDetails() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button 
                 variant="destructive" 
                 onClick={() => rejectMutation.mutate()} 
-                disabled={rejectMutation.isPending}
+                disabled={rejectMutation.isPending || !reviewNotes.trim()}
               >
                 {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Confirmar Rejeição
+                {t('approval.confirmReject')}
               </Button>
             </DialogFooter>
           </DialogContent>
