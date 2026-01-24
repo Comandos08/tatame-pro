@@ -726,4 +726,20 @@ export const en: Record<TranslationKey, string> = {
   'portal.paymentFailed': 'Failed',
   'portal.noDiplomas': 'No diplomas issued',
   'portal.noGradings': 'No gradings recorded',
+  
+  // Athlete Portal - Events
+  'portal.myEvents': 'My Events',
+  'portal.myEventsDesc': 'Your registrations and results in events',
+  'portal.noEvents': 'You have not registered for any events yet',
+  'portal.viewEvents': 'View available events',
+  'portal.viewAllEvents': 'View all events',
+  'portal.upcomingEvents': 'Upcoming Events',
+  'portal.myResults': 'My Results',
+  
+  // Navigation - Events
+  'nav.events': 'Events',
+  
+  // Events
+  'events.category': 'Category',
+  'events.place': 'place',
 };

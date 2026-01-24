@@ -722,6 +722,22 @@ export const ptBR = {
   'portal.paymentFailed': 'Falhou',
   'portal.noDiplomas': 'Nenhum diploma emitido',
   'portal.noGradings': 'Nenhuma graduação registrada',
+  
+  // Portal do Aluno - Eventos
+  'portal.myEvents': 'Meus Eventos',
+  'portal.myEventsDesc': 'Suas inscrições e resultados em eventos',
+  'portal.noEvents': 'Você ainda não se inscreveu em nenhum evento',
+  'portal.viewEvents': 'Ver eventos disponíveis',
+  'portal.viewAllEvents': 'Ver todos os eventos',
+  'portal.upcomingEvents': 'Próximos Eventos',
+  'portal.myResults': 'Meus Resultados',
+  
+  // Navegação - Eventos
+  'nav.events': 'Eventos',
+  
+  // Eventos
+  'events.category': 'Categoria',
+  'events.place': 'lugar',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
