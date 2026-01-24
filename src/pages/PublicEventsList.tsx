@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Calendar, Search } from 'lucide-react';
@@ -18,22 +19,24 @@ export default function PublicEventsList() {
   const { t } = useI18n();
   const [search, setSearch] = React.useState('');
 
+  // Guard clause - tenant required
+  if (!tenant) return null;
+
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ['public-events', tenant?.id],
+    queryKey: ['public-events', tenant.id],
     queryFn: async () => {
-      if (!tenant?.id) return [];
-      
-      // RLS will filter to only public events with valid status
+      // Query with proper filters - RLS handles tenant isolation
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .eq('tenant_id', tenant.id)
+        .eq('is_public', true)
+        .not('status', 'in', '(DRAFT,ARCHIVED)')
         .order('start_date', { ascending: true });
       
       if (error) throw error;
       return data as Event[];
     },
-    enabled: !!tenant?.id,
+    enabled: !!tenant.id,
   });
 
   const filteredEvents = events.filter(event =>
@@ -47,10 +50,10 @@ export default function PublicEventsList() {
   const pastEvents = filteredEvents.filter(e => new Date(e.end_date) < now);
 
   return (
-    <div className="min-h-screen bg-background">
-      <PublicHeader />
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
       
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-8 max-w-6xl flex-1">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -58,12 +61,17 @@ export default function PublicEventsList() {
         >
           {/* Header */}
           <div className="text-center">
-            <h1 className="text-3xl font-display font-bold flex items-center justify-center gap-3">
-              <Calendar className="h-8 w-8" />
-              {t('events.publicTitle' as any) || 'Eventos'}
+            <div 
+              className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4"
+              style={{ backgroundColor: `${tenant.primaryColor}20` }}
+            >
+              <Calendar className="h-8 w-8" style={{ color: tenant.primaryColor }} />
+            </div>
+            <h1 className="text-3xl font-display font-bold">
+              {t('events.publicTitle')}
             </h1>
             <p className="text-muted-foreground mt-2">
-              {t('events.publicDesc' as any) || `Competições e seminários da ${tenant?.name || 'organização'}`}
+              {t('events.publicDesc')} — {tenant.name}
             </p>
           </div>
 
@@ -73,7 +81,7 @@ export default function PublicEventsList() {
               <div className="relative max-w-md mx-auto">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder={t('events.searchEvents' as any) || 'Buscar eventos...'}
+                  placeholder={t('events.searchEvents')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
@@ -97,16 +105,25 @@ export default function PublicEventsList() {
             </div>
           )}
 
+          {/* Results counter */}
+          {!isLoading && filteredEvents.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {filteredEvents.length} {filteredEvents.length === 1 
+                ? t('events.eventFound') 
+                : t('events.eventsFound')}
+            </p>
+          )}
+
           {/* No events */}
           {!isLoading && events.length === 0 && (
             <Card>
               <CardContent className="py-12 text-center">
                 <Calendar className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
                 <h3 className="mt-4 text-lg font-medium">
-                  {t('events.noPublicEvents' as any) || 'Nenhum evento disponível'}
+                  {t('events.noPublicEvents')}
                 </h3>
                 <p className="text-muted-foreground mt-2">
-                  {t('events.noPublicEventsDesc' as any) || 'Novos eventos serão publicados em breve'}
+                  {t('events.noPublicEventsDesc')}
                 </p>
               </CardContent>
             </Card>
@@ -116,14 +133,14 @@ export default function PublicEventsList() {
           {upcomingEvents.length > 0 && (
             <section>
               <h2 className="text-xl font-semibold mb-4">
-                {t('events.upcomingEvents' as any) || 'Próximos Eventos'}
+                {t('events.upcomingEvents')}
               </h2>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {upcomingEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     event={event}
-                    tenantSlug={tenant?.slug || ''}
+                    tenantSlug={tenant.slug}
                     isAdmin={false}
                   />
                 ))}
@@ -135,14 +152,14 @@ export default function PublicEventsList() {
           {pastEvents.length > 0 && (
             <section>
               <h2 className="text-xl font-semibold mb-4 text-muted-foreground">
-                {t('events.pastEvents' as any) || 'Eventos Anteriores'}
+                {t('events.pastEvents')}
               </h2>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {pastEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     event={event}
-                    tenantSlug={tenant?.slug || ''}
+                    tenantSlug={tenant.slug}
                     isAdmin={false}
                   />
                 ))}
@@ -151,6 +168,16 @@ export default function PublicEventsList() {
           )}
         </motion.div>
       </main>
+
+      {/* Footer */}
+      <footer className="py-8 border-t border-border mt-auto">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} {tenant.name}. Powered by{' '}
+            <Link to="/" className="text-primary hover:underline">TATAME</Link>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

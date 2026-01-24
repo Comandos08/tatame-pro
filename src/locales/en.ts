@@ -756,6 +756,10 @@ export const en: Record<TranslationKey, string> = {
   'events.searchEvents': 'Search events...',
   'events.noPublicEvents': 'No events available',
   'events.noPublicEventsDesc': 'New events will be published soon',
+  'events.upcomingEvents': 'Upcoming Events',
+  'events.pastEvents': 'Past Events',
+  'events.eventFound': 'event found',
+  'events.eventsFound': 'events found',
   
   // Events - Public Details
   'events.details.title': 'Event Details',

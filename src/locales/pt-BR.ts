@@ -752,6 +752,10 @@ export const ptBR = {
   'events.searchEvents': 'Buscar eventos...',
   'events.noPublicEvents': 'Nenhum evento disponível',
   'events.noPublicEventsDesc': 'Novos eventos serão publicados em breve',
+  'events.upcomingEvents': 'Próximos Eventos',
+  'events.pastEvents': 'Eventos Anteriores',
+  'events.eventFound': 'evento encontrado',
+  'events.eventsFound': 'eventos encontrados',
   
   // Eventos - Detalhes Públicos
   'events.details.title': 'Detalhes do Evento',
