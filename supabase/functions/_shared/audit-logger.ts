@@ -50,6 +50,10 @@ export const AUDIT_EVENTS = {
   
   // Card events
   DIGITAL_CARD_GENERATED: 'DIGITAL_CARD_GENERATED',
+  
+  // Storage cleanup events
+  TMP_DOCUMENT_CLEANED: 'TMP_DOCUMENT_CLEANED',
+  TMP_DOCUMENT_CLEANUP_RUN: 'TMP_DOCUMENT_CLEANUP_RUN',
 } as const;
 
 export type AuditEventType = typeof AUDIT_EVENTS[keyof typeof AUDIT_EVENTS];
