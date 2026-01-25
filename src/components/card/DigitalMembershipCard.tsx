@@ -163,7 +163,7 @@ export function DigitalMembershipCard({
           {athletePhoto ? (
             <img
               src={athletePhoto}
-              alt={athleteName}
+              alt={t('portal.athletePhoto' as any) || athleteName}
               className="h-24 w-24 rounded-full object-cover border-4 border-primary/20"
             />
           ) : (

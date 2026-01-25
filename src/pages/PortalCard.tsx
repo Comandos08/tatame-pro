@@ -15,6 +15,7 @@ import { PortalLayout } from '@/layouts/PortalLayout';
 import { PortalAccessGate } from '@/components/portal/PortalAccessGate';
 import { DigitalMembershipCard } from '@/components/card/DigitalMembershipCard';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
+import { useAthletePhoto } from '@/hooks/useAthletePhoto';
 
 interface AthleteData {
   id: string;
@@ -95,6 +96,9 @@ export default function PortalCard() {
     enabled: !!membership?.id,
   });
 
+  // Query athlete photo from storage
+  const { data: athletePhoto } = useAthletePhoto(athlete?.id);
+
   const isLoading = athleteLoading || membershipLoading || cardLoading;
 
   if (!tenant) return null;
@@ -154,8 +158,7 @@ export default function PortalCard() {
           >
             <DigitalMembershipCard
               athleteName={athlete?.full_name || ''}
-              athletePhoto={null}
-              
+              athletePhoto={athletePhoto}
               tenantName={tenant.name}
               tenantLogo={tenant.logoUrl}
               tenantSlug={tenant.slug}

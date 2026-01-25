@@ -993,6 +993,20 @@ export const ptBR = {
   // Common additions
   'common.all': 'Todos',
   'common.copied': 'Copiado!',
+  
+  // P4.3 + P4.4 — Event Images & Athlete Photo
+  'events.coverImage': 'Imagem do Evento',
+  'events.coverImageDesc': 'Imagem de capa (16:9)',
+  'events.uploadImage': 'Enviar imagem',
+  'events.replaceImage': 'Substituir',
+  'events.removeImage': 'Remover',
+  'events.imageUploadSuccess': 'Imagem enviada!',
+  'events.imageUploadError': 'Erro ao enviar imagem',
+  'events.imageRemoveSuccess': 'Imagem removida',
+  'events.imageRemoveError': 'Erro ao remover',
+  'events.imageTypeError': 'Use PNG, JPG ou WebP',
+  'events.imageSizeError': 'Máximo 5MB',
+  'portal.athletePhoto': 'Foto do atleta',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
