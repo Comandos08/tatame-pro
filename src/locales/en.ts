@@ -747,6 +747,39 @@ export const en: Record<TranslationKey, string> = {
   // Navigation - Events
   'nav.events': 'Events',
   
+  // Events - Admin
+  'events.title': 'Events',
+  'events.titleDesc': 'Manage competitions and seminars',
+  'events.allStatuses': 'All statuses',
+  'events.noEvents': 'No events found',
+  'events.noEventsDesc': 'Create your first event to get started',
+  'events.createEvent': 'Create Event',
+  'events.changeStatus': 'Change Status',
+  
+  // Events - Visibility
+  'events.publicVisibility': 'Event Visibility',
+  'events.visibleToPublic': 'Event visible on public portal',
+  'events.hiddenFromPublic': 'Event hidden from public portal',
+  
+  // Events - Categories
+  'events.categories': 'Categories',
+  'events.categoriesDesc': 'Categories available for registration',
+  'events.addCategory': 'Add Category',
+  'events.noCategories': 'No categories created',
+  'events.price': 'Price',
+  'events.maxParticipants': 'Max Participants',
+  
+  // Events - Registrations
+  'events.registrationsList': 'Registrant List',
+  'events.registrationsTotal': 'total registrations',
+  'events.noRegistrations': 'No registrations yet',
+  'events.confirm': 'Confirm',
+  
+  // Events - Results
+  'events.results': 'Results',
+  'events.resultsDesc': 'Record event results (once saved, cannot be changed)',
+  'events.resultsFeatureComingSoon': 'Results feature under development',
+  
   // Events - General
   'events.category': 'Category',
   'events.place': 'place',
@@ -813,6 +846,13 @@ export const en: Record<TranslationKey, string> = {
   'events.status.ongoing': 'Ongoing',
   'events.status.finished': 'Finished',
   'events.status.archived': 'Archived',
+  
+  // Events - Status Transitions
+  'events.noTransitionsAvailable': 'Final state',
+  'events.confirmStatusChange': 'Confirm Status Change',
+  'events.statusChangeWarning': 'This action cannot be undone. The event status will change from',
+  'events.description': 'About the Event',
+  'common.to': 'to',
   
   // Common - Additions
   'common.tbd': 'To be defined',
@@ -929,7 +969,6 @@ export const en: Record<TranslationKey, string> = {
   'events.filterWithResults': 'With Results',
   'events.noEventsYet': 'You haven\'t participated in any events yet',
   'events.noEventsYetDesc': 'Check out available events and register',
-  'events.results': 'Results',
   'events.registration.pending': 'Pending',
   'events.registration.confirmed': 'Confirmed',
   

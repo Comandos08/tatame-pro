@@ -43,7 +43,7 @@ export function EventStatusTransition({
       <div className="flex items-center gap-2">
         <EventStatusBadge status={currentStatus} />
         <span className="text-xs text-muted-foreground">
-          ({t('events.noTransitionsAvailable' as any) || 'Estado final'})
+          ({t('events.noTransitionsAvailable')})
         </span>
       </div>
     );
@@ -78,7 +78,7 @@ export function EventStatusTransition({
               disabled={disabled || isLoading}
               className="gap-1"
             >
-              {t('events.changeStatus' as any) || 'Alterar'}
+              {t('events.changeStatus')}
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -102,13 +102,12 @@ export function EventStatusTransition({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-warning" />
-              {t('events.confirmStatusChange' as any) || 'Confirmar Alteração de Status'}
+              {t('events.confirmStatusChange')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t('events.statusChangeWarning' as any) || 
-                'Esta ação não pode ser desfeita. O status do evento será alterado de'}{' '}
+              {t('events.statusChangeWarning')}{' '}
               <strong>{getTransitionLabel(currentStatus)}</strong>{' '}
-              {t('common.to' as any) || 'para'}{' '}
+              {t('common.to')}{' '}
               <strong>{confirmDialog && getTransitionLabel(confirmDialog)}</strong>.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -120,7 +119,7 @@ export function EventStatusTransition({
               onClick={() => confirmDialog && handleTransition(confirmDialog)}
               disabled={isLoading}
             >
-              {isLoading ? t('common.loading') : t('common.confirm' as any) || 'Confirmar'}
+              {isLoading ? t('common.loading') : t('common.save')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -743,6 +743,39 @@ export const ptBR = {
   // Navegação - Eventos
   'nav.events': 'Eventos',
   
+  // Eventos - Admin
+  'events.title': 'Eventos',
+  'events.titleDesc': 'Gerencie competições e seminários',
+  'events.allStatuses': 'Todos os status',
+  'events.noEvents': 'Nenhum evento encontrado',
+  'events.noEventsDesc': 'Crie seu primeiro evento para começar',
+  'events.createEvent': 'Criar Evento',
+  'events.changeStatus': 'Alterar Status',
+  
+  // Eventos - Visibilidade
+  'events.publicVisibility': 'Visibilidade do Evento',
+  'events.visibleToPublic': 'Evento visível no portal público',
+  'events.hiddenFromPublic': 'Evento oculto do portal público',
+  
+  // Eventos - Categorias
+  'events.categories': 'Categorias',
+  'events.categoriesDesc': 'Categorias disponíveis para inscrição',
+  'events.addCategory': 'Adicionar Categoria',
+  'events.noCategories': 'Nenhuma categoria criada',
+  'events.price': 'Valor',
+  'events.maxParticipants': 'Máx. Participantes',
+  
+  // Eventos - Inscrições
+  'events.registrationsList': 'Lista de Inscritos',
+  'events.registrationsTotal': 'inscrições no total',
+  'events.noRegistrations': 'Nenhuma inscrição ainda',
+  'events.confirm': 'Confirmar',
+  
+  // Eventos - Resultados
+  'events.results': 'Resultados',
+  'events.resultsDesc': 'Registre os resultados do evento (uma vez salvos, não podem ser alterados)',
+  'events.resultsFeatureComingSoon': 'Funcionalidade de resultados em desenvolvimento',
+  
   // Eventos - Geral
   'events.category': 'Categoria',
   'events.place': 'lugar',
@@ -809,6 +842,13 @@ export const ptBR = {
   'events.status.ongoing': 'Em Andamento',
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Arquivado',
+  
+  // Eventos - Transições de Status
+  'events.noTransitionsAvailable': 'Estado final',
+  'events.confirmStatusChange': 'Confirmar Alteração de Status',
+  'events.statusChangeWarning': 'Esta ação não pode ser desfeita. O status do evento será alterado de',
+  'events.description': 'Sobre o Evento',
+  'common.to': 'para',
   
   // Comum - Adições
   'common.tbd': 'A definir',
@@ -925,7 +965,6 @@ export const ptBR = {
   'events.filterWithResults': 'Com Resultado',
   'events.noEventsYet': 'Você ainda não participou de nenhum evento',
   'events.noEventsYetDesc': 'Confira os eventos disponíveis e faça sua inscrição',
-  'events.results': 'Resultados',
   'events.registration.pending': 'Pendente',
   'events.registration.confirmed': 'Confirmado',
   

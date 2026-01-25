@@ -747,6 +747,39 @@ export const es: Record<TranslationKey, string> = {
   // Navegación - Eventos
   'nav.events': 'Eventos',
   
+  // Eventos - Admin
+  'events.title': 'Eventos',
+  'events.titleDesc': 'Gestiona competiciones y seminarios',
+  'events.allStatuses': 'Todos los estados',
+  'events.noEvents': 'Ningún evento encontrado',
+  'events.noEventsDesc': 'Crea tu primer evento para comenzar',
+  'events.createEvent': 'Crear Evento',
+  'events.changeStatus': 'Cambiar Estado',
+  
+  // Eventos - Visibilidad
+  'events.publicVisibility': 'Visibilidad del Evento',
+  'events.visibleToPublic': 'Evento visible en el portal público',
+  'events.hiddenFromPublic': 'Evento oculto del portal público',
+  
+  // Eventos - Categorías
+  'events.categories': 'Categorías',
+  'events.categoriesDesc': 'Categorías disponibles para inscripción',
+  'events.addCategory': 'Agregar Categoría',
+  'events.noCategories': 'Ninguna categoría creada',
+  'events.price': 'Precio',
+  'events.maxParticipants': 'Máx. Participantes',
+  
+  // Eventos - Inscripciones
+  'events.registrationsList': 'Lista de Inscritos',
+  'events.registrationsTotal': 'inscripciones en total',
+  'events.noRegistrations': 'Ninguna inscripción aún',
+  'events.confirm': 'Confirmar',
+  
+  // Eventos - Resultados
+  'events.results': 'Resultados',
+  'events.resultsDesc': 'Registra los resultados del evento (una vez guardados, no pueden ser modificados)',
+  'events.resultsFeatureComingSoon': 'Funcionalidad de resultados en desarrollo',
+  
   // Eventos - General
   'events.category': 'Categoría',
   'events.place': 'lugar',
@@ -813,6 +846,13 @@ export const es: Record<TranslationKey, string> = {
   'events.status.ongoing': 'En Curso',
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Archivado',
+  
+  // Eventos - Transiciones de Estado
+  'events.noTransitionsAvailable': 'Estado final',
+  'events.confirmStatusChange': 'Confirmar Cambio de Estado',
+  'events.statusChangeWarning': 'Esta acción no se puede deshacer. El estado del evento cambiará de',
+  'events.description': 'Acerca del Evento',
+  'common.to': 'a',
   
   // Común - Adiciones
   'common.tbd': 'Por definir',
@@ -929,7 +969,6 @@ export const es: Record<TranslationKey, string> = {
   'events.filterWithResults': 'Con Resultados',
   'events.noEventsYet': 'Aún no has participado en ningún evento',
   'events.noEventsYetDesc': 'Consulta los eventos disponibles y regístrate',
-  'events.results': 'Resultados',
   'events.registration.pending': 'Pendiente',
   'events.registration.confirmed': 'Confirmado',
   

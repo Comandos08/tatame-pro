@@ -97,10 +97,10 @@ export default function EventsList() {
           <div>
             <h1 className="text-2xl font-display font-bold flex items-center gap-2">
               <Calendar className="h-6 w-6" />
-              {t('events.title' as any) || 'Eventos'}
+              {t('events.title')}
             </h1>
             <p className="text-muted-foreground">
-              {t('events.titleDesc' as any) || 'Gerencie competições e seminários'}
+              {t('events.titleDesc')}
             </p>
           </div>
           <CreateEventDialog />
@@ -113,7 +113,7 @@ export default function EventsList() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder={t('events.searchEvents' as any) || 'Buscar eventos...'}
+                  placeholder={t('events.searchEvents')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
@@ -128,7 +128,7 @@ export default function EventsList() {
                   <SelectValue placeholder={t('common.filter')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">{t('events.allStatuses' as any) || 'Todos os status'}</SelectItem>
+                  <SelectItem value="ALL">{t('events.allStatuses')}</SelectItem>
                   {Object.entries(EVENT_STATUS_CONFIG).map(([key, config]) => (
                     <SelectItem key={key} value={key}>
                       {config.label}
@@ -160,15 +160,15 @@ export default function EventsList() {
             <CardContent className="py-12 text-center">
               <Calendar className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
               <h3 className="mt-4 text-lg font-medium">
-                {t('events.noEvents' as any) || 'Nenhum evento encontrado'}
+                {t('events.noEvents')}
               </h3>
               <p className="text-muted-foreground mt-2">
-                {t('events.noEventsDesc' as any) || 'Crie seu primeiro evento para começar'}
+                {t('events.noEventsDesc')}
               </p>
               <CreateEventDialog>
                 <Button className="mt-4">
                   <Plus className="mr-2 h-4 w-4" />
-                  {t('events.createEvent' as any) || 'Criar Evento'}
+                  {t('events.createEvent')}
                 </Button>
               </CreateEventDialog>
             </CardContent>
