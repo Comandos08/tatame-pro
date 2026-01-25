@@ -126,13 +126,17 @@ export default function PublicEventDetails() {
           </Button>
 
           {/* Banner */}
-          {event.banner_url && (
+          {event.banner_url ? (
             <div className="aspect-video w-full rounded-lg overflow-hidden">
               <img 
                 src={event.banner_url} 
                 alt={event.name}
                 className="w-full h-full object-cover"
               />
+            </div>
+          ) : (
+            <div className="aspect-video w-full rounded-lg bg-muted/50 flex items-center justify-center">
+              <Calendar className="h-16 w-16 text-muted-foreground/30" />
             </div>
           )}
 

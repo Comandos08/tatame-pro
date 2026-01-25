@@ -45,6 +45,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { cn } from '@/lib/utils';
+import { EventImageUpload } from './EventImageUpload';
 
 const formSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
@@ -66,6 +67,7 @@ interface CreateEventDialogProps {
 
 export function CreateEventDialog({ children }: CreateEventDialogProps) {
   const [open, setOpen] = useState(false);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
   const { t } = useI18n();
@@ -96,6 +98,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
         created_by: currentUser.id,
         status: 'DRAFT',
         is_public: false,
+        banner_url: bannerUrl,
       });
       
       if (error) throw error;
@@ -105,6 +108,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setOpen(false);
       form.reset();
+      setBannerUrl(null);
     },
     onError: (error) => {
       console.error('Error creating event:', error);
@@ -291,6 +295,16 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+            )}
+
+            {/* Event Cover Image */}
+            {tenant?.id && (
+              <EventImageUpload
+                tenantId={tenant.id}
+                currentUrl={bannerUrl}
+                onUploaded={setBannerUrl}
+                disabled={createEvent.isPending}
               />
             )}
 

@@ -997,4 +997,18 @@ export const en: Record<TranslationKey, string> = {
   // Common additions
   'common.all': 'All',
   'common.copied': 'Copied!',
+  
+  // P4.3 + P4.4 — Event Images & Athlete Photo
+  'events.coverImage': 'Event Image',
+  'events.coverImageDesc': 'Cover image (16:9)',
+  'events.uploadImage': 'Upload image',
+  'events.replaceImage': 'Replace',
+  'events.removeImage': 'Remove',
+  'events.imageUploadSuccess': 'Image uploaded!',
+  'events.imageUploadError': 'Error uploading image',
+  'events.imageRemoveSuccess': 'Image removed',
+  'events.imageRemoveError': 'Error removing',
+  'events.imageTypeError': 'Use PNG, JPG or WebP',
+  'events.imageSizeError': 'Maximum 5MB',
+  'portal.athletePhoto': 'Athlete photo',
 };

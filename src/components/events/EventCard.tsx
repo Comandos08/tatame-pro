@@ -44,13 +44,17 @@ export function EventCard({
   return (
     <Card className={cn('overflow-hidden hover:shadow-md transition-shadow', className)}>
       {/* Banner */}
-      {event.banner_url && (
+      {event.banner_url ? (
         <div className="aspect-video w-full overflow-hidden">
           <img 
             src={event.banner_url} 
             alt={event.name}
             className="w-full h-full object-cover"
           />
+        </div>
+      ) : (
+        <div className="aspect-video w-full bg-muted/50 flex items-center justify-center">
+          <Calendar className="h-12 w-12 text-muted-foreground/30" />
         </div>
       )}
       
