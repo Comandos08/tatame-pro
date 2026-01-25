@@ -50,8 +50,9 @@ ${createInfoBox(`
 
 ${createButton("Acessar Portal do Atleta", portalUrl)}
 
-<p style="margin: 20px 0 0; font-size: 14px; line-height: 1.5; color: #71717a; text-align: center;">
-  Obrigado por continuar conosco.
+<p style="margin: 25px 0 0; font-size: 15px; line-height: 1.6; color: #3f3f46;">
+  Atenciosamente,<br>
+  <strong>${tenantName}</strong>
 </p>
   `.trim();
 

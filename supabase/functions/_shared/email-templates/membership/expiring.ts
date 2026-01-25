@@ -63,11 +63,13 @@ ${createInfoBox(`
 
 ${createButton("Renovar Filiação", renewUrl, urgencyColor)}
 
-<p style="margin: 20px 0 0; font-size: 14px; line-height: 1.5; color: #71717a; text-align: center;">
-  Renove com antecedência e evite interrupções.
+<p style="margin: 25px 0 0; font-size: 15px; line-height: 1.6; color: #3f3f46;">
+  Atenciosamente,<br>
+  <strong>${tenantName}</strong>
 </p>
   `.trim();
 
+  // Only use ⚠️ emoji for urgent expiration warnings (≤3 days)
   const urgencyPrefix = isUrgent ? "⚠️ " : "";
 
   return {

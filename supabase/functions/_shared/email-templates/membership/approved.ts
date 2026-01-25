@@ -48,8 +48,9 @@ ${createInfoBox(`
 
 ${createButton("Acessar Portal do Atleta", cardUrl || portalUrl)}
 
-<p style="margin: 20px 0 0; font-size: 14px; line-height: 1.5; color: #71717a; text-align: center;">
-  Guarde bem suas credenciais de acesso.
+<p style="margin: 25px 0 0; font-size: 15px; line-height: 1.6; color: #3f3f46;">
+  Atenciosamente,<br>
+  <strong>${tenantName}</strong>
 </p>
   `.trim();
 

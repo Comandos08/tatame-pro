@@ -7,6 +7,7 @@
 export interface EmailLayoutData {
   tenantName: string;
   tenantLogoUrl?: string | null;
+  tenantInstitutionalType?: string | null;
   primaryColor?: string;
 }
 
@@ -18,11 +19,14 @@ export function wrapInLayout(
   content: string,
   data: EmailLayoutData
 ): string {
-  const { tenantName, tenantLogoUrl, primaryColor = "#dc2626" } = data;
+  const { tenantName, tenantLogoUrl, tenantInstitutionalType, primaryColor = "#dc2626" } = data;
+
+  // Use dynamic institutional type or neutral fallback
+  const institutionalType = tenantInstitutionalType || "Organização Esportiva";
 
   const logoSection = tenantLogoUrl
     ? `<img src="${tenantLogoUrl}" alt="${tenantName}" style="max-height: 60px; max-width: 200px;" />`
-    : `<span style="font-size: 24px; font-weight: 700; color: ${primaryColor};">🥋 ${tenantName}</span>`;
+    : `<span style="font-size: 24px; font-weight: 700; color: ${primaryColor};">${tenantName}</span>`;
 
   return `
 <!DOCTYPE html>
@@ -85,7 +89,7 @@ export function wrapInLayout(
                   <td align="center" style="padding-bottom: 15px;">
                     <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #71717a;">
                       <strong>${tenantName}</strong><br>
-                      Federação de Esportes de Combate
+                      ${institutionalType}
                     </p>
                   </td>
                 </tr>
