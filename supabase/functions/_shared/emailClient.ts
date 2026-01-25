@@ -3,8 +3,8 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 /**
  * SAFE GOLD
  * Client centralizado para envio de e-mails via Resend
- * - Log explícito para diagnóstico de runtime
- * - Sem mudança de payload ou regras de negócio
+ * - Sem mudança funcional
+ * - Sem mudança de payload
  */
 
 let resendClient: Resend | null = null;
@@ -14,13 +14,9 @@ export function getEmailClient(): Resend {
 
   const apiKey = Deno.env.get("RESEND_API_KEY");
 
-  // Log explícito para diagnóstico (TEMPORÁRIO)
-  console.log("[EMAIL] RESEND_API_KEY exists:", !!apiKey);
-  console.log("[EMAIL] RESEND_API_KEY length:", apiKey?.length || 0);
-
   if (!apiKey) {
-    console.error("[EMAIL] RESEND_API_KEY not found in Edge Function runtime");
-    throw new Error("RESEND_API_KEY missing");
+    console.error("[EMAIL] RESEND_API_KEY not configured");
+    throw new Error("Email service not configured");
   }
 
   resendClient = new Resend(apiKey);
@@ -32,9 +28,7 @@ export function getEmailClient(): Resend {
  * Útil para envio via API REST sem SDK
  */
 export function getResendApiKey(): string | null {
-  const apiKey = Deno.env.get("RESEND_API_KEY");
-  console.log("[EMAIL] getResendApiKey - exists:", !!apiKey);
-  return apiKey || null;
+  return Deno.env.get("RESEND_API_KEY") || null;
 }
 
 /**
@@ -42,9 +36,7 @@ export function getResendApiKey(): string | null {
  * Útil para early return sem throw
  */
 export function isEmailConfigured(): boolean {
-  const configured = !!Deno.env.get("RESEND_API_KEY");
-  console.log("[EMAIL] isEmailConfigured:", configured);
-  return configured;
+  return !!Deno.env.get("RESEND_API_KEY");
 }
 
 export const DEFAULT_EMAIL_FROM = "TATAME <noreply@tatame.pro>";
