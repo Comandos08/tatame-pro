@@ -876,4 +876,33 @@ export const es: Record<TranslationKey, string> = {
   'membershipSuccess.accessViaEmail': 'Para acceder al portal, utilice el enlace enviado a su correo.',
   'membershipSuccess.noPasswordNeeded': 'No es necesario crear contraseña.',
   'membershipSuccess.requestAccessLink': 'Solicitar enlace de acceso',
+  
+  // SAFE GOLD — Estado de Afiliación
+  'membershipStatus.title': 'Estado de Afiliación',
+  'membershipStatus.pendingReview': 'Tu afiliación está en revisión',
+  'membershipStatus.pendingReviewDesc': 'Nuestro equipo está revisando tu documentación. Recibirás un correo cuando sea aprobada.',
+  'membershipStatus.estimatedTime': 'Tiempo estimado: 3 a 5 días hábiles',
+  'membershipStatus.accessPortal': 'Acceder al Portal',
+  
+  // SAFE GOLD — Renovación
+  'renewal.pageTitle': 'Renovar Afiliación',
+  'renewal.summary': 'Resumen de la afiliación a renovar',
+  'renewal.previousExpiry': 'Vencimiento anterior',
+  'renewal.renewButton': 'Renovar Afiliación',
+  'renewal.processing': 'Procesando...',
+  'renewal.notExpired': 'Esta afiliación aún está activa.',
+  
+  // SAFE GOLD — Override de Facturación
+  'billing.manualOverride': 'Facturación controlada manualmente',
+  'billing.manualOverrideDesc': 'Los pagos automáticos están desactivados para esta federación.',
+  'billing.overrideReason': 'Motivo',
+  'billing.overrideAt': 'Aplicado el',
+  'billing.overrideReasonUnknown': 'No informado',
+  'billing.stripeDisabled': 'Los pagos automáticos están desactivados.',
+  
+  // SAFE GOLD — Estados del Portal
+  'portal.cancelled': 'Afiliación Cancelada',
+  'portal.cancelledDesc': 'Tu afiliación ha sido cancelada. Contacta a la federación o inicia una nueva afiliación.',
+  'portal.rejected': 'Afiliación Rechazada',
+  'portal.rejectedDesc': 'Tu solicitud de afiliación fue rechazada. Contacta a la federación para más información.',
 };

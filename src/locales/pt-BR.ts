@@ -872,6 +872,35 @@ export const ptBR = {
   'membershipSuccess.accessViaEmail': 'Para acessar o portal, utilize o link enviado por e-mail.',
   'membershipSuccess.noPasswordNeeded': 'Não é necessário criar senha.',
   'membershipSuccess.requestAccessLink': 'Solicitar link de acesso',
+  
+  // SAFE GOLD — Membership Status
+  'membershipStatus.title': 'Status da Filiação',
+  'membershipStatus.pendingReview': 'Sua filiação está em análise',
+  'membershipStatus.pendingReviewDesc': 'Nossa equipe está analisando sua documentação. Você receberá um e-mail quando for aprovada.',
+  'membershipStatus.estimatedTime': 'Prazo estimado: 3 a 5 dias úteis',
+  'membershipStatus.accessPortal': 'Acessar Portal',
+  
+  // SAFE GOLD — Renewal
+  'renewal.pageTitle': 'Renovar Filiação',
+  'renewal.summary': 'Resumo da filiação a renovar',
+  'renewal.previousExpiry': 'Vencimento anterior',
+  'renewal.renewButton': 'Renovar Filiação',
+  'renewal.processing': 'Processando...',
+  'renewal.notExpired': 'Esta filiação ainda está ativa.',
+  
+  // SAFE GOLD — Billing Override
+  'billing.manualOverride': 'Billing controlado manualmente',
+  'billing.manualOverrideDesc': 'Pagamentos automáticos estão desativados para esta federação.',
+  'billing.overrideReason': 'Motivo',
+  'billing.overrideAt': 'Aplicado em',
+  'billing.overrideReasonUnknown': 'Não informado',
+  'billing.stripeDisabled': 'Pagamentos automáticos estão desativados.',
+  
+  // SAFE GOLD — Portal States
+  'portal.cancelled': 'Filiação Cancelada',
+  'portal.cancelledDesc': 'Sua filiação foi cancelada. Entre em contato com a federação ou inicie uma nova filiação.',
+  'portal.rejected': 'Filiação Rejeitada',
+  'portal.rejectedDesc': 'Sua solicitação de filiação foi rejeitada. Entre em contato com a federação para mais informações.',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
