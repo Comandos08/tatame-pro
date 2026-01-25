@@ -10,6 +10,8 @@ import TenantLanding from '@/pages/TenantLanding';
 import TenantDashboard from '@/pages/TenantDashboard';
 import MembershipList from '@/pages/MembershipList';
 import MembershipDetails from '@/pages/MembershipDetails';
+import MembershipStatus from '@/pages/MembershipStatus';
+import MembershipRenew from '@/pages/MembershipRenew';
 import AcademiesList from '@/pages/AcademiesList';
 import CoachesList from '@/pages/CoachesList';
 import ApprovalsList from '@/pages/ApprovalsList';
@@ -166,6 +168,8 @@ export function AppRoutes() {
         <Route path="membership/adult" element={<AdultMembershipForm />} />
         <Route path="membership/youth" element={<YouthMembershipForm />} />
         <Route path="membership/success" element={<MembershipSuccess />} />
+        <Route path="membership/status" element={<MembershipStatus />} />
+        <Route path="membership/renew" element={<PortalProtectedRoute><MembershipRenew /></PortalProtectedRoute>} />
         
         {/* Portal do Atleta (Read-Only) - protected with PortalProtectedRoute */}
         <Route path="portal" element={<PortalProtectedRoute><AthletePortal /></PortalProtectedRoute>} />

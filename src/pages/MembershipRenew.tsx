@@ -55,12 +55,14 @@ export default function MembershipRenew() {
 
       try {
         // Primeiro buscar athlete vinculado
-        const { data: athleteData } = await supabase
-          .from('athletes')
+        // Cast early to avoid TS2589 (excessively deep type instantiation)
+        const athleteResult = await (supabase.from('athletes') as any)
           .select('id, full_name')
           .eq('tenant_id', tenant.id)
           .eq('user_id', currentUser.id)
-          .maybeSingle() as { data: { id: string; full_name: string } | null };
+          .maybeSingle();
+        
+        const athleteData = athleteResult?.data as { id: string; full_name: string } | null;
 
         if (!athleteData?.id) {
           setIsLoadingMembership(false);
@@ -68,18 +70,25 @@ export default function MembershipRenew() {
         }
 
         // Buscar membership mais recente do atleta
-        const { data } = await supabase
-          .from('memberships')
+        const membershipResult = await (supabase.from('memberships') as any)
           .select('id, status, end_date, created_at, athlete_id')
           .eq('tenant_id', tenant.id)
           .eq('athlete_id', athleteData.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .maybeSingle() as { data: { id: string; status: string; end_date: string | null; created_at: string; athlete_id: string } | null };
+          .maybeSingle();
+        
+        const membershipData = membershipResult?.data as { 
+          id: string; 
+          status: string; 
+          end_date: string | null; 
+          created_at: string; 
+          athlete_id: string;
+        } | null;
 
-        if (data) {
+        if (membershipData) {
           setMembership({
-            ...data,
+            ...membershipData,
             athlete_name: athleteData.full_name,
           });
         }

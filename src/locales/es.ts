@@ -714,6 +714,13 @@ export const es: Record<TranslationKey, string> = {
   'portal.expiredDesc': 'Tu afiliación ha expirado. Contacta con la organización para renovar.',
   'portal.unknownStatus': 'Estado en análisis',
   'portal.unknownStatusDesc': 'Por favor espera mientras verificamos tu situación.',
+  'portal.cancelled': 'Afiliación Cancelada',
+  'portal.cancelledDesc': 'Tu afiliación fue cancelada. Para volver a participar, inicia una nueva afiliación.',
+  'portal.rejected': 'Afiliación Rechazada',
+  'portal.rejectedDesc': 'Tu solicitud de afiliación fue rechazada. Contacta con la organización para más información.',
+  'portal.startMembership': 'Iniciar Afiliación',
+  'portal.startNewMembership': 'Nueva Afiliación',
+  'portal.tryAgain': 'Intentar de Nuevo',
   'portal.cardAvailable': 'Credencial digital disponible',
   'portal.cardNotAvailable': 'Credencial digital no disponible',
   'portal.viewVerification': 'Verificar Online',
@@ -899,10 +906,4 @@ export const es: Record<TranslationKey, string> = {
   'billing.overrideAt': 'Aplicado el',
   'billing.overrideReasonUnknown': 'No informado',
   'billing.stripeDisabled': 'Los pagos automáticos están desactivados.',
-  
-  // SAFE GOLD — Estados del Portal
-  'portal.cancelled': 'Afiliación Cancelada',
-  'portal.cancelledDesc': 'Tu afiliación ha sido cancelada. Contacta a la federación o inicia una nueva afiliación.',
-  'portal.rejected': 'Afiliación Rechazada',
-  'portal.rejectedDesc': 'Tu solicitud de afiliación fue rechazada. Contacta a la federación para más información.',
 };
