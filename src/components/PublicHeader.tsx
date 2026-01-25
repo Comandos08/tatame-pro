@@ -204,7 +204,7 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             </Button>
           ) : (
             <Button size="sm" asChild>
-              <Link to={`/${tenant.slug}/app`}>
+              <Link to={`/${tenant.slug}/portal`}>
                 {t('nav.accessPortal')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

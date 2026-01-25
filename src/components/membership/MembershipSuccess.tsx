@@ -99,6 +99,23 @@ export function MembershipSuccess() {
                 <p className="text-sm text-muted-foreground text-center">
                   {t('membershipSuccess.pendingApprovalDesc').replace('{tenant}', tenant?.name || '')}
                 </p>
+                
+                {/* Magic Link Info Section */}
+                <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <h4 className="font-medium mb-2">{t('membershipSuccess.accountCreated')}</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {t('membershipSuccess.accessViaEmail')}
+                    <br />
+                    <span className="font-medium">{t('membershipSuccess.noPasswordNeeded')}</span>
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/${tenantSlug}/login`)}
+                  >
+                    {t('membershipSuccess.requestAccessLink')}
+                  </Button>
+                </div>
               </>
             )}
 

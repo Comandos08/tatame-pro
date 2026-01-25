@@ -856,4 +856,24 @@ export const en: Record<TranslationKey, string> = {
   'membership.form.gender': 'Gender',
   'membership.form.nationalId': 'National ID',
   'membership.form.address': 'Address',
+  
+  // Magic Link Authentication
+  'auth.magicLink.title': 'Athlete Access',
+  'auth.magicLink.description': 'Enter your email to receive an access link',
+  'auth.magicLink.emailLabel': 'Your registered email',
+  'auth.magicLink.button': 'Sign in via email (no password)',
+  'auth.magicLink.sending': 'Sending...',
+  'auth.magicLink.success': 'Link sent!',
+  'auth.magicLink.successDesc': 'We sent an access link to your email. Check your inbox.',
+  'auth.magicLink.checkSpam': 'Didn\'t find it? Check your spam folder.',
+  'auth.magicLink.resend': 'Resend link',
+  'auth.magicLink.adminLogin': 'Are you an admin? Access here',
+  'auth.magicLink.userNotFound': 'Email not registered. Complete your membership first.',
+  'auth.magicLink.backToTenant': 'Back to {tenant}',
+  
+  // Membership Success - Magic Link
+  'membershipSuccess.accountCreated': 'Account created successfully!',
+  'membershipSuccess.accessViaEmail': 'To access the portal, use the link sent to your email.',
+  'membershipSuccess.noPasswordNeeded': 'No password required.',
+  'membershipSuccess.requestAccessLink': 'Request access link',
 };
