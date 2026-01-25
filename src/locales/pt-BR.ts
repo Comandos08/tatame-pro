@@ -852,6 +852,26 @@ export const ptBR = {
   'membership.form.gender': 'Gênero',
   'membership.form.nationalId': 'CPF/Documento',
   'membership.form.address': 'Endereço',
+  
+  // Magic Link Authentication
+  'auth.magicLink.title': 'Acesso de Atleta',
+  'auth.magicLink.description': 'Entre com seu e-mail para receber um link de acesso',
+  'auth.magicLink.emailLabel': 'Seu e-mail cadastrado',
+  'auth.magicLink.button': 'Entrar por e-mail (sem senha)',
+  'auth.magicLink.sending': 'Enviando...',
+  'auth.magicLink.success': 'Link enviado!',
+  'auth.magicLink.successDesc': 'Enviamos um link de acesso para seu e-mail. Verifique sua caixa de entrada.',
+  'auth.magicLink.checkSpam': 'Não encontrou? Verifique a pasta de spam.',
+  'auth.magicLink.resend': 'Reenviar link',
+  'auth.magicLink.adminLogin': 'É administrador? Acesse aqui',
+  'auth.magicLink.userNotFound': 'E-mail não cadastrado. Complete sua filiação primeiro.',
+  'auth.magicLink.backToTenant': 'Voltar para {tenant}',
+  
+  // Membership Success - Magic Link
+  'membershipSuccess.accountCreated': 'Conta criada com sucesso!',
+  'membershipSuccess.accessViaEmail': 'Para acessar o portal, utilize o link enviado por e-mail.',
+  'membershipSuccess.noPasswordNeeded': 'Não é necessário criar senha.',
+  'membershipSuccess.requestAccessLink': 'Solicitar link de acesso',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

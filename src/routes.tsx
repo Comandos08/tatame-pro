@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useCurrentUser } from '@/contexts/AuthContext';
 
 // Pages
@@ -39,6 +39,8 @@ import EventsList from '@/pages/EventsList';
 import EventDetails from '@/pages/EventDetails';
 import PublicEventsList from '@/pages/PublicEventsList';
 import PublicEventDetails from '@/pages/PublicEventDetails';
+import AuthCallback from '@/pages/AuthCallback';
+import AthleteLogin from '@/pages/AthleteLogin';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -63,6 +65,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Portal protected route - redirects to tenant-specific login
+function PortalProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useCurrentUser();
+  const { tenantSlug } = useParams();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to={`/${tenantSlug}/login`} replace />;
   }
 
   return <>{children}</>;
@@ -100,6 +122,9 @@ export function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/help" element={<Help />} />
+      
+      {/* Auth callback for Magic Link */}
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       {/* Admin routes */}
       <Route
@@ -124,6 +149,9 @@ export function AppRoutes() {
         {/* Public tenant landing */}
         <Route index element={<TenantLanding />} />
         
+        {/* Athlete login (Magic Link) */}
+        <Route path="login" element={<AthleteLogin />} />
+        
         {/* Public verification routes */}
         <Route path="verify/card/:cardId" element={<VerifyCard />} />
         <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
@@ -139,8 +167,8 @@ export function AppRoutes() {
         <Route path="membership/youth" element={<YouthMembershipForm />} />
         <Route path="membership/success" element={<MembershipSuccess />} />
         
-        {/* Portal do Aluno (Read-Only) - fora do /app */}
-        <Route path="portal" element={<ProtectedRoute><AthletePortal /></ProtectedRoute>} />
+        {/* Portal do Atleta (Read-Only) - protected with PortalProtectedRoute */}
+        <Route path="portal" element={<PortalProtectedRoute><AthletePortal /></PortalProtectedRoute>} />
         
         {/* Protected tenant app */}
         <Route path="app" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />

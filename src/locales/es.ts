@@ -856,4 +856,24 @@ export const es: Record<TranslationKey, string> = {
   'membership.form.gender': 'Género',
   'membership.form.nationalId': 'Documento de identidad',
   'membership.form.address': 'Dirección',
+  
+  // Autenticación Magic Link
+  'auth.magicLink.title': 'Acceso de Atleta',
+  'auth.magicLink.description': 'Ingrese su correo para recibir un enlace de acceso',
+  'auth.magicLink.emailLabel': 'Su correo registrado',
+  'auth.magicLink.button': 'Entrar por correo (sin contraseña)',
+  'auth.magicLink.sending': 'Enviando...',
+  'auth.magicLink.success': '¡Enlace enviado!',
+  'auth.magicLink.successDesc': 'Enviamos un enlace de acceso a su correo. Revise su bandeja de entrada.',
+  'auth.magicLink.checkSpam': '¿No lo encontró? Revise la carpeta de spam.',
+  'auth.magicLink.resend': 'Reenviar enlace',
+  'auth.magicLink.adminLogin': '¿Es administrador? Acceda aquí',
+  'auth.magicLink.userNotFound': 'Correo no registrado. Complete su afiliación primero.',
+  'auth.magicLink.backToTenant': 'Volver a {tenant}',
+  
+  // Éxito de Afiliación - Magic Link
+  'membershipSuccess.accountCreated': '¡Cuenta creada con éxito!',
+  'membershipSuccess.accessViaEmail': 'Para acceder al portal, utilice el enlace enviado a su correo.',
+  'membershipSuccess.noPasswordNeeded': 'No es necesario crear contraseña.',
+  'membershipSuccess.requestAccessLink': 'Solicitar enlace de acceso',
 };
