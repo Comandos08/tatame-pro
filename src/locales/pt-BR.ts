@@ -710,6 +710,13 @@ export const ptBR = {
   'portal.expiredDesc': 'Sua filiação expirou. Entre em contato com a organização para renovação.',
   'portal.unknownStatus': 'Status em análise',
   'portal.unknownStatusDesc': 'Aguarde enquanto verificamos sua situação.',
+  'portal.cancelled': 'Filiação Cancelada',
+  'portal.cancelledDesc': 'Sua filiação foi cancelada. Para voltar a participar, inicie uma nova filiação.',
+  'portal.rejected': 'Filiação Recusada',
+  'portal.rejectedDesc': 'Sua solicitação de filiação foi recusada. Entre em contato com a organização para mais informações.',
+  'portal.startMembership': 'Iniciar Filiação',
+  'portal.startNewMembership': 'Nova Filiação',
+  'portal.tryAgain': 'Tentar Novamente',
   'portal.cardAvailable': 'Carteira digital disponível',
   'portal.cardNotAvailable': 'Carteira digital não disponível',
   'portal.viewVerification': 'Verificar Online',
@@ -895,12 +902,6 @@ export const ptBR = {
   'billing.overrideAt': 'Aplicado em',
   'billing.overrideReasonUnknown': 'Não informado',
   'billing.stripeDisabled': 'Pagamentos automáticos estão desativados.',
-  
-  // SAFE GOLD — Portal States
-  'portal.cancelled': 'Filiação Cancelada',
-  'portal.cancelledDesc': 'Sua filiação foi cancelada. Entre em contato com a federação ou inicie uma nova filiação.',
-  'portal.rejected': 'Filiação Rejeitada',
-  'portal.rejectedDesc': 'Sua solicitação de filiação foi rejeitada. Entre em contato com a federação para mais informações.',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

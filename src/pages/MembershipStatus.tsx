@@ -43,35 +43,35 @@ export default function MembershipStatus() {
 
       try {
         // Primeiro tenta buscar por athlete vinculado
-        const { data: athleteData } = await supabase
-          .from('athletes')
+        // Cast early to avoid TS2589 (excessively deep type instantiation)
+        const athleteResult = await (supabase.from('athletes') as any)
           .select('id')
           .eq('tenant_id', tenant.id)
           .eq('user_id', currentUser.id)
-          .maybeSingle() as { data: { id: string } | null };
+          .maybeSingle();
+        
+        const athleteData = athleteResult?.data as { id: string } | null;
 
         let data: MembershipData | null = null;
 
         if (athleteData?.id) {
-          const result = await supabase
-            .from('memberships')
+          const result = await (supabase.from('memberships') as any)
             .select('id, status, created_at')
             .eq('tenant_id', tenant.id)
             .eq('athlete_id', athleteData.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .maybeSingle() as { data: MembershipData | null };
-          data = result.data;
+            .maybeSingle();
+          data = result?.data as MembershipData | null;
         } else {
-          const result = await supabase
-            .from('memberships')
+          const result = await (supabase.from('memberships') as any)
             .select('id, status, created_at')
             .eq('tenant_id', tenant.id)
             .eq('applicant_profile_id', currentUser.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .maybeSingle() as { data: MembershipData | null };
-          data = result.data;
+            .maybeSingle();
+          data = result?.data as MembershipData | null;
         }
 
         setMembership(data);

@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/contexts/I18nContext';
+import { useBillingOverride } from '@/hooks/useBillingOverride';
 
 interface RenewalBannerProps {
   membershipId: string;
@@ -17,6 +18,7 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { t } = useI18n();
+  const { isManualOverride, isLoading: billingLoading } = useBillingOverride();
 
   // Don't show for memberships with more than 30 days remaining (unless expired)
   if (daysUntilExpiry > 30 && status !== 'EXPIRED') {
@@ -34,7 +36,12 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
   });
 
   const handleRenew = () => {
-    navigate(`/${tenantSlug}/filiacoes/nova`);
+    // Bloquear navegação se billing override ativo
+    if (isManualOverride) {
+      return;
+    }
+    // Navegar para a página de renovação correta
+    navigate(`/${tenantSlug}/membership/renew`);
   };
 
   const getTitle = () => {
@@ -44,6 +51,9 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
   };
 
   const getDescription = () => {
+    if (isManualOverride) {
+      return t('billing.stripeDisabled') || 'Pagamentos automáticos estão desativados para esta organização.';
+    }
     if (isExpired) {
       return t('renewal.expiredDesc') || 'Renove agora para continuar participando de eventos e manter sua carteira digital ativa.';
     }
@@ -91,6 +101,7 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
             variant={isExpired ? 'destructive' : isUrgent ? 'default' : 'outline'} 
             size="sm" 
             className="shrink-0"
+            disabled={billingLoading || isManualOverride}
           >
             <CreditCard className="h-4 w-4 mr-2" />
             {t('renewal.renewNow') || 'Renovar Agora'}

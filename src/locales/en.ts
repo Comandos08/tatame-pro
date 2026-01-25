@@ -714,6 +714,13 @@ export const en: Record<TranslationKey, string> = {
   'portal.expiredDesc': 'Your membership has expired. Contact the organization for renewal.',
   'portal.unknownStatus': 'Status under review',
   'portal.unknownStatusDesc': 'Please wait while we verify your status.',
+  'portal.cancelled': 'Membership Cancelled',
+  'portal.cancelledDesc': 'Your membership has been cancelled. To participate again, start a new membership.',
+  'portal.rejected': 'Membership Rejected',
+  'portal.rejectedDesc': 'Your membership request was rejected. Contact the organization for more information.',
+  'portal.startMembership': 'Start Membership',
+  'portal.startNewMembership': 'New Membership',
+  'portal.tryAgain': 'Try Again',
   'portal.cardAvailable': 'Digital card available',
   'portal.cardNotAvailable': 'Digital card not available',
   'portal.viewVerification': 'Verify Online',
@@ -899,10 +906,4 @@ export const en: Record<TranslationKey, string> = {
   'billing.overrideAt': 'Applied on',
   'billing.overrideReasonUnknown': 'Not specified',
   'billing.stripeDisabled': 'Automatic payments are disabled.',
-  
-  // SAFE GOLD — Portal States
-  'portal.cancelled': 'Membership Cancelled',
-  'portal.cancelledDesc': 'Your membership has been cancelled. Contact the federation or start a new membership.',
-  'portal.rejected': 'Membership Rejected',
-  'portal.rejectedDesc': 'Your membership application was rejected. Contact the federation for more information.',
 };
