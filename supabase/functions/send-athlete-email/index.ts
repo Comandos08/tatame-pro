@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
+import {
+  getMembershipApprovedTemplate,
+  getMembershipRejectedTemplate,
+  getMembershipExpiringTemplate,
+  type EmailLayoutData,
+} from "../_shared/email-templates/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,59 +47,19 @@ interface AthleteEmailRequest {
 const EMAIL_FROM = DEFAULT_EMAIL_FROM;
 const BASE_URL = "https://tatame-pro.lovable.app";
 
-function getMembershipApprovedEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
-  return {
-    subject: `🥋 Bem-vindo à ${data?.tenant_name || "Federação"}! Sua filiação foi aprovada`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
-          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
-        </div>
-        
-        <h2 style="color: #16a34a;">Parabéns, ${data?.athlete_name || "Atleta"}!</h2>
-        
-        <p style="line-height: 1.6;">
-          Sua filiação à <strong>${data?.tenant_name || "nossa federação"}</strong> foi aprovada com sucesso! 
-          Agora você faz parte da nossa comunidade de atletas.
-        </p>
-        
-        <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-          <p style="margin: 0 0 15px; color: #166534; font-weight: 600;">
-            Sua carteirinha digital já está disponível!
-          </p>
-          <a href="${data?.card_url || BASE_URL}" 
-             style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-            Ver minha carteirinha
-          </a>
-        </div>
-        
-        <p style="line-height: 1.6;">
-          Com sua filiação ativa, você pode:
-        </p>
-        <ul style="line-height: 1.8; color: #555;">
-          <li>Acessar sua carteirinha digital a qualquer momento</li>
-          <li>Participar de competições oficiais</li>
-          <li>Receber diplomas de graduação</li>
-          <li>Acompanhar seu histórico de graduações</li>
-        </ul>
-        
-        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
-          <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
-        </p>
-      </body>
-      </html>
-    `,
-  };
+function getMembershipApprovedEmail(data: AthleteEmailRequest["data"], layoutData: EmailLayoutData): { subject: string; html: string } {
+  return getMembershipApprovedTemplate({
+    ...layoutData,
+    athleteName: data?.athlete_name || "Atleta",
+    cardUrl: data?.card_url,
+    portalUrl: data?.card_url || BASE_URL + "/athlete",
+  });
 }
 
 function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
+  // Admin notification - kept as simple inline template (not user-facing)
   return {
-    subject: `📋 Nova filiação aguardando aprovação - ${data?.athlete_name || "Novo atleta"}`,
+    subject: `Nova filiação aguardando aprovação — ${data?.athlete_name || "Novo atleta"}`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -101,17 +67,17 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="text-align: center; margin-bottom: 30px;">
           <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
-          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
+          <p style="color: #666; margin-top: 5px;">Notificação Administrativa</p>
         </div>
         
-        <h2 style="color: #dc2626;">📋 Nova filiação pendente</h2>
+        <h2 style="color: #18181b;">Nova solicitação de filiação</h2>
         
         <p style="line-height: 1.6;">
-          Uma nova solicitação de filiação foi recebida e está aguardando sua aprovação.
+          Uma nova solicitação de filiação foi recebida e aguarda sua análise.
         </p>
         
-        <div style="background: #fef2f2; border: 1px solid #dc2626; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <p style="margin: 0; color: #92400e;">
+        <div style="background: #f4f4f5; border-left: 4px solid #dc2626; border-radius: 4px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #3f3f46;">
             <strong>Atleta:</strong> ${data?.athlete_name || "Nome não informado"}<br>
             <strong>E-mail:</strong> ${data?.athlete_email || "Não informado"}<br>
             <strong>Federação:</strong> ${data?.tenant_name || "Não informado"}
@@ -121,17 +87,12 @@ function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subj
         <div style="text-align: center; margin: 30px 0;">
           <a href="${BASE_URL}" 
              style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-            Revisar filiação
+            Revisar solicitação
           </a>
         </div>
         
-        <p style="color: #666; font-size: 14px; line-height: 1.6;">
-          Acesse o painel administrativo para visualizar os documentos enviados e aprovar ou rejeitar esta solicitação.
-        </p>
-        
-        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
-          <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
+        <p style="color: #71717a; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          Este é um e-mail automático. Não responda diretamente.
         </p>
       </body>
       </html>
@@ -196,70 +157,41 @@ function getNewGradingEmail(data: AthleteEmailRequest["data"]): { subject: strin
   };
 }
 
-function getRenewalReminderEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
-  const daysText = data?.days_remaining === 1 ? "1 dia" : `${data?.days_remaining || 7} dias`;
-  const urgencyColor = (data?.days_remaining || 7) <= 3 ? "#ef4444" : "#f59e0b";
-  
-  return {
-    subject: `⏰ Sua filiação vence em ${daysText} - ${data?.tenant_name || "Federação"}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #dc2626; margin: 0;">🥋 TATAME</h1>
-          <p style="color: #666; margin-top: 5px;">Plataforma de Gestão Esportiva</p>
-        </div>
-        
-        <h2 style="color: ${urgencyColor};">⏰ Sua filiação está prestes a vencer!</h2>
-        
-        <p style="line-height: 1.6;">
-          Olá <strong>${data?.athlete_name || "Atleta"}</strong>,
-        </p>
-        
-        <p style="line-height: 1.6;">
-          Sua filiação à <strong>${data?.tenant_name || "federação"}</strong> vence em <strong>${daysText}</strong> 
-          (${data?.end_date || "em breve"}).
-        </p>
-        
-        <div style="background: #fef3c7; border: 1px solid ${urgencyColor}; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <p style="margin: 0; color: #92400e; font-weight: 600;">
-            Renove agora para não perder seu status de atleta ativo e continuar participando de competições!
-          </p>
-        </div>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${BASE_URL}" 
-             style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-            Renovar minha filiação
-          </a>
-        </div>
-        
-        <p style="line-height: 1.6; color: #666;">
-          Após o vencimento, sua carteirinha digital será desativada e você não poderá participar de eventos oficiais até regularizar sua situação.
-        </p>
-        
-        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          TATAME - Plataforma de Gestão para Federações de Esportes de Combate<br>
-          <a href="${BASE_URL}" style="color: #dc2626;">tatame-pro.lovable.app</a>
-        </p>
-      </body>
-      </html>
-    `,
-  };
+function getMembershipRejectedEmail(data: AthleteEmailRequest["data"], layoutData: EmailLayoutData): { subject: string; html: string } {
+  return getMembershipRejectedTemplate({
+    ...layoutData,
+    athleteName: data?.athlete_name || "Atleta",
+    rejectionReason: data?.rejection_reason,
+    reapplyUrl: BASE_URL + "/membership",
+  });
 }
 
-function getEmailContent(emailType: EmailType, data: AthleteEmailRequest["data"]): { subject: string; html: string } {
+function getRenewalReminderEmail(data: AthleteEmailRequest["data"], layoutData: EmailLayoutData): { subject: string; html: string } {
+  return getMembershipExpiringTemplate({
+    ...layoutData,
+    athleteName: data?.athlete_name || "Atleta",
+    daysRemaining: data?.days_remaining || 7,
+    expirationDate: data?.end_date || "em breve",
+    renewUrl: BASE_URL + "/athlete/renew",
+  });
+}
+
+function getEmailContent(
+  emailType: EmailType, 
+  data: AthleteEmailRequest["data"],
+  layoutData: EmailLayoutData
+): { subject: string; html: string } {
   switch (emailType) {
     case "MEMBERSHIP_APPROVED":
-      return getMembershipApprovedEmail(data);
+      return getMembershipApprovedEmail(data, layoutData);
     case "NEW_MEMBERSHIP_PENDING":
       return getNewMembershipPendingEmail(data);
+    case "MEMBERSHIP_REJECTED":
+      return getMembershipRejectedEmail(data, layoutData);
     case "NEW_GRADING":
       return getNewGradingEmail(data);
     case "RENEWAL_REMINDER":
-      return getRenewalReminderEmail(data);
+      return getRenewalReminderEmail(data, layoutData);
     default:
       throw new Error(`Unknown email_type: ${emailType}`);
   }
@@ -376,7 +308,12 @@ serve(async (req) => {
 
     logStep("Sending email", { recipients, email_type });
 
-    const { subject, html } = getEmailContent(email_type, emailData);
+    // Build layout data for templates
+    const layoutData: EmailLayoutData = {
+      tenantName: emailData.tenant_name || "TATAME",
+    };
+
+    const { subject, html } = getEmailContent(email_type, emailData, layoutData);
 
     const { error: emailError } = await resend.emails.send({
       from: EMAIL_FROM,
