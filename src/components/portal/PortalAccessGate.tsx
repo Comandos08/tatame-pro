@@ -1,8 +1,8 @@
 /**
  * SAFE GOLD — ETAPA 5
- * PortalAccessGate com estados cancelled e rejected
+ * PortalAccessGate com estados cancelled e rejected + redirect automático
  */
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Clock, AlertTriangle, XCircle, HelpCircle, Ban } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,6 +67,27 @@ export function PortalAccessGate({
   };
 
   const gateState = getGateState();
+
+  // SAFE GOLD: Redirect automático para estados bloqueados
+  useEffect(() => {
+    if (!tenantSlug || gateState === 'loading') return;
+    
+    const currentPath = window.location.pathname;
+    
+    if (gateState === 'expired') {
+      const target = `/${tenantSlug}/membership/renew`;
+      if (currentPath !== target) {
+        navigate(target, { replace: true });
+      }
+    }
+    
+    if (gateState === 'cancelled' || gateState === 'rejected' || gateState === 'noAthlete') {
+      const target = `/${tenantSlug}/membership/new`;
+      if (currentPath !== target) {
+        navigate(target, { replace: true });
+      }
+    }
+  }, [gateState, tenantSlug, navigate]);
 
   if (gateState === 'loading') {
     return (

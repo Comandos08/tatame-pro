@@ -17,6 +17,8 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
+import { useBillingOverride } from '@/hooks/useBillingOverride';
+import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
 import {
   AthleteFormData,
   GuardianFormData,
@@ -39,6 +41,7 @@ export function YouthMembershipForm() {
   const [documents, setDocuments] = useState<{ idDocument?: File; medicalCertificate?: File }>({});
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
 
   const guardianSchema = z.object({
     fullName: z.string().min(3, t('membership.validation.nameMin')),
@@ -149,6 +152,12 @@ export function YouthMembershipForm() {
   };
 
   const handlePayment = async () => {
+    // SAFE GOLD: Bloquear Stripe quando override manual ativo
+    if (!canUseStripe) {
+      toast.error(t('billing.stripeDisabled'));
+      return;
+    }
+    
     if (!tenant || !athleteData || !guardianData) return;
 
     setIsLoading(true);
@@ -734,6 +743,11 @@ export function YouthMembershipForm() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* SAFE GOLD: Banner de override manual */}
+                  {isManualOverride && (
+                    <ManualOverrideBanner reason={overrideReason} appliedAt={overrideAt} />
+                  )}
+                  
                   {guardianData && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-medium text-muted-foreground">{t('membership.summaryGuardian')}</h3>
@@ -801,7 +815,7 @@ export function YouthMembershipForm() {
 
                   <Button
                     onClick={handlePayment}
-                    disabled={isLoading || !captchaToken}
+                    disabled={isLoading || !captchaToken || isManualOverride}
                     className="w-full"
                     size="lg"
                   >
