@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +38,7 @@ interface AthleteEmailRequest {
   };
 }
 
-const EMAIL_FROM = "TATAME <noreply@tatame.pro>";
+const EMAIL_FROM = DEFAULT_EMAIL_FROM;
 const BASE_URL = "https://tatame-pro.lovable.app";
 
 function getMembershipApprovedEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
@@ -271,8 +271,7 @@ serve(async (req) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
+    if (!isEmailConfigured()) {
       logStep("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
@@ -280,7 +279,7 @@ serve(async (req) => {
       );
     }
 
-    const resend = new Resend(resendApiKey);
+    const resend = getEmailClient();
     
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
