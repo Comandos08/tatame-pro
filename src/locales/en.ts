@@ -876,4 +876,33 @@ export const en: Record<TranslationKey, string> = {
   'membershipSuccess.accessViaEmail': 'To access the portal, use the link sent to your email.',
   'membershipSuccess.noPasswordNeeded': 'No password required.',
   'membershipSuccess.requestAccessLink': 'Request access link',
+  
+  // SAFE GOLD — Membership Status
+  'membershipStatus.title': 'Membership Status',
+  'membershipStatus.pendingReview': 'Your membership is under review',
+  'membershipStatus.pendingReviewDesc': 'Our team is reviewing your documentation. You will receive an email when approved.',
+  'membershipStatus.estimatedTime': 'Estimated time: 3 to 5 business days',
+  'membershipStatus.accessPortal': 'Access Portal',
+  
+  // SAFE GOLD — Renewal
+  'renewal.pageTitle': 'Renew Membership',
+  'renewal.summary': 'Membership renewal summary',
+  'renewal.previousExpiry': 'Previous expiry date',
+  'renewal.renewButton': 'Renew Membership',
+  'renewal.processing': 'Processing...',
+  'renewal.notExpired': 'This membership is still active.',
+  
+  // SAFE GOLD — Billing Override
+  'billing.manualOverride': 'Billing manually controlled',
+  'billing.manualOverrideDesc': 'Automatic payments are disabled for this federation.',
+  'billing.overrideReason': 'Reason',
+  'billing.overrideAt': 'Applied on',
+  'billing.overrideReasonUnknown': 'Not specified',
+  'billing.stripeDisabled': 'Automatic payments are disabled.',
+  
+  // SAFE GOLD — Portal States
+  'portal.cancelled': 'Membership Cancelled',
+  'portal.cancelledDesc': 'Your membership has been cancelled. Contact the federation or start a new membership.',
+  'portal.rejected': 'Membership Rejected',
+  'portal.rejectedDesc': 'Your membership application was rejected. Contact the federation for more information.',
 };
