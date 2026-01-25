@@ -14,6 +14,8 @@ import { DigitalCardSection } from '@/components/portal/DigitalCardSection';
 import { DiplomasListCard } from '@/components/portal/DiplomasListCard';
 import { GradingHistoryCard } from '@/components/portal/GradingHistoryCard';
 import { MyEventsCard } from '@/components/portal/MyEventsCard';
+import { MembershipTimeline } from '@/components/membership/MembershipTimeline';
+import { InAppNotice } from '@/components/notifications/InAppNotice';
 
 interface AthleteData {
   id: string;
@@ -29,6 +31,9 @@ interface MembershipData {
   end_date: string | null;
   type: string;
   created_at: string;
+  reviewed_at?: string | null;
+  rejected_at?: string | null;
+  webhook_processed_at?: string | null;
 }
 
 interface DigitalCardData {
@@ -89,7 +94,7 @@ export default function AthletePortal() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('memberships')
-        .select('id, status, payment_status, start_date, end_date, type, created_at')
+        .select('id, status, payment_status, start_date, end_date, type, created_at, reviewed_at, rejected_at, webhook_processed_at')
         .eq('athlete_id', athlete!.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -168,7 +173,7 @@ export default function AthletePortal() {
         error={athleteError as Error | null}
       >
         {/* Portal Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-6 w-6 text-primary" />
@@ -179,6 +184,9 @@ export default function AthletePortal() {
             </div>
           </div>
         </div>
+
+        {/* In-App Notifications */}
+        <InAppNotice membership={membership} tenantSlug={tenant.slug} />
 
         {/* Portal Content */}
         <div className="space-y-6">
@@ -220,6 +228,7 @@ export default function AthletePortal() {
               digitalCard={digitalCard ?? null}
               athleteName={athlete?.full_name || ''}
               tenantSlug={tenant.slug}
+              showFullCardLink
             />
           </motion.div>
 
@@ -242,13 +251,22 @@ export default function AthletePortal() {
             </motion.div>
           </div>
 
-          {/* Row 4: Meus Eventos */}
+          {/* Row 4: Timeline */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
           >
-            <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} />
+            <MembershipTimeline membership={membership} />
+          </motion.div>
+
+          {/* Row 5: Meus Eventos */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} showFullHistoryLink />
           </motion.div>
         </div>
       </PortalAccessGate>

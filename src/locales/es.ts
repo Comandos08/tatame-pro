@@ -909,4 +909,53 @@ export const es: Record<TranslationKey, string> = {
   'billing.overrideAt': 'Aplicado el',
   'billing.overrideReasonUnknown': 'No informado',
   'billing.stripeDisabled': 'Los pagos automáticos están desactivados.',
+  
+  // SAFE GOLD P3 — Portal Card
+  'portal.myCard': 'Mi Tarjeta',
+  'portal.myCardDesc': 'Tu tarjeta digital de atleta',
+  'portal.shareCard': 'Compartir',
+  'portal.viewFullCard': 'Ver Tarjeta Completa',
+  'portal.cardValidUntil': 'Válida hasta',
+  'portal.cardStatusActive': 'Activa',
+  'portal.cardStatusExpired': 'Expirada',
+  'portal.cardStatusPending': 'Pendiente',
+  'portal.scanToVerify': 'Escanee para verificar autenticidad',
+  
+  // SAFE GOLD P3 — Events History
+  'events.history': 'Historial de Eventos',
+  'events.historyDesc': 'Todos los eventos en los que has participado',
+  'events.filterYear': 'Año',
+  'events.filterStatus': 'Estado',
+  'events.filterWithResults': 'Con Resultados',
+  'events.noEventsYet': 'Aún no has participado en ningún evento',
+  'events.noEventsYetDesc': 'Consulta los eventos disponibles y regístrate',
+  'events.results': 'Resultados',
+  'events.registration.pending': 'Pendiente',
+  'events.registration.confirmed': 'Confirmado',
+  
+  // SAFE GOLD P3 — Timeline
+  'timeline.title': 'Historial de Afiliación',
+  'timeline.created': 'Solicitud creada',
+  'timeline.approved': 'Afiliación aprobada',
+  'timeline.paid': 'Pago confirmado',
+  'timeline.active': 'Afiliación activada',
+  'timeline.expired': 'Afiliación expirada',
+  'timeline.renewed': 'Afiliación renovada',
+  'timeline.cancelled': 'Afiliación cancelada',
+  'timeline.rejected': 'Afiliación rechazada',
+  
+  // SAFE GOLD P3 — Notices
+  'notices.expired': 'Tu afiliación ha expirado',
+  'notices.expiredDesc': 'Renueva ahora para continuar participando en eventos.',
+  'notices.renewNow': 'Renovar Ahora',
+  'notices.expiringSoon': 'Tu afiliación expira en {days} días',
+  'notices.expiringSoonDesc': 'Renueva con anticipación para evitar interrupciones.',
+  'notices.paymentPending': 'Pago pendiente',
+  'notices.paymentPendingDesc': 'Completa el pago para activar tu afiliación.',
+  'notices.approved': '¡Afiliación aprobada!',
+  'notices.approvedDesc': '¡Bienvenido! Tu afiliación fue aprobada con éxito.',
+  
+  // Common additions
+  'common.all': 'Todos',
+  'common.copied': '¡Copiado!',
 };

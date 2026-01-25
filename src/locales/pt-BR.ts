@@ -905,6 +905,55 @@ export const ptBR = {
   'billing.overrideAt': 'Aplicado em',
   'billing.overrideReasonUnknown': 'Não informado',
   'billing.stripeDisabled': 'Pagamentos automáticos estão desativados.',
+  
+  // SAFE GOLD P3 — Portal Card
+  'portal.myCard': 'Minha Carteirinha',
+  'portal.myCardDesc': 'Sua carteira digital de atleta',
+  'portal.shareCard': 'Compartilhar',
+  'portal.viewFullCard': 'Ver Carteira Completa',
+  'portal.cardValidUntil': 'Válida até',
+  'portal.cardStatusActive': 'Ativa',
+  'portal.cardStatusExpired': 'Expirada',
+  'portal.cardStatusPending': 'Pendente',
+  'portal.scanToVerify': 'Escaneie para verificar autenticidade',
+  
+  // SAFE GOLD P3 — Events History
+  'events.history': 'Histórico de Eventos',
+  'events.historyDesc': 'Todos os eventos que você participou',
+  'events.filterYear': 'Ano',
+  'events.filterStatus': 'Status',
+  'events.filterWithResults': 'Com Resultado',
+  'events.noEventsYet': 'Você ainda não participou de nenhum evento',
+  'events.noEventsYetDesc': 'Confira os eventos disponíveis e faça sua inscrição',
+  'events.results': 'Resultados',
+  'events.registration.pending': 'Pendente',
+  'events.registration.confirmed': 'Confirmado',
+  
+  // SAFE GOLD P3 — Timeline
+  'timeline.title': 'Histórico da Filiação',
+  'timeline.created': 'Solicitação criada',
+  'timeline.approved': 'Filiação aprovada',
+  'timeline.paid': 'Pagamento confirmado',
+  'timeline.active': 'Filiação ativada',
+  'timeline.expired': 'Filiação expirada',
+  'timeline.renewed': 'Filiação renovada',
+  'timeline.cancelled': 'Filiação cancelada',
+  'timeline.rejected': 'Filiação rejeitada',
+  
+  // SAFE GOLD P3 — Notices
+  'notices.expired': 'Sua filiação expirou',
+  'notices.expiredDesc': 'Renove agora para continuar participando de eventos.',
+  'notices.renewNow': 'Renovar Agora',
+  'notices.expiringSoon': 'Sua filiação expira em {days} dias',
+  'notices.expiringSoonDesc': 'Renove com antecedência para evitar interrupções.',
+  'notices.paymentPending': 'Pagamento pendente',
+  'notices.paymentPendingDesc': 'Conclua o pagamento para ativar sua filiação.',
+  'notices.approved': 'Filiação aprovada!',
+  'notices.approvedDesc': 'Bem-vindo! Sua filiação foi aprovada com sucesso.',
+  
+  // Common additions
+  'common.all': 'Todos',
+  'common.copied': 'Copiado!',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
