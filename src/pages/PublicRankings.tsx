@@ -342,7 +342,7 @@ export default function PublicRankings() {
           )}
 
           <div className="mt-8 text-center">
-            <Button style={{ backgroundColor: tenant.primaryColor }} asChild>
+            <Button variant="tenant" asChild>
               <Link to={`/${tenant.slug}/app`}>
                 {t('nav.accessPortal')}
               </Link>

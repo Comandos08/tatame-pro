@@ -1,13 +1,29 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { hexToHsl } from '@/lib/colorUtils';
 
 function TenantContent() {
   const { tenant, isLoading, error, billingInfo } = useTenant();
   const location = useLocation();
+
+  // Inject tenant primary color as CSS variable
+  useEffect(() => {
+    if (tenant?.primaryColor) {
+      const hsl = hexToHsl(tenant.primaryColor);
+      document.documentElement.style.setProperty('--tenant-primary', hsl);
+      document.documentElement.style.setProperty('--tenant-primary-hex', tenant.primaryColor);
+    }
+
+    return () => {
+      // Cleanup on unmount
+      document.documentElement.style.removeProperty('--tenant-primary');
+      document.documentElement.style.removeProperty('--tenant-primary-hex');
+    };
+  }, [tenant?.primaryColor]);
 
   if (isLoading) {
     return (

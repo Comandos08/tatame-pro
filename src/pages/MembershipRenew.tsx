@@ -317,6 +317,7 @@ export default function MembershipRenew() {
                 disabled={isProcessing || isManualOverride || !captchaToken}
                 className="w-full"
                 size="lg"
+                variant="tenant"
               >
                 {isProcessing ? (
                   <>

@@ -96,13 +96,13 @@ export default function TenantLanding() {
               {tenant.description || t('tenant.portalDesc')}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="h-12 px-8" style={{ backgroundColor: tenant.primaryColor }} asChild>
+              <Button size="lg" variant="tenant" className="h-12 px-8" asChild>
                 <Link to={`/${tenant.slug}/membership/new`}>
                   {t('tenant.joinNow')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="h-12 px-8" asChild>
+              <Button size="lg" variant="tenant-outline" className="h-12 px-8" asChild>
                 <Link to={`/${tenant.slug}/app`}>{t('nav.myAccount')}</Link>
               </Button>
             </div>

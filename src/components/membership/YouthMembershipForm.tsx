@@ -477,7 +477,7 @@ export function YouthMembershipForm() {
                       </div>
 
                       <div className="pt-4">
-                        <Button type="submit" className="w-full">
+                        <Button type="submit" className="w-full" variant="tenant">
                           {t('membership.proceed')}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -636,7 +636,7 @@ export function YouthMembershipForm() {
                       </div>
 
                       <div className="pt-4">
-                        <Button type="submit" className="w-full">
+                        <Button type="submit" className="w-full" variant="tenant">
                           {t('membership.proceed')}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -719,7 +719,7 @@ export function YouthMembershipForm() {
                     </div>
                   </div>
 
-                  <Button onClick={handleStepThreeSubmit} className="w-full">
+                  <Button onClick={handleStepThreeSubmit} className="w-full" variant="tenant">
                     {t('membership.proceed')}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -818,6 +818,7 @@ export function YouthMembershipForm() {
                     disabled={isLoading || !captchaToken || isManualOverride}
                     className="w-full"
                     size="lg"
+                    variant="tenant"
                   >
                     {isLoading ? (
                       <>
