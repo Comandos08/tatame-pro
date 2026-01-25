@@ -511,7 +511,7 @@ export function AdultMembershipForm() {
                       </div>
 
                       <div className="pt-4">
-                        <Button type="submit" className="w-full">
+                        <Button type="submit" className="w-full" variant="tenant">
                           {t('membership.proceed')}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -594,7 +594,7 @@ export function AdultMembershipForm() {
                     </div>
                   </div>
 
-                  <Button onClick={handleStepTwoSubmit} className="w-full">
+                  <Button onClick={handleStepTwoSubmit} className="w-full" variant="tenant">
                     {t('membership.proceed')}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -692,6 +692,7 @@ export function AdultMembershipForm() {
                     disabled={isLoading || !captchaToken || isManualOverride}
                     className="w-full"
                     size="lg"
+                    variant="tenant"
                   >
                     {isLoading ? (
                       <>

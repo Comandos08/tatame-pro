@@ -240,6 +240,7 @@ export function EventRegistrationButton({
 
       <Button
         className="w-full"
+        variant="tenant"
         disabled={!selectedCategory || registerMutation.isPending}
         onClick={() => registerMutation.mutate(selectedCategory)}
       >

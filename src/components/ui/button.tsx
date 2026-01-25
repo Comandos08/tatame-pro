@@ -15,6 +15,9 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // Tenant-aware variants that use the dynamic --tenant-primary CSS variable
+        "tenant": "bg-[hsl(var(--tenant-primary,var(--primary)))] text-primary-foreground hover:bg-[hsl(var(--tenant-primary,var(--primary))/0.9)]",
+        "tenant-outline": "border-2 border-[hsl(var(--tenant-primary,var(--primary)))] bg-transparent text-[hsl(var(--tenant-primary,var(--primary)))] hover:bg-[hsl(var(--tenant-primary,var(--primary))/0.1)]",
       },
       size: {
         default: "h-10 px-4 py-2",

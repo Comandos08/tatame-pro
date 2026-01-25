@@ -13,6 +13,7 @@ import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
+import { hexToHsl } from '@/lib/colorUtils';
 
 export default function TenantSettings() {
   const { tenant } = useTenant();
@@ -303,11 +304,15 @@ export default function TenantSettings() {
                       <div className="text-sm text-muted-foreground">{description || 'Descrição da organização'}</div>
                     </div>
                   </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button style={{ backgroundColor: primaryColor }} size="sm">
+                  {/* Preview now uses same CSS variable pattern as production buttons */}
+                  <div 
+                    className="mt-4 flex gap-2"
+                    style={{ '--tenant-primary': hexToHsl(primaryColor) } as React.CSSProperties}
+                  >
+                    <Button variant="tenant" size="sm">
                       Botão Primário
                     </Button>
-                    <Button variant="outline" size="sm" style={{ borderColor: primaryColor, color: primaryColor }}>
+                    <Button variant="tenant-outline" size="sm">
                       Botão Outline
                     </Button>
                   </div>

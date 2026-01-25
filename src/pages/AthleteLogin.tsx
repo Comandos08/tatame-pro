@@ -143,10 +143,7 @@ export default function AthleteLogin() {
                   type="submit"
                   className="w-full"
                   disabled={isLoading || !email}
-                  style={tenant?.primaryColor ? { 
-                    backgroundColor: tenant.primaryColor,
-                    borderColor: tenant.primaryColor 
-                  } : undefined}
+                  variant="tenant"
                 >
                   {isLoading ? (
                     <>

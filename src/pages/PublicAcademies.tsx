@@ -190,7 +190,7 @@ export default function PublicAcademies() {
             <p className="text-muted-foreground mb-4">
               {t('tenant.wantToJoin')}
             </p>
-            <Button style={{ backgroundColor: tenant.primaryColor }} asChild>
+            <Button variant="tenant" asChild>
               <Link to={`/${tenant.slug}/membership/new`}>
                 {t('tenant.joinNow')}
               </Link>
