@@ -80,7 +80,7 @@ export function EventCard({
         {isAdmin && registrationCount !== undefined && (
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 flex-shrink-0" />
-            <span>{registrationCount} {t('events.registrations' as any)}</span>
+            <span>{registrationCount} {t('events.registrations')}</span>
           </div>
         )}
         
@@ -93,7 +93,7 @@ export function EventCard({
         {showRegistrationCta ? (
           <Button asChild className="w-full">
             <Link to={detailsLink}>
-              {t('events.registerNow' as any) || 'Inscrever-se'}
+              {t('events.registerNow')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>

@@ -18,7 +18,7 @@ import { test, expect } from '@playwright/test';
 
 // Test data - use known existing records from demo tenant
 const TEST_TENANT_SLUG = 'demo-bjj';
-const TEST_MEMBERSHIP_ID = '1b4a510c-6656-48fe-9a1e-43a09ae50c1a';
+const TEST_MEMBERSHIP_ID = 'e139ef12-3832-460b-a95b-f0efb14c1d3f';
 
 test.describe('Public Membership Verification - Security Hardened', () => {
   
