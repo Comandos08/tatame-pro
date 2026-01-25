@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -268,7 +269,7 @@ serve(async (req) => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
+    if (!isEmailConfigured()) {
       logStep("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
@@ -344,7 +345,7 @@ serve(async (req) => {
       throw new Error(`Unknown event_type: ${event_type}`);
     }
 
-    // Use Resend API directly via fetch
+    // Use Resend API directly via fetch (kept for compatibility with existing pattern)
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -352,7 +353,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "TATAME <noreply@tatame.pro>",
+        from: DEFAULT_EMAIL_FROM,
         to: uniqueRecipients,
         subject: template.subject,
         html: template.getHtml(tenant.name, data),

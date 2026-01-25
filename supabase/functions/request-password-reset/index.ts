@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getEmailClient, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,14 +123,9 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = new Resend(resendApiKey);
+    const resend = getEmailClient();
 
     const { email } = await req.json();
 
@@ -215,7 +210,7 @@ serve(async (req) => {
 
     // Send email
     const { error: emailError } = await resend.emails.send({
-      from: "TATAME <noreply@tatame.pro>",
+      from: DEFAULT_EMAIL_FROM,
       to: [normalizedEmail],
       subject: "Recuperação de Senha - TATAME",
       html: `
