@@ -191,7 +191,7 @@ export default function PublicEventDetails() {
           {event.description && (
             <Card>
               <CardHeader>
-                <CardTitle>{t('settings.description')}</CardTitle>
+                <CardTitle>{t('events.description')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="whitespace-pre-wrap">{event.description}</p>

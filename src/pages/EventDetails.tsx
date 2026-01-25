@@ -256,7 +256,7 @@ export default function EventDetails() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {event.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                <Label>{t('events.publicVisibility' as any) || 'Visibilidade Pública'}</Label>
+                <Label>{t('events.publicVisibility')}</Label>
               </div>
               <Switch
                 checked={event.is_public}
@@ -266,8 +266,8 @@ export default function EventDetails() {
             </div>
             <p className="text-sm text-muted-foreground mt-2">
               {event.is_public 
-                ? t('events.visibleToPublic' as any) || 'Evento visível no portal público'
-                : t('events.hiddenFromPublic' as any) || 'Evento oculto do portal público'}
+                ? t('events.visibleToPublic')
+                : t('events.hiddenFromPublic')}
             </p>
           </CardContent>
         </Card>
@@ -277,15 +277,15 @@ export default function EventDetails() {
           <TabsList>
             <TabsTrigger value="registrations" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              {t('events.registrations' as any) || 'Inscrições'}
+              {t('events.registrations')}
             </TabsTrigger>
             <TabsTrigger value="categories" className="flex items-center gap-2">
-              {t('events.categories' as any) || 'Categorias'}
+              {t('events.categories')}
             </TabsTrigger>
             {canPublishResults(event.status as EventStatus) && (
               <TabsTrigger value="results" className="flex items-center gap-2">
                 <Trophy className="h-4 w-4" />
-                {t('events.results' as any) || 'Resultados'}
+                {t('events.results')}
               </TabsTrigger>
             )}
           </TabsList>
@@ -293,22 +293,22 @@ export default function EventDetails() {
           <TabsContent value="registrations">
             <Card>
               <CardHeader>
-                <CardTitle>{t('events.registrationsList' as any) || 'Lista de Inscritos'}</CardTitle>
+                <CardTitle>{t('events.registrationsList')}</CardTitle>
                 <CardDescription>
-                  {registrations.length} {t('events.registrationsTotal' as any) || 'inscrições no total'}
+                  {registrations.length} {t('events.registrationsTotal')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {registrations.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
-                    {t('events.noRegistrations' as any) || 'Nenhuma inscrição ainda'}
+                    {t('events.noRegistrations')}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t('common.name')}</TableHead>
-                        <TableHead>{t('events.category' as any) || 'Categoria'}</TableHead>
+                        <TableHead>{t('events.category')}</TableHead>
                         <TableHead>{t('common.status')}</TableHead>
                         <TableHead>{t('common.date')}</TableHead>
                         <TableHead>{t('common.actions')}</TableHead>
@@ -338,7 +338,7 @@ export default function EventDetails() {
                                   size="sm"
                                   onClick={() => updateRegistration.mutate({ id: reg.id, status: 'CONFIRMED' as const })}
                                 >
-                                  {t('events.confirm' as any) || 'Confirmar'}
+                                  {t('events.confirm')}
                                 </Button>
                               )}
                             </TableCell>
@@ -356,28 +356,28 @@ export default function EventDetails() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>{t('events.categories' as any) || 'Categorias'}</CardTitle>
+                  <CardTitle>{t('events.categories')}</CardTitle>
                   <CardDescription>
-                    {t('events.categoriesDesc' as any) || 'Categorias disponíveis para inscrição'}
+                    {t('events.categoriesDesc')}
                   </CardDescription>
                 </div>
                 <Button size="sm">
                   <Plus className="mr-2 h-4 w-4" />
-                  {t('events.addCategory' as any) || 'Adicionar'}
+                  {t('events.addCategory')}
                 </Button>
               </CardHeader>
               <CardContent>
                 {categories.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
-                    {t('events.noCategories' as any) || 'Nenhuma categoria criada'}
+                    {t('events.noCategories')}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t('common.name')}</TableHead>
-                        <TableHead>{t('events.price' as any) || 'Preço'}</TableHead>
-                        <TableHead>{t('events.maxParticipants' as any) || 'Máx. Participantes'}</TableHead>
+                        <TableHead>{t('events.price')}</TableHead>
+                        <TableHead>{t('events.maxParticipants')}</TableHead>
                         <TableHead>{t('common.status')}</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -388,7 +388,7 @@ export default function EventDetails() {
                           <TableCell>
                             {cat.price_cents > 0 
                               ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cat.currency }).format(cat.price_cents / 100)
-                              : t('events.free' as any) || 'Grátis'}
+                              : t('events.free')}
                           </TableCell>
                           <TableCell>{cat.max_participants || '∞'}</TableCell>
                           <TableCell>
@@ -408,18 +408,18 @@ export default function EventDetails() {
           {canPublishResults(event.status as EventStatus) && (
             <TabsContent value="results">
               <Card>
-                <CardHeader>
+              <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Trophy className="h-5 w-5" />
-                    {t('events.results' as any) || 'Resultados'}
+                    {t('events.results')}
                   </CardTitle>
                   <CardDescription>
-                    {t('events.resultsDesc' as any) || 'Registre os resultados do evento (uma vez salvos, não podem ser alterados)'}
+                    {t('events.resultsDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-center py-8 text-muted-foreground">
-                    {t('events.resultsFeatureComingSoon' as any) || 'Funcionalidade de resultados em desenvolvimento'}
+                    {t('events.resultsFeatureComingSoon')}
                   </p>
                 </CardContent>
               </Card>
