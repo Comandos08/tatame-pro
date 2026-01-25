@@ -18,6 +18,8 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
+import { useBillingOverride } from '@/hooks/useBillingOverride';
+import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
 import {
   AthleteFormData,
   GenderType,
@@ -32,6 +34,7 @@ export function AdultMembershipForm() {
   const { tenant } = useTenant();
   const { t } = useI18n();
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
+  const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -118,6 +121,12 @@ export function AdultMembershipForm() {
   };
 
   const handlePayment = async () => {
+    // SAFE GOLD: Bloquear Stripe quando override manual ativo
+    if (!canUseStripe) {
+      toast.error(t('billing.stripeDisabled'));
+      return;
+    }
+    
     if (!tenant || !athleteData) return;
 
     // OBRIGATÓRIO: Exigir login antes de prosseguir
@@ -609,6 +618,11 @@ export function AdultMembershipForm() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* SAFE GOLD: Banner de override manual */}
+                  {isManualOverride && (
+                    <ManualOverrideBanner reason={overrideReason} appliedAt={overrideAt} />
+                  )}
+                  
                   {athleteData && (
                     <div className="space-y-4">
                       <div className="grid sm:grid-cols-2 gap-4 text-sm">
@@ -675,7 +689,7 @@ export function AdultMembershipForm() {
 
                   <Button
                     onClick={handlePayment}
-                    disabled={isLoading || !captchaToken}
+                    disabled={isLoading || !captchaToken || isManualOverride}
                     className="w-full"
                     size="lg"
                   >
