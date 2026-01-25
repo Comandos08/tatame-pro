@@ -73,7 +73,7 @@ serve(async (req) => {
     // 3. Percorrer tmp/{userId}/
     for (const userFolder of userFolders || []) {
       // Pular se é um arquivo (não pasta) ou não tem nome
-      if (!userFolder.name || userFolder.id !== null) continue;
+      if (!userFolder.name) continue;
 
       const userPath = `${TMP_PREFIX}/${userFolder.name}`;
 
@@ -90,7 +90,7 @@ serve(async (req) => {
       // Percorrer tmp/{userId}/{timestamp}/
       for (const tsFolder of timestampFolders || []) {
         // Pular se é um arquivo (não pasta) ou não tem nome
-        if (!tsFolder.name || tsFolder.id !== null) continue;
+        if (!tsFolder.name) continue;
 
         const timestampPath = `${userPath}/${tsFolder.name}`;
 
