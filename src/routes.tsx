@@ -37,6 +37,8 @@ import TenantBilling from '@/pages/TenantBilling';
 import AthleteArea from '@/pages/AthleteArea';
 import TenantControl from '@/pages/TenantControl';
 import AthletePortal from '@/pages/AthletePortal';
+import PortalEvents from '@/pages/PortalEvents';
+import PortalCard from '@/pages/PortalCard';
 import EventsList from '@/pages/EventsList';
 import EventDetails from '@/pages/EventDetails';
 import PublicEventsList from '@/pages/PublicEventsList';
@@ -173,6 +175,8 @@ export function AppRoutes() {
         
         {/* Portal do Atleta (Read-Only) - protected with PortalProtectedRoute */}
         <Route path="portal" element={<PortalProtectedRoute><AthletePortal /></PortalProtectedRoute>} />
+        <Route path="portal/events" element={<PortalProtectedRoute><PortalEvents /></PortalProtectedRoute>} />
+        <Route path="portal/card" element={<PortalProtectedRoute><PortalCard /></PortalProtectedRoute>} />
         
         {/* Protected tenant app */}
         <Route path="app" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />

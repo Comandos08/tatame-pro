@@ -909,4 +909,53 @@ export const en: Record<TranslationKey, string> = {
   'billing.overrideAt': 'Applied on',
   'billing.overrideReasonUnknown': 'Not specified',
   'billing.stripeDisabled': 'Automatic payments are disabled.',
+  
+  // SAFE GOLD P3 — Portal Card
+  'portal.myCard': 'My Card',
+  'portal.myCardDesc': 'Your digital athlete card',
+  'portal.shareCard': 'Share',
+  'portal.viewFullCard': 'View Full Card',
+  'portal.cardValidUntil': 'Valid until',
+  'portal.cardStatusActive': 'Active',
+  'portal.cardStatusExpired': 'Expired',
+  'portal.cardStatusPending': 'Pending',
+  'portal.scanToVerify': 'Scan to verify authenticity',
+  
+  // SAFE GOLD P3 — Events History
+  'events.history': 'Events History',
+  'events.historyDesc': 'All events you have participated in',
+  'events.filterYear': 'Year',
+  'events.filterStatus': 'Status',
+  'events.filterWithResults': 'With Results',
+  'events.noEventsYet': 'You haven\'t participated in any events yet',
+  'events.noEventsYetDesc': 'Check out available events and register',
+  'events.results': 'Results',
+  'events.registration.pending': 'Pending',
+  'events.registration.confirmed': 'Confirmed',
+  
+  // SAFE GOLD P3 — Timeline
+  'timeline.title': 'Membership History',
+  'timeline.created': 'Application submitted',
+  'timeline.approved': 'Membership approved',
+  'timeline.paid': 'Payment confirmed',
+  'timeline.active': 'Membership activated',
+  'timeline.expired': 'Membership expired',
+  'timeline.renewed': 'Membership renewed',
+  'timeline.cancelled': 'Membership cancelled',
+  'timeline.rejected': 'Membership rejected',
+  
+  // SAFE GOLD P3 — Notices
+  'notices.expired': 'Your membership has expired',
+  'notices.expiredDesc': 'Renew now to continue participating in events.',
+  'notices.renewNow': 'Renew Now',
+  'notices.expiringSoon': 'Your membership expires in {days} days',
+  'notices.expiringSoonDesc': 'Renew in advance to avoid interruptions.',
+  'notices.paymentPending': 'Payment pending',
+  'notices.paymentPendingDesc': 'Complete the payment to activate your membership.',
+  'notices.approved': 'Membership approved!',
+  'notices.approvedDesc': 'Welcome! Your membership was approved successfully.',
+  
+  // Common additions
+  'common.all': 'All',
+  'common.copied': 'Copied!',
 };

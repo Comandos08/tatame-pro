@@ -16,6 +16,7 @@ import { EventRegistrationStatus, EVENT_REGISTRATION_STATUS_CONFIG } from '@/typ
 interface MyEventsCardProps {
   athleteId?: string;
   tenantSlug: string;
+  showFullHistoryLink?: boolean;
 }
 
 interface RegistrationWithEvent {
@@ -35,7 +36,7 @@ interface RegistrationWithEvent {
   };
 }
 
-export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
+export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = false }: MyEventsCardProps) {
   const { t } = useI18n();
 
   const { data: registrations = [], isLoading } = useQuery({
@@ -250,8 +251,8 @@ export function MyEventsCard({ athleteId, tenantSlug }: MyEventsCardProps) {
             )}
 
             <Button variant="outline" asChild className="w-full">
-              <Link to={`/${tenantSlug}/events`}>
-                {t('portal.viewAllEvents')}
+              <Link to={showFullHistoryLink ? `/${tenantSlug}/portal/events` : `/${tenantSlug}/events`}>
+                {showFullHistoryLink ? t('events.history') : t('portal.viewAllEvents')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

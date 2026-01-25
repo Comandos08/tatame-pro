@@ -1,8 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, Download, Calendar, AlertCircle } from 'lucide-react';
+import { CreditCard, Download, Calendar, AlertCircle, ExternalLink } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { AuthenticityBadge } from './AuthenticityBadge';
 import { format } from 'date-fns';
@@ -21,12 +22,14 @@ interface DigitalCardSectionProps {
   digitalCard: DigitalCardData | null;
   athleteName: string;
   tenantSlug: string;
+  showFullCardLink?: boolean;
 }
 
 export function DigitalCardSection({
   digitalCard,
   athleteName,
   tenantSlug,
+  showFullCardLink = false,
 }: DigitalCardSectionProps) {
   const { t, locale } = useI18n();
 
@@ -126,6 +129,15 @@ export function DigitalCardSection({
               >
                 <Download className="h-4 w-4" />
                 {t('portal.downloadCard')}
+              </Button>
+            )}
+
+            {showFullCardLink && (
+              <Button variant="link" size="sm" asChild className="gap-1 p-0">
+                <Link to={`/${tenantSlug}/portal/card`}>
+                  {t('portal.viewFullCard')}
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
               </Button>
             )}
           </div>
