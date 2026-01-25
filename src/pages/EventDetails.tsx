@@ -238,13 +238,13 @@ export default function EventDetails() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                {t('events.registrations' as any) || 'Inscrições'}
+                {t('events.registrations')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{registrations.filter(r => r.status !== 'CANCELED').length}</p>
               <p className="text-sm text-muted-foreground">
-                {t('events.registeredAthletes' as any) || 'atletas inscritos'}
+                {t('events.registeredAthletes')}
               </p>
             </CardContent>
           </Card>
