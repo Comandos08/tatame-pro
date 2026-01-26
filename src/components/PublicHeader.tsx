@@ -105,10 +105,10 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
 
             {/* Auth Links */}
             <Link to="/login" className="hidden md:block text-muted-foreground hover:text-foreground transition-colors">
-              Entrar
+              {t('auth.login')}
             </Link>
             <Button asChild>
-              <Link to="/login">Começar Agora</Link>
+              <Link to="/login">{t('landing.accessPlatform')}</Link>
             </Button>
           </div>
         </div>
