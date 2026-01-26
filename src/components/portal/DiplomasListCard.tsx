@@ -2,7 +2,8 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Award, Download, ExternalLink, FileText } from "lucide-react";
+import { Award, Download, ExternalLink } from "lucide-react";
+import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useI18n } from "@/contexts/I18nContext";
 import { format } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
@@ -75,11 +76,11 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
 
       <CardContent>
         {diplomas.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <FileText className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="font-medium text-muted-foreground">{t("portal.noDiplomas")}</p>
-            <p className="text-sm text-muted-foreground mt-1">{t("portal.emptyDiplomas")}</p>
-          </div>
+          <PortalEmptyState
+            title={t("portal.noDiplomas")}
+            description={t("portal.emptyDiplomas")}
+            icon={Award}
+          />
         ) : (
           <div className="space-y-3">
             {diplomas.map((diploma) => (

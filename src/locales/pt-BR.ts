@@ -1015,6 +1015,7 @@ export const ptBR = {
   'timeline.renewed': 'Filiação renovada',
   'timeline.cancelled': 'Filiação cancelada',
   'timeline.rejected': 'Filiação rejeitada',
+  'timeline.noEvents': 'Seu histórico de filiação aparecerá aqui.',
   
   // SAFE GOLD P3 — Notices
   'notices.expired': 'Sua filiação expirou',

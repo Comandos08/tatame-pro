@@ -5,9 +5,9 @@ import { CreditCard, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DigitalMembershipCard } from "@/components/card/DigitalMembershipCard";
+import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useTenant } from "@/contexts/TenantContext";
 import { useI18n } from "@/contexts/I18nContext";
-
 interface DigitalCardData {
   id: string;
   qr_code_image_url: string | null;
@@ -36,20 +36,11 @@ export function DigitalCardSection({
   // Empty / pending state
   if (!digitalCard) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            {t("portal.digitalCard")}
-          </CardTitle>
-          <CardDescription>{t("portal.cardNotAvailable")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8 text-muted-foreground">
-            <p className="text-sm">{t("portal.cardPendingGeneration")}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <PortalEmptyState
+        title={t("portal.digitalCard")}
+        description={t("portal.emptyDigitalCard")}
+        icon={CreditCard}
+      />
     );
   }
 

@@ -1017,6 +1017,7 @@ export const en: Record<string, string> = {
   'timeline.renewed': 'Membership renewed',
   'timeline.cancelled': 'Membership cancelled',
   'timeline.rejected': 'Membership rejected',
+  'timeline.noEvents': 'Your membership history will appear here.',
   
   // SAFE GOLD P3 — Notices
   'notices.expired': 'Your membership has expired',
