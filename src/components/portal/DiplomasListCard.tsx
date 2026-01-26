@@ -58,7 +58,19 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
     window.open(`/${tenantSlug}/verify/diploma/${diplomaId}`, "_blank");
   };
 
-  /* ---------------- Render ---------------- */
+  /* ---------------- Empty State (retorno antecipado) ---------------- */
+
+  if (diplomas.length === 0) {
+    return (
+      <PortalEmptyState
+        title={t("portal.noDiplomas")}
+        description={t("portal.emptyDiplomas")}
+        icon={Award}
+      />
+    );
+  }
+
+  /* ---------------- Normal Render ---------------- */
 
   return (
     <Card>
@@ -66,67 +78,57 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
         <CardTitle className="flex items-center gap-2 text-lg">
           <Award className="h-5 w-5 text-primary" />
           {t("portal.diplomas")}
-          {diplomas.length > 0 && (
-            <Badge variant="secondary" className="ml-auto">
-              {diplomas.length}
-            </Badge>
-          )}
+          <Badge variant="secondary" className="ml-auto">
+            {diplomas.length}
+          </Badge>
         </CardTitle>
       </CardHeader>
 
       <CardContent>
-        {diplomas.length === 0 ? (
-          <PortalEmptyState
-            title={t("portal.noDiplomas")}
-            description={t("portal.emptyDiplomas")}
-            icon={Award}
-          />
-        ) : (
-          <div className="space-y-3">
-            {diplomas.map((diploma) => (
-              <div
-                key={diploma.id}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/50"
-              >
-                {/* Left */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Award className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{diploma.serial_number}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(diploma.promotion_date)}</p>
-                  </div>
+        <div className="space-y-3">
+          {diplomas.map((diploma) => (
+            <div
+              key={diploma.id}
+              className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/50"
+            >
+              {/* Left */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Award className="h-5 w-5 text-primary" />
                 </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{diploma.serial_number}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(diploma.promotion_date)}</p>
+                </div>
+              </div>
 
-                {/* Actions */}
-                <div className="flex shrink-0 items-center gap-1">
-                  {diploma.pdf_url && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      aria-label={t("portal.downloadDiploma")}
-                      onClick={() => handleDownload(diploma.pdf_url)}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  )}
-
+              {/* Actions */}
+              <div className="flex shrink-0 items-center gap-1">
+                {diploma.pdf_url && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    aria-label={t("portal.verifyDiploma")}
-                    onClick={() => handleVerify(diploma.id)}
+                    aria-label={t("portal.downloadDiploma")}
+                    onClick={() => handleDownload(diploma.pdf_url)}
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <Download className="h-4 w-4" />
                   </Button>
-                </div>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t("portal.verifyDiploma")}
+                  onClick={() => handleVerify(diploma.id)}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
