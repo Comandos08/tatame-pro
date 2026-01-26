@@ -1,130 +1,221 @@
 
 
-## i18n FINALIZATION (OPTION B) — Implementation Plan
+## P1 + P1.1 — BILLING CONSOLIDATION (COM 3 CORREÇÕES OBRIGATÓRIAS)
 
-### Current State Analysis
+### Correções Incorporadas
 
-| File | Current State | Required Change |
-|------|--------------|-----------------|
-| `src/locales/en.ts` | Line 1: `import { TranslationKey } from './pt-BR';`<br>Line 3: `Record<TranslationKey, string>` | Remove import, change to `Record<string, string>` |
-| `src/locales/es.ts` | Line 1: `import { TranslationKey } from './pt-BR';`<br>Line 3: `Record<TranslationKey, string>` | Remove import, change to `Record<string, string>` |
-| `src/locales/pt-BR.ts` | Exports `TranslationKey` type | No changes |
-| `scripts/` directory | Does not exist | Create with `check-i18n-keys.js` |
-| `package.json` | No `i18n:check` script | Add script entry |
+| Ajuste | Problema | Correção |
+|--------|----------|----------|
+| #1 | `status` usado antes de definido | Normalizar status ANTES de qualquer uso |
+| #2 | `isReadOnly: false` no fallback | Mudar para `isReadOnly: true` (restritivo) |
+| #3 | Tipos `Raw*` implícitos | Declarar explicitamente no arquivo |
 
 ---
 
-### Implementation Tasks
+### Arquivos a Criar
 
-#### Task 1: Update `src/locales/en.ts`
+#### 1. `src/lib/billing/resolveTenantBillingState.ts`
 
-**Before (Lines 1-3):**
 ```typescript
-import { TranslationKey } from './pt-BR';
+/**
+ * CORE BILLING RESOLVER
+ * Fonte de verdade única para estado de billing do tenant
+ * 
+ * REGRAS IMUTÁVEIS:
+ * 1. Se is_manual_override = true → Stripe é COMPLETAMENTE ignorado
+ * 2. canUseStripe = !isManualOverride
+ * 3. Fallback é SEMPRE restritivo (isReadOnly: true, isBlocked: true)
+ */
 
-export const en: Record<TranslationKey, string> = {
+export type BillingStatus =
+  | 'ACTIVE'
+  | 'TRIALING'
+  | 'PAST_DUE'
+  | 'CANCELED'
+  | 'UNPAID'
+  | 'INCOMPLETE';
+
+export type BillingSource = 'STRIPE' | 'MANUAL_OVERRIDE';
+
+export interface TenantBillingState {
+  status: BillingStatus;
+  isManualOverride: boolean;
+  isActive: boolean;
+  isReadOnly: boolean;
+  isBlocked: boolean;
+  canUseStripe: boolean;
+  source: BillingSource;
+  overrideReason: string | null;
+  overrideAt: Date | null;
+}
+
+// AJUSTE #3: Tipos Raw declarados explicitamente
+interface RawBillingData {
+  status: string | null;
+  is_manual_override: boolean;
+  override_reason?: string | null;
+  override_at?: string | null;
+}
+
+interface RawTenantData {
+  is_active: boolean;
+}
+
+const VALID_STATUSES: BillingStatus[] = [
+  'ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE'
+];
+
+export function resolveTenantBillingState(
+  billing: RawBillingData | null,
+  tenant: RawTenantData | null
+): TenantBillingState {
+  // P1.1 FIX #2: Calcular isManualOverride ANTES do fallback
+  const isManualOverride = billing?.is_manual_override === true;
+  
+  // Fallback quando dados ausentes - SEMPRE RESTRITIVO
+  if (!billing || !tenant) {
+    return {
+      status: 'INCOMPLETE',
+      isManualOverride,
+      isActive: false,
+      isReadOnly: true,           // AJUSTE #2: true, não false
+      isBlocked: true,
+      canUseStripe: !isManualOverride,
+      source: isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE',
+      overrideReason: billing?.override_reason ?? null,
+      overrideAt: billing?.override_at ? new Date(billing.override_at) : null,
+    };
+  }
+
+  // AJUSTE #1: Normalizar status ANTES de qualquer uso
+  const rawStatus = (billing.status || 'INCOMPLETE').toUpperCase() as BillingStatus;
+  const status: BillingStatus = VALID_STATUSES.includes(rawStatus)
+    ? rawStatus
+    : 'INCOMPLETE';
+
+  // Source e canUseStripe
+  const source: BillingSource = isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE';
+  const canUseStripe = !isManualOverride;
+
+  // P1.1 FIX #1: isActive respeita override manual
+  const isActive = isManualOverride
+    ? status === 'ACTIVE' || status === 'TRIALING'
+    : tenant.is_active === true;
+
+  // Flags derivadas
+  const isBlocked = !isActive || status === 'CANCELED';
+  const isReadOnly = ['PAST_DUE', 'UNPAID', 'INCOMPLETE'].includes(status);
+
+  return {
+    status,
+    isManualOverride,
+    isActive,
+    isReadOnly,
+    isBlocked,
+    canUseStripe,
+    source,
+    overrideReason: billing.override_reason ?? null,
+    overrideAt: billing.override_at ? new Date(billing.override_at) : null,
+  };
+}
 ```
 
-**After:**
+#### 2. `src/lib/billing/index.ts`
+
 ```typescript
-export const en: Record<string, string> = {
-```
-
-- Remove line 1 entirely (import statement)
-- Change line 3 type annotation
-- All 1,287 lines of translation content remain untouched
-
----
-
-#### Task 2: Update `src/locales/es.ts`
-
-**Before (Lines 1-3):**
-```typescript
-import { TranslationKey } from './pt-BR';
-
-export const es: Record<TranslationKey, string> = {
-```
-
-**After:**
-```typescript
-export const es: Record<string, string> = {
-```
-
-- Remove line 1 entirely (import statement)
-- Change line 3 type annotation
-- All 1,287 lines of translation content remain untouched
-
----
-
-#### Task 3: Create `scripts/check-i18n-keys.js`
-
-Create new file with the exact script provided in the prompt. This dev-only utility:
-- Reads all three locale files
-- Extracts keys using regex pattern `/['"]([^'"]+)['"]\s*:/g`
-- Compares pt-BR keys against en and es
-- Reports missing and extra keys
-- Exits with code 1 if missing keys found (for CI integration)
-
----
-
-#### Task 4: Update `package.json`
-
-Add to scripts section:
-```json
-"i18n:check": "node scripts/check-i18n-keys.js"
+export {
+  resolveTenantBillingState,
+  type BillingStatus,
+  type BillingSource,
+  type TenantBillingState,
+} from './resolveTenantBillingState';
 ```
 
 ---
 
-### Technical Details
+### Arquivos a Modificar
 
-#### Files Modified
+#### 1. `src/hooks/useTenantStatus.ts`
 
-| File | Action | Lines Changed |
-|------|--------|---------------|
-| `src/locales/en.ts` | Edit | 2 lines (remove import, change type) |
-| `src/locales/es.ts` | Edit | 2 lines (remove import, change type) |
-| `scripts/check-i18n-keys.js` | Create | New file (~60 lines) |
-| `package.json` | Edit | 1 line (add script) |
+**Mudanças:**
+- Adicionar campos na query: `is_manual_override`, `override_reason`, `override_at`
+- Importar e usar `resolveTenantBillingState`
+- Expor novo campo `billingState: TenantBillingState`
+- Derivar `isBlocked` e `hasBillingIssue` do resolver
+- Manter API pública existente (backward compatible)
 
-#### Files NOT Modified
+#### 2. `src/hooks/useBillingOverride.ts`
 
-- `src/locales/pt-BR.ts` — Unchanged
-- `src/contexts/I18nContext.tsx` — Unchanged
-- Any component files — Unchanged
-- Any styling files — Unchanged
-
----
-
-### Validation Checklist
-
-After implementation:
-
-1. **TypeScript Build**: `npm run build` must pass without errors
-2. **i18n Check Script**: `npm run i18n:check` must run and report key status
-3. **Runtime Verification**: App loads, translations work, fallback works
+**Mudança:**
+- Refatorar para wrapper do `useTenantStatus`
+- Eliminar query duplicada
+- Manter API pública existente
 
 ---
 
-### Risk Assessment
-
-| Risk | Mitigation |
-|------|-----------|
-| Type errors after removing strict typing | `Record<string, string>` is compatible with `I18nContext.tsx` which already uses this type |
-| Translation keys broken | No keys are modified, only type annotations |
-| Build failure | Changes are purely type-level, no runtime impact |
-
----
-
-### Expected Outcome
+### Diagrama de Decisão Corrigido
 
 ```text
-i18n FINALIZATION COMPLETED
-├── en.ts: Record<string, string> ✓
-├── es.ts: Record<string, string> ✓
-├── pt-BR.ts: Unchanged ✓
-├── I18nContext.tsx: Unchanged ✓
-├── scripts/check-i18n-keys.js: Created ✓
-├── package.json: i18n:check script added ✓
-└── SAFE MODE: Zero regressions ✓
+resolveTenantBillingState(billing, tenant)
+│
+├─ isManualOverride = billing?.is_manual_override ?? false
+│
+├─ billing = null OU tenant = null?
+│   └── return {
+│         status: INCOMPLETE,
+│         isBlocked: true,
+│         isReadOnly: true,    ← AJUSTE #2
+│         source: isManualOverride ? MANUAL_OVERRIDE : STRIPE
+│       }
+│
+├─ AJUSTE #1: Normalizar status
+│   rawStatus = billing.status.toUpperCase()
+│   status = VALID_STATUSES.includes(rawStatus) ? rawStatus : INCOMPLETE
+│
+├─ is_manual_override = true?
+│   ├── source = MANUAL_OVERRIDE
+│   ├── canUseStripe = false
+│   └── isActive = (status == ACTIVE || status == TRIALING)
+│
+├─ is_manual_override = false?
+│   ├── source = STRIPE
+│   ├── canUseStripe = true
+│   └── isActive = tenant.is_active
+│
+├─ isBlocked = !isActive || status == CANCELED
+│
+├─ isReadOnly = status in [PAST_DUE, UNPAID, INCOMPLETE]
+│
+└── return TenantBillingState
 ```
+
+---
+
+### Checklist de Validação
+
+| Critério | Verificação |
+|----------|-------------|
+| ✅ `status` definido antes de uso | AJUSTE #1 aplicado |
+| ✅ Fallback restritivo | `isReadOnly: true` (AJUSTE #2) |
+| ✅ Tipos Raw explícitos | `RawBillingData`, `RawTenantData` declarados (AJUSTE #3) |
+| ✅ TypeScript compila sem `any` | Tipos fortes em toda a cadeia |
+| ✅ Override tem prioridade total | P1.1 FIX #1 |
+| ✅ Source coerente no fallback | P1.1 FIX #2 |
+| ✅ API pública preservada | Hooks mantêm contratos existentes |
+
+---
+
+### Resultado Esperado
+
+```text
+P1 + P1.1 — BILLING CONSOLIDATION (CORRIGIDO)
+├── resolveTenantBillingState.ts (NOVO)
+│   ├── AJUSTE #1: status normalizado antes de uso ✓
+│   ├── AJUSTE #2: fallback isReadOnly: true ✓
+│   └── AJUSTE #3: tipos Raw explícitos ✓
+├── index.ts (NOVO)
+├── useTenantStatus.ts (MODIFICADO)
+├── useBillingOverride.ts (MODIFICADO)
+└── CORE SAFE MODE preservado ✓
+```
+
