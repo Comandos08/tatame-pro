@@ -24,6 +24,7 @@ import { InAppNotice } from "@/components/notifications/InAppNotice";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { isValidStatusType, getStatusI18nKey } from "@/lib/statusUtils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 /* ======================================================
    Types
@@ -43,9 +44,6 @@ interface MembershipData {
   end_date: string | null;
   type: string;
   created_at: string;
-  reviewed_at?: string | null;
-  rejected_at?: string | null;
-  webhook_processed_at?: string | null;
 }
 
 interface DigitalCardData {
@@ -76,20 +74,17 @@ interface GradingData {
 }
 
 /* ======================================================
-   P4B-4 — Helpers puros
+   Helpers
    ====================================================== */
 
 const normalizeMembershipStatus = (status?: string) => status?.toUpperCase() ?? null;
 
 const calculateDaysUntilExpiry = (endDate?: string | null) => {
   if (!endDate) return null;
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const expiry = new Date(endDate);
   expiry.setHours(0, 0, 0, 0);
-
   return differenceInDays(expiry, today);
 };
 
@@ -116,8 +111,6 @@ export default function AthletePortal() {
   const { currentUser } = useCurrentUser();
   const { t } = useI18n();
 
-  /* ---------------- Queries ---------------- */
-
   const {
     data: athlete,
     isLoading: athleteLoading,
@@ -142,9 +135,7 @@ export default function AthletePortal() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("memberships")
-        .select(
-          "id, status, payment_status, start_date, end_date, type, created_at, reviewed_at, rejected_at, webhook_processed_at",
-        )
+        .select("id, status, payment_status, start_date, end_date, type, created_at")
         .eq("athlete_id", athlete!.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -162,7 +153,6 @@ export default function AthletePortal() {
         .from("digital_cards")
         .select("id, qr_code_image_url, pdf_url, valid_until, content_hash_sha256, membership_id")
         .eq("membership_id", membership!.id)
-        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -200,8 +190,6 @@ export default function AthletePortal() {
     enabled: !!athlete?.id,
   });
 
-  /* ---------------- Derived state (P4B-4) ---------------- */
-
   const membershipStatus = normalizeMembershipStatus(membership?.status);
   const daysUntilExpiry = calculateDaysUntilExpiry(membership?.end_date);
 
@@ -211,8 +199,6 @@ export default function AthletePortal() {
   const isLoading = athleteLoading || membershipLoading;
 
   if (!tenant) return null;
-
-  /* ---------------- Render ---------------- */
 
   return (
     <PortalLayout
@@ -227,31 +213,36 @@ export default function AthletePortal() {
         isLoading={isLoading}
         error={athleteError as Error | null}
       >
-        {/* P4B-4: Portal Header */}
+        {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-6 w-6 text-primary" />
             </div>
+
             <div className="flex-1">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-display font-bold">{t("portal.title")}</h1>
-                {membershipStatus && isValidStatusType(membershipStatus) && ["ACTIVE", "APPROVED", "PENDING_REVIEW"].includes(membershipStatus) && (
-                  <StatusBadge 
-                    status={membershipStatus} 
-                    label={t(getStatusI18nKey(membershipStatus))}
-                  />
-                )}
+                <h1 className="text-2xl font-bold">{t("portal.title")}</h1>
+
+                {membershipStatus &&
+                  isValidStatusType(membershipStatus) &&
+                  ["ACTIVE", "APPROVED", "PENDING_REVIEW"].includes(membershipStatus) && (
+                    <StatusBadge
+                      status={membershipStatus}
+                      label={t(getStatusI18nKey(membershipStatus))}
+                      size="lg"
+                      showDot
+                    />
+                  )}
               </div>
-              <p className="text-muted-foreground">{t(getWelcomeMessageKey(membershipStatus))}</p>
+
+              <p className="text-sm text-muted-foreground">{t(getWelcomeMessageKey(membershipStatus))}</p>
             </div>
           </div>
         </div>
 
-        {/* In-App Notifications */}
         <InAppNotice membership={membership} tenantSlug={tenant.slug} />
 
-        {/* P4B-4: Renewal reminder card */}
         {showRenewalReminder && (
           <Alert className="mb-6 border-warning/30 bg-warning/5">
             <Clock className="h-4 w-4 text-warning" />
@@ -261,19 +252,19 @@ export default function AthletePortal() {
             <AlertDescription className="flex items-center justify-between gap-4">
               <span>{t("portal.renewReminder")}</span>
               <Link to={`/${tenantSlug}/membership/renew`}>
-                <button className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
+                <Button variant="link" size="sm" className="gap-2 p-0">
                   <RefreshCw className="h-4 w-4" />
                   {t("portal.renewNow")}
-                </button>
+                </Button>
               </Link>
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Portal Content */}
+        {/* Content */}
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               {membership && (
                 <MembershipStatusCard
                   status={membership.status}
@@ -284,37 +275,26 @@ export default function AthletePortal() {
               )}
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               {membership && <PaymentStatusCard paymentStatus={membership.payment_status} />}
             </motion.div>
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <DigitalCardSection
-              digitalCard={digitalCard ?? null}
-              athleteName={athlete?.full_name || ""}
-              tenantSlug={tenant.slug}
-              showFullCardLink
-            />
-          </motion.div>
+          <DigitalCardSection
+            digitalCard={digitalCard ?? null}
+            athleteName={athlete?.full_name || ""}
+            tenantSlug={tenant.slug}
+            showFullCardLink
+          />
 
           <div className="grid gap-6 md:grid-cols-2">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-              <DiplomasListCard diplomas={diplomas} tenantSlug={tenant.slug} />
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <GradingHistoryCard gradings={gradings} />
-            </motion.div>
+            <DiplomasListCard diplomas={diplomas} tenantSlug={tenant.slug} />
+            <GradingHistoryCard gradings={gradings} />
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-            <MembershipTimeline membership={membership} />
-          </motion.div>
+          <MembershipTimeline membership={membership} />
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} showFullHistoryLink />
-          </motion.div>
+          <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} showFullHistoryLink />
         </div>
       </PortalAccessGate>
     </PortalLayout>
