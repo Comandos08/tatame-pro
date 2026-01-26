@@ -740,6 +740,14 @@ export const es: Record<string, string> = {
   'portal.emptyDigitalCard': 'Tu credencial digital se generará automáticamente después de la aprobación de tu afiliación.',
   'portal.emptyDiplomas': 'Los diplomas de graduación aparecerán aquí a medida que avances en el deporte.',
   'portal.emptyGradings': 'Tu historial de cinturones se mostrará aquí después de tu primera graduación.',
+
+  // Portal - Dynamic Headlines (P4B-4)
+  'portal.welcomeActive': 'Tu afiliación está activa',
+  'portal.welcomeApproved': '¡Bienvenido! Tu afiliación ha sido aprobada',
+  'portal.welcomePending': 'Tu afiliación está en revisión',
+  'portal.expiringIn': 'Tu afiliación expira en {days} días',
+  'portal.renewReminder': 'Recomendamos renovar para mantener tus beneficios activos.',
+  'portal.renewNow': 'Renovar ahora',
   
   // Portal del Atleta - Eventos
   'portal.myEvents': 'Mis Eventos',

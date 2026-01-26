@@ -740,6 +740,14 @@ export const en: Record<string, string> = {
   'portal.emptyDigitalCard': 'Your digital card will be generated automatically after your membership is approved.',
   'portal.emptyDiplomas': 'Your graduation diplomas will appear here as you progress in the sport.',
   'portal.emptyGradings': 'Your belt history will be displayed here after your first graduation.',
+
+  // Portal - Dynamic Headlines (P4B-4)
+  'portal.welcomeActive': 'Your membership is active',
+  'portal.welcomeApproved': 'Welcome! Your membership has been approved',
+  'portal.welcomePending': 'Your membership is under review',
+  'portal.expiringIn': 'Your membership expires in {days} days',
+  'portal.renewReminder': 'We recommend renewing to keep your benefits active.',
+  'portal.renewNow': 'Renew now',
   
   // Athlete Portal - Events
   'portal.myEvents': 'My Events',

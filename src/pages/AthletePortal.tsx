@@ -1,8 +1,9 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User } from 'lucide-react';
+import { User, Clock, RefreshCw } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -17,6 +18,8 @@ import { GradingHistoryCard } from '@/components/portal/GradingHistoryCard';
 import { MyEventsCard } from '@/components/portal/MyEventsCard';
 import { MembershipTimeline } from '@/components/membership/MembershipTimeline';
 import { InAppNotice } from '@/components/notifications/InAppNotice';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface AthleteData {
   id: string;
@@ -63,6 +66,35 @@ interface GradingData {
   coach_id: string | null;
   notes: string | null;
 }
+
+// P4B-4 — Helpers puros
+const normalizeMembershipStatus = (status?: string) =>
+  status?.toUpperCase() ?? null;
+
+const calculateDaysUntilExpiry = (endDate?: string | null) => {
+  if (!endDate) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const expiry = new Date(endDate);
+  expiry.setHours(0, 0, 0, 0);
+
+  return differenceInDays(expiry, today);
+};
+
+const getWelcomeMessageKey = (status: string | null) => {
+  switch (status) {
+    case 'ACTIVE':
+      return 'portal.welcomeActive';
+    case 'APPROVED':
+      return 'portal.welcomeApproved';
+    case 'PENDING_REVIEW':
+      return 'portal.welcomePending';
+    default:
+      return 'portal.welcome';
+  }
+};
 
 export default function AthletePortal() {
   const { tenant } = useTenant();
@@ -157,6 +189,16 @@ export default function AthletePortal() {
 
   const isLoading = athleteLoading || membershipLoading;
 
+  // P4B-4: Derived state
+  const membershipStatus = normalizeMembershipStatus(membership?.status);
+  const daysUntilExpiry = calculateDaysUntilExpiry(membership?.end_date);
+
+  const showRenewalReminder =
+    membershipStatus === 'ACTIVE' &&
+    daysUntilExpiry !== null &&
+    daysUntilExpiry > 0 &&
+    daysUntilExpiry <= 30;
+
   if (!tenant) {
     return null;
   }
@@ -174,21 +216,45 @@ export default function AthletePortal() {
         isLoading={isLoading}
         error={athleteError as Error | null}
       >
-        {/* Portal Header */}
+        {/* P4B-4: Portal Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-6 w-6 text-primary" />
             </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold">{t('portal.title')}</h1>
-              <p className="text-muted-foreground">{t('portal.welcome')}</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-display font-bold">{t('portal.title')}</h1>
+                {membershipStatus && ['ACTIVE', 'APPROVED', 'PENDING_REVIEW'].includes(membershipStatus) && (
+                  <StatusBadge status={membershipStatus as any} />
+                )}
+              </div>
+              <p className="text-muted-foreground">{t(getWelcomeMessageKey(membershipStatus))}</p>
             </div>
           </div>
         </div>
 
         {/* In-App Notifications */}
         <InAppNotice membership={membership} tenantSlug={tenant.slug} />
+
+        {/* P4B-4: Renewal reminder card */}
+        {showRenewalReminder && (
+          <Alert className="mb-6 border-warning/30 bg-warning/5">
+            <Clock className="h-4 w-4 text-warning" />
+            <AlertTitle className="text-warning">
+              {t('portal.expiringIn').replace('{days}', String(daysUntilExpiry))}
+            </AlertTitle>
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <span>{t('portal.renewReminder')}</span>
+              <Link to={`/${tenantSlug}/membership/renew`}>
+                <button className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
+                  <RefreshCw className="h-4 w-4" />
+                  {t('portal.renewNow')}
+                </button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Portal Content */}
         <div className="space-y-6">
