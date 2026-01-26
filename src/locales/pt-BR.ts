@@ -730,6 +730,9 @@ export const ptBR = {
   'portal.paymentFailed': 'Falhou',
   'portal.noDiplomas': 'Nenhum diploma emitido',
   'portal.noGradings': 'Nenhuma graduação registrada',
+  'portal.emptyDigitalCard': 'Sua carteira digital será gerada automaticamente após a aprovação da sua filiação.',
+  'portal.emptyDiplomas': 'Os diplomas de graduação aparecerão aqui conforme você evolui no esporte.',
+  'portal.emptyGradings': 'Seu histórico de faixas será exibido aqui após sua primeira graduação.',
   
   // Portal do Aluno - Eventos
   'portal.myEvents': 'Meus Eventos',

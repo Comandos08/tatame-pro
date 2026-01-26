@@ -732,6 +732,9 @@ export const en: Record<string, string> = {
   'portal.paymentFailed': 'Failed',
   'portal.noDiplomas': 'No diplomas issued',
   'portal.noGradings': 'No gradings recorded',
+  'portal.emptyDigitalCard': 'Your digital card will be generated automatically after your membership is approved.',
+  'portal.emptyDiplomas': 'Your graduation diplomas will appear here as you progress in the sport.',
+  'portal.emptyGradings': 'Your belt history will be displayed here after your first graduation.',
   
   // Athlete Portal - Events
   'portal.myEvents': 'My Events',

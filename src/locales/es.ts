@@ -732,6 +732,9 @@ export const es: Record<string, string> = {
   'portal.paymentFailed': 'Fallido',
   'portal.noDiplomas': 'Sin diplomas emitidos',
   'portal.noGradings': 'Sin graduaciones registradas',
+  'portal.emptyDigitalCard': 'Tu credencial digital se generará automáticamente después de la aprobación de tu afiliación.',
+  'portal.emptyDiplomas': 'Los diplomas de graduación aparecerán aquí a medida que avances en el deporte.',
+  'portal.emptyGradings': 'Tu historial de cinturones se mostrará aquí después de tu primera graduación.',
   
   // Portal del Atleta - Eventos
   'portal.myEvents': 'Mis Eventos',
