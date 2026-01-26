@@ -195,7 +195,7 @@ export function EditablePersonalData({ athlete, tenantId }: EditablePersonalData
           <CardDescription>{t('athleteArea.personalDataDesc')}</CardDescription>
         </div>
         {!isEditing ? (
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+          <Button variant="tenant-outline" size="sm" onClick={() => setIsEditing(true)}>
             <Edit2 className="h-4 w-4 mr-2" />
             {t('common.edit')}
           </Button>
