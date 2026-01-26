@@ -102,8 +102,8 @@ export function EventCard({
             </Link>
           </Button>
         ) : (
-          <Button variant="outline" asChild className="w-full">
-            <Link to={detailsLink}>
+        <Button variant="tenant-outline" asChild className="w-full">
+          <Link to={detailsLink}>
               {t('common.view')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>

@@ -122,7 +122,7 @@ export function DigitalCardSection({
 
             {digitalCard.pdf_url && (
               <Button
-                variant="outline"
+                variant="tenant-outline"
                 size="sm"
                 onClick={handleDownload}
                 className="gap-2"

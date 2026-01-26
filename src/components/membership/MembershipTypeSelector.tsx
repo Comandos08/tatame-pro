@@ -137,7 +137,7 @@ export function MembershipTypeSelector() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline" disabled={isMembershipBlocked}>
+                  <Button className="w-full" variant="tenant-outline" disabled={isMembershipBlocked}>
                     Selecionar
                   </Button>
                 </CardContent>
