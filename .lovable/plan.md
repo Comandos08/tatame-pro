@@ -1,250 +1,173 @@
 
 
-## P3 — Athlete AuthCallback Hardening (FINAL)
+## P4A — Athlete Route Guard (Security Only)
 
-### Vulnerabilidades Identificadas
+### Análise do Estado Atual
 
-| Linha | Código Atual | Problema | Severidade |
-|-------|-------------|----------|------------|
-| 18 | `const next = searchParams.get('next') \|\| '/'` | Default não controlado | ⚠️ |
-| 21-28 | `extractTenantSlug(path: string)` | Não aceita null | ⚠️ |
-| 47 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
-| 62 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
-| 115 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
-| 117 | `navigate(redirectPath, { replace: true })` | Não validado | ⚠️ |
-| 122 | `navigate(next, { replace: true })` | ❌ `next` no catch | 🔴 CRÍTICO |
+| Componente | Status | Problema |
+|------------|--------|----------|
+| `PortalProtectedRoute` (L77-95) | Existe | Só verifica auth, não valida tenant |
+| `/app` routes | `ProtectedRoute` | Atleta pode tentar acessar via URL direta |
+| Tenant validation | Não existe | Nenhum guard valida se tenant existe no DB |
 
 ---
 
-### Arquivo Modificado
+### Arquivos a Criar
 
-`src/pages/AuthCallback.tsx` — único arquivo
+#### 1. `src/lib/resolveAthleteRouteAccess.ts`
 
----
-
-### Implementação
-
-#### 1. Funções Puras LOCAIS (antes do componente)
+**Função pura de decisão (100% testável, sem side effects):**
 
 ```typescript
 /**
- * P3 — Sanitizador de tenant slug
- * LOCAL: Não exportar
- */
-function extractTenantSlug(path: string | null): string | null {
-  if (!path) return null;
-
-  const match = path.match(/^\/([^/]+)/);
-  if (!match || !match[1]) return null;
-
-  const slug = match[1];
-
-  // Bloquear rotas globais explicitamente
-  const blockedRoots = ['admin', 'auth', 'login', 'help'];
-  if (blockedRoots.includes(slug)) {
-    return null;
-  }
-
-  return slug;
-}
-
-/**
- * P3 — Validador de redirect pós-auth
- * LOCAL: Não exportar
+ * P4A — Athlete Route Access Decision Function
+ * PURE FUNCTION: No side effects, no external dependencies
  * 
- * REGRAS IMUTÁVEIS:
+ * IMMUTABLE RULES (ORDER MATTERS):
  * 1. No tenantSlug → '/'
- * 2. next válido (starts /${tenantSlug}, no /app) → next
- * 3. next inválido → /${tenantSlug}/portal
+ * 2. /app route → /${tenantSlug}/portal (BLOCK)
+ * 3. Tenant doesn't exist → '/'
+ * 4. Auth required but not authenticated → /${tenantSlug}/login
+ * 5. Otherwise → OK
  */
-function resolveAthletePostAuthRedirect(
-  tenantSlug: string | null,
-  next: string | null
-): string {
-  if (!tenantSlug) {
-    return '/';
-  }
-
-  const tenantBase = `/${tenantSlug}`;
-  const defaultDestination = `${tenantBase}/portal`;
-
-  if (next) {
-    const startsWithTenant = next.startsWith(tenantBase);
-    const containsApp = next.includes('/app');
-
-    if (startsWithTenant && !containsApp) {
-      return next;
-    }
-  }
-
-  return defaultDestination;
-}
 ```
+
+**Regras de decisão:**
+
+| # | Condição | redirectTo | Reason |
+|---|----------|------------|--------|
+| 1 | `!tenantSlug` | `/` | NO_TENANT |
+| 2 | `pathname === /${slug}/app` ou `pathname.startsWith(/${slug}/app/)` | `/${slug}/portal` | BLOCK_APP |
+| 3 | `!tenantExists` | `/` | TENANT_NOT_FOUND |
+| 4 | Rota portal/renew/status + `!isAuthenticated` | `/${slug}/login` | AUTH_REQUIRED |
+| 5 | Caso contrário | `null` (allow) | OK |
+
+**Rotas que exigem auth:**
+- `/${tenantSlug}/portal`
+- `/${tenantSlug}/portal/*`
+- `/${tenantSlug}/membership/renew`
+- `/${tenantSlug}/membership/status`
 
 ---
 
-#### 2. Mudanças no Componente
+#### 2. `src/components/auth/AthleteRouteGuard.tsx`
 
-| Antes | Depois |
-|-------|--------|
-| `const next = searchParams.get('next') \|\| '/'` | `const nextRaw = searchParams.get('next')` |
+**Guard wrapper com query mínima:**
 
----
+| Responsabilidade | Implementação |
+|------------------|---------------|
+| Ler tenantSlug | `useParams()` |
+| Ler pathname | `useLocation()` |
+| Verificar auth | `useCurrentUser()` |
+| Query tenant | `from('tenants').select('id').eq('slug', tenantSlug).maybeSingle()` |
+| Prevenir loops | `useRef(hasRedirected)` |
+| Decisão | `resolveAthleteRouteAccess()` exclusivamente |
 
-#### 3. Pontos de Navigate Corrigidos
-
-**Linha 47 (no tenantSlug):**
-```typescript
-// ANTES: navigate(next, { replace: true });
-// DEPOIS:
-const destination = resolveAthletePostAuthRedirect(null, nextRaw);
-navigate(destination, { replace: true });
-```
-
-**Linha 62 (tenant não encontrado):**
-```typescript
-// ANTES: navigate(next, { replace: true });
-// DEPOIS:
-const destination = resolveAthletePostAuthRedirect(null, nextRaw);
-navigate(destination, { replace: true });
-```
-
-**Linhas 114-118 (redirect final):**
-```typescript
-// ANTES:
-if (isMembershipFormRoute && !membershipStatus) {
-  navigate(next, { replace: true });
-} else {
-  navigate(redirectPath, { replace: true });
-}
-
-// DEPOIS:
-let targetPath: string;
-if (isMembershipFormRoute && !membershipStatus && nextRaw) {
-  targetPath = nextRaw;  // ✅ SEM non-null assertion
-} else {
-  targetPath = redirectPath;
-}
-
-const destination = resolveAthletePostAuthRedirect(tenantSlug, targetPath);
-navigate(destination, { replace: true });
-```
-
-**Linha 122 (catch):**
-```typescript
-// ANTES: navigate(next, { replace: true });
-// DEPOIS:
-navigate('/login', { replace: true }); // ✅ SEMPRE /login
-```
+**Comportamento:**
+| Estado | Ação |
+|--------|------|
+| Loading (auth ou tenant check) | Mostrar loader |
+| `allow = false` | `navigate(redirectTo, { replace: true })` |
+| `allow = true` | Render `{children}` |
 
 ---
 
-#### 4. Mudança no useEffect dependency array
+### Arquivo a Modificar
 
+#### 3. `src/routes.tsx`
+
+**Mudanças:**
+
+1. **Adicionar import:**
 ```typescript
-// ANTES:
-}, [isLoading, isAuthenticated, currentUser, next, navigate, redirecting]);
-
-// DEPOIS:
-}, [isLoading, isAuthenticated, currentUser, nextRaw, navigate, redirecting]);
+import { AthleteRouteGuard } from '@/components/auth/AthleteRouteGuard';
 ```
+
+2. **Substituir `PortalProtectedRoute` por `AthleteRouteGuard`:**
+
+| Rota | Antes | Depois |
+|------|-------|--------|
+| `portal` | `<PortalProtectedRoute>` | `<AthleteRouteGuard>` |
+| `portal/events` | `<PortalProtectedRoute>` | `<AthleteRouteGuard>` |
+| `portal/card` | `<PortalProtectedRoute>` | `<AthleteRouteGuard>` |
+| `membership/renew` | `<PortalProtectedRoute>` | `<AthleteRouteGuard>` |
+| `membership/status` | Sem guard | `<AthleteRouteGuard>` |
+
+3. **Rotas que NÃO recebem guard (públicas):**
+- `membership/new` — Público
+- `membership/adult` — Público
+- `membership/youth` — Público
+- `membership/success` — Público
+
+4. **Manter `PortalProtectedRoute` no arquivo** (não remover, pode ser usado em outros lugares)
 
 ---
 
-### Fluxo de Navegação Blindado
+### SAFE MODE — Arquivos NÃO Modificados
 
-```text
-AuthCallback.tsx
-│
-├─ 1. supabase.auth.getSession() ← Finalizar magic link
-│
-├─ 2. Extract tenantSlug from nextRaw
-│   │
-│   └─ No tenantSlug?
-│       └── resolveAthletePostAuthRedirect(null, nextRaw) → '/'
-│
-├─ 3. Query tenant from DB
-│   │
-│   └─ Tenant not found?
-│       └── resolveAthletePostAuthRedirect(null, nextRaw) → '/'
-│
-├─ 4. Fetch athlete + membership status
-│
-├─ 5. Calculate targetPath
-│   ├─ Membership form + no membership + nextRaw exists → nextRaw
-│   └─ Else → redirectPath (from resolveAthletePostLoginRedirect)
-│
-├─ 6. SEMPRE validar antes de navegar
-│   └── resolveAthletePostAuthRedirect(tenantSlug, targetPath)
-│       │
-│       ├─ starts with /${tenantSlug} AND no /app → targetPath
-│       └─ else → /${tenantSlug}/portal
-│
-└── CATCH (any error)
-    └── navigate('/login') ← SEMPRE, SEM EXCEÇÃO
-```
+| Arquivo | Razão |
+|---------|-------|
+| `src/pages/Login.tsx` | P2 — Admin login |
+| `src/pages/AuthCallback.tsx` | P3 — Athlete callback |
+| `src/lib/billing/*` | P1 — Billing core |
+| `src/lib/resolveAthletePostLoginRedirect.ts` | Post-login redirect |
+| `src/layouts/TenantLayout.tsx` | Layout do tenant |
 
 ---
 
 ### Testes de Validação
 
-| Input | Resultado |
-|-------|-----------|
-| `next=/acme/portal` | → `/acme/portal` ✅ |
-| `next=/acme/membership/new` (sem membership) | → `/acme/membership/new` ✅ |
-| `next=/acme/membership/new` (com membership) | → `/acme/portal` ✅ |
-| `next=/acme/app` | → `/acme/portal` (BLOCKED) |
-| `next=/acme/app/dashboard` | → `/acme/portal` (BLOCKED) |
-| `next=/other-tenant/portal` | → `/acme/portal` (wrong tenant) |
-| `next=/admin` | → `/` (blocked root) |
-| `next=/auth/callback` | → `/` (blocked root) |
-| `next=https://evil.com` | → `/acme/portal` (blocked) |
-| `next=null` | → `/acme/portal` (default) |
-| Tenant não existe no DB | → `/` |
-| Query error | → `/login` ✅ |
+| Cenário | Input | Resultado |
+|---------|-------|-----------|
+| Atleta tenta `/acme/app` | `pathname=/acme/app` | → `/acme/portal` (BLOCK_APP) |
+| Atleta tenta `/acme/app/memberships` | `pathname=/acme/app/memberships` | → `/acme/portal` (BLOCK_APP) |
+| Tenant inexistente | `tenantExists=false` | → `/` (TENANT_NOT_FOUND) |
+| Portal sem auth | `isAuthenticated=false` | → `/acme/login` (AUTH_REQUIRED) |
+| Portal com auth | `isAuthenticated=true` | → Render children (OK) |
+| Membership/new sem auth | Público | → Render children (OK) |
+| No tenantSlug | `tenantSlug=null` | → `/` (NO_TENANT) |
 
 ---
 
-### Arquivos NÃO Modificados
-
-| Arquivo | Razão |
-|---------|-------|
-| `src/pages/Login.tsx` | P2 — Admin login |
-| `src/lib/billing/*` | P1 — Billing core |
-| `src/lib/resolveAthletePostLoginRedirect.ts` | Continua sendo usado |
-| `src/routes.tsx` | Sem mudanças |
-| `src/layouts/TenantLayout.tsx` | Sem mudanças |
-
----
-
-### Checklist de Aceite
+### Critérios de Aceite
 
 | Critério | Status |
 |----------|--------|
-| Nenhum `navigate(next)` ou `navigate(nextRaw)` direto | ✅ |
-| Nenhum `!` (non-null assertion) relacionado a redirect | ✅ |
-| `/app` bloqueado para atletas | ✅ |
-| Redirect sempre dentro do tenant | ✅ |
-| Catch sempre `/login` | ✅ |
-| Código compila sem warnings TypeScript | ✅ |
-| Funções puras são LOCAIS (não exportadas) | ✅ |
+| `/app` bloqueado para atleta | ✅ |
+| Tenant inexistente → `/` | ✅ |
+| Portal sem auth → `/{slug}/login` | ✅ |
+| Nenhum loop de redirect (useRef) | ✅ |
+| Nenhum acesso fora do tenant | ✅ |
+| Código compila sem warnings TS | ✅ |
+| Função pura isolada | ✅ |
+| NÃO usa billing | ✅ |
+| NÃO usa membershipStatus | ✅ |
+| P1/P2/P3 intactos | ✅ |
+
+---
+
+### Entregáveis
+
+**Criar:**
+1. `src/lib/resolveAthleteRouteAccess.ts` — Função pura
+2. `src/components/auth/AthleteRouteGuard.tsx` — Guard wrapper
+
+**Modificar:**
+3. `src/routes.tsx` — Aplicar guard nas rotas atleta
 
 ---
 
 ### Resultado Esperado
 
 ```text
-P3 — ATHLETE AUTHCALLBACK HARDENING (FINAL)
-├── resolveAthletePostAuthRedirect() LOCAL ✓
-├── extractTenantSlug() aceita null ✓
-├── next NUNCA direto em navigate() ✓
-├── ZERO non-null assertions ✓
-├── TODOS os redirects validados ✓
-├── Catch SEMPRE /login ✓
-├── /app bloqueado ✓
-├── Redirect dentro do tenant ✓
-├── Admin login UNTOUCHED ✓
-├── Billing UNTOUCHED ✓
-└── SAFE MODE preserved ✓
+P4A — ATHLETE ROUTE GUARD (SECURITY)
+├── Função pura centralizada ✓
+├── Guard único de rotas ✓
+├── /app bloqueado para atleta ✓
+├── Tenant inexistente bloqueado ✓
+├── Auth exigida no portal ✓
+├── Fail-closed ✓
+├── P1 / P2 / P3 intactos ✓
+└── SAFE MODE preservado ✓
 ```
 
