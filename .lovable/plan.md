@@ -1,58 +1,71 @@
 
 
-# P4B-4 — Athlete Portal UX Polish (SAFE MODE, UX-ONLY)
+# P4B-4 — Athlete Portal UX Polish (GOLD MASTER)
 
 ## Resumo
 
-Melhorar a clareza inicial do Portal do Atleta, respondendo imediatamente às perguntas do atleta: "Qual é o meu status?", "Está tudo certo?", "Preciso fazer algo agora?" — tudo sem criar lógica nova, sem alterar fluxo, sem tocar em segurança.
+Implementar melhorias de UX no Portal do Atleta para clareza imediata de status, com headline dinamica, badge visual de status e card de renovacao condicional — 100% UX-only, sem alterar logica, guards, queries ou fluxo existente.
 
 ---
 
 ## Escopo Exato
 
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| `src/pages/AthletePortal.tsx` | Adicionar headline dinâmica + badge de status + card de renovação |
-| `src/locales/pt-BR.ts` | Adicionar 5 novas i18n keys (linha ~741) |
-| `src/locales/en.ts` | Adicionar 5 novas i18n keys (linha ~743) |
-| `src/locales/es.ts` | Adicionar 5 novas i18n keys (linha ~743) |
+| `src/pages/AthletePortal.tsx` | Imports + funcoes puras + header dinamico + card de renovacao |
+| `src/locales/pt-BR.ts` | 6 novas keys i18n (linha 741) |
+| `src/locales/en.ts` | 6 novas keys i18n (linha 743) |
+| `src/locales/es.ts` | 6 novas keys i18n (linha 743) |
 
 ---
 
 ## Arquivos NAO Modificados (SAFE MODE)
 
-| Arquivo | Razão |
-|---------|-------|
-| `src/routes.tsx` | P4A - Intacto |
-| `src/pages/AuthCallback.tsx` | P3 - Intacto |
-| `src/components/portal/PortalAccessGate.tsx` | P4B-1 - Intacto |
-| `src/components/auth/AthleteRouteGuard.tsx` | P4A - Intacto |
-| `src/lib/billing/*` | P1 - Intacto |
-| `src/components/portal/*` | P4B-2 - Intacto |
-| `src/components/membership/MembershipTypeSelector.tsx` | P4B-3 - Intacto |
+- `src/routes.tsx`
+- `src/pages/AuthCallback.tsx`
+- `src/components/portal/PortalAccessGate.tsx`
+- `src/components/auth/AthleteRouteGuard.tsx`
+- `src/lib/billing/*`
+- `src/components/portal/*`
+- `src/components/membership/*`
 
 ---
 
-## Mudancas Tecnicas no AthletePortal.tsx
+## Secao Tecnica
 
-### 1. Novos Imports (linhas 1-5)
+### 1. AthletePortal.tsx — Imports
 
-Adicionar:
-- `differenceInDays` de `date-fns`
-- `Link` de `react-router-dom`
-- `Clock, RefreshCw` de `lucide-react`
-- `StatusBadge` de `@/components/ui/status-badge`
-- `Alert, AlertTitle, AlertDescription` de `@/components/ui/alert`
-
-### 2. Funcao getWelcomeMessage (antes do return, linha ~159)
-
-Adicionar funcao local pura (sem side effects):
+**Linha 2** — Adicionar `Link`:
 
 ```typescript
-// P4B-4: Dynamic welcome message based on membership status (UX-only)
+import { useParams, Link } from 'react-router-dom';
+```
+
+**Linha 5** — Adicionar icones:
+
+```typescript
+import { User, Clock, RefreshCw } from 'lucide-react';
+```
+
+**Apos linha 19** — Novos imports:
+
+```typescript
+import { differenceInDays } from 'date-fns';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+```
+
+### 2. AthletePortal.tsx — Funcoes Puras (apos linha 158)
+
+Inserir apos `const isLoading = athleteLoading || membershipLoading;`:
+
+```typescript
+// P4B-4: Normalize membership status (single source of truth)
+const membershipStatus = membership?.status?.toUpperCase();
+
+// P4B-4: Dynamic welcome message (UX-only)
 const getWelcomeMessage = () => {
-  const status = membership?.status?.toUpperCase();
-  switch (status) {
+  switch (membershipStatus) {
     case 'ACTIVE':
       return t('portal.welcomeActive');
     case 'APPROVED':
@@ -63,27 +76,31 @@ const getWelcomeMessage = () => {
       return t('portal.welcome');
   }
 };
+
+// P4B-4: Timezone-safe expiration calculation (UX-only)
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const expiryDate = membership?.end_date ? new Date(membership.end_date) : null;
+if (expiryDate) {
+  expiryDate.setHours(0, 0, 0, 0);
+}
+
+const daysUntilExpiry = expiryDate ? differenceInDays(expiryDate, today) : null;
+
+const showRenewalReminder =
+  membershipStatus === 'ACTIVE' &&
+  daysUntilExpiry !== null &&
+  daysUntilExpiry > 0 &&
+  daysUntilExpiry <= 30;
 ```
 
-### 3. Calculo daysUntilExpiry (antes do return, linha ~159)
+### 3. AthletePortal.tsx — Header Atualizado (linhas 177-188)
 
-Adicionar calculo inline simples:
-
-```typescript
-// P4B-4: Calculate days until expiry for renewal card (UX-only, no state)
-const daysUntilExpiry = membership?.end_date
-  ? differenceInDays(new Date(membership.end_date), new Date())
-  : null;
-
-const showRenewalReminder = daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 30;
-```
-
-### 4. Header Atualizado (linhas 177-188)
-
-Substituir o bloco do Portal Header por:
+Substituir bloco completo por:
 
 ```jsx
-{/* Portal Header - P4B-4: Dynamic headline + status badge */}
+{/* P4B-4: Portal Header — dynamic headline + status badge */}
 <div className="mb-6">
   <div className="flex items-center gap-3">
     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -92,9 +109,10 @@ Substituir o bloco do Portal Header por:
     <div className="flex-1">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-display font-bold">{t('portal.title')}</h1>
-        {membership && (
-          <StatusBadge status={membership.status as any} />
-        )}
+        {membershipStatus &&
+          ['ACTIVE', 'APPROVED', 'PENDING_REVIEW'].includes(membershipStatus) && (
+            <StatusBadge status={membershipStatus as any} />
+          )}
       </div>
       <p className="text-muted-foreground">{getWelcomeMessage()}</p>
     </div>
@@ -102,9 +120,9 @@ Substituir o bloco do Portal Header por:
 </div>
 ```
 
-### 5. Card de Renovacao (apos InAppNotice, linha ~191)
+### 4. AthletePortal.tsx — Card de Renovacao (apos linha 191)
 
-Inserir ANTES do bloco `{/* Portal Content */}`:
+Inserir APOS `<InAppNotice ... />` e ANTES de `{/* Portal Content */}`:
 
 ```jsx
 {/* P4B-4: Renewal reminder card (UX-only, conditional) */}
@@ -138,7 +156,7 @@ Inserir ANTES do bloco `{/* Portal Content */}`:
 
 ## Novas Chaves i18n
 
-### pt-BR.ts (inserir apos linha 740, antes de portal.myEvents)
+### pt-BR.ts (inserir na linha 741, antes do comentario de Eventos)
 
 ```typescript
   // Portal - Dynamic Headlines (P4B-4)
@@ -150,7 +168,7 @@ Inserir ANTES do bloco `{/* Portal Content */}`:
   'portal.renewNow': 'Renovar agora',
 ```
 
-### en.ts (inserir apos linha 742, antes de portal.myEvents)
+### en.ts (inserir na linha 743, antes do comentario de Events)
 
 ```typescript
   // Portal - Dynamic Headlines (P4B-4)
@@ -162,7 +180,7 @@ Inserir ANTES do bloco `{/* Portal Content */}`:
   'portal.renewNow': 'Renew now',
 ```
 
-### es.ts (inserir apos linha 742, antes de portal.myEvents)
+### es.ts (inserir na linha 743, antes do comentario de Eventos)
 
 ```typescript
   // Portal - Dynamic Headlines (P4B-4)
@@ -180,11 +198,11 @@ Inserir ANTES do bloco `{/* Portal Content */}`:
 
 | Cenario | Headline | Badge | Card Renovacao |
 |---------|----------|-------|----------------|
-| Membership ACTIVE | "Sua filiação está ativa" | ACTIVE (verde) | Se <= 30 dias para expirar |
-| Membership APPROVED | "Bem-vindo! Sua filiação foi aprovada" | APPROVED (azul) | Nao aparece |
-| Membership PENDING_REVIEW | "Sua filiação está em análise" | PENDING_REVIEW (amarelo) | Nao aparece |
-| Outro status | "Bem-vindo ao seu portal de atleta" | Badge do status | Nao aparece |
-| Sem membership | "Bem-vindo ao seu portal de atleta" | Nao aparece | Nao aparece |
+| ACTIVE | "Sua filiacao esta ativa" | ACTIVE (verde) | Se <= 30 dias |
+| APPROVED | "Bem-vindo! Sua filiacao foi aprovada" | APPROVED (azul) | Nao aparece |
+| PENDING_REVIEW | "Sua filiacao esta em analise" | PENDING_REVIEW (amarelo) | Nao aparece |
+| Outro status | "Bem-vindo ao seu portal" | Nao aparece | Nao aparece |
+| Sem membership | "Bem-vindo ao seu portal" | Nao aparece | Nao aparece |
 
 ---
 
@@ -192,28 +210,30 @@ Inserir ANTES do bloco `{/* Portal Content */}`:
 
 | Criterio | Status |
 |----------|--------|
-| Nenhum useEffect novo | Garantido - usa funcao pura + calculo inline |
-| Nenhuma query nova | Garantido - usa dados de membership existente |
-| Nenhum redirect automatico | Garantido - Link explicito |
-| Apenas leitura de dados existentes | Garantido |
-| AthletePortal.tsx unico arquivo funcional | Garantido |
-| i18n completo (pt / en / es) | Garantido |
-| Build compila sem warnings | Garantido |
-| P4A / P3 / P4B-1/2/3 intactos | Garantido |
+| Nenhum useEffect novo | OK |
+| Nenhuma query nova | OK |
+| Nenhum redirect automatico | OK |
+| Navegacao so via Link | OK |
+| Funcoes puras sem side effects | OK |
+| Status normalizado (toUpperCase) | OK |
+| Calculo timezone-safe | OK |
+| Card somente para ACTIVE | OK |
+| Build sem warnings | OK |
+| SAFE MODE preservado | OK |
 
 ---
 
 ## Resultado Esperado
 
 ```text
-P4B-4 — ATHLETE PORTAL UX (FINAL)
-├── Clareza imediata de status ✓
-├── Headline humana dinamica ✓
-├── StatusBadge visivel no header ✓
-├── Card de renovacao condicional ✓
-├── Zero impacto em seguranca ✓
-├── Zero impacto em fluxo ✓
-├── SAFE MODE preservado ✓
-└── P4B fechado com maturidade ✓
+P4B-4 — ATHLETE PORTAL UX (GOLD MASTER)
++-- Headline dinamica clara
++-- StatusBadge consistente
++-- Renovacao segura e contextual
++-- UX madura e profissional
++-- Zero impacto em seguranca
++-- Zero impacto em fluxo
++-- Zero regressao
++-- P4B FECHADO COM EXCELENCIA
 ```
 
