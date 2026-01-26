@@ -763,6 +763,10 @@ export const ptBR = {
   'portal.expiringIn': 'Sua filiação expira em {days} dias',
   'portal.renewReminder': 'Recomendamos renovar para manter seus benefícios ativos.',
   'portal.renewNow': 'Renovar agora',
+
+  // Portal - Loading States (P4B-8)
+  'portal.loading': 'Carregando...',
+  'portal.loadingDescription': 'Por favor aguarde enquanto carregamos seus dados.',
   
   // Portal do Aluno - Eventos
   'portal.myEvents': 'Meus Eventos',

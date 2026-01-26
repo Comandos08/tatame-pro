@@ -765,6 +765,10 @@ export const en: Record<string, string> = {
   'portal.expiringIn': 'Your membership expires in {days} days',
   'portal.renewReminder': 'We recommend renewing to keep your benefits active.',
   'portal.renewNow': 'Renew now',
+
+  // Portal - Loading States (P4B-8)
+  'portal.loading': 'Loading...',
+  'portal.loadingDescription': 'Please wait while we load your data.',
   
   // Athlete Portal - Events
   'portal.myEvents': 'My Events',
