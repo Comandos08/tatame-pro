@@ -205,10 +205,10 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast.success('Status da organização atualizado');
+      toast.success(t('admin.statusUpdated'));
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar organização');
+      toast.error(t('admin.updateError'));
       console.error(error);
     },
   });
@@ -222,10 +222,10 @@ export default function AdminDashboard() {
   };
 
   const statCards = [
-    { label: 'Organizações Ativas', value: stats?.activeTenants || 0, icon: Building2, color: 'text-primary' },
-    { label: 'Usuários Totais', value: stats?.totalUsers || 0, icon: Users, color: 'text-info' },
-    { label: 'Atletas Cadastrados', value: stats?.totalAthletes || 0, icon: Activity, color: 'text-success' },
-    { label: 'Filiações Ativas', value: stats?.activeMemberships || 0, icon: Calendar, color: 'text-warning' },
+    { labelKey: 'admin.activeOrgs' as const, value: stats?.activeTenants || 0, icon: Building2, color: 'text-primary' },
+    { labelKey: 'admin.totalUsers' as const, value: stats?.totalUsers || 0, icon: Users, color: 'text-info' },
+    { labelKey: 'admin.registeredAthletes' as const, value: stats?.totalAthletes || 0, icon: Activity, color: 'text-success' },
+    { labelKey: 'admin.activeMemberships' as const, value: stats?.activeMemberships || 0, icon: Calendar, color: 'text-warning' },
   ];
 
   const billingCards = [
@@ -251,8 +251,8 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <img src={iconLogo} alt="TATAME" className="h-10 w-10 rounded-xl object-contain" />
             <div>
-              <h1 className="font-display text-lg font-bold">TATAME Admin</h1>
-              <p className="text-xs text-muted-foreground">Painel Global</p>
+              <h1 className="font-display text-lg font-bold">{t('admin.title')}</h1>
+              <p className="text-xs text-muted-foreground">{t('admin.globalPanel')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -326,7 +326,7 @@ export default function AdminDashboard() {
                   <LogOut className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Sair</TooltipContent>
+              <TooltipContent>{t('admin.logout')}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -341,10 +341,10 @@ export default function AdminDashboard() {
         >
           <div className="mb-8">
             <h2 className="font-display text-3xl font-bold mb-2">
-              Painel de Administração Global
+              {t('admin.globalAdminPanel')}
             </h2>
             <p className="text-muted-foreground">
-              Gerencie todas as organizações de esportes de combate da plataforma TATAME.
+              {t('admin.globalAdminDesc')}
             </p>
           </div>
 
@@ -352,7 +352,7 @@ export default function AdminDashboard() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {statCards.map((stat, index) => (
               <motion.div
-                key={stat.label}
+                key={stat.labelKey}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
@@ -360,7 +360,7 @@ export default function AdminDashboard() {
                 <Card className="card-hover">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                      {stat.label}
+                      {t(stat.labelKey)}
                     </CardTitle>
                     <stat.icon className={`h-5 w-5 ${stat.color}`} />
                   </CardHeader>
@@ -426,16 +426,16 @@ export default function AdminDashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-5 w-5" />
-                    Tenants em Override Manual ({tenantsInOverride.length})
+                    {t('admin.tenantsInOverride')} ({tenantsInOverride.length})
                   </CardTitle>
                   <CardDescription>
-                    Tenants com billing controlado manualmente, fora do Stripe
+                    {t('admin.tenantsInOverrideDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {tenantsInOverride.map(t => {
-                      const billing = billingData.get(t.id);
+                    {tenantsInOverride.map(tenant => {
+                      const billing = billingData.get(tenant.id);
                       
                       // Blindagem contra data inválida
                       const overrideAt = billing?.override_at ? new Date(billing.override_at) : null;
@@ -444,21 +444,21 @@ export default function AdminDashboard() {
                         : null;
                       
                       return (
-                        <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-background border">
+                        <div key={tenant.id} className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-3">
                             <div 
                               className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                              style={{ backgroundColor: t.primary_color || '#dc2626' }}
+                              style={{ backgroundColor: tenant.primary_color || '#dc2626' }}
                             >
-                              {t.name.charAt(0).toUpperCase()}
+                              {tenant.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-medium">{t.name}</p>
+                              <p className="font-medium">{tenant.name}</p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <StatusBadge status={billingStatusMap[billing?.status || ''] || 'neutral'} size="sm" />
                                 {overrideDays !== null && (
                                   <span className={overrideDays > 30 ? 'text-destructive font-medium' : overrideDays > 7 ? 'text-yellow-600' : ''}>
-                                    há {overrideDays} dias
+                                    {t('admin.daysAgo').replace('{days}', String(overrideDays))}
                                   </span>
                                 )}
                               </div>
@@ -467,10 +467,10 @@ export default function AdminDashboard() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => navigate(`/admin/tenants/${t.id}/control`)}
+                            onClick={() => navigate(`/admin/tenants/${tenant.id}/control`)}
                           >
                             <Shield className="h-4 w-4 mr-2" />
-                            Control Tower
+                            {t('admin.actions.controlTower')}
                           </Button>
                         </div>
                       );
@@ -487,16 +487,16 @@ export default function AdminDashboard() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Building2 className="h-5 w-5" />
-                    Organizações
+                    {t('admin.organizations')}
                   </CardTitle>
                   <CardDescription>
-                    Gerencie todas as organizações da plataforma
+                    {t('admin.organizationsDesc')}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={() => refetch()}>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Atualizar
+                    {t('admin.update')}
                   </Button>
                   <CreateTenantDialog />
                 </div>
@@ -512,13 +512,13 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Organização</TableHead>
-                        <TableHead>Slug</TableHead>
-                        <TableHead>Modalidades</TableHead>
-                        <TableHead>Billing</TableHead>
-                        <TableHead>Criado em</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead>{t('admin.table.organization')}</TableHead>
+                        <TableHead>{t('admin.table.slug')}</TableHead>
+                        <TableHead>{t('admin.table.modalities')}</TableHead>
+                        <TableHead>{t('admin.table.billing')}</TableHead>
+                        <TableHead>{t('admin.table.createdAt')}</TableHead>
+                        <TableHead>{t('admin.table.status')}</TableHead>
+                        <TableHead className="text-right">{t('admin.table.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -586,7 +586,7 @@ export default function AdminDashboard() {
                                   <StatusBadge status={statusType} size="sm" />
                                   {billing.is_manual_override && (
                                     <Badge variant="destructive" className="text-xs">
-                                      MANUAL
+                                      {t('admin.status.manual')}
                                       {(() => {
                                         const overrideAt = billing.override_at ? new Date(billing.override_at) : null;
                                         const days = overrideAt && !isNaN(overrideAt.getTime())
@@ -613,7 +613,7 @@ export default function AdminDashboard() {
                                 disabled={toggleTenantMutation.isPending}
                               />
                               <span className={`text-xs ${tenant.is_active ? 'text-success' : 'text-muted-foreground'}`}>
-                                {tenant.is_active ? 'Ativo' : 'Inativo'}
+                                {tenant.is_active ? t('admin.status.active') : t('admin.status.inactive')}
                               </span>
                             </div>
                           </TableCell>
@@ -621,30 +621,30 @@ export default function AdminDashboard() {
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm">
-                                  Ações
+                                  {t('admin.table.actions')}
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}`, '_blank')}>
                                   <ExternalLink className="h-4 w-4 mr-2" />
-                                  Abrir portal
+                                  {t('admin.actions.openPortal')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}/app`, '_blank')}>
                                   <LogIn className="h-4 w-4 mr-2" />
-                                  Entrar como admin
+                                  {t('admin.actions.loginAsAdmin')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setEditingTenant(tenant)}>
                                   <Edit2 className="h-4 w-4 mr-2" />
-                                  Editar
+                                  {t('admin.actions.edit')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setManagingAdminsTenant(tenant)}>
                                   <UserCog className="h-4 w-4 mr-2" />
-                                  Gerenciar admins
+                                  {t('admin.actions.manageAdmins')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => navigate(`/admin/tenants/${tenant.id}/control`)}>
                                   <Shield className="h-4 w-4 mr-2" />
-                                  Control Tower
+                                  {t('admin.actions.controlTower')}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -657,7 +657,7 @@ export default function AdminDashboard() {
               ) : (
                 <div className="text-center py-12">
                   <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">Nenhuma organização encontrada</p>
+                  <p className="text-muted-foreground mb-4">{t('admin.noOrganizations')}</p>
                   <CreateTenantDialog />
                 </div>
               )}
