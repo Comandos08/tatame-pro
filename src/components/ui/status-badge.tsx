@@ -16,6 +16,7 @@ const statusVariants = cva(
         ACTIVE: "bg-success/20 text-success border-success/30",
         EXPIRED: "bg-destructive/20 text-destructive border-destructive/30",
         CANCELLED: "bg-destructive/20 text-destructive border-destructive/30",
+        REJECTED: "bg-destructive/20 text-destructive border-destructive/30",
         
         // Billing statuses
         TRIALING: "bg-info/20 text-info border-info/30",
@@ -62,6 +63,7 @@ const defaultStatusLabels: Record<string, string> = {
   ACTIVE: "Ativa",
   EXPIRED: "Expirada",
   CANCELLED: "Cancelada",
+  REJECTED: "Rejeitada",
   
   // Billing
   TRIALING: "Trial",
@@ -126,6 +128,7 @@ export const STATUS_COLORS: Record<StatusType, string> = {
   ACTIVE: "hsl(var(--success))",
   EXPIRED: "hsl(var(--destructive))",
   CANCELLED: "hsl(var(--destructive))",
+  REJECTED: "hsl(var(--destructive))",
   TRIALING: "hsl(var(--info))",
   PAST_DUE: "hsl(var(--warning))",
   INCOMPLETE: "hsl(var(--muted-foreground))",

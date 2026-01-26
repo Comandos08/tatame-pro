@@ -68,7 +68,8 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
         {diplomas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <FileText className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">{t('portal.noDiplomas')}</p>
+            <p className="text-muted-foreground font-medium mb-1">{t('portal.noDiplomas')}</p>
+            <p className="text-muted-foreground text-sm">{t('portal.emptyDiplomas')}</p>
           </div>
         ) : (
           <div className="space-y-3">
