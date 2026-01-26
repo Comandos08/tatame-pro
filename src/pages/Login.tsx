@@ -10,6 +10,8 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { resolveTenantBillingState } from '@/lib/billing';
+import { resolveAdminPostLoginRedirect } from '@/lib/resolveAdminPostLoginRedirect';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -43,9 +45,45 @@ export default function Login() {
         .limit(1);
 
       if (adminRoles && adminRoles.length > 0) {
+        const tenantId = adminRoles[0].tenant_id;
         const tenantSlug = (adminRoles[0] as any).tenants?.slug;
-        if (tenantSlug) {
-          navigate(`/${tenantSlug}/app`);
+        
+        if (tenantSlug && tenantId) {
+          try {
+            // 1. Buscar dados do tenant
+            const { data: tenantData } = await supabase
+              .from('tenants')
+              .select('is_active')
+              .eq('id', tenantId)
+              .maybeSingle();
+
+            // 2. Buscar dados de billing
+            const { data: billingData } = await supabase
+              .from('tenant_billing')
+              .select('status, is_manual_override, override_reason, override_at')
+              .eq('tenant_id', tenantId)
+              .maybeSingle();
+
+            // 3. Resolver estado de billing
+            const billingState = resolveTenantBillingState(
+              billingData ? {
+                status: billingData.status,
+                is_manual_override: billingData.is_manual_override ?? false,
+                override_reason: billingData.override_reason,
+                override_at: billingData.override_at,
+              } : null,
+              tenantData ? { is_active: tenantData.is_active ?? false } : null
+            );
+
+            // 4. Resolver destino via função pura
+            const destination = resolveAdminPostLoginRedirect(tenantSlug, billingState);
+            
+            navigate(destination, { replace: true });
+          } catch (error) {
+            // FALLBACK RESTRITIVO: erro → vai para app (TenantLayout bloqueará se necessário)
+            console.error('Admin post-login redirect failed:', error);
+            navigate(`/${tenantSlug}/app`, { replace: true });
+          }
           return;
         }
       }
