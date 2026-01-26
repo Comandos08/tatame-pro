@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { resolveTenantBillingState, type TenantBillingState } from '@/lib/billing';
 
 export interface TenantStatusInfo {
   isOnTrial: boolean;
@@ -14,6 +15,7 @@ export interface TenantStatusInfo {
   currentPeriodEnd: Date | null;
   planName: string | null;
   canSeeBanner: boolean;
+  billingState: TenantBillingState | null;
 }
 
 interface TenantBillingData {
@@ -22,6 +24,9 @@ interface TenantBillingData {
   current_period_end: string | null;
   stripe_customer_id: string | null;
   trial_end_notification_sent: boolean | null;
+  is_manual_override: boolean | null;
+  override_reason: string | null;
+  override_at: string | null;
 }
 
 const TRIAL_WARNING_DAYS = 7;
@@ -46,7 +51,7 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
 
       const { data, error } = await supabase
         .from('tenant_billing')
-        .select('status, plan_name, current_period_end, stripe_customer_id, trial_end_notification_sent')
+        .select('status, plan_name, current_period_end, stripe_customer_id, trial_end_notification_sent, is_manual_override, override_reason, override_at')
         .eq('tenant_id', tenant.id)
         .maybeSingle();
 
@@ -57,8 +62,19 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     staleTime: 60000, // Cache for 1 minute
   });
 
+  // Use resolver for billing state
+  const billingState = resolveTenantBillingState(
+    billing ? {
+      status: billing.status,
+      is_manual_override: billing.is_manual_override ?? false,
+      override_reason: billing.override_reason,
+      override_at: billing.override_at,
+    } : null,
+    tenant ? { is_active: tenant.isActive } : null
+  );
+
   // Calculate status flags
-  const isOnTrial = billing?.status === 'TRIALING';
+  const isOnTrial = billingState.status === 'TRIALING';
   const currentPeriodEnd = billing?.current_period_end
     ? new Date(billing.current_period_end)
     : null;
@@ -75,11 +91,9 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
 
   const isTrialExpired = isOnTrial && daysToTrialEnd !== null && daysToTrialEnd <= 0;
 
-  const hasBillingIssue = Boolean(
-    billing?.status && ['PAST_DUE', 'UNPAID', 'INCOMPLETE'].includes(billing.status)
-  );
-
-  const isBlocked = !tenant?.isActive || billing?.status === 'CANCELED';
+  // Derive from resolver (backward compatible)
+  const hasBillingIssue = billingState.isReadOnly;
+  const isBlocked = billingState.isBlocked;
 
   return {
     isOnTrial,
@@ -88,10 +102,11 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     isTrialExpired,
     isBlocked,
     hasBillingIssue,
-    billingStatus: billing?.status || null,
+    billingStatus: billingState.status,
     currentPeriodEnd,
     planName: billing?.plan_name || null,
     canSeeBanner,
+    billingState,
     isLoading,
   };
 }
