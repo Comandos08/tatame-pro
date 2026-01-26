@@ -738,6 +738,14 @@ export const ptBR = {
   'portal.emptyDigitalCard': 'Sua carteira digital será gerada automaticamente após a aprovação da sua filiação.',
   'portal.emptyDiplomas': 'Os diplomas de graduação aparecerão aqui conforme você evolui no esporte.',
   'portal.emptyGradings': 'Seu histórico de faixas será exibido aqui após sua primeira graduação.',
+
+  // Portal - Dynamic Headlines (P4B-4)
+  'portal.welcomeActive': 'Sua filiação está ativa',
+  'portal.welcomeApproved': 'Bem-vindo! Sua filiação foi aprovada',
+  'portal.welcomePending': 'Sua filiação está em análise',
+  'portal.expiringIn': 'Sua filiação expira em {days} dias',
+  'portal.renewReminder': 'Recomendamos renovar para manter seus benefícios ativos.',
+  'portal.renewNow': 'Renovar agora',
   
   // Portal do Aluno - Eventos
   'portal.myEvents': 'Meus Eventos',
