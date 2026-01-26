@@ -5,29 +5,8 @@ import { Shield, Zap, Users, Award, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PublicHeader from '@/components/PublicHeader';
 import iconLogo from '@/assets/iconLogo.png';
-
-const features = [
-  {
-    icon: Users,
-    title: 'Gestão de Atletas',
-    description: 'Controle completo de filiações, documentos e histórico de graduações.',
-  },
-  {
-    icon: Award,
-    title: 'Graduações & Diplomas',
-    description: 'Emissão digital de diplomas com verificação QR Code integrada.',
-  },
-  {
-    icon: Shield,
-    title: 'Multi-esporte',
-    description: 'Suporte a BJJ, Judô, Wrestling, Muay Thai e outros esportes de combate.',
-  },
-  {
-    icon: Zap,
-    title: 'Pagamentos Integrados',
-    description: 'Stripe integrado para filiações, eventos e taxas de graduação.',
-  },
-];
+import { useI18n } from '@/contexts/I18nContext';
+import type { TranslationKey } from '@/locales/pt-BR';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -43,7 +22,38 @@ const stagger = {
   },
 };
 
+const featureItems: { icon: typeof Users; titleKey: TranslationKey; descKey: TranslationKey }[] = [
+  {
+    icon: Users,
+    titleKey: 'landing.featureAthletes',
+    descKey: 'landing.featureAthletesDesc',
+  },
+  {
+    icon: Award,
+    titleKey: 'landing.featureGradings',
+    descKey: 'landing.featureGradingsDesc',
+  },
+  {
+    icon: Shield,
+    titleKey: 'landing.featureMultiSport',
+    descKey: 'landing.featureMultiSportDesc',
+  },
+  {
+    icon: Zap,
+    titleKey: 'landing.featurePayments',
+    descKey: 'landing.featurePaymentsDesc',
+  },
+];
+
+const ctaItems: TranslationKey[] = [
+  'landing.ctaFreeSignup',
+  'landing.ctaSupport',
+  'landing.ctaStripe',
+];
+
 export default function Landing() {
+  const { t } = useI18n();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -65,7 +75,7 @@ export default function Landing() {
             <motion.div variants={fadeInUp}>
               <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm text-primary mb-6">
                 <Zap className="h-4 w-4" />
-                Plataforma de Gestão para Esportes de Combate
+                {t('landing.platformBadge')}
               </span>
             </motion.div>
             
@@ -73,29 +83,28 @@ export default function Landing() {
               variants={fadeInUp}
               className="font-display text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6"
             >
-              Gerencie sua{' '}
-              <span className="text-gradient-primary">organização de esporte de combate</span>
+              {t('landing.heroTitle')}{' '}
+              <span className="text-gradient-primary">{t('landing.heroTitleHighlight')}</span>
               <br />
-              com excelência
+              {t('landing.heroTitleEnd')}
             </motion.h1>
             
             <motion.p
               variants={fadeInUp}
               className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8"
             >
-              Sistema completo para sua organização de esporte de combate. 
-              Filiações, graduações, eventos e pagamentos em uma única plataforma.
+              {t('landing.heroDescription')}
             </motion.p>
             
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="text-lg h-12 px-8" asChild>
                 <Link to="/login">
-                  Acessar Plataforma
+                  {t('landing.accessPlatform')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="text-lg h-12 px-8" asChild>
-                <Link to="/help">Saiba Mais</Link>
+              <Button size="lg" variant="tenant-outline" className="text-lg h-12 px-8" asChild>
+                <Link to="/help">{t('landing.learnMore')}</Link>
               </Button>
             </motion.div>
           </motion.div>
@@ -119,13 +128,13 @@ export default function Landing() {
               variants={fadeInUp}
               className="font-display text-3xl md:text-4xl font-bold mb-4"
             >
-              Tudo que você precisa
+              {t('landing.featuresTitle')}
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               className="text-muted-foreground text-lg max-w-2xl mx-auto"
             >
-              Ferramentas completas para gerenciar atletas, academias, graduações e eventos.
+              {t('landing.featuresDescription')}
             </motion.p>
           </motion.div>
 
@@ -136,17 +145,17 @@ export default function Landing() {
             variants={stagger}
             className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            {features.map((feature) => (
+            {featureItems.map((feature) => (
               <motion.div
-                key={feature.title}
+                key={feature.titleKey}
                 variants={fadeInUp}
                 className="group p-6 rounded-2xl bg-card border border-border card-hover"
               >
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                   <feature.icon className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-display text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm">{feature.description}</p>
+                <h3 className="font-display text-lg font-semibold mb-2">{t(feature.titleKey)}</h3>
+                <p className="text-muted-foreground text-sm">{t(feature.descKey)}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -167,22 +176,22 @@ export default function Landing() {
               variants={fadeInUp}
               className="font-display text-3xl md:text-4xl font-bold mb-6"
             >
-              Pronto para começar?
+              {t('landing.ctaTitle')}
             </motion.h2>
             <motion.div variants={fadeInUp} className="flex flex-col gap-3 mb-8 text-left max-w-md mx-auto">
-              {['Cadastro gratuito', 'Suporte especializado', 'Integração Stripe incluída'].map((item) => (
-                <div key={item} className="flex items-center gap-3">
+              {ctaItems.map((itemKey) => (
+                <div key={itemKey} className="flex items-center gap-3">
                   <div className="h-5 w-5 rounded-full bg-success/20 flex items-center justify-center">
                     <Check className="h-3 w-3 text-success" />
                   </div>
-                  <span className="text-muted-foreground">{item}</span>
+                  <span className="text-muted-foreground">{t(itemKey)}</span>
                 </div>
               ))}
             </motion.div>
             <motion.div variants={fadeInUp}>
               <Button size="lg" className="text-lg h-12 px-8" asChild>
                 <Link to="/login">
-                  Criar Conta Grátis
+                  {t('landing.createFreeAccount')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
@@ -200,7 +209,7 @@ export default function Landing() {
               <span className="font-display font-bold">TATAME</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} TATAME Pro. Todos os direitos reservados.
+              {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
             </p>
           </div>
         </div>
