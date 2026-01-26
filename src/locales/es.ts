@@ -1114,6 +1114,15 @@ export const es: Record<TranslationKey, string> = {
   'controlTower.continue': 'Continuar...',
   'controlTower.confirm': 'Confirmar',
   'controlTower.back': 'Volver',
+  'controlTower.refresh': 'Actualizar',
+  'controlTower.noRecord': 'Sin registro',
+  'controlTower.yes': 'Sí',
+  'controlTower.no': 'No',
+  'controlTower.loadError': 'Error al cargar datos del tenant',
+  'controlTower.actionSuccess': 'Acción completada con éxito',
+  'controlTower.actionFailed': 'Acción fallida',
+  'controlTower.reasonIsRequired': 'El motivo es obligatorio',
+  'controlTower.maxMonths': 'Máx. {months} meses',
 
   // P4.x-R1 — Admin Dialogs i18n
   'admin.dialogs.editOrganization': 'Editar Organización',
