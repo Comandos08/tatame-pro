@@ -1,253 +1,250 @@
 
 
-## P2 — ADMIN POST-LOGIN REDIRECT RESPEITANDO BILLING
+## P3 — Athlete AuthCallback Hardening (FINAL)
 
-### Decisão Técnica Documentada
+### Vulnerabilidades Identificadas
 
-Após análise do `TenantLayout.tsx` (linhas 63-74):
-
-```typescript
-// Linha 64-66 do TenantLayout.tsx
-const isProtectedRoute = location.pathname.includes('/app');
-if (!tenant.isActive && isProtectedRoute) {
-  return <TenantBlockedScreen ... />;
-}
-```
-
-**CONCLUSÃO:** O TenantLayout JÁ renderiza `TenantBlockedScreen` quando `tenant.isActive === false` em rotas `/app/*`.
-
-**DECISÃO:** 
-- ❌ NÃO criar rota `/{slug}/blocked`
-- ✅ Redirecionar para `/{slug}/app` — TenantLayout faz o bloqueio visual
-- ✅ Adicionar query param `?billing=issue` para casos read-only
+| Linha | Código Atual | Problema | Severidade |
+|-------|-------------|----------|------------|
+| 18 | `const next = searchParams.get('next') \|\| '/'` | Default não controlado | ⚠️ |
+| 21-28 | `extractTenantSlug(path: string)` | Não aceita null | ⚠️ |
+| 47 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
+| 62 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
+| 115 | `navigate(next, { replace: true })` | ❌ `next` direto | 🔴 CRÍTICO |
+| 117 | `navigate(redirectPath, { replace: true })` | Não validado | ⚠️ |
+| 122 | `navigate(next, { replace: true })` | ❌ `next` no catch | 🔴 CRÍTICO |
 
 ---
 
-### Arquivos a Criar
+### Arquivo Modificado
 
-#### 1. `src/lib/resolveAdminPostLoginRedirect.ts`
+`src/pages/AuthCallback.tsx` — único arquivo
 
-Função PURA seguindo o padrão do atleta:
+---
+
+### Implementação
+
+#### 1. Funções Puras LOCAIS (antes do componente)
 
 ```typescript
 /**
- * SAFE GOLD — P2
- * Função única de redirect pós-login de ADMIN / STAFF
- * 
- * DECISÃO TÉCNICA:
- * - NÃO existe rota /blocked dedicada
- * - TenantLayout já bloqueia rotas /app/* quando tenant.isActive = false
- * - Por isso, isBlocked → retorna /app (TenantLayout bloqueia)
+ * P3 — Sanitizador de tenant slug
+ * LOCAL: Não exportar
  */
+function extractTenantSlug(path: string | null): string | null {
+  if (!path) return null;
 
-import type { TenantBillingState } from '@/lib/billing';
+  const match = path.match(/^\/([^/]+)/);
+  if (!match || !match[1]) return null;
 
-export function resolveAdminPostLoginRedirect(
-  tenantSlug: string,
-  billingState: TenantBillingState
+  const slug = match[1];
+
+  // Bloquear rotas globais explicitamente
+  const blockedRoots = ['admin', 'auth', 'login', 'help'];
+  if (blockedRoots.includes(slug)) {
+    return null;
+  }
+
+  return slug;
+}
+
+/**
+ * P3 — Validador de redirect pós-auth
+ * LOCAL: Não exportar
+ * 
+ * REGRAS IMUTÁVEIS:
+ * 1. No tenantSlug → '/'
+ * 2. next válido (starts /${tenantSlug}, no /app) → next
+ * 3. next inválido → /${tenantSlug}/portal
+ */
+function resolveAthletePostAuthRedirect(
+  tenantSlug: string | null,
+  next: string | null
 ): string {
-  const base = `/${tenantSlug}`;
-
-  // isBlocked = true → TenantLayout irá renderizar TenantBlockedScreen
-  // Não precisa de rota especial
-  if (billingState.isBlocked) {
-    return `${base}/app`;
+  if (!tenantSlug) {
+    return '/';
   }
 
-  // isReadOnly = true → Pode acessar mas com sinal visual
-  if (billingState.isReadOnly) {
-    return `${base}/app?billing=issue`;
-  }
+  const tenantBase = `/${tenantSlug}`;
+  const defaultDestination = `${tenantBase}/portal`;
 
-  // Tudo OK
-  return `${base}/app`;
-}
-```
+  if (next) {
+    const startsWithTenant = next.startsWith(tenantBase);
+    const containsApp = next.includes('/app');
 
-**Regras aplicadas:**
-
-| Condição | Destino | Razão |
-|----------|---------|-------|
-| `isBlocked = true` | `/{slug}/app` | TenantLayout bloqueia automaticamente |
-| `isReadOnly = true` | `/{slug}/app?billing=issue` | Permite exibir banner |
-| Caso contrário | `/{slug}/app` | Acesso normal |
-
----
-
-### Arquivos a Modificar
-
-#### 2. `src/pages/Login.tsx`
-
-**Mudanças no `useEffect` de redirect (linhas 28-60):**
-
-A lógica atual:
-```typescript
-// Linha 45-50 atual
-if (adminRoles && adminRoles.length > 0) {
-  const tenantSlug = (adminRoles[0] as any).tenants?.slug;
-  if (tenantSlug) {
-    navigate(`/${tenantSlug}/app`);  // ❌ Sem verificar billing
-    return;
-  }
-}
-```
-
-**Nova lógica proposta:**
-
-```typescript
-import { resolveTenantBillingState } from '@/lib/billing';
-import { resolveAdminPostLoginRedirect } from '@/lib/resolveAdminPostLoginRedirect';
-
-// Dentro do useEffect redirectUser:
-
-if (adminRoles && adminRoles.length > 0) {
-  const tenantId = adminRoles[0].tenant_id;
-  const tenantSlug = (adminRoles[0] as any).tenants?.slug;
-  
-  if (tenantSlug && tenantId) {
-    try {
-      // 1. Buscar dados do tenant
-      const { data: tenantData } = await supabase
-        .from('tenants')
-        .select('is_active')
-        .eq('id', tenantId)
-        .maybeSingle();
-
-      // 2. Buscar dados de billing
-      const { data: billingData } = await supabase
-        .from('tenant_billing')
-        .select('status, is_manual_override, override_reason, override_at')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-
-      // 3. Resolver estado de billing
-      const billingState = resolveTenantBillingState(
-        billingData ? {
-          status: billingData.status,
-          is_manual_override: billingData.is_manual_override,
-          override_reason: billingData.override_reason,
-          override_at: billingData.override_at,
-        } : null,
-        tenantData ? { is_active: tenantData.is_active } : null
-      );
-
-      // 4. Resolver destino via função pura
-      const destination = resolveAdminPostLoginRedirect(tenantSlug, billingState);
-      
-      navigate(destination, { replace: true });
-    } catch (error) {
-      // FALLBACK RESTRITIVO: erro → vai para app (TenantLayout bloqueará se necessário)
-      console.error('Admin post-login redirect failed:', error);
-      navigate(`/${tenantSlug}/app`, { replace: true });
+    if (startsWithTenant && !containsApp) {
+      return next;
     }
-    return;
   }
+
+  return defaultDestination;
 }
 ```
 
-**Fallback obrigatório:**
-- Se qualquer query falhar → navegar para `/{slug}/app`
-- TenantLayout funciona como rede de segurança
+---
+
+#### 2. Mudanças no Componente
+
+| Antes | Depois |
+|-------|--------|
+| `const next = searchParams.get('next') \|\| '/'` | `const nextRaw = searchParams.get('next')` |
 
 ---
 
-### Diagrama de Fluxo
+#### 3. Pontos de Navigate Corrigidos
+
+**Linha 47 (no tenantSlug):**
+```typescript
+// ANTES: navigate(next, { replace: true });
+// DEPOIS:
+const destination = resolveAthletePostAuthRedirect(null, nextRaw);
+navigate(destination, { replace: true });
+```
+
+**Linha 62 (tenant não encontrado):**
+```typescript
+// ANTES: navigate(next, { replace: true });
+// DEPOIS:
+const destination = resolveAthletePostAuthRedirect(null, nextRaw);
+navigate(destination, { replace: true });
+```
+
+**Linhas 114-118 (redirect final):**
+```typescript
+// ANTES:
+if (isMembershipFormRoute && !membershipStatus) {
+  navigate(next, { replace: true });
+} else {
+  navigate(redirectPath, { replace: true });
+}
+
+// DEPOIS:
+let targetPath: string;
+if (isMembershipFormRoute && !membershipStatus && nextRaw) {
+  targetPath = nextRaw;  // ✅ SEM non-null assertion
+} else {
+  targetPath = redirectPath;
+}
+
+const destination = resolveAthletePostAuthRedirect(tenantSlug, targetPath);
+navigate(destination, { replace: true });
+```
+
+**Linha 122 (catch):**
+```typescript
+// ANTES: navigate(next, { replace: true });
+// DEPOIS:
+navigate('/login', { replace: true }); // ✅ SEMPRE /login
+```
+
+---
+
+#### 4. Mudança no useEffect dependency array
+
+```typescript
+// ANTES:
+}, [isLoading, isAuthenticated, currentUser, next, navigate, redirecting]);
+
+// DEPOIS:
+}, [isLoading, isAuthenticated, currentUser, nextRaw, navigate, redirecting]);
+```
+
+---
+
+### Fluxo de Navegação Blindado
 
 ```text
-Login.tsx → redirectUser()
+AuthCallback.tsx
 │
-├─ currentUser = null?
-│   └── return (aguarda login)
+├─ 1. supabase.auth.getSession() ← Finalizar magic link
 │
-├─ isGlobalSuperadmin?
-│   └── navigate('/admin') ✓ INALTERADO
-│
-├─ Buscar admin role (user_roles)
-│   └── Encontrou? → tenantId, tenantSlug
-│
-├─ Buscar dados para billing
-│   ├─ tenants: is_active
-│   └─ tenant_billing: status, is_manual_override, ...
-│
-├─ resolveTenantBillingState(billingRaw, tenantRaw)
-│   └── Retorna: TenantBillingState
-│
-├─ resolveAdminPostLoginRedirect(tenantSlug, billingState)
+├─ 2. Extract tenantSlug from nextRaw
 │   │
-│   ├─ isBlocked? → /{slug}/app (TenantLayout bloqueia)
-│   ├─ isReadOnly? → /{slug}/app?billing=issue
-│   └─ OK → /{slug}/app
+│   └─ No tenantSlug?
+│       └── resolveAthletePostAuthRedirect(null, nextRaw) → '/'
 │
-└─ navigate(destino, { replace: true })
-
-    ⬇️ (TenantLayout.tsx)
-    
-TenantLayout → TenantContent
+├─ 3. Query tenant from DB
+│   │
+│   └─ Tenant not found?
+│       └── resolveAthletePostAuthRedirect(null, nextRaw) → '/'
 │
-├─ tenant.isActive = false && rota inclui /app?
-│   └── return <TenantBlockedScreen /> ✓ BLOQUEIO VISUAL
+├─ 4. Fetch athlete + membership status
 │
-└── return <Outlet /> → App normal
+├─ 5. Calculate targetPath
+│   ├─ Membership form + no membership + nextRaw exists → nextRaw
+│   └─ Else → redirectPath (from resolveAthletePostLoginRedirect)
+│
+├─ 6. SEMPRE validar antes de navegar
+│   └── resolveAthletePostAuthRedirect(tenantSlug, targetPath)
+│       │
+│       ├─ starts with /${tenantSlug} AND no /app → targetPath
+│       └─ else → /${tenantSlug}/portal
+│
+└── CATCH (any error)
+    └── navigate('/login') ← SEMPRE, SEM EXCEÇÃO
 ```
 
 ---
 
-### Arquivos NÃO Modificados (SAFE MODE)
+### Testes de Validação
+
+| Input | Resultado |
+|-------|-----------|
+| `next=/acme/portal` | → `/acme/portal` ✅ |
+| `next=/acme/membership/new` (sem membership) | → `/acme/membership/new` ✅ |
+| `next=/acme/membership/new` (com membership) | → `/acme/portal` ✅ |
+| `next=/acme/app` | → `/acme/portal` (BLOCKED) |
+| `next=/acme/app/dashboard` | → `/acme/portal` (BLOCKED) |
+| `next=/other-tenant/portal` | → `/acme/portal` (wrong tenant) |
+| `next=/admin` | → `/` (blocked root) |
+| `next=/auth/callback` | → `/` (blocked root) |
+| `next=https://evil.com` | → `/acme/portal` (blocked) |
+| `next=null` | → `/acme/portal` (default) |
+| Tenant não existe no DB | → `/` |
+| Query error | → `/login` ✅ |
+
+---
+
+### Arquivos NÃO Modificados
 
 | Arquivo | Razão |
 |---------|-------|
-| `src/lib/billing/resolveTenantBillingState.ts` | CORE — Não alterar |
-| `src/hooks/useTenantStatus.ts` | CORE — Não alterar |
-| `src/hooks/useBillingOverride.ts` | CORE — Não alterar |
-| `src/pages/AuthCallback.tsx` | Fluxo atleta — Não alterar |
-| `src/lib/resolveAthletePostLoginRedirect.ts` | Fluxo atleta — Não alterar |
-| `src/layouts/TenantLayout.tsx` | Bloqueio reativo — Mantido intacto |
-| `src/routes.tsx` | Sem nova rota necessária |
-| `src/components/billing/TenantBlockedScreen.tsx` | UI existente — Sem alteração |
+| `src/pages/Login.tsx` | P2 — Admin login |
+| `src/lib/billing/*` | P1 — Billing core |
+| `src/lib/resolveAthletePostLoginRedirect.ts` | Continua sendo usado |
+| `src/routes.tsx` | Sem mudanças |
+| `src/layouts/TenantLayout.tsx` | Sem mudanças |
 
 ---
 
-### Checklist de Validação
+### Checklist de Aceite
 
-| Cenário | Resultado Esperado |
-|---------|-------------------|
-| SUPERADMIN_GLOBAL login | → `/admin` (inalterado) |
-| ADMIN_TENANT billing ACTIVE | → `/{slug}/app` |
-| ADMIN_TENANT billing TRIALING | → `/{slug}/app` |
-| ADMIN_TENANT billing PAST_DUE | → `/{slug}/app?billing=issue` |
-| ADMIN_TENANT billing UNPAID | → `/{slug}/app?billing=issue` |
-| ADMIN_TENANT billing INCOMPLETE | → `/{slug}/app?billing=issue` |
-| ADMIN_TENANT billing CANCELED | → `/{slug}/app` → TenantLayout bloqueia |
-| ADMIN_TENANT tenant.is_active=false | → `/{slug}/app` → TenantLayout bloqueia |
-| Override manual + ACTIVE | → `/{slug}/app` |
-| Override manual + CANCELED | → `/{slug}/app` → TenantLayout bloqueia |
-| Query falha | → `/{slug}/app` (TenantLayout = rede de segurança) |
-| Atleta login (magic link) | → Fluxo inalterado via AuthCallback |
-
----
-
-### Resumo de Alterações
-
-| Ação | Arquivo |
-|------|---------|
-| **CREATE** | `src/lib/resolveAdminPostLoginRedirect.ts` |
-| **MODIFY** | `src/pages/Login.tsx` |
-
-**Total: 2 arquivos** (mínimo necessário)
+| Critério | Status |
+|----------|--------|
+| Nenhum `navigate(next)` ou `navigate(nextRaw)` direto | ✅ |
+| Nenhum `!` (non-null assertion) relacionado a redirect | ✅ |
+| `/app` bloqueado para atletas | ✅ |
+| Redirect sempre dentro do tenant | ✅ |
+| Catch sempre `/login` | ✅ |
+| Código compila sem warnings TypeScript | ✅ |
+| Funções puras são LOCAIS (não exportadas) | ✅ |
 
 ---
 
 ### Resultado Esperado
 
 ```text
-P2 — ADMIN POST-LOGIN REDIRECT CONCLUÍDO
-├── resolveAdminPostLoginRedirect() → Função pura central
-├── Login.tsx → Consulta billing ANTES de navegar
-├── Decisão documentada: TenantLayout já bloqueia
-├── Nenhuma rota nova criada
-├── Fallback via TenantLayout preservado
-├── Fluxo atleta → INALTERADO
-├── CORE billing → INALTERADO
-└── SAFE MODE preservado ✓
+P3 — ATHLETE AUTHCALLBACK HARDENING (FINAL)
+├── resolveAthletePostAuthRedirect() LOCAL ✓
+├── extractTenantSlug() aceita null ✓
+├── next NUNCA direto em navigate() ✓
+├── ZERO non-null assertions ✓
+├── TODOS os redirects validados ✓
+├── Catch SEMPRE /login ✓
+├── /app bloqueado ✓
+├── Redirect dentro do tenant ✓
+├── Admin login UNTOUCHED ✓
+├── Billing UNTOUCHED ✓
+└── SAFE MODE preserved ✓
 ```
 
