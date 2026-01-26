@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CreditCard, ExternalLink, Loader2, Phone, Mail, Clock } from 'lucide-react';
+import { AlertTriangle, CreditCard, ExternalLink, Loader2, Mail, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -15,6 +16,7 @@ interface TenantBlockedScreenProps {
 
 export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }: TenantBlockedScreenProps) {
   const { hasRole, currentUser } = useCurrentUser();
+  const { t } = useI18n();
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   // Check if user is admin or staff
@@ -39,7 +41,7 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
       }
     } catch (err) {
       console.error('Error opening customer portal:', err);
-      toast.error('Erro ao abrir portal de pagamento. Entre em contato com o suporte.');
+      toast.error(t('blocked.portalError'));
     } finally {
       setIsOpeningPortal(false);
     }
@@ -66,7 +68,7 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
                 <AlertTriangle className="h-10 w-10 text-destructive" />
               </motion.div>
               <CardTitle className="text-2xl font-display">
-                Assinatura Inativa
+                {t('blocked.inactiveSubscription')}
               </CardTitle>
               <CardDescription className="text-base mt-2">
                 {tenantName}
@@ -75,20 +77,19 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
             <CardContent className="space-y-6">
               <div className="text-center text-muted-foreground">
                 <p>
-                  O acesso ao sistema administrativo está suspenso devido a pendências 
-                  no pagamento da assinatura.
+                  {t('blocked.accessSuspended')}
                 </p>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <h4 className="font-medium text-sm flex items-center gap-2">
                   <CreditCard className="h-4 w-4" />
-                  Para regularizar:
+                  {t('blocked.toRegularize')}
                 </h4>
                 <ul className="text-sm text-muted-foreground space-y-2 ml-6">
-                  <li>• Atualize seu método de pagamento</li>
-                  <li>• Efetue o pagamento pendente</li>
-                  <li>• Ou entre em contato com nosso suporte</li>
+                  <li>• {t('blocked.updatePaymentMethod')}</li>
+                  <li>• {t('blocked.makePendingPayment')}</li>
+                  <li>• {t('blocked.contactSupport')}</li>
                 </ul>
               </div>
 
@@ -104,7 +105,7 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
                     ) : (
                       <ExternalLink className="h-4 w-4 mr-2" />
                     )}
-                    Gerenciar Assinatura
+                    {t('blocked.manageSubscription')}
                   </Button>
                 )}
                 
@@ -115,13 +116,13 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
                 >
                   <a href="mailto:suporte@tatamepro.com.br">
                     <Mail className="h-4 w-4 mr-2" />
-                    Contatar Suporte
+                    {t('blocked.contactSupportBtn')}
                   </a>
                 </Button>
               </div>
 
               <p className="text-xs text-center text-muted-foreground">
-                Após a regularização, o acesso será restaurado automaticamente.
+                {t('blocked.afterRegularization')}
               </p>
             </CardContent>
           </Card>
@@ -150,7 +151,7 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
               <Clock className="h-8 w-8 text-muted-foreground" />
             </motion.div>
             <CardTitle className="text-xl font-display">
-              Temporariamente Indisponível
+              {t('blocked.temporarilyUnavailable')}
             </CardTitle>
             <CardDescription className="text-base mt-2">
               {tenantName}
@@ -159,10 +160,10 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
           <CardContent className="space-y-4">
             <div className="text-center text-muted-foreground text-sm">
               <p>
-                Esta organização está temporariamente indisponível.
+                {t('blocked.orgTemporarilyUnavailable')}
               </p>
               <p className="mt-2">
-                Por favor, tente novamente mais tarde ou entre em contato com o administrador da sua organização.
+                {t('blocked.tryLaterOrContact')}
               </p>
             </div>
 
@@ -172,7 +173,7 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
                 className="w-full"
                 onClick={() => window.location.reload()}
               >
-                Tentar novamente
+                {t('blocked.tryAgain')}
               </Button>
             </div>
           </CardContent>
