@@ -53,40 +53,9 @@ const statusVariants = cva(
   }
 );
 
-// Status labels for display (can be overridden via label prop)
-const defaultStatusLabels: Record<string, string> = {
-  // Membership
-  DRAFT: "Rascunho",
-  PENDING_PAYMENT: "Aguardando Pagamento",
-  PENDING_REVIEW: "Aguardando Aprovação",
-  APPROVED: "Aprovada",
-  ACTIVE: "Ativa",
-  EXPIRED: "Expirada",
-  CANCELLED: "Cancelada",
-  REJECTED: "Rejeitada",
-  
-  // Billing
-  TRIALING: "Trial",
-  PAST_DUE: "Em Atraso",
-  INCOMPLETE: "Incompleto",
-  UNPAID: "Não Pago",
-  
-  // Diploma
-  ISSUED: "Emitido",
-  REVOKED: "Revogado",
-  
-  // Payment
-  PAID: "Pago",
-  NOT_PAID: "Não Pago",
-  FAILED: "Falhou",
-  
-  // Generic
-  success: "Sucesso",
-  warning: "Atenção",
-  error: "Erro",
-  info: "Info",
-  neutral: "Neutro",
-};
+// P4B-5A: Labels are now handled via i18n by the caller
+// Use the `label` prop to pass translated text
+// Fallback: displays the status value as-is
 
 export type StatusType = NonNullable<VariantProps<typeof statusVariants>["status"]>;
 
@@ -104,7 +73,8 @@ export function StatusBadge({
   className,
   showDot = false,
 }: StatusBadgeProps) {
-  const displayLabel = label || defaultStatusLabels[status] || status;
+  // P4B-5A: label prop is required for i18n, fallback to status string
+  const displayLabel = label || status;
   
   return (
     <Badge 

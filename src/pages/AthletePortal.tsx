@@ -22,6 +22,7 @@ import { MembershipTimeline } from "@/components/membership/MembershipTimeline";
 import { InAppNotice } from "@/components/notifications/InAppNotice";
 
 import { StatusBadge } from "@/components/ui/status-badge";
+import { isValidStatusType, getStatusI18nKey } from "@/lib/statusUtils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 /* ======================================================
@@ -235,8 +236,11 @@ export default function AthletePortal() {
             <div className="flex-1">
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-display font-bold">{t("portal.title")}</h1>
-                {membershipStatus && ["ACTIVE", "APPROVED", "PENDING_REVIEW"].includes(membershipStatus) && (
-                  <StatusBadge status={membershipStatus} />
+                {membershipStatus && isValidStatusType(membershipStatus) && ["ACTIVE", "APPROVED", "PENDING_REVIEW"].includes(membershipStatus) && (
+                  <StatusBadge 
+                    status={membershipStatus} 
+                    label={t(getStatusI18nKey(membershipStatus))}
+                  />
                 )}
               </div>
               <p className="text-muted-foreground">{t(getWelcomeMessageKey(membershipStatus))}</p>
