@@ -83,6 +83,13 @@ export function AthleteRouteGuard({ children }: AthleteRouteGuardProps) {
     );
   }
 
+  // HARD FAIL — defesa em profundidade
+  // Tenant inexistente NUNCA pode renderizar children
+  if (tenantExists === false) {
+    navigate('/', { replace: true });
+    return null;
+  }
+
   // Final decision check before render
   const decision = resolveAthleteRouteAccess({
     tenantSlug: tenantSlug || null,
