@@ -1282,4 +1282,32 @@ export const en: Record<string, string> = {
   'common.required': 'Required',
   'common.optional': 'Optional',
   'common.max': 'max.',
+  'common.select': 'Select',
+  'common.organization': 'organization',
+
+  // P4B — Portal UX Improvements
+  'portal.errorDesc': 'Could not load your information. Please try again later.',
+  'portal.noAthleteTitle': 'No registration found',
+  'portal.noAthleteDescHumanized': 'You don\'t have a membership in this organization yet. Start the membership process to access the portal.',
+  'portal.pendingReviewDescHumanized': 'Your application has been submitted and is under review. You will be notified once it is approved.',
+  'portal.expiredDescHumanized': 'Your membership has expired. Renew now to continue participating in events and keep your digital card active.',
+  'portal.cancelledDescHumanized': 'Your membership has been cancelled. To participate again, start a new membership.',
+  'portal.rejectedDescHumanized': 'Your membership application was rejected. Contact the organization for more information and try again.',
+  'portal.emptyDigitalCard': 'Your digital card will be generated automatically after your membership is approved.',
+  'portal.emptyDiplomas': 'Grading diplomas will appear here as you progress in the sport.',
+  'portal.emptyGradings': 'Your belt history will be displayed here after your first grading.',
+  'portal.currentGrading': 'Current',
+  'portal.welcomeActive': 'Your membership is active!',
+  'portal.welcomeApproved': 'Welcome! Your membership has been approved.',
+  'portal.welcomePending': 'Your application is under review...',
+  'portal.expiringIn': 'Your membership expires in {days} days',
+  'portal.renewReminder': 'Renew in advance to avoid losing access.',
+  
+  // P4B-3 — Membership Forms
+  'membership.selectorTitle': 'Athlete Membership',
+  'membership.selectorDesc': 'Choose the type of membership to join {tenant}.',
+  'membership.alreadyMember': 'You already have a membership',
+  'membership.alreadyMemberDesc': 'Your membership is active. Access the portal to view your data and documents.',
+  'membership.goToPortal': 'Go to Portal',
+  'membership.termsAgreement': 'By continuing, you agree to the terms of use and privacy policy.',
 };

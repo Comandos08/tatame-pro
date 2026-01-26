@@ -1280,6 +1280,34 @@ export const ptBR = {
   'common.required': 'Obrigatório',
   'common.optional': 'Opcional',
   'common.max': 'máx.',
+  'common.select': 'Selecionar',
+  'common.organization': 'organização',
+
+  // P4B — Portal UX Improvements
+  'portal.errorDesc': 'Não foi possível carregar suas informações. Tente novamente mais tarde.',
+  'portal.noAthleteTitle': 'Nenhum cadastro encontrado',
+  'portal.noAthleteDescHumanized': 'Você ainda não possui uma filiação nesta organização. Inicie o processo de filiação para acessar o portal.',
+  'portal.pendingReviewDescHumanized': 'Seu cadastro foi enviado e está em análise. Você receberá uma notificação assim que for aprovado.',
+  'portal.expiredDescHumanized': 'Sua filiação expirou. Renove agora para continuar participando de eventos e manter sua carteira digital ativa.',
+  'portal.cancelledDescHumanized': 'Sua filiação foi cancelada. Para voltar a participar, inicie uma nova filiação.',
+  'portal.rejectedDescHumanized': 'Sua solicitação de filiação foi recusada. Entre em contato com a organização para mais informações e tente novamente.',
+  'portal.emptyDigitalCard': 'Sua carteira digital será gerada automaticamente após a aprovação da sua filiação.',
+  'portal.emptyDiplomas': 'Diplomas de graduação aparecerão aqui conforme você evolui no esporte.',
+  'portal.emptyGradings': 'Seu histórico de faixas será exibido aqui após sua primeira graduação.',
+  'portal.currentGrading': 'Atual',
+  'portal.welcomeActive': 'Sua filiação está ativa!',
+  'portal.welcomeApproved': 'Bem-vindo! Sua filiação foi aprovada.',
+  'portal.welcomePending': 'Seu cadastro está em análise...',
+  'portal.expiringIn': 'Sua filiação expira em {days} dias',
+  'portal.renewReminder': 'Renove com antecedência para não perder o acesso.',
+  
+  // P4B-3 — Membership Forms
+  'membership.selectorTitle': 'Filiação de Atleta',
+  'membership.selectorDesc': 'Escolha o tipo de filiação para se juntar à {tenant}.',
+  'membership.alreadyMember': 'Você já possui uma filiação',
+  'membership.alreadyMemberDesc': 'Sua filiação está ativa. Acesse o portal para ver seus dados e documentos.',
+  'membership.goToPortal': 'Ir para o Portal',
+  'membership.termsAgreement': 'Ao continuar, você concorda com os termos de uso e política de privacidade.',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

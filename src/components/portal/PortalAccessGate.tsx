@@ -1,13 +1,20 @@
 /**
- * SAFE GOLD — ETAPA 5
- * PortalAccessGate com estados cancelled e rejected + redirect automático
+ * P4B-1 — PortalAccessGate (UX-Only)
+ * 
+ * PURELY VISUAL COMPONENT - Zero navigation, zero redirects
+ * P4A (AthleteRouteGuard) handles all access control
+ * 
+ * This component only:
+ * 1. Reads state
+ * 2. Shows appropriate UI for each state
+ * 3. Renders children when allowed
  */
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Loader2, Clock, AlertTriangle, XCircle, HelpCircle, Ban } from 'lucide-react';
+import { Loader2, Clock, AlertTriangle, XCircle, HelpCircle, Ban, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useNavigate, useParams } from 'react-router-dom';
 import { useI18n } from '@/contexts/I18nContext';
 
 interface AthleteData {
@@ -44,7 +51,6 @@ export function PortalAccessGate({
   children,
 }: PortalAccessGateProps) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const { tenantSlug } = useParams();
 
   const getGateState = (): GateState => {
@@ -68,26 +74,7 @@ export function PortalAccessGate({
 
   const gateState = getGateState();
 
-  // SAFE GOLD: Redirect automático para estados bloqueados
-  useEffect(() => {
-    if (!tenantSlug || gateState === 'loading') return;
-    
-    const currentPath = window.location.pathname;
-    
-    if (gateState === 'expired') {
-      const target = `/${tenantSlug}/membership/renew`;
-      if (currentPath !== target) {
-        navigate(target, { replace: true });
-      }
-    }
-    
-    if (gateState === 'cancelled' || gateState === 'rejected' || gateState === 'noAthlete') {
-      const target = `/${tenantSlug}/membership/new`;
-      if (currentPath !== target) {
-        navigate(target, { replace: true });
-      }
-    }
-  }, [gateState, tenantSlug, navigate]);
+  // P4B-1: NO useEffect, NO navigate() - purely visual component
 
   if (gateState === 'loading') {
     return (
@@ -98,7 +85,7 @@ export function PortalAccessGate({
           className="flex flex-col items-center gap-4"
         >
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Carregando...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </motion.div>
       </div>
     );
@@ -108,67 +95,66 @@ export function PortalAccessGate({
     return <>{children}</>;
   }
 
-  const handleNewMembership = () => {
-    navigate(`/${tenantSlug}/membership/new`);
-  };
-
-  // Blocked states
+  // State configurations with improved, humanized messages
   const stateConfig: Record<Exclude<GateState, 'loading' | 'allowed'>, {
     icon: React.ElementType;
     iconColor: string;
     iconBg: string;
     title: string;
     description: string;
-    showCTA?: boolean;
+    linkTo?: string;
     ctaLabel?: string;
   }> = {
     error: {
       icon: XCircle,
       iconColor: 'text-destructive',
       iconBg: 'bg-destructive/10',
-      title: 'Erro ao carregar',
-      description: 'Não foi possível carregar suas informações. Tente novamente mais tarde.',
+      title: t('error.loadingFailed'),
+      description: t('portal.errorDesc'),
     },
     noAthlete: {
       icon: AlertTriangle,
-      iconColor: 'text-warning',
-      iconBg: 'bg-warning/10',
-      title: t('portal.noAthlete'),
-      description: t('portal.noAthleteDesc'),
-      showCTA: true,
-      ctaLabel: t('portal.startMembership') || 'Iniciar Filiação',
+      iconColor: 'text-amber-500',
+      iconBg: 'bg-amber-500/10',
+      title: t('portal.noAthleteTitle'),
+      description: t('portal.noAthleteDescHumanized'),
+      linkTo: `/${tenantSlug}/membership/new`,
+      ctaLabel: t('portal.startMembership'),
     },
     pendingReview: {
       icon: Clock,
       iconColor: 'text-amber-500',
       iconBg: 'bg-amber-500/10',
       title: t('portal.pendingReview'),
-      description: t('portal.pendingReviewDesc'),
+      description: t('portal.pendingReviewDescHumanized'),
+      // No CTA - athlete must wait
     },
     expired: {
       icon: AlertTriangle,
       iconColor: 'text-destructive',
       iconBg: 'bg-destructive/10',
       title: t('portal.expired'),
-      description: t('portal.expiredDesc'),
+      description: t('portal.expiredDescHumanized'),
+      linkTo: `/${tenantSlug}/membership/renew`,
+      ctaLabel: t('renewal.renewNow'),
     },
     cancelled: {
       icon: Ban,
       iconColor: 'text-muted-foreground',
       iconBg: 'bg-muted',
-      title: t('portal.cancelled') || 'Filiação Cancelada',
-      description: t('portal.cancelledDesc') || 'Sua filiação foi cancelada. Para voltar a participar, inicie uma nova filiação.',
-      showCTA: true,
-      ctaLabel: t('portal.startNewMembership') || 'Nova Filiação',
+      title: t('portal.cancelled'),
+      description: t('portal.cancelledDescHumanized'),
+      linkTo: `/${tenantSlug}/membership/new`,
+      ctaLabel: t('portal.startNewMembership'),
     },
     rejected: {
       icon: XCircle,
       iconColor: 'text-destructive',
       iconBg: 'bg-destructive/10',
-      title: t('portal.rejected') || 'Filiação Recusada',
-      description: t('portal.rejectedDesc') || 'Sua solicitação de filiação foi recusada. Entre em contato com a organização para mais informações.',
-      showCTA: true,
-      ctaLabel: t('portal.tryAgain') || 'Tentar Novamente',
+      title: t('portal.rejected'),
+      description: t('portal.rejectedDescHumanized'),
+      linkTo: `/${tenantSlug}/membership/new`,
+      ctaLabel: t('portal.tryAgain'),
     },
     unknown: {
       icon: HelpCircle,
@@ -199,9 +185,12 @@ export function PortalAccessGate({
             <h2 className="text-xl font-display font-bold mb-2">{config.title}</h2>
             <p className="text-muted-foreground text-sm mb-6">{config.description}</p>
             
-            {config.showCTA && (
-              <Button onClick={handleNewMembership} className="w-full">
-                {config.ctaLabel}
+            {config.linkTo && config.ctaLabel && (
+              <Button asChild className="w-full gap-2">
+                <Link to={config.linkTo}>
+                  {config.ctaLabel}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
             )}
           </CardContent>
