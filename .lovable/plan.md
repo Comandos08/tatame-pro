@@ -1,106 +1,23 @@
 
-# P4B-1 HARDENING — ISOLAMENTO E ROLLBACK
 
-## Estado Atual
+# P4B-2 — Athlete Portal Empty States (UX-Only)
 
-### ✅ CORRETAMENTE IMPLEMENTADO (MANTER)
-| Arquivo | Status |
-|---------|--------|
-| `src/components/portal/PortalAccessGate.tsx` | ✅ Correto - UX-only, sem navigate(), sem useEffect de redirect |
+## Resumo
 
-### ❌ FORA DO ESCOPO P4B-1 (REVERTER)
-| Arquivo | Mudança Indevida |
-|---------|------------------|
-| `src/pages/AthletePortal.tsx` | P4B-4: Welcome dinâmico, expiry card, StatusBadge |
-| `src/components/membership/MembershipTypeSelector.tsx` | P4B-3: Query de membership existente, Alert "já filiado" |
-| `src/components/portal/DigitalCardSection.tsx` | P4B-2: Empty state humanizado |
-| `src/components/portal/DiplomasListCard.tsx` | P4B-2: Empty state humanizado |
-| `src/components/portal/GradingHistoryCard.tsx` | P4B-2: Empty state humanizado |
-| `src/components/ui/status-badge.tsx` | P4B-4: Adição de REJECTED status |
-| `src/locales/pt-BR.ts` | P4B-2/3/4: Keys fora do escopo |
-| `src/locales/en.ts` | P4B-2/3/4: Keys fora do escopo |
-| `src/locales/es.ts` | P4B-2/3/4: Keys fora do escopo |
+Adicionar mensagens complementares e humanizadas nos empty states do Portal do Atleta, orientando o usuário sobre quando os dados aparecerão.
 
 ---
 
-## Plano de Rollback
+## Escopo Exato
 
-### 1. `src/pages/AthletePortal.tsx`
-**Reverter para estado pré-P4B:**
-- REMOVER import `differenceInDays`
-- REMOVER import `StatusBadge`
-- REMOVER `daysUntilExpiry` calculation (linhas 164-167)
-- REMOVER `getWelcomeMessage()` function (linhas 169-182)
-- REMOVER enhanced header com StatusBadge (linhas 201-219)
-- REMOVER Next Action Card de expiração (linhas 221-248)
-- RESTAURAR header simples original
-
-### 2. `src/components/membership/MembershipTypeSelector.tsx`
-**Reverter para estado pré-P4B:**
-- REMOVER imports: `useQuery`, `CheckCircle`, `ArrowRight`
-- REMOVER import `supabase`
-- REMOVER import `Alert, AlertDescription, AlertTitle`
-- REMOVER query `existingMembership` (linhas 27-53)
-- REMOVER variável `hasMembership`
-- REMOVER Alert de "já possui filiação" (linhas 123-145)
-- REMOVER lógica de `hasMembership` nas opções (opacidade, pointer-events)
-
-### 3. `src/components/portal/DigitalCardSection.tsx`
-**Reverter empty state:**
-- REMOVER linha 79: `<p className="text-muted-foreground text-sm">{t('portal.emptyDigitalCard')}</p>`
-- MANTER apenas a mensagem original `portal.cardNotAvailable`
-
-### 4. `src/components/portal/DiplomasListCard.tsx`
-**Reverter empty state:**
-- REMOVER linha 72: `<p className="text-muted-foreground text-sm">{t('portal.emptyDiplomas')}</p>`
-- MANTER apenas a mensagem original `portal.noDiplomas`
-
-### 5. `src/components/portal/GradingHistoryCard.tsx`
-**Reverter empty state:**
-- REMOVER linha 62: `<p className="text-muted-foreground text-sm">{t('portal.emptyGradings')}</p>`
-- MANTER apenas a mensagem original `portal.noGradings`
-
-### 6. `src/components/ui/status-badge.tsx`
-**Nenhuma reversão necessária:**
-- O status `REJECTED` já existia antes de P4B-4
-- O arquivo está correto
-
-### 7. `src/locales/pt-BR.ts`
-**i18n Keys - MANTER (P4B-1):**
-```
-portal.errorDesc
-portal.noAthleteTitle
-portal.noAthleteDescHumanized
-portal.pendingReviewDescHumanized
-portal.expiredDescHumanized
-portal.cancelledDescHumanized
-portal.rejectedDescHumanized
-portal.currentGrading
-```
-
-**i18n Keys - REMOVER (P4B-2/3/4):**
-```
-portal.emptyDigitalCard
-portal.emptyDiplomas
-portal.emptyGradings
-portal.welcomeActive
-portal.welcomeApproved
-portal.welcomePending
-portal.expiringIn
-portal.renewReminder
-membership.selectorTitle
-membership.selectorDesc
-membership.alreadyMember
-membership.alreadyMemberDesc
-membership.goToPortal
-membership.termsAgreement
-```
-
-### 8. `src/locales/en.ts`
-**Mesmas remoções de keys P4B-2/3/4**
-
-### 9. `src/locales/es.ts`
-**Mesmas remoções de keys P4B-2/3/4**
+| Componente | Ação |
+|------------|------|
+| `DigitalCardSection.tsx` | Adicionar texto complementar abaixo de `portal.cardNotAvailable` |
+| `DiplomasListCard.tsx` | Adicionar texto complementar abaixo de `portal.noDiplomas` |
+| `GradingHistoryCard.tsx` | Adicionar texto complementar abaixo de `portal.noGradings` |
+| `src/locales/pt-BR.ts` | Adicionar 3 novas i18n keys |
+| `src/locales/en.ts` | Adicionar 3 novas i18n keys |
+| `src/locales/es.ts` | Adicionar 3 novas i18n keys |
 
 ---
 
@@ -110,45 +27,111 @@ membership.termsAgreement
 |---------|-------|
 | `src/routes.tsx` | P4A — Intacto |
 | `src/pages/AuthCallback.tsx` | P3 — Intacto |
-| `src/pages/Login.tsx` | P2 — Intacto |
-| `src/lib/billing/*` | P1 — Intacto |
+| `src/components/portal/PortalAccessGate.tsx` | P4B-1 — Intacto |
 | `src/components/auth/AthleteRouteGuard.tsx` | P4A — Intacto |
-| `src/lib/resolveAthleteRouteAccess.ts` | P4A — Intacto |
-| `src/components/portal/PortalAccessGate.tsx` | P4B-1 — Correto, manter |
+| `src/lib/billing/*` | P1 — Intacto |
+| `src/pages/AthletePortal.tsx` | P4B-4 — Futuro |
+| `src/components/membership/*` | P4B-3 — Futuro |
 
 ---
 
-## Checklist de Aceite
+## Mudanças nos Componentes
+
+### 1. `src/components/portal/DigitalCardSection.tsx`
+
+**Linha 78 - Adicionar texto complementar:**
+
+```text
+Antes (manter):
+<p className="text-muted-foreground font-medium">{t('portal.cardNotAvailable')}</p>
+
+Depois (adicionar abaixo):
+<p className="text-muted-foreground font-medium">{t('portal.cardNotAvailable')}</p>
+<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyDigitalCard')}</p>
+```
+
+### 2. `src/components/portal/DiplomasListCard.tsx`
+
+**Linha 71 - Adicionar texto complementar:**
+
+```text
+Antes (manter):
+<p className="text-muted-foreground font-medium">{t('portal.noDiplomas')}</p>
+
+Depois (adicionar abaixo):
+<p className="text-muted-foreground font-medium">{t('portal.noDiplomas')}</p>
+<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyDiplomas')}</p>
+```
+
+### 3. `src/components/portal/GradingHistoryCard.tsx`
+
+**Linha 61 - Adicionar texto complementar:**
+
+```text
+Antes (manter):
+<p className="text-muted-foreground font-medium">{t('portal.noGradings')}</p>
+
+Depois (adicionar abaixo):
+<p className="text-muted-foreground font-medium">{t('portal.noGradings')}</p>
+<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyGradings')}</p>
+```
+
+---
+
+## Novas Chaves i18n
+
+### pt-BR.ts (após linha 732)
+
+```typescript
+'portal.emptyDigitalCard': 'Sua carteira digital será gerada automaticamente após a aprovação da sua filiação.',
+'portal.emptyDiplomas': 'Os diplomas de graduação aparecerão aqui conforme você evolui no esporte.',
+'portal.emptyGradings': 'Seu histórico de faixas será exibido aqui após sua primeira graduação.',
+```
+
+### en.ts (após linha 734)
+
+```typescript
+'portal.emptyDigitalCard': 'Your digital card will be generated automatically after your membership is approved.',
+'portal.emptyDiplomas': 'Your graduation diplomas will appear here as you progress in the sport.',
+'portal.emptyGradings': 'Your belt history will be displayed here after your first graduation.',
+```
+
+### es.ts (após linha 734)
+
+```typescript
+'portal.emptyDigitalCard': 'Tu credencial digital se generará automáticamente después de la aprobación de tu afiliación.',
+'portal.emptyDiplomas': 'Los diplomas de graduación aparecerán aquí a medida que avances en el deporte.',
+'portal.emptyGradings': 'Tu historial de cinturones se mostrará aquí después de tu primera graduación.',
+```
+
+---
+
+## Validações Garantidas
 
 | Critério | Status |
 |----------|--------|
-| PortalAccessGate.tsx mantido como está | ✅ |
-| AthletePortal.tsx revertido | ✅ |
-| MembershipTypeSelector.tsx revertido | ✅ |
-| DigitalCardSection.tsx revertido | ✅ |
-| DiplomasListCard.tsx revertido | ✅ |
-| GradingHistoryCard.tsx revertido | ✅ |
-| i18n keys P4B-1 mantidas | ✅ |
-| i18n keys P4B-2/3/4 removidas | ✅ |
-| Nenhum redirect no PortalAccessGate | ✅ |
-| Nenhuma alteração em rotas | ✅ |
-| Build compila sem warnings | ✅ |
-| SAFE MODE preservado | ✅ |
+| Nenhum `navigate()` adicionado | Garantido |
+| Nenhum `useEffect` novo | Garantido |
+| Nenhuma condição nova criada | Garantido |
+| Nenhum arquivo fora da lista modificado | Garantido |
+| Mensagens não prometem ação automática indevida | Garantido |
+| Build compila sem warnings | Garantido |
+| P4A continua único responsável por acesso | Garantido |
+| P4B-1 permanece intacto | Garantido |
 
 ---
 
-## Resultado Final
+## Resultado Esperado
 
 ```text
-P4B-1 — PORTAL ACCESS GATE (UX ONLY)
-├── Componente puramente visual ✓
-├── Nenhum redirect ✓
-├── Nenhuma decisão de acesso ✓
-├── CTAs explícitos ✓
-├── i18n alinhado ✓
+P4B-2 — ATHLETE PORTAL EMPTY STATES
+├── UX mais clara e humana ✓
+├── Nenhuma mudança de lógica ✓
+├── Nenhuma mudança de fluxo ✓
+├── Nenhuma dependência nova ✓
+├── i18n consistente (pt / en / es) ✓
 ├── P4A intacto ✓
-├── P3 intacto ✓
-├── P2 intacto ✓
-├── P1 intacto ✓
+├── P4B-1 intacto ✓
 └── SAFE MODE preservado ✓
 ```
+
