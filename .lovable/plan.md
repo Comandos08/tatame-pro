@@ -1,23 +1,20 @@
 
-
-# P4B-2 — Athlete Portal Empty States (UX-Only)
+# P4B-3 — Membership Forms (UX Informativo) - Plano de Implementação
 
 ## Resumo
 
-Adicionar mensagens complementares e humanizadas nos empty states do Portal do Atleta, orientando o usuário sobre quando os dados aparecerão.
+Adicionar card informativo na tela de seleção de filiação (`MembershipTypeSelector.tsx`) para orientar atletas que já possuem uma filiação existente (ACTIVE, APPROVED ou PENDING_REVIEW), sem bloquear acesso ou criar redirects automáticos.
 
 ---
 
-## Escopo Exato
+## Arquivos a Modificar
 
-| Componente | Ação |
-|------------|------|
-| `DigitalCardSection.tsx` | Adicionar texto complementar abaixo de `portal.cardNotAvailable` |
-| `DiplomasListCard.tsx` | Adicionar texto complementar abaixo de `portal.noDiplomas` |
-| `GradingHistoryCard.tsx` | Adicionar texto complementar abaixo de `portal.noGradings` |
-| `src/locales/pt-BR.ts` | Adicionar 3 novas i18n keys |
-| `src/locales/en.ts` | Adicionar 3 novas i18n keys |
-| `src/locales/es.ts` | Adicionar 3 novas i18n keys |
+| Arquivo | Ação |
+|---------|------|
+| `src/components/membership/MembershipTypeSelector.tsx` | Adicionar imports + query read-only + handler + card informativo |
+| `src/locales/pt-BR.ts` | Adicionar 3 novas i18n keys (linha 660) |
+| `src/locales/en.ts` | Adicionar 3 novas i18n keys (linha 662) |
+| `src/locales/es.ts` | Adicionar 3 novas i18n keys (linha 662) |
 
 ---
 
@@ -25,113 +22,178 @@ Adicionar mensagens complementares e humanizadas nos empty states do Portal do A
 
 | Arquivo | Razão |
 |---------|-------|
-| `src/routes.tsx` | P4A — Intacto |
-| `src/pages/AuthCallback.tsx` | P3 — Intacto |
-| `src/components/portal/PortalAccessGate.tsx` | P4B-1 — Intacto |
-| `src/components/auth/AthleteRouteGuard.tsx` | P4A — Intacto |
-| `src/lib/billing/*` | P1 — Intacto |
-| `src/pages/AthletePortal.tsx` | P4B-4 — Futuro |
-| `src/components/membership/*` | P4B-3 — Futuro |
+| `src/routes.tsx` | P4A - Intacto |
+| `src/pages/AuthCallback.tsx` | P3 - Intacto |
+| `src/components/portal/PortalAccessGate.tsx` | P4B-1 - Intacto |
+| `src/components/auth/AthleteRouteGuard.tsx` | P4A - Intacto |
+| `src/lib/billing/*` | P1 - Intacto |
+| `src/components/portal/*` | P4B-2 - Intacto |
 
 ---
 
-## Mudanças nos Componentes
+## Mudanças Técnicas
 
-### 1. `src/components/portal/DigitalCardSection.tsx`
+### 1. MembershipTypeSelector.tsx - Imports (linhas 1-12)
 
-**Linha 78 - Adicionar texto complementar:**
+**Adicionar:**
+- `CheckCircle` ao import de lucide-react (linha 3)
+- `useQuery` de `@tanstack/react-query` (nova linha após 6)
+- `useCurrentUser` de `@/contexts/AuthContext` (nova linha após 8)
 
-```text
-Antes (manter):
-<p className="text-muted-foreground font-medium">{t('portal.cardNotAvailable')}</p>
+### 2. MembershipTypeSelector.tsx - Query Read-Only (após linha 20)
 
-Depois (adicionar abaixo):
-<p className="text-muted-foreground font-medium">{t('portal.cardNotAvailable')}</p>
-<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyDigitalCard')}</p>
+Adicionar após `const [isOpeningPortal, setIsOpeningPortal] = React.useState(false);`:
+
+```typescript
+const { currentUser } = useCurrentUser();
+
+const { data: existingMembership } = useQuery({
+  queryKey: ['existing-membership', currentUser?.id, tenant?.id],
+  queryFn: async () => {
+    if (!currentUser?.id || !tenant?.id) return null;
+
+    const { data: athlete } = await supabase
+      .from('athletes')
+      .select('id')
+      .eq('profile_id', currentUser.id)
+      .eq('tenant_id', tenant.id)
+      .maybeSingle();
+
+    if (!athlete) return null;
+
+    const { data: membership } = await supabase
+      .from('memberships')
+      .select('id, status')
+      .eq('athlete_id', athlete.id)
+      .in('status', ['ACTIVE', 'APPROVED', 'PENDING_REVIEW'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return membership;
+  },
+  enabled: !!currentUser?.id && !!tenant?.id,
+});
+
+const hasMembership = !!existingMembership;
 ```
 
-### 2. `src/components/portal/DiplomasListCard.tsx`
+### 3. MembershipTypeSelector.tsx - Handler Explícito (após linha 44)
 
-**Linha 71 - Adicionar texto complementar:**
+Adicionar após o `handleOpenPortal`:
 
-```text
-Antes (manter):
-<p className="text-muted-foreground font-medium">{t('portal.noDiplomas')}</p>
-
-Depois (adicionar abaixo):
-<p className="text-muted-foreground font-medium">{t('portal.noDiplomas')}</p>
-<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyDiplomas')}</p>
+```typescript
+// Handler explícito para navegação ao portal (P4B-3 hardening)
+const handleGoToPortal = () => {
+  navigate(`/${tenantSlug}/portal`);
+};
 ```
 
-### 3. `src/components/portal/GradingHistoryCard.tsx`
+### 4. MembershipTypeSelector.tsx - Card Informativo (linha 86, entre header e isMembershipBlocked)
 
-**Linha 61 - Adicionar texto complementar:**
+Inserir ANTES do bloco `{isMembershipBlocked && (`:
 
-```text
-Antes (manter):
-<p className="text-muted-foreground font-medium">{t('portal.noGradings')}</p>
-
-Depois (adicionar abaixo):
-<p className="text-muted-foreground font-medium">{t('portal.noGradings')}</p>
-<p className="text-muted-foreground text-sm mt-1">{t('portal.emptyGradings')}</p>
+```jsx
+{/* Informational card when athlete already has membership (P4B-3 UX-only) */}
+{hasMembership && (
+  <motion.div
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mb-8"
+  >
+    <Alert className="border-primary/30 bg-primary/5">
+      <CheckCircle className="h-4 w-4 text-primary" />
+      <AlertTitle>{t('membership.alreadyMember')}</AlertTitle>
+      <AlertDescription className="space-y-2">
+        <p>{t('membership.alreadyMemberDesc')}</p>
+        <button
+          type="button"
+          onClick={handleGoToPortal}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          {t('membership.goToPortal')}
+        </button>
+      </AlertDescription>
+    </Alert>
+  </motion.div>
+)}
 ```
 
 ---
 
 ## Novas Chaves i18n
 
-### pt-BR.ts (após linha 732)
+### pt-BR.ts (inserir após linha 659, antes da linha em branco 660)
 
 ```typescript
-'portal.emptyDigitalCard': 'Sua carteira digital será gerada automaticamente após a aprovação da sua filiação.',
-'portal.emptyDiplomas': 'Os diplomas de graduação aparecerão aqui conforme você evolui no esporte.',
-'portal.emptyGradings': 'Seu histórico de faixas será exibido aqui após sua primeira graduação.',
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'Você já possui uma filiação',
+  'membership.alreadyMemberDesc': 'Sua filiação já está ativa ou em análise. Você pode acompanhar todas as informações no portal do atleta.',
+  'membership.goToPortal': 'Ir para o Portal',
 ```
 
-### en.ts (após linha 734)
+### en.ts (inserir após linha 661, antes da linha em branco 662)
 
 ```typescript
-'portal.emptyDigitalCard': 'Your digital card will be generated automatically after your membership is approved.',
-'portal.emptyDiplomas': 'Your graduation diplomas will appear here as you progress in the sport.',
-'portal.emptyGradings': 'Your belt history will be displayed here after your first graduation.',
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'You already have a membership',
+  'membership.alreadyMemberDesc': 'Your membership is already active or under review. You can view all details in the athlete portal.',
+  'membership.goToPortal': 'Go to Portal',
 ```
 
-### es.ts (após linha 734)
+### es.ts (inserir após linha 661, antes da linha em branco 662)
 
 ```typescript
-'portal.emptyDigitalCard': 'Tu credencial digital se generará automáticamente después de la aprobación de tu afiliación.',
-'portal.emptyDiplomas': 'Los diplomas de graduación aparecerán aquí a medida que avances en el deporte.',
-'portal.emptyGradings': 'Tu historial de cinturones se mostrará aquí después de tu primera graduación.',
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'Ya tienes una afiliación',
+  'membership.alreadyMemberDesc': 'Tu afiliación ya está activa o en revisión. Puedes ver todos los detalles en el portal del atleta.',
+  'membership.goToPortal': 'Ir al Portal',
 ```
 
 ---
 
-## Validações Garantidas
+## Comportamento Final
+
+| Cenário | Resultado |
+|---------|-----------|
+| Atleta sem filiação | Tela normal, sem card informativo |
+| Atleta com filiação ACTIVE | Card informativo aparece + opções visíveis e clicáveis |
+| Atleta com filiação APPROVED | Card informativo aparece + opções visíveis e clicáveis |
+| Atleta com filiação PENDING_REVIEW | Card informativo aparece + opções visíveis e clicáveis |
+| Atleta com filiação EXPIRED | Tela normal, sem card informativo |
+| Atleta com filiação CANCELLED | Tela normal, sem card informativo |
+| Usuário não autenticado | Query desabilitada, tela normal |
+
+---
+
+## Checklist de Aceite
 
 | Critério | Status |
 |----------|--------|
-| Nenhum `navigate()` adicionado | Garantido |
+| Nenhum `navigate()` inline | Garantido - usa `handleGoToPortal` |
+| Navegação apenas via handler | Garantido |
 | Nenhum `useEffect` novo | Garantido |
-| Nenhuma condição nova criada | Garantido |
-| Nenhum arquivo fora da lista modificado | Garantido |
-| Mensagens não prometem ação automática indevida | Garantido |
-| Build compila sem warnings | Garantido |
-| P4A continua único responsável por acesso | Garantido |
-| P4B-1 permanece intacto | Garantido |
+| Nenhum redirect automático | Garantido |
+| Nenhuma mudança de rota | Garantido |
+| Nenhuma mudança de guard | Garantido |
+| Query somente SELECT | Garantido |
+| Build compila sem erro | Garantido |
+| UX apenas informativa | Garantido |
+| i18n completo (pt / en / es) | Garantido |
+| P4A intacto | Garantido |
+| P4B-1 e P4B-2 intactos | Garantido |
 
 ---
 
 ## Resultado Esperado
 
 ```text
-P4B-2 — ATHLETE PORTAL EMPTY STATES
-├── UX mais clara e humana ✓
-├── Nenhuma mudança de lógica ✓
-├── Nenhuma mudança de fluxo ✓
-├── Nenhuma dependência nova ✓
-├── i18n consistente (pt / en / es) ✓
-├── P4A intacto ✓
-├── P4B-1 intacto ✓
-└── SAFE MODE preservado ✓
+P4B-3 — MEMBERSHIP FORMS (HARDENED)
+├── Query read-only ✓
+├── JSX válido ✓
+├── Navegação explícita (handleGoToPortal) ✓
+├── UX-only ✓
+├── Zero regressão ✓
+├── SAFE MODE ✓
+└── Pronto para P4B-4 ✓
 ```
-
