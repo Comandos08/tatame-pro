@@ -1,5 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
+import { getMembershipApprovedTemplate, type EmailLayoutData } from "../_shared/email-templates/index.ts";
+import {
+  resolveMembershipNotification,
+  shouldSend,
+  type MembershipStatus,
+  type SupportedLocale,
+} from "../_shared/notification-engine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +16,7 @@ const corsHeaders = {
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[APPROVE-MEMBERSHIP] ${step}${detailsStr}`);
+  console.log(`[APPROVE] ${step}${detailsStr}`);
 };
 
 interface ApproveMembershipRequest {
@@ -39,23 +47,68 @@ interface DocumentUploaded {
   file_type: string;
 }
 
+// ============================================================================
+// EMAIL RESPONSE TYPE
+// ============================================================================
+
+interface EmailResult {
+  shouldSend: boolean;
+  sent: boolean;
+  templateId: string | null;
+  skippedReason: 'already_sent' | 'engine_noop' | 'resend_not_configured' | null;
+}
+
+// ============================================================================
+// BASE URL RESOLUTION
+// ============================================================================
+
+function resolveBaseUrl(req: Request): string {
+  // Priority 1: Environment variable
+  const envUrl = Deno.env.get("PUBLIC_APP_URL");
+  if (envUrl) {
+    return envUrl.replace(/\/$/, '');
+  }
+
+  // Priority 2: Request origin header
+  const origin = req.headers.get("origin");
+  if (origin) {
+    return origin.replace(/\/$/, '');
+  }
+
+  // Fallback: Production URL
+  return "https://tatame-pro.lovable.app";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Variables for response
+  let approved = false;
+  let membershipId = "";
+  let previousStatus: MembershipStatus = "PENDING_REVIEW";
+  let newStatus: MembershipStatus = "APPROVED";
+  let emailResult: EmailResult = {
+    shouldSend: false,
+    sent: false,
+    templateId: null,
+    skippedReason: null,
+  };
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get auth token from request
+    // ========================================================================
+    // AUTH VALIDATION
+    // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       throw new Error("Missing authorization header");
     }
 
-    // Verify the user and get their ID
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
@@ -66,13 +119,20 @@ serve(async (req) => {
     const adminProfileId = user.id;
     logStep("Admin authenticated", { adminProfileId });
 
-    const { membershipId, academyId, coachId, reviewNotes }: ApproveMembershipRequest = await req.json();
+    // ========================================================================
+    // PARSE INPUT
+    // ========================================================================
+    const body: ApproveMembershipRequest = await req.json();
+    membershipId = body.membershipId;
+    const { academyId, coachId, reviewNotes } = body;
 
     if (!membershipId) {
       throw new Error("Missing membershipId");
     }
 
-    // 1. Fetch membership and validate
+    // ========================================================================
+    // 1. FETCH MEMBERSHIP (before update)
+    // ========================================================================
     const { data: membership, error: membershipError } = await supabase
       .from("memberships")
       .select(`
@@ -84,7 +144,9 @@ serve(async (req) => {
         applicant_data,
         documents_uploaded,
         price_cents,
-        currency
+        currency,
+        end_date,
+        rejection_reason
       `)
       .eq("id", membershipId)
       .maybeSingle();
@@ -93,11 +155,12 @@ serve(async (req) => {
       throw new Error(membershipError?.message || "Membership not found");
     }
 
-    logStep("Fetched membership", { status: membership.status, payment: membership.payment_status });
+    previousStatus = membership.status as MembershipStatus;
+    logStep("Fetched membership", { status: previousStatus, payment: membership.payment_status });
 
     // Validate status
-    if (membership.status !== "PENDING_REVIEW") {
-      throw new Error(`Invalid status: ${membership.status}. Only PENDING_REVIEW can be approved.`);
+    if (previousStatus !== "PENDING_REVIEW") {
+      throw new Error(`Invalid status: ${previousStatus}. Only PENDING_REVIEW can be approved.`);
     }
 
     // Validate payment
@@ -111,7 +174,9 @@ serve(async (req) => {
       throw new Error("Missing applicant data");
     }
 
-    // 2. Check admin permissions
+    // ========================================================================
+    // 2. CHECK ADMIN PERMISSIONS
+    // ========================================================================
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
@@ -127,7 +192,24 @@ serve(async (req) => {
 
     logStep("Admin permissions verified");
 
-    // 3. CREATE ATHLETE from applicant_data
+    // ========================================================================
+    // 3. FETCH TENANT DATA (for notification engine)
+    // ========================================================================
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants")
+      .select("id, slug, name, default_locale")
+      .eq("id", membership.tenant_id)
+      .single();
+
+    if (tenantError || !tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    logStep("Tenant data fetched", { slug: tenant.slug });
+
+    // ========================================================================
+    // 4. CREATE ATHLETE
+    // ========================================================================
     const { data: athlete, error: athleteError } = await supabase
       .from("athletes")
       .insert({
@@ -147,7 +229,6 @@ serve(async (req) => {
         country: applicantData.country,
         current_academy_id: academyId || null,
         current_main_coach_id: coachId || null,
-        is_active: true,
       })
       .select()
       .single();
@@ -158,7 +239,9 @@ serve(async (req) => {
 
     logStep("Athlete created", { athleteId: athlete.id });
 
-    // 4. MOVE DOCUMENTS from tmp/ to permanent location
+    // ========================================================================
+    // 5. MOVE DOCUMENTS
+    // ========================================================================
     const documentsUploaded = membership.documents_uploaded as DocumentUploaded[] | null;
     const movedDocuments: DocumentUploaded[] = [];
 
@@ -169,17 +252,14 @@ serve(async (req) => {
         const newPath = `${membership.tenant_id}/${athlete.id}/${fileName}`;
 
         try {
-          // Copy file to new location
           const { error: copyError } = await supabase.storage
             .from("documents")
             .copy(oldPath, newPath);
 
           if (copyError) {
-            logStep("Copy warning (may already exist)", { oldPath, newPath, error: copyError.message });
-            // Try to continue even if copy fails (file might already exist)
+            logStep("Copy warning", { oldPath, newPath, error: copyError.message });
           }
 
-          // Delete original from tmp
           const { error: deleteError } = await supabase.storage
             .from("documents")
             .remove([oldPath]);
@@ -188,7 +268,6 @@ serve(async (req) => {
             logStep("Delete warning", { oldPath, error: deleteError.message });
           }
 
-          // Insert into documents table
           const { error: docInsertError } = await supabase
             .from("documents")
             .insert({
@@ -211,7 +290,9 @@ serve(async (req) => {
       }
     }
 
-    // 5. UPDATE MEMBERSHIP
+    // ========================================================================
+    // 6. UPDATE MEMBERSHIP TO APPROVED
+    // ========================================================================
     const now = new Date();
     const startDate = now.toISOString().split("T")[0];
     const endDate = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split("T")[0];
@@ -228,7 +309,7 @@ serve(async (req) => {
         review_notes: reviewNotes || null,
         reviewed_by_profile_id: adminProfileId,
         reviewed_at: new Date().toISOString(),
-        applicant_data: null, // Clear applicant data after athlete creation
+        applicant_data: null,
         documents_uploaded: movedDocuments.length > 0 ? movedDocuments : null,
       })
       .eq("id", membershipId);
@@ -237,9 +318,13 @@ serve(async (req) => {
       throw new Error(`Failed to update membership: ${updateError.message}`);
     }
 
+    approved = true;
+    newStatus = "APPROVED";
     logStep("Membership updated to APPROVED");
 
-    // 6. GENERATE DIGITAL CARD
+    // ========================================================================
+    // 7. GENERATE DIGITAL CARD
+    // ========================================================================
     let cardGenerated = false;
     try {
       const cardResponse = await supabase.functions.invoke("generate-digital-card", {
@@ -256,31 +341,125 @@ serve(async (req) => {
       logStep("Card generation error", { error: String(e) });
     }
 
-    // 7. SEND APPROVAL EMAIL
-    let emailSent = false;
-    try {
-      const emailResponse = await supabase.functions.invoke("send-athlete-email", {
-        body: {
-          email_type: "MEMBERSHIP_APPROVED",
-          membership_id: membershipId,
-          data: {
-            athlete_name: applicantData.full_name,
-            athlete_email: applicantData.email,
-          },
-        },
-      });
+    // ========================================================================
+    // 8. NOTIFICATION ENGINE — Decision Layer
+    // ========================================================================
+    const baseUrl = resolveBaseUrl(req);
+    const tenantLocale = (tenant.default_locale === 'en' ? 'en' : 'pt-BR') as SupportedLocale;
 
-      if (emailResponse.error) {
-        logStep("Email warning", { error: emailResponse.error.message });
+    const notificationDecision = resolveMembershipNotification({
+      previousStatus,
+      newStatus,
+      membership: {
+        id: membershipId,
+        endDate,
+        rejectionReason: membership.rejection_reason ?? undefined,
+      },
+      athlete: {
+        fullName: applicantData.full_name,
+        email: applicantData.email,
+        // Athlete doesn't have preferredLocale yet, fall back to tenant
+      },
+      tenant: {
+        name: tenant.name,
+        slug: tenant.slug,
+        defaultLocale: tenantLocale,
+      },
+      baseUrl,
+    });
+
+    logStep("[EMAIL] Engine decision", { 
+      shouldSend: notificationDecision.shouldSendEmail,
+      templateId: shouldSend(notificationDecision) ? notificationDecision.templateId : null,
+    });
+
+    // ========================================================================
+    // 9. SEND EMAIL (if engine says so)
+    // ========================================================================
+    if (shouldSend(notificationDecision)) {
+      emailResult.shouldSend = true;
+      emailResult.templateId = notificationDecision.templateId;
+
+      // Check Resend configuration
+      if (!isEmailConfigured()) {
+        logStep("[EMAIL] Skip: RESEND_API_KEY not configured");
+        emailResult.skippedReason = 'resend_not_configured';
       } else {
-        emailSent = true;
-        logStep("Approval email sent");
+        try {
+          const resend = getEmailClient();
+
+          // Build email content using existing template
+          const layoutData: EmailLayoutData = {
+            tenantName: tenant.name,
+          };
+
+          const { subject, html } = getMembershipApprovedTemplate({
+            ...layoutData,
+            athleteName: notificationDecision.payload.athleteName,
+            portalUrl: notificationDecision.ctaUrl,
+          });
+
+          // Send email
+          const { error: emailError } = await resend.emails.send({
+            from: DEFAULT_EMAIL_FROM,
+            to: [applicantData.email],
+            subject,
+            html,
+          });
+
+          if (emailError) {
+            throw new Error(`Resend error: ${JSON.stringify(emailError)}`);
+          }
+
+          emailResult.sent = true;
+          logStep("[EMAIL] Sent successfully", { 
+            to: applicantData.email, 
+            templateId: notificationDecision.templateId 
+          });
+
+          // Audit log for EMAIL_SENT
+          await supabase.from("audit_logs").insert({
+            event_type: "EMAIL_SENT",
+            tenant_id: membership.tenant_id,
+            profile_id: adminProfileId,
+            metadata: {
+              template_id: notificationDecision.templateId,
+              recipient_email: applicantData.email,
+              membership_id: membershipId,
+              status: newStatus,
+              locale: notificationDecision.locale,
+              sent_at: new Date().toISOString(),
+            },
+          });
+
+        } catch (emailErr) {
+          const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
+          logStep("[EMAIL] Failed", { error: errMsg });
+
+          // Audit log for EMAIL_FAILED
+          await supabase.from("audit_logs").insert({
+            event_type: "EMAIL_FAILED",
+            tenant_id: membership.tenant_id,
+            profile_id: adminProfileId,
+            metadata: {
+              template_id: notificationDecision.templateId,
+              recipient_email: applicantData.email,
+              membership_id: membershipId,
+              status: newStatus,
+              error: errMsg.substring(0, 500), // Truncate to avoid huge logs
+              occurred_at: new Date().toISOString(),
+            },
+          });
+        }
       }
-    } catch (e) {
-      logStep("Email error", { error: String(e) });
+    } else {
+      emailResult.skippedReason = 'engine_noop';
+      logStep("[EMAIL] Skip: engine returned shouldSendEmail=false");
     }
 
-    // 8. CREATE AUDIT LOG
+    // ========================================================================
+    // 10. AUDIT LOG — Membership Approved
+    // ========================================================================
     await supabase.from("audit_logs").insert({
       event_type: "MEMBERSHIP_APPROVED",
       tenant_id: membership.tenant_id,
@@ -296,22 +475,29 @@ serve(async (req) => {
         start_date: startDate,
         end_date: endDate,
         card_generated: cardGenerated,
-        email_sent: emailSent,
+        email_sent: emailResult.sent,
         occurred_at: new Date().toISOString(),
       },
     });
 
     logStep("Audit log created");
 
+    // ========================================================================
+    // SUCCESS RESPONSE
+    // ========================================================================
     return new Response(
       JSON.stringify({
-        success: true,
+        approved: true,
+        membershipId,
+        previousStatus,
+        newStatus,
         athleteId: athlete.id,
         cardGenerated,
-        emailSent,
+        email: emailResult,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
+
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     logStep("Error", { error: errorMessage });
@@ -322,7 +508,14 @@ serve(async (req) => {
       : 500;
 
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        approved,
+        membershipId,
+        previousStatus,
+        newStatus,
+        email: emailResult,
+        error: errorMessage,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: statusCode }
     );
   }
