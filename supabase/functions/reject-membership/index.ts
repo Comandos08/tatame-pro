@@ -74,7 +74,8 @@ serve(async (req) => {
         tenant_id,
         applicant_data,
         applicant_profile_id,
-        rejection_reason
+        rejection_reason,
+        email_sent_for_status
       `)
       .eq("id", membershipId)
       .maybeSingle();
@@ -237,10 +238,17 @@ serve(async (req) => {
         emailResult.templateId = decision.templateId;
 
         // =====================================================================
-        // 7️⃣ SEND EMAIL
+        // 6.5️⃣ IDEMPOTENCY CHECK - Skip if already sent for REJECTED
         // =====================================================================
+        const emailAlreadySent = membership.email_sent_for_status === "REJECTED";
         
-        if (!isEmailConfigured()) {
+        if (emailAlreadySent) {
+          logEmail("Skip - already sent for status REJECTED");
+          emailResult.skippedReason = "already_sent";
+        } else if (!isEmailConfigured()) {
+          // ===================================================================
+          // 7️⃣ SEND EMAIL
+          // ===================================================================
           logEmail("Skip - email not configured");
           emailResult.skippedReason = "email_not_configured";
         } else {
@@ -282,6 +290,14 @@ serve(async (req) => {
                 sent_at: new Date().toISOString(),
               },
             });
+
+            // 9️⃣ PERSIST IDEMPOTENCY - Mark email as sent for REJECTED
+            await supabase
+              .from("memberships")
+              .update({ email_sent_for_status: "REJECTED" })
+              .eq("id", membershipId);
+
+            logEmail("Idempotency flag set", { email_sent_for_status: "REJECTED" });
 
           } catch (emailError) {
             const errorMessage = emailError instanceof Error ? emailError.message : "Unknown email error";
