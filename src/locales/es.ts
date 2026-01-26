@@ -1285,7 +1285,7 @@ export const es: Record<string, string> = {
   'common.select': 'Seleccionar',
   'common.organization': 'organización',
 
-  // P4B — Portal UX Improvements
+  // P4B-1 — Portal UX Improvements (PortalAccessGate only)
   'portal.errorDesc': 'No se pudo cargar su información. Inténtelo de nuevo más tarde.',
   'portal.noAthleteTitle': 'Ningún registro encontrado',
   'portal.noAthleteDescHumanized': 'Aún no tiene una afiliación en esta organización. Inicie el proceso de afiliación para acceder al portal.',
@@ -1293,21 +1293,5 @@ export const es: Record<string, string> = {
   'portal.expiredDescHumanized': 'Su afiliación ha expirado. Renueve ahora para seguir participando en eventos y mantener su carnet digital activo.',
   'portal.cancelledDescHumanized': 'Su afiliación ha sido cancelada. Para volver a participar, inicie una nueva afiliación.',
   'portal.rejectedDescHumanized': 'Su solicitud de afiliación fue rechazada. Contacte a la organización para más información e intente de nuevo.',
-  'portal.emptyDigitalCard': 'Su carnet digital será generado automáticamente después de la aprobación de su afiliación.',
-  'portal.emptyDiplomas': 'Los diplomas de graduación aparecerán aquí conforme progrese en el deporte.',
-  'portal.emptyGradings': 'Su historial de cinturones se mostrará aquí después de su primera graduación.',
   'portal.currentGrading': 'Actual',
-  'portal.welcomeActive': '¡Su afiliación está activa!',
-  'portal.welcomeApproved': '¡Bienvenido! Su afiliación ha sido aprobada.',
-  'portal.welcomePending': 'Su solicitud está en revisión...',
-  'portal.expiringIn': 'Su afiliación expira en {days} días',
-  'portal.renewReminder': 'Renueve con anticipación para no perder el acceso.',
-  
-  // P4B-3 — Membership Forms
-  'membership.selectorTitle': 'Afiliación de Atleta',
-  'membership.selectorDesc': 'Elija el tipo de afiliación para unirse a {tenant}.',
-  'membership.alreadyMember': 'Ya tiene una afiliación',
-  'membership.alreadyMemberDesc': 'Su afiliación está activa. Acceda al portal para ver sus datos y documentos.',
-  'membership.goToPortal': 'Ir al Portal',
-  'membership.termsAgreement': 'Al continuar, acepta los términos de uso y la política de privacidad.',
 };
