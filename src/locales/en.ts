@@ -660,6 +660,11 @@ export const en: Record<string, string> = {
   'membership.billingBlockedTitle': 'Memberships Temporarily Unavailable',
   'membership.billingBlockedDesc': 'The organization has pending payment issues. New memberships will be enabled after regularization.',
   
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'You already have a membership',
+  'membership.alreadyMemberDesc': 'Your membership is already active or under review. You can view all details in the athlete portal.',
+  'membership.goToPortal': 'Go to Portal',
+  
   // Provisional Card
   'athleteArea.provisionalCard': 'Provisional Card',
   'athleteArea.provisionalCardDesc': 'Your digital card is being processed',
