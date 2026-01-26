@@ -128,4 +128,3 @@ i18n FINALIZATION COMPLETED
 ├── package.json: i18n:check script added ✓
 └── SAFE MODE: Zero regressions ✓
 ```
-

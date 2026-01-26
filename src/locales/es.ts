@@ -1,6 +1,4 @@
-import { TranslationKey } from './pt-BR';
-
-export const es: Record<TranslationKey, string> = {
+export const es: Record<string, string> = {
   // Navigation
   'nav.dashboard': 'Panel',
   'nav.athletes': 'Atletas',
