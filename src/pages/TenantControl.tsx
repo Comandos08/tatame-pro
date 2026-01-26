@@ -182,7 +182,7 @@ export default function TenantControl() {
       console.error('Error fetching tenant data:', error);
       toast({
         title: t('common.error'),
-        description: 'Failed to load tenant data',
+        description: t('controlTower.loadError'),
         variant: 'destructive',
       });
     } finally {
@@ -220,7 +220,7 @@ export default function TenantControl() {
     if (!currentAction || !tenantId || !reason.trim()) {
       toast({
         title: t('common.error'),
-        description: 'Reason is required',
+        description: t('controlTower.reasonIsRequired'),
         variant: 'destructive',
       });
       return;
@@ -279,7 +279,7 @@ export default function TenantControl() {
 
       toast({
         title: t('common.success'),
-        description: response.data?.message || 'Action completed successfully',
+        description: t('controlTower.actionSuccess'),
       });
 
       setDialogOpen(false);
@@ -291,7 +291,7 @@ export default function TenantControl() {
       console.error('Action error:', error);
       toast({
         title: t('common.error'),
-        description: error instanceof Error ? error.message : 'Action failed',
+        description: error instanceof Error ? error.message : t('controlTower.actionFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -341,11 +341,11 @@ export default function TenantControl() {
   // Get action title
   const getActionTitle = (action: ActionType) => {
     const titles: Record<ActionType, string> = {
-      'extend-trial': 'Estender Trial',
-      'mark-as-paid': 'Marcar como Pago',
-      'block-tenant': 'Bloquear Tenant',
-      'unblock-tenant': 'Desbloquear Tenant',
-      'reset-to-stripe': 'Retornar ao Stripe',
+      'extend-trial': t('controlTower.extendTrial'),
+      'mark-as-paid': t('controlTower.markAsPaid'),
+      'block-tenant': t('controlTower.blockTenant'),
+      'unblock-tenant': t('controlTower.unblockTenant'),
+      'reset-to-stripe': t('controlTower.resetToStripe'),
     };
     return titles[action];
   };
@@ -353,11 +353,11 @@ export default function TenantControl() {
   // Get action description
   const getActionDescription = (action: ActionType) => {
     const descriptions: Record<ActionType, string> = {
-      'extend-trial': `Adiciona dias extras ao período de trial do tenant (máx. ${MAX_TRIAL_DAYS} dias).`,
-      'mark-as-paid': `Força o status ACTIVE até a data especificada (máx. ${MAX_PAID_MONTHS} meses). Requer confirmação.`,
-      'block-tenant': 'Força o status PAST_DUE, bloqueando novas filiações. Requer confirmação se tenant estiver ACTIVE.',
-      'unblock-tenant': 'Remove o bloqueio e define ACTIVE por 30 dias.',
-      'reset-to-stripe': 'Remove todos os overrides manuais e sincroniza com o status real do Stripe.',
+      'extend-trial': t('controlTower.extendTrialDesc'),
+      'mark-as-paid': t('controlTower.markAsPaidDesc'),
+      'block-tenant': t('controlTower.blockTenantDesc'),
+      'unblock-tenant': t('controlTower.unblockTenantDesc'),
+      'reset-to-stripe': t('controlTower.resetToStripeDesc'),
     };
     return descriptions[action];
   };
@@ -383,9 +383,9 @@ export default function TenantControl() {
         <Card className="max-w-md">
           <CardContent className="pt-6 text-center">
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Tenant não encontrado</h2>
+            <h2 className="text-xl font-semibold mb-2">{t('controlTower.tenantNotFound')}</h2>
             <Button asChild className="mt-4">
-              <Link to="/admin">Voltar</Link>
+              <Link to="/admin">{t('common.back')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -411,7 +411,7 @@ export default function TenantControl() {
                 <Shield className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Control Tower</h1>
+                <h1 className="text-xl font-bold">{t('controlTower.title')}</h1>
                 <p className="text-sm text-muted-foreground">{tenant.name}</p>
               </div>
             </div>
@@ -435,22 +435,22 @@ export default function TenantControl() {
               <div className="flex items-start gap-3">
                 <AlertOctagon className="h-6 w-6 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-destructive mb-1">STATUS SOB OVERRIDE MANUAL</h3>
+                  <h3 className="font-semibold text-destructive mb-1">{t('controlTower.manualOverrideWarning')}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Este tenant está com status sobrescrito manualmente. O Stripe não está controlando o billing.
+                    {t('controlTower.manualOverrideWarningDesc')}
                   </p>
                   {billing?.override_reason && (
                     <p className="text-sm mt-2">
-                      <span className="font-medium">Motivo:</span> {billing.override_reason}
+                      <span className="font-medium">{t('controlTower.reason')}:</span> {billing.override_reason}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
                     {billing?.override_at && (
-                      <span>Override aplicado em: {formatDate(billing.override_at)}</span>
+                      <span>{t('controlTower.overrideAppliedAt')}: {formatDate(billing.override_at)}</span>
                     )}
                     {billing?.override_by && (
                       <span>
-                        Por: {overrideOperator?.name || overrideOperator?.email || billing.override_by.slice(0, 8) + '...'}
+                        {t('controlTower.overrideBy')}: {overrideOperator?.name || overrideOperator?.email || billing.override_by.slice(0, 8) + '...'}
                       </span>
                     )}
                   </div>
@@ -461,7 +461,7 @@ export default function TenantControl() {
                   onClick={() => openActionDialog('reset-to-stripe')}
                 >
                   <RotateCcw className="h-4 w-4 mr-2" />
-                  Retornar ao Stripe
+                  {t('controlTower.resetToStripe')}
                 </Button>
               </div>
             </motion.div>
@@ -474,57 +474,57 @@ export default function TenantControl() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Building2 className="h-5 w-5" />
-                    Status Atual
+                    {t('controlTower.currentStatus')}
                   </CardTitle>
-                  <CardDescription>Informações de billing do tenant</CardDescription>
+                  <CardDescription>{t('controlTower.billingInfo')}</CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={fetchData}>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Atualizar
+                  {t('controlTower.refresh')}
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.status')}</p>
                   <div className="flex items-center gap-2">
-                    {billing ? getStatusBadge(billing.status) : <Badge variant="outline">Sem registro</Badge>}
+                    {billing ? getStatusBadge(billing.status) : <Badge variant="outline">{t('controlTower.noRecord')}</Badge>}
                     {isManualOverride && (
-                      <Badge variant="destructive" className="text-xs">MANUAL</Badge>
+                      <Badge variant="destructive" className="text-xs">{t('controlTower.manualMode')}</Badge>
                     )}
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Plano</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.plan')}</p>
                   <p className="font-medium">{billing?.plan_name || '-'}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Tenant Ativo</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.tenantActive')}</p>
                   <Badge variant={tenant.is_active ? 'default' : 'destructive'}>
-                    {tenant.is_active ? 'Sim' : 'Não'}
+                    {tenant.is_active ? t('controlTower.yes') : t('controlTower.no')}
                   </Badge>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Período Início</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.periodStart')}</p>
                   <p className="font-medium">{formatDate(billing?.current_period_start || null)}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Período Fim</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.periodEnd')}</p>
                   <p className="font-medium">{formatDate(billing?.current_period_end || null)}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Modo de Controle</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.controlMode')}</p>
                   <Badge variant={isManualOverride ? 'destructive' : 'secondary'}>
-                    {isManualOverride ? 'MANUAL' : 'STRIPE'}
+                    {isManualOverride ? t('controlTower.manualMode') : t('controlTower.stripeMode')}
                   </Badge>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Stripe Customer</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.stripeCustomer')}</p>
                   <p className="font-mono text-xs truncate">{billing?.stripe_customer_id || '-'}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Stripe Subscription</p>
+                  <p className="text-sm text-muted-foreground">{t('controlTower.stripeSubscription')}</p>
                   <p className="font-mono text-xs truncate">{billing?.stripe_subscription_id || '-'}</p>
                 </div>
               </div>
@@ -536,11 +536,10 @@ export default function TenantControl() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Ações de Override
+                {t('controlTower.overrideActions')}
               </CardTitle>
               <CardDescription>
-                Controles manuais para gerenciar o status de billing do tenant. 
-                Limites: Trial máx. {MAX_TRIAL_DAYS} dias, Pagamento máx. {MAX_PAID_MONTHS} meses.
+                {t('controlTower.overrideActionsDesc')} {t('controlTower.trialLimit').replace('{days}', String(MAX_TRIAL_DAYS))}, {t('controlTower.paidLimit').replace('{months}', String(MAX_PAID_MONTHS))}.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -551,8 +550,8 @@ export default function TenantControl() {
                   onClick={() => openActionDialog('extend-trial')}
                 >
                   <CalendarPlus className="h-6 w-6 text-blue-500" />
-                  <span className="font-medium">Estender Trial</span>
-                  <span className="text-xs text-muted-foreground">Máx. {MAX_TRIAL_DAYS} dias</span>
+                  <span className="font-medium">{t('controlTower.extendTrial')}</span>
+                  <span className="text-xs text-muted-foreground">{t('controlTower.maxDays').replace('{days}', String(MAX_TRIAL_DAYS))}</span>
                 </Button>
 
                 <Button
@@ -561,8 +560,8 @@ export default function TenantControl() {
                   onClick={() => openActionDialog('mark-as-paid')}
                 >
                   <DollarSign className="h-6 w-6 text-green-500" />
-                  <span className="font-medium">Marcar Pago</span>
-                  <span className="text-xs text-muted-foreground">Requer confirmação</span>
+                  <span className="font-medium">{t('controlTower.markAsPaid')}</span>
+                  <span className="text-xs text-muted-foreground">{t('controlTower.requiresConfirm')}</span>
                 </Button>
 
                 <Button
@@ -571,8 +570,8 @@ export default function TenantControl() {
                   onClick={() => openActionDialog('block-tenant')}
                 >
                   <Ban className="h-6 w-6 text-destructive" />
-                  <span className="font-medium">Bloquear</span>
-                  <span className="text-xs text-muted-foreground">Forçar PAST_DUE</span>
+                  <span className="font-medium">{t('controlTower.blockTenant')}</span>
+                  <span className="text-xs text-muted-foreground">{t('controlTower.forcePastDue')}</span>
                 </Button>
 
                 <Button
@@ -581,8 +580,8 @@ export default function TenantControl() {
                   onClick={() => openActionDialog('unblock-tenant')}
                 >
                   <Unlock className="h-6 w-6 text-emerald-500" />
-                  <span className="font-medium">Desbloquear</span>
-                  <span className="text-xs text-muted-foreground">+30 dias ACTIVE</span>
+                  <span className="font-medium">{t('controlTower.unblockTenant')}</span>
+                  <span className="text-xs text-muted-foreground">{t('controlTower.plus30DaysActive')}</span>
                 </Button>
 
                 <Button
@@ -592,8 +591,8 @@ export default function TenantControl() {
                   disabled={!isManualOverride}
                 >
                   <RotateCcw className="h-6 w-6 text-primary" />
-                  <span className="font-medium">Reset Stripe</span>
-                  <span className="text-xs text-muted-foreground">Sincronizar</span>
+                  <span className="font-medium">{t('controlTower.resetToStripe')}</span>
+                  <span className="text-xs text-muted-foreground">{t('controlTower.sync')}</span>
                 </Button>
               </div>
             </CardContent>
@@ -604,17 +603,17 @@ export default function TenantControl() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Histórico de Overrides
+                {t('controlTower.overrideHistory')}
               </CardTitle>
               <CardDescription>
-                Registro de todas as ações manuais realizadas neste tenant
+                {t('controlTower.overrideHistoryDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {auditLogs.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p>Nenhuma ação de override registrada</p>
+                  <p>{t('controlTower.noOverrideActions')}</p>
                 </div>
               ) : (
                 <ScrollArea className="h-[400px]">
@@ -644,28 +643,28 @@ export default function TenantControl() {
                             </div>
                             {log.metadata?.reason && (
                               <p className="text-sm mt-2">
-                                <span className="font-medium">Motivo:</span> {log.metadata.reason}
+                                <span className="font-medium">{t('controlTower.reason')}:</span> {log.metadata.reason}
                               </p>
                             )}
                             <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
                               {log.metadata?.previous_status && (
                                 <span>
-                                  Status anterior: <code>{log.metadata.previous_status}</code>
+                                  {t('controlTower.previousStatus')}: <code>{log.metadata.previous_status}</code>
                                 </span>
                               )}
                               {log.metadata?.new_status && (
                                 <span>
-                                  Novo status: <code>{log.metadata.new_status}</code>
+                                  {t('controlTower.newStatus')}: <code>{log.metadata.new_status}</code>
                                 </span>
                               )}
                               {log.metadata?.days && (
                                 <span>
-                                  Dias: <code>{log.metadata.days}</code>
+                                  {t('controlTower.days')}: <code>{log.metadata.days}</code>
                                 </span>
                               )}
                               {log.metadata?.until_date && (
                                 <span>
-                                  Até: <code>{log.metadata.until_date}</code>
+                                  {t('controlTower.until')}: <code>{log.metadata.until_date}</code>
                                 </span>
                               )}
                             </div>
@@ -694,7 +693,7 @@ export default function TenantControl() {
           <div className="space-y-4 py-4">
             {currentAction === 'extend-trial' && (
               <div className="space-y-2">
-                <Label htmlFor="days">Dias a adicionar (máx. {MAX_TRIAL_DAYS})</Label>
+                <Label htmlFor="days">{t('controlTower.daysToAdd')} ({t('controlTower.maxDays').replace('{days}', String(MAX_TRIAL_DAYS))})</Label>
                 <Input
                   id="days"
                   type="number"
@@ -708,7 +707,7 @@ export default function TenantControl() {
 
             {currentAction === 'mark-as-paid' && (
               <div className="space-y-2">
-                <Label htmlFor="untilDate">Válido até (máx. {MAX_PAID_MONTHS} meses)</Label>
+                <Label htmlFor="untilDate">{t('controlTower.validUntil')} ({t('controlTower.maxMonths').replace('{months}', String(MAX_PAID_MONTHS))})</Label>
                 <Input
                   id="untilDate"
                   type="date"
@@ -721,10 +720,10 @@ export default function TenantControl() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="reason">Motivo (obrigatório)</Label>
+              <Label htmlFor="reason">{t('controlTower.reasonRequired')}</Label>
               <Textarea
                 id="reason"
-                placeholder="Descreva o motivo desta ação..."
+                placeholder={t('controlTower.reasonPlaceholder')}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
@@ -738,7 +737,7 @@ export default function TenantControl() {
               onClick={() => setDialogOpen(false)}
               disabled={actionLoading}
             >
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={() => executeAction(false)}
@@ -747,8 +746,8 @@ export default function TenantControl() {
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {(currentAction === 'block-tenant' && billing?.status === 'ACTIVE') || currentAction === 'mark-as-paid' 
-                ? 'Continuar...' 
-                : 'Confirmar'}
+                ? t('controlTower.continue') 
+                : t('controlTower.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -760,32 +759,22 @@ export default function TenantControl() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Confirmação Necessária
+              {t('controlTower.confirmationNeeded')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingAction?.action === 'block-tenant' && (
-                <>
-                  Você está prestes a <strong>BLOQUEAR</strong> um tenant com status <strong>ACTIVE</strong>. 
-                  Isso impedirá a criação de novas filiações e pode afetar operações em andamento.
-                </>
-              )}
-              {pendingAction?.action === 'mark-as-paid' && (
-                <>
-                  Você está prestes a forçar o status <strong>ACTIVE</strong> manualmente, 
-                  sobrescrevendo qualquer controle do Stripe. Esta ação será registrada na auditoria.
-                </>
-              )}
+              {pendingAction?.action === 'block-tenant' && t('controlTower.confirmBlockActive')}
+              {pendingAction?.action === 'mark-as-paid' && t('controlTower.confirmMarkPaid')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={actionLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={actionLoading}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmedAction}
               disabled={actionLoading}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirmar Ação
+              {t('controlTower.confirmAction')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

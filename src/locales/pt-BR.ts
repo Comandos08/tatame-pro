@@ -1110,6 +1110,15 @@ export const ptBR = {
   'controlTower.continue': 'Continuar...',
   'controlTower.confirm': 'Confirmar',
   'controlTower.back': 'Voltar',
+  'controlTower.refresh': 'Atualizar',
+  'controlTower.noRecord': 'Sem registro',
+  'controlTower.yes': 'Sim',
+  'controlTower.no': 'Não',
+  'controlTower.loadError': 'Falha ao carregar dados do tenant',
+  'controlTower.actionSuccess': 'Ação concluída com sucesso',
+  'controlTower.actionFailed': 'Ação falhou',
+  'controlTower.reasonIsRequired': 'Motivo é obrigatório',
+  'controlTower.maxMonths': 'Máx. {months} meses',
 
   // P4.x-R1 — Admin Dialogs i18n
   'admin.dialogs.editOrganization': 'Editar Organização',
