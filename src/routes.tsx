@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { AthleteRouteGuard } from '@/components/auth/AthleteRouteGuard';
 import { useCurrentUser } from '@/contexts/AuthContext';
 
 // Pages
@@ -170,13 +171,13 @@ export function AppRoutes() {
         <Route path="membership/adult" element={<AdultMembershipForm />} />
         <Route path="membership/youth" element={<YouthMembershipForm />} />
         <Route path="membership/success" element={<MembershipSuccess />} />
-        <Route path="membership/status" element={<MembershipStatus />} />
-        <Route path="membership/renew" element={<PortalProtectedRoute><MembershipRenew /></PortalProtectedRoute>} />
+        <Route path="membership/status" element={<AthleteRouteGuard><MembershipStatus /></AthleteRouteGuard>} />
+        <Route path="membership/renew" element={<AthleteRouteGuard><MembershipRenew /></AthleteRouteGuard>} />
         
-        {/* Portal do Atleta (Read-Only) - protected with PortalProtectedRoute */}
-        <Route path="portal" element={<PortalProtectedRoute><AthletePortal /></PortalProtectedRoute>} />
-        <Route path="portal/events" element={<PortalProtectedRoute><PortalEvents /></PortalProtectedRoute>} />
-        <Route path="portal/card" element={<PortalProtectedRoute><PortalCard /></PortalProtectedRoute>} />
+        {/* Portal do Atleta (Read-Only) - protected with AthleteRouteGuard */}
+        <Route path="portal" element={<AthleteRouteGuard><AthletePortal /></AthleteRouteGuard>} />
+        <Route path="portal/events" element={<AthleteRouteGuard><PortalEvents /></AthleteRouteGuard>} />
+        <Route path="portal/card" element={<AthleteRouteGuard><PortalCard /></AthleteRouteGuard>} />
         
         {/* Protected tenant app */}
         <Route path="app" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
