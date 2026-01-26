@@ -660,6 +660,11 @@ export const es: Record<string, string> = {
   'membership.billingBlockedTitle': 'Afiliaciones Temporalmente No Disponibles',
   'membership.billingBlockedDesc': 'La organización tiene problemas de pago pendientes. Las nuevas afiliaciones se habilitarán después de la regularización.',
   
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'Ya tienes una afiliación',
+  'membership.alreadyMemberDesc': 'Tu afiliación ya está activa o en revisión. Puedes ver todos los detalles en el portal del atleta.',
+  'membership.goToPortal': 'Ir al Portal',
+  
   // Provisional Card
   'athleteArea.provisionalCard': 'Credencial Provisional',
   'athleteArea.provisionalCardDesc': 'Tu credencial digital está siendo procesada',

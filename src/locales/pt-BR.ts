@@ -658,6 +658,11 @@ export const ptBR = {
   'membership.billingBlockedTitle': 'Filiações Temporariamente Indisponíveis',
   'membership.billingBlockedDesc': 'A organização está com pendências de pagamento. Novas filiações serão habilitadas após regularização.',
   
+  // Membership Already Exists (P4B-3 UX Informational)
+  'membership.alreadyMember': 'Você já possui uma filiação',
+  'membership.alreadyMemberDesc': 'Sua filiação já está ativa ou em análise. Você pode acompanhar todas as informações no portal do atleta.',
+  'membership.goToPortal': 'Ir para o Portal',
+  
   // Provisional Card
   'athleteArea.provisionalCard': 'Carteira Provisória',
   'athleteArea.provisionalCardDesc': 'Sua carteira digital está sendo processada',

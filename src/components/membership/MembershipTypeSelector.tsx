@@ -1,11 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Users, AlertTriangle, CreditCard, Loader2 } from 'lucide-react';
+import { User, Users, AlertTriangle, CreditCard, Loader2, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +20,38 @@ export function MembershipTypeSelector() {
   const { t } = useI18n();
   const tenantStatus = useTenantStatus();
   const [isOpeningPortal, setIsOpeningPortal] = React.useState(false);
+  const { currentUser } = useCurrentUser();
+
+  // Query to detect existing membership (P4B-3 UX Informational - read-only)
+  const { data: existingMembership } = useQuery({
+    queryKey: ['existing-membership', currentUser?.id, tenant?.id],
+    queryFn: async () => {
+      if (!currentUser?.id || !tenant?.id) return null;
+
+      const { data: athlete } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('profile_id', currentUser.id)
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+
+      if (!athlete) return null;
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('id, status')
+        .eq('athlete_id', athlete.id)
+        .in('status', ['ACTIVE', 'APPROVED', 'PENDING_REVIEW'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return membership;
+    },
+    enabled: !!currentUser?.id && !!tenant?.id,
+  });
+
+  const hasMembership = !!existingMembership;
 
   // Check if new memberships should be blocked
   const isMembershipBlocked = tenantStatus.isBlocked || tenantStatus.hasBillingIssue || tenantStatus.isTrialExpired;
@@ -41,6 +75,11 @@ export function MembershipTypeSelector() {
     } finally {
       setIsOpeningPortal(false);
     }
+  };
+
+  // Handler explícito para navegação ao portal (P4B-3 hardening)
+  const handleGoToPortal = () => {
+    navigate(`/${tenantSlug}/portal`);
   };
 
   const options = [
@@ -83,6 +122,30 @@ export function MembershipTypeSelector() {
             Escolha o tipo de filiação para se juntar à {tenant?.name || t('common.organization')}.
           </p>
         </motion.div>
+
+        {/* Informational card when athlete already has membership (P4B-3 UX-only) */}
+        {hasMembership && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <Alert className="border-primary/30 bg-primary/5">
+              <CheckCircle className="h-4 w-4 text-primary" />
+              <AlertTitle>{t('membership.alreadyMember')}</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{t('membership.alreadyMemberDesc')}</p>
+                <button
+                  type="button"
+                  onClick={handleGoToPortal}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  {t('membership.goToPortal')}
+                </button>
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
 
         {/* Warning banner when memberships are blocked */}
         {isMembershipBlocked && (
