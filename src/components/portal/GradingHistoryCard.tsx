@@ -58,8 +58,7 @@ export function GradingHistoryCard({ gradings }: GradingHistoryCardProps) {
         {gradings.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <FileText className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground font-medium mb-1">{t('portal.noGradings')}</p>
-            <p className="text-muted-foreground text-sm">{t('portal.emptyGradings')}</p>
+            <p className="text-muted-foreground font-medium">{t('portal.noGradings')}</p>
           </div>
         ) : (
           <div className="relative">

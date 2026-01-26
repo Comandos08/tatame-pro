@@ -1,9 +1,8 @@
 import React from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User, Clock, ArrowRight } from 'lucide-react';
-import { differenceInDays } from 'date-fns';
+import { User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -18,9 +17,6 @@ import { GradingHistoryCard } from '@/components/portal/GradingHistoryCard';
 import { MyEventsCard } from '@/components/portal/MyEventsCard';
 import { MembershipTimeline } from '@/components/membership/MembershipTimeline';
 import { InAppNotice } from '@/components/notifications/InAppNotice';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/ui/status-badge';
 
 interface AthleteData {
   id: string;
@@ -161,26 +157,6 @@ export default function AthletePortal() {
 
   const isLoading = athleteLoading || membershipLoading;
 
-  // P4B-4: Calculate days until expiry for next action card
-  const daysUntilExpiry = membership?.end_date 
-    ? differenceInDays(new Date(membership.end_date), new Date())
-    : null;
-
-  // P4B-4: Dynamic welcome message based on status
-  const getWelcomeMessage = () => {
-    const status = membership?.status?.toUpperCase();
-    switch (status) {
-      case 'ACTIVE':
-        return t('portal.welcomeActive');
-      case 'APPROVED':
-        return t('portal.welcomeApproved');
-      case 'PENDING_REVIEW':
-        return t('portal.welcomePending');
-      default:
-        return t('portal.welcome');
-    }
-  };
-
   if (!tenant) {
     return null;
   }
@@ -198,54 +174,18 @@ export default function AthletePortal() {
         isLoading={isLoading}
         error={athleteError as Error | null}
       >
-        {/* P4B-4: Enhanced Portal Header with status badge */}
+        {/* Portal Header */}
         <div className="mb-6">
-          <div className="flex items-start gap-3 mb-2">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-display font-bold">{t('portal.title')}</h1>
-                {membership && (
-                  <StatusBadge 
-                    status={membership.status.toUpperCase() as 'ACTIVE' | 'APPROVED' | 'PENDING_REVIEW' | 'EXPIRED' | 'CANCELLED' | 'REJECTED'} 
-                  />
-                )}
-              </div>
-              <p className="text-muted-foreground">{getWelcomeMessage()}</p>
+            <div>
+              <h1 className="text-2xl font-display font-bold">{t('portal.title')}</h1>
+              <p className="text-muted-foreground">{t('portal.welcome')}</p>
             </div>
           </div>
         </div>
-
-        {/* P4B-4: Next Action Card - Expiring Soon */}
-        {daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6"
-          >
-            <Card className="border-amber-500/30 bg-amber-500/5">
-              <CardContent className="pt-4 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-amber-500" />
-                  <div>
-                    <p className="font-medium text-amber-700 dark:text-amber-400">
-                      {t('portal.expiringIn').replace('{days}', String(daysUntilExpiry))}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{t('portal.renewReminder')}</p>
-                  </div>
-                </div>
-                <Button asChild variant="tenant-outline" size="sm" className="gap-2">
-                  <Link to={`/${tenantSlug}/membership/renew`}>
-                    {t('renewal.renewNow')}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
 
         {/* In-App Notifications */}
         <InAppNotice membership={membership} tenantSlug={tenant.slug} />

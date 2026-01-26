@@ -75,8 +75,7 @@ export function DigitalCardSection({
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground font-medium mb-1">{t('portal.cardNotAvailable')}</p>
-            <p className="text-muted-foreground text-sm">{t('portal.emptyDigitalCard')}</p>
+            <p className="text-muted-foreground font-medium">{t('portal.cardNotAvailable')}</p>
           </div>
         </CardContent>
       </Card>
