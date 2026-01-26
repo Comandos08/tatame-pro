@@ -1017,6 +1017,7 @@ export const es: Record<string, string> = {
   'timeline.renewed': 'Afiliación renovada',
   'timeline.cancelled': 'Afiliación cancelada',
   'timeline.rejected': 'Afiliación rechazada',
+  'timeline.noEvents': 'Tu historial de afiliación aparecerá aquí.',
   
   // SAFE GOLD P3 — Notices
   'notices.expired': 'Tu afiliación ha expirado',

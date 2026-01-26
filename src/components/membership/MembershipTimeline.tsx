@@ -4,6 +4,7 @@ import { ptBR, enUS, es } from "date-fns/locale";
 import { FileText, CheckCircle, CreditCard, Calendar, XCircle, AlertCircle, Clock } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useI18n } from "@/contexts/I18nContext";
 
 /* ======================================================
@@ -163,7 +164,15 @@ export function MembershipTimeline({ membership }: MembershipTimelineProps) {
     }
   };
 
-  if (!membership || timelineEvents.length === 0) return null;
+  if (!membership || timelineEvents.length === 0) {
+    return (
+      <PortalEmptyState
+        title={t("timeline.title")}
+        description={t("timeline.noEvents")}
+        icon={Clock}
+      />
+    );
+  }
 
   /* ---------------- Render ---------------- */
 
