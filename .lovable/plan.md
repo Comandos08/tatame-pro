@@ -1,221 +1,253 @@
 
 
-## P1 + P1.1 — BILLING CONSOLIDATION (COM 3 CORREÇÕES OBRIGATÓRIAS)
+## P2 — ADMIN POST-LOGIN REDIRECT RESPEITANDO BILLING
 
-### Correções Incorporadas
+### Decisão Técnica Documentada
 
-| Ajuste | Problema | Correção |
-|--------|----------|----------|
-| #1 | `status` usado antes de definido | Normalizar status ANTES de qualquer uso |
-| #2 | `isReadOnly: false` no fallback | Mudar para `isReadOnly: true` (restritivo) |
-| #3 | Tipos `Raw*` implícitos | Declarar explicitamente no arquivo |
+Após análise do `TenantLayout.tsx` (linhas 63-74):
+
+```typescript
+// Linha 64-66 do TenantLayout.tsx
+const isProtectedRoute = location.pathname.includes('/app');
+if (!tenant.isActive && isProtectedRoute) {
+  return <TenantBlockedScreen ... />;
+}
+```
+
+**CONCLUSÃO:** O TenantLayout JÁ renderiza `TenantBlockedScreen` quando `tenant.isActive === false` em rotas `/app/*`.
+
+**DECISÃO:** 
+- ❌ NÃO criar rota `/{slug}/blocked`
+- ✅ Redirecionar para `/{slug}/app` — TenantLayout faz o bloqueio visual
+- ✅ Adicionar query param `?billing=issue` para casos read-only
 
 ---
 
 ### Arquivos a Criar
 
-#### 1. `src/lib/billing/resolveTenantBillingState.ts`
+#### 1. `src/lib/resolveAdminPostLoginRedirect.ts`
+
+Função PURA seguindo o padrão do atleta:
 
 ```typescript
 /**
- * CORE BILLING RESOLVER
- * Fonte de verdade única para estado de billing do tenant
+ * SAFE GOLD — P2
+ * Função única de redirect pós-login de ADMIN / STAFF
  * 
- * REGRAS IMUTÁVEIS:
- * 1. Se is_manual_override = true → Stripe é COMPLETAMENTE ignorado
- * 2. canUseStripe = !isManualOverride
- * 3. Fallback é SEMPRE restritivo (isReadOnly: true, isBlocked: true)
+ * DECISÃO TÉCNICA:
+ * - NÃO existe rota /blocked dedicada
+ * - TenantLayout já bloqueia rotas /app/* quando tenant.isActive = false
+ * - Por isso, isBlocked → retorna /app (TenantLayout bloqueia)
  */
 
-export type BillingStatus =
-  | 'ACTIVE'
-  | 'TRIALING'
-  | 'PAST_DUE'
-  | 'CANCELED'
-  | 'UNPAID'
-  | 'INCOMPLETE';
+import type { TenantBillingState } from '@/lib/billing';
 
-export type BillingSource = 'STRIPE' | 'MANUAL_OVERRIDE';
+export function resolveAdminPostLoginRedirect(
+  tenantSlug: string,
+  billingState: TenantBillingState
+): string {
+  const base = `/${tenantSlug}`;
 
-export interface TenantBillingState {
-  status: BillingStatus;
-  isManualOverride: boolean;
-  isActive: boolean;
-  isReadOnly: boolean;
-  isBlocked: boolean;
-  canUseStripe: boolean;
-  source: BillingSource;
-  overrideReason: string | null;
-  overrideAt: Date | null;
-}
-
-// AJUSTE #3: Tipos Raw declarados explicitamente
-interface RawBillingData {
-  status: string | null;
-  is_manual_override: boolean;
-  override_reason?: string | null;
-  override_at?: string | null;
-}
-
-interface RawTenantData {
-  is_active: boolean;
-}
-
-const VALID_STATUSES: BillingStatus[] = [
-  'ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE'
-];
-
-export function resolveTenantBillingState(
-  billing: RawBillingData | null,
-  tenant: RawTenantData | null
-): TenantBillingState {
-  // P1.1 FIX #2: Calcular isManualOverride ANTES do fallback
-  const isManualOverride = billing?.is_manual_override === true;
-  
-  // Fallback quando dados ausentes - SEMPRE RESTRITIVO
-  if (!billing || !tenant) {
-    return {
-      status: 'INCOMPLETE',
-      isManualOverride,
-      isActive: false,
-      isReadOnly: true,           // AJUSTE #2: true, não false
-      isBlocked: true,
-      canUseStripe: !isManualOverride,
-      source: isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE',
-      overrideReason: billing?.override_reason ?? null,
-      overrideAt: billing?.override_at ? new Date(billing.override_at) : null,
-    };
+  // isBlocked = true → TenantLayout irá renderizar TenantBlockedScreen
+  // Não precisa de rota especial
+  if (billingState.isBlocked) {
+    return `${base}/app`;
   }
 
-  // AJUSTE #1: Normalizar status ANTES de qualquer uso
-  const rawStatus = (billing.status || 'INCOMPLETE').toUpperCase() as BillingStatus;
-  const status: BillingStatus = VALID_STATUSES.includes(rawStatus)
-    ? rawStatus
-    : 'INCOMPLETE';
+  // isReadOnly = true → Pode acessar mas com sinal visual
+  if (billingState.isReadOnly) {
+    return `${base}/app?billing=issue`;
+  }
 
-  // Source e canUseStripe
-  const source: BillingSource = isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE';
-  const canUseStripe = !isManualOverride;
-
-  // P1.1 FIX #1: isActive respeita override manual
-  const isActive = isManualOverride
-    ? status === 'ACTIVE' || status === 'TRIALING'
-    : tenant.is_active === true;
-
-  // Flags derivadas
-  const isBlocked = !isActive || status === 'CANCELED';
-  const isReadOnly = ['PAST_DUE', 'UNPAID', 'INCOMPLETE'].includes(status);
-
-  return {
-    status,
-    isManualOverride,
-    isActive,
-    isReadOnly,
-    isBlocked,
-    canUseStripe,
-    source,
-    overrideReason: billing.override_reason ?? null,
-    overrideAt: billing.override_at ? new Date(billing.override_at) : null,
-  };
+  // Tudo OK
+  return `${base}/app`;
 }
 ```
 
-#### 2. `src/lib/billing/index.ts`
+**Regras aplicadas:**
 
-```typescript
-export {
-  resolveTenantBillingState,
-  type BillingStatus,
-  type BillingSource,
-  type TenantBillingState,
-} from './resolveTenantBillingState';
-```
+| Condição | Destino | Razão |
+|----------|---------|-------|
+| `isBlocked = true` | `/{slug}/app` | TenantLayout bloqueia automaticamente |
+| `isReadOnly = true` | `/{slug}/app?billing=issue` | Permite exibir banner |
+| Caso contrário | `/{slug}/app` | Acesso normal |
 
 ---
 
 ### Arquivos a Modificar
 
-#### 1. `src/hooks/useTenantStatus.ts`
+#### 2. `src/pages/Login.tsx`
 
-**Mudanças:**
-- Adicionar campos na query: `is_manual_override`, `override_reason`, `override_at`
-- Importar e usar `resolveTenantBillingState`
-- Expor novo campo `billingState: TenantBillingState`
-- Derivar `isBlocked` e `hasBillingIssue` do resolver
-- Manter API pública existente (backward compatible)
+**Mudanças no `useEffect` de redirect (linhas 28-60):**
 
-#### 2. `src/hooks/useBillingOverride.ts`
+A lógica atual:
+```typescript
+// Linha 45-50 atual
+if (adminRoles && adminRoles.length > 0) {
+  const tenantSlug = (adminRoles[0] as any).tenants?.slug;
+  if (tenantSlug) {
+    navigate(`/${tenantSlug}/app`);  // ❌ Sem verificar billing
+    return;
+  }
+}
+```
 
-**Mudança:**
-- Refatorar para wrapper do `useTenantStatus`
-- Eliminar query duplicada
-- Manter API pública existente
+**Nova lógica proposta:**
+
+```typescript
+import { resolveTenantBillingState } from '@/lib/billing';
+import { resolveAdminPostLoginRedirect } from '@/lib/resolveAdminPostLoginRedirect';
+
+// Dentro do useEffect redirectUser:
+
+if (adminRoles && adminRoles.length > 0) {
+  const tenantId = adminRoles[0].tenant_id;
+  const tenantSlug = (adminRoles[0] as any).tenants?.slug;
+  
+  if (tenantSlug && tenantId) {
+    try {
+      // 1. Buscar dados do tenant
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('is_active')
+        .eq('id', tenantId)
+        .maybeSingle();
+
+      // 2. Buscar dados de billing
+      const { data: billingData } = await supabase
+        .from('tenant_billing')
+        .select('status, is_manual_override, override_reason, override_at')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      // 3. Resolver estado de billing
+      const billingState = resolveTenantBillingState(
+        billingData ? {
+          status: billingData.status,
+          is_manual_override: billingData.is_manual_override,
+          override_reason: billingData.override_reason,
+          override_at: billingData.override_at,
+        } : null,
+        tenantData ? { is_active: tenantData.is_active } : null
+      );
+
+      // 4. Resolver destino via função pura
+      const destination = resolveAdminPostLoginRedirect(tenantSlug, billingState);
+      
+      navigate(destination, { replace: true });
+    } catch (error) {
+      // FALLBACK RESTRITIVO: erro → vai para app (TenantLayout bloqueará se necessário)
+      console.error('Admin post-login redirect failed:', error);
+      navigate(`/${tenantSlug}/app`, { replace: true });
+    }
+    return;
+  }
+}
+```
+
+**Fallback obrigatório:**
+- Se qualquer query falhar → navegar para `/{slug}/app`
+- TenantLayout funciona como rede de segurança
 
 ---
 
-### Diagrama de Decisão Corrigido
+### Diagrama de Fluxo
 
 ```text
-resolveTenantBillingState(billing, tenant)
+Login.tsx → redirectUser()
 │
-├─ isManualOverride = billing?.is_manual_override ?? false
+├─ currentUser = null?
+│   └── return (aguarda login)
 │
-├─ billing = null OU tenant = null?
-│   └── return {
-│         status: INCOMPLETE,
-│         isBlocked: true,
-│         isReadOnly: true,    ← AJUSTE #2
-│         source: isManualOverride ? MANUAL_OVERRIDE : STRIPE
-│       }
+├─ isGlobalSuperadmin?
+│   └── navigate('/admin') ✓ INALTERADO
 │
-├─ AJUSTE #1: Normalizar status
-│   rawStatus = billing.status.toUpperCase()
-│   status = VALID_STATUSES.includes(rawStatus) ? rawStatus : INCOMPLETE
+├─ Buscar admin role (user_roles)
+│   └── Encontrou? → tenantId, tenantSlug
 │
-├─ is_manual_override = true?
-│   ├── source = MANUAL_OVERRIDE
-│   ├── canUseStripe = false
-│   └── isActive = (status == ACTIVE || status == TRIALING)
+├─ Buscar dados para billing
+│   ├─ tenants: is_active
+│   └─ tenant_billing: status, is_manual_override, ...
 │
-├─ is_manual_override = false?
-│   ├── source = STRIPE
-│   ├── canUseStripe = true
-│   └── isActive = tenant.is_active
+├─ resolveTenantBillingState(billingRaw, tenantRaw)
+│   └── Retorna: TenantBillingState
 │
-├─ isBlocked = !isActive || status == CANCELED
+├─ resolveAdminPostLoginRedirect(tenantSlug, billingState)
+│   │
+│   ├─ isBlocked? → /{slug}/app (TenantLayout bloqueia)
+│   ├─ isReadOnly? → /{slug}/app?billing=issue
+│   └─ OK → /{slug}/app
 │
-├─ isReadOnly = status in [PAST_DUE, UNPAID, INCOMPLETE]
+└─ navigate(destino, { replace: true })
+
+    ⬇️ (TenantLayout.tsx)
+    
+TenantLayout → TenantContent
 │
-└── return TenantBillingState
+├─ tenant.isActive = false && rota inclui /app?
+│   └── return <TenantBlockedScreen /> ✓ BLOQUEIO VISUAL
+│
+└── return <Outlet /> → App normal
 ```
+
+---
+
+### Arquivos NÃO Modificados (SAFE MODE)
+
+| Arquivo | Razão |
+|---------|-------|
+| `src/lib/billing/resolveTenantBillingState.ts` | CORE — Não alterar |
+| `src/hooks/useTenantStatus.ts` | CORE — Não alterar |
+| `src/hooks/useBillingOverride.ts` | CORE — Não alterar |
+| `src/pages/AuthCallback.tsx` | Fluxo atleta — Não alterar |
+| `src/lib/resolveAthletePostLoginRedirect.ts` | Fluxo atleta — Não alterar |
+| `src/layouts/TenantLayout.tsx` | Bloqueio reativo — Mantido intacto |
+| `src/routes.tsx` | Sem nova rota necessária |
+| `src/components/billing/TenantBlockedScreen.tsx` | UI existente — Sem alteração |
 
 ---
 
 ### Checklist de Validação
 
-| Critério | Verificação |
-|----------|-------------|
-| ✅ `status` definido antes de uso | AJUSTE #1 aplicado |
-| ✅ Fallback restritivo | `isReadOnly: true` (AJUSTE #2) |
-| ✅ Tipos Raw explícitos | `RawBillingData`, `RawTenantData` declarados (AJUSTE #3) |
-| ✅ TypeScript compila sem `any` | Tipos fortes em toda a cadeia |
-| ✅ Override tem prioridade total | P1.1 FIX #1 |
-| ✅ Source coerente no fallback | P1.1 FIX #2 |
-| ✅ API pública preservada | Hooks mantêm contratos existentes |
+| Cenário | Resultado Esperado |
+|---------|-------------------|
+| SUPERADMIN_GLOBAL login | → `/admin` (inalterado) |
+| ADMIN_TENANT billing ACTIVE | → `/{slug}/app` |
+| ADMIN_TENANT billing TRIALING | → `/{slug}/app` |
+| ADMIN_TENANT billing PAST_DUE | → `/{slug}/app?billing=issue` |
+| ADMIN_TENANT billing UNPAID | → `/{slug}/app?billing=issue` |
+| ADMIN_TENANT billing INCOMPLETE | → `/{slug}/app?billing=issue` |
+| ADMIN_TENANT billing CANCELED | → `/{slug}/app` → TenantLayout bloqueia |
+| ADMIN_TENANT tenant.is_active=false | → `/{slug}/app` → TenantLayout bloqueia |
+| Override manual + ACTIVE | → `/{slug}/app` |
+| Override manual + CANCELED | → `/{slug}/app` → TenantLayout bloqueia |
+| Query falha | → `/{slug}/app` (TenantLayout = rede de segurança) |
+| Atleta login (magic link) | → Fluxo inalterado via AuthCallback |
+
+---
+
+### Resumo de Alterações
+
+| Ação | Arquivo |
+|------|---------|
+| **CREATE** | `src/lib/resolveAdminPostLoginRedirect.ts` |
+| **MODIFY** | `src/pages/Login.tsx` |
+
+**Total: 2 arquivos** (mínimo necessário)
 
 ---
 
 ### Resultado Esperado
 
 ```text
-P1 + P1.1 — BILLING CONSOLIDATION (CORRIGIDO)
-├── resolveTenantBillingState.ts (NOVO)
-│   ├── AJUSTE #1: status normalizado antes de uso ✓
-│   ├── AJUSTE #2: fallback isReadOnly: true ✓
-│   └── AJUSTE #3: tipos Raw explícitos ✓
-├── index.ts (NOVO)
-├── useTenantStatus.ts (MODIFICADO)
-├── useBillingOverride.ts (MODIFICADO)
-└── CORE SAFE MODE preservado ✓
+P2 — ADMIN POST-LOGIN REDIRECT CONCLUÍDO
+├── resolveAdminPostLoginRedirect() → Função pura central
+├── Login.tsx → Consulta billing ANTES de navegar
+├── Decisão documentada: TenantLayout já bloqueia
+├── Nenhuma rota nova criada
+├── Fallback via TenantLayout preservado
+├── Fluxo atleta → INALTERADO
+├── CORE billing → INALTERADO
+└── SAFE MODE preservado ✓
 ```
 
