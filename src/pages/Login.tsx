@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -9,9 +9,6 @@ import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
-import { supabase } from "@/integrations/supabase/client";
-import { resolveTenantBillingState } from "@/lib/billing";
-import { resolveAdminPostLoginRedirect } from "@/lib/resolveAdminPostLoginRedirect";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -21,88 +18,10 @@ export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState("");
 
-  const { signIn, signUp, isGlobalSuperadmin, currentUser } = useCurrentUser();
+  const { signIn, signUp } = useCurrentUser();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useI18n();
-
-  // 🔒 Guard para evitar múltiplos redirects (React 18 / StrictMode)
-  const hasRedirectedRef = useRef(false);
-
-  // Redirect if already logged in
-  React.useEffect(() => {
-    const redirectUser = async () => {
-      if (!currentUser) return;
-
-      if (isGlobalSuperadmin) {
-        navigate("/admin", { replace: true });
-        return;
-      }
-
-      // Check if user has any tenant admin role
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("tenant_id, tenants!inner(slug)")
-        .eq("user_id", currentUser.id)
-        .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO", "COACH_PRINCIPAL"])
-        .limit(1);
-
-      if (adminRoles && adminRoles.length > 0) {
-        const tenantId = adminRoles[0].tenant_id;
-        const tenantSlug = (adminRoles[0] as any).tenants?.slug;
-
-        if (tenantSlug && tenantId) {
-          try {
-            // 1. Buscar dados do tenant
-            const { data: tenantData } = await supabase
-              .from("tenants")
-              .select("is_active")
-              .eq("id", tenantId)
-              .maybeSingle();
-
-            // 2. Buscar dados de billing
-            const { data: billingData } = await supabase
-              .from("tenant_billing")
-              .select("status, is_manual_override, override_reason, override_at")
-              .eq("tenant_id", tenantId)
-              .maybeSingle();
-
-            // 3. Resolver estado de billing
-            const billingState = resolveTenantBillingState(
-              billingData
-                ? {
-                    status: billingData.status,
-                    is_manual_override: billingData.is_manual_override ?? false,
-                    override_reason: billingData.override_reason,
-                    override_at: billingData.override_at,
-                  }
-                : null,
-              tenantData ? { is_active: tenantData.is_active ?? false } : null,
-            );
-
-            // 4. Resolver destino via função pura
-            const destination = resolveAdminPostLoginRedirect(tenantSlug, billingState);
-
-            navigate(destination, { replace: true });
-          } catch (error) {
-            // FALLBACK RESTRITIVO: TenantLayout fará o bloqueio se necessário
-            console.error("Admin post-login redirect failed:", error);
-            navigate(`/${tenantSlug}/app`, { replace: true });
-          }
-          return;
-        }
-      }
-
-      // Fallback final
-      navigate("/", { replace: true });
-    };
-
-    if (hasRedirectedRef.current) return;
-    if (!currentUser) return;
-
-    hasRedirectedRef.current = true;
-    redirectUser();
-  }, [currentUser, isGlobalSuperadmin, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +41,9 @@ export default function Login() {
           title: t("auth.welcome"),
           description: t("auth.loginSuccess"),
         });
+        // 🔒 Login apenas autentica - redirect neutro para /portal
+        // Guards decidem destino final (admin, tenant/app, ou portal)
+        navigate("/portal", { replace: true });
       }
     } catch (error) {
       console.error("Auth error:", error);
