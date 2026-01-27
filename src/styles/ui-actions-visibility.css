@@ -1,0 +1,225 @@
+/**
+ * UI ACTIONS VISIBILITY HARDENING KIT
+ * 
+ * SECURITY CONTRACT:
+ * This CSS ensures all interactive elements are ALWAYS visible
+ * regardless of hover state, preventing:
+ * - Hidden buttons on touch devices
+ * - Invisible actions for keyboard-only users
+ * - Unreachable functionality due to CSS specificity issues
+ * 
+ * VERSION: 1.0.0
+ * LAST UPDATED: 2026-01-27
+ * 
+ * RULES:
+ * 1. Actions must be visible without hover
+ * 2. Icon buttons must have adequate hit areas
+ * 3. Dropdowns must have solid backgrounds
+ * 4. No opacity: 0 for interactive elements
+ */
+
+/* =====================================================
+   1. BASE VISIBILITY CONTRACT
+   All interactive elements must be visible by default
+   ===================================================== */
+
+/* Ensure buttons are always visible */
+button:not([disabled]),
+a[role="button"],
+[role="menuitem"],
+[role="option"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Prevent accidental hiding of action buttons */
+.actions button,
+.action-buttons button,
+[class*="action"] button {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* =====================================================
+   2. ICON BUTTON STANDARDS
+   Ensure icon-only buttons are accessible
+   ===================================================== */
+
+/* Minimum touch target for icon buttons */
+button[class*="icon"],
+.icon-button,
+[data-size="icon"] {
+  min-width: 32px;
+  min-height: 32px;
+}
+
+/* Ensure SVGs in buttons inherit color properly */
+button svg,
+a[role="button"] svg,
+.icon-button svg {
+  color: currentColor;
+  stroke: currentColor;
+  pointer-events: none;
+}
+
+/* =====================================================
+   3. DROPDOWN HARDENING
+   Dropdowns must have proper backgrounds and z-index
+   ===================================================== */
+
+/* Dropdown content should never be transparent */
+[role="menu"],
+[role="listbox"],
+[data-radix-menu-content],
+[data-radix-dropdown-menu-content],
+[data-radix-select-content] {
+  background-color: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  z-index: 50;
+}
+
+/* Dropdown items must be visible */
+[role="menuitem"],
+[role="option"],
+[data-radix-collection-item] {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* =====================================================
+   4. TABLE ACTIONS VISIBILITY
+   Row actions must not depend on hover
+   ===================================================== */
+
+/* Prevent hover-to-show patterns in tables */
+table button,
+table a[role="button"],
+tbody button,
+tbody a[role="button"],
+tr button,
+tr a[role="button"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Override any tr:hover opacity patterns */
+tr:hover .actions,
+tr:hover [class*="action"] {
+  /* Actions should already be visible, hover can enhance but not reveal */
+}
+
+/* Ensure table action buttons are always clickable */
+td button,
+th button {
+  pointer-events: auto;
+}
+
+/* =====================================================
+   5. TOAST CLOSE BUTTON VISIBILITY
+   Toast close should be visible or have clear affordance
+   ===================================================== */
+
+/* Toast close button - keep visible on focus/keyboard */
+[data-sonner-toast] button,
+[class*="toast"] button[aria-label*="close"],
+[class*="toast"] button[aria-label*="Close"] {
+  opacity: 1;
+}
+
+/* On focus, always show close button */
+[data-sonner-toast]:focus-within button,
+[class*="toast"]:focus-within button {
+  opacity: 1;
+}
+
+/* =====================================================
+   6. FOCUS VISIBILITY
+   Ensure focus states are always visible
+   ===================================================== */
+
+/* Global focus-visible styling */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Remove outline only when focus-visible is not active */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* =====================================================
+   7. SEMANTIC SAFETY
+   Prevent non-semantic patterns
+   ===================================================== */
+
+/* Discourage div-as-button pattern */
+div[onclick],
+span[onclick] {
+  cursor: pointer;
+}
+
+/* If divs are used as buttons, ensure they're styled */
+div[role="button"],
+span[role="button"] {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* =====================================================
+   8. DISABLED STATE HANDLING
+   Disabled elements should look disabled but remain visible
+   ===================================================== */
+
+button[disabled],
+a[aria-disabled="true"],
+[role="button"][aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* =====================================================
+   9. MOBILE TOUCH SAFETY
+   Ensure touch targets are adequate
+   ===================================================== */
+
+@media (pointer: coarse) {
+  /* Increase touch targets on touch devices */
+  button,
+  a[role="button"],
+  [role="menuitem"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Exception for inline/small buttons that group together */
+  button[class*="sm"],
+  button[class*="xs"],
+  .button-group button {
+    min-height: 32px;
+    min-width: 32px;
+  }
+}
+
+/* =====================================================
+   10. HIGH CONTRAST MODE SUPPORT
+   Ensure visibility in high contrast mode
+   ===================================================== */
+
+@media (prefers-contrast: high) {
+  button,
+  a[role="button"] {
+    border: 2px solid currentColor;
+  }
+  
+  button:focus-visible,
+  a:focus-visible {
+    outline-width: 3px;
+  }
+}

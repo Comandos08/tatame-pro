@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* UI Actions Visibility Hardening Kit */
+@import './styles/ui-actions-visibility.css';
+
 /* TATAME PRO - Design System
    Combat Sports Multi-tenant SaaS Platform
    Dark theme with energetic accent colors
