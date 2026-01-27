@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, LogIn,
+  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, 
   Shield
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
@@ -28,6 +28,7 @@ import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
 import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
 import { PlatformHealthCard } from '@/components/admin/PlatformHealthCard';
 import { CardDiagnosticsPanel } from '@/components/admin/CardDiagnosticsPanel';
+import { StartImpersonationDialog } from '@/components/impersonation/StartImpersonationDialog';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -77,6 +78,7 @@ export default function AdminDashboard() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [managingAdminsTenant, setManagingAdminsTenant] = useState<Tenant | null>(null);
   const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
+  const [impersonatingTenant, setImpersonatingTenant] = useState<Tenant | null>(null);
 
   // 🔐 HARDENED: Redirect to /portal (decision hub), not /
   React.useEffect(() => {
@@ -631,9 +633,9 @@ export default function AdminDashboard() {
                                   <ExternalLink className="h-4 w-4 mr-2" />
                                   {t('admin.actions.openPortal')}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}/app`, '_blank')}>
-                                  <LogIn className="h-4 w-4 mr-2" />
-                                  {t('admin.actions.loginAsAdmin')}
+                                <DropdownMenuItem onClick={() => setImpersonatingTenant(tenant)}>
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  {t('impersonation.startButton')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setEditingTenant(tenant)}>
@@ -692,6 +694,15 @@ export default function AdminDashboard() {
           tenant={billingTenant}
           open={!!billingTenant}
           onOpenChange={(open) => !open && setBillingTenant(null)}
+        />
+      )}
+
+      {/* Impersonation dialog */}
+      {impersonatingTenant && (
+        <StartImpersonationDialog
+          tenant={impersonatingTenant}
+          open={!!impersonatingTenant}
+          onOpenChange={(open) => !open && setImpersonatingTenant(null)}
         />
       )}
     </div>

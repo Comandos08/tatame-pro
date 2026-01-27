@@ -1,11 +1,12 @@
 /**
- * 🔐 RequireRoles — Role-Based Route Guard
+ * 🔐 RequireRoles — Role-Based Route Guard with Impersonation Support
  * 
  * A generic guard component that protects routes based on user roles.
  * 
  * RULES:
  * - If not authenticated → redirect to /portal
  * - If no allowed roles → redirect to /portal
+ * - If superadmin accessing tenant routes → require impersonation
  * - /portal is the ONLY decision hub (never redirect to /login directly)
  * - Deny by default
  * - Loading state renders loader, never children
@@ -17,6 +18,7 @@ import { Loader2 } from 'lucide-react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { AppRole } from '@/types/auth';
 
 interface RequireRolesProps {
@@ -49,24 +51,30 @@ export function RequireRoles({
   const { currentUser, isAuthenticated, isLoading: authLoading, isGlobalSuperadmin } = useCurrentUser();
   const { tenant, isLoading: tenantLoading } = useTenant();
   const { roles, isLoading: rolesLoading, isFetched } = useTenantRoles(tenant?.id);
+  const { isImpersonating, impersonatedTenantId, isLoading: impersonationLoading } = useImpersonation();
 
   // Prevent multiple redirects
   const hasRedirected = useRef(false);
 
   // Calculate access
-  const isLoading = authLoading || (tenantRequired && tenantLoading) || (tenantRequired && !isFetched && rolesLoading);
-  
-  // SUPERADMIN_GLOBAL can access tenant routes if they're impersonating
-  // But they still need to be authenticated
-  const isSuperadminWithAccess = isGlobalSuperadmin && allowed.includes('SUPERADMIN_GLOBAL');
+  const isLoading = authLoading || impersonationLoading || (tenantRequired && tenantLoading) || (tenantRequired && !isFetched && rolesLoading);
   
   // Check if user has any of the allowed roles in this tenant
   const hasAllowedRole = allowed.some(role => roles.includes(role));
   
+  // 🔐 SUPERADMIN IMPERSONATION LOGIC:
+  // - If accessing /admin routes (SUPERADMIN_GLOBAL role), no impersonation needed
+  // - If accessing tenant routes as superadmin, MUST have active impersonation for that tenant
+  const isSuperadminAccessingAdmin = isGlobalSuperadmin && allowed.includes('SUPERADMIN_GLOBAL') && !tenantRequired;
+  
+  const isSuperadminAccessingTenant = isGlobalSuperadmin && tenantRequired && tenant;
+  const hasValidImpersonation = isSuperadminAccessingTenant && isImpersonating && impersonatedTenantId === tenant.id;
+  
   // Final access decision
-  const hasAccess = isSuperadminWithAccess || hasAllowedRole || 
-    // Special case: superadmin viewing tenant routes (not impersonating, just observing)
-    (isGlobalSuperadmin && tenantRequired);
+  const hasAccess = 
+    isSuperadminAccessingAdmin || // Superadmin accessing /admin
+    hasValidImpersonation ||       // Superadmin with valid impersonation for this tenant
+    hasAllowedRole;                // User has required role for this tenant
 
   useEffect(() => {
     // Wait for loading to complete
@@ -91,7 +99,18 @@ export function RequireRoles({
       return;
     }
 
-    // 🔐 Rule 3: No allowed role → /portal
+    // 🔐 Rule 3: Superadmin accessing tenant without impersonation → /admin
+    if (isSuperadminAccessingTenant && !hasValidImpersonation && !hasAllowedRole) {
+      hasRedirected.current = true;
+      console.warn(
+        `RequireRoles: Superadmin ${currentUser.id} attempted to access tenant ${tenant?.slug} without impersonation. ` +
+        `Redirecting to /admin`
+      );
+      navigate('/admin', { replace: true });
+      return;
+    }
+
+    // 🔐 Rule 4: No allowed role → /portal
     if (!hasAccess) {
       hasRedirected.current = true;
       console.warn(
@@ -110,6 +129,9 @@ export function RequireRoles({
     tenantLoading,
     tenantRequired,
     hasAccess,
+    hasAllowedRole,
+    hasValidImpersonation,
+    isSuperadminAccessingTenant,
     allowed,
     roles,
     navigate,
