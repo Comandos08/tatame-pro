@@ -22,6 +22,22 @@ export type MembershipStatus =
   | 'CANCELLED'
   | 'REJECTED';
 
+/**
+ * Virtual statuses for pre-expiration notifications.
+ * These are NOT stored in the database - they are computed states.
+ */
+export type ExpiringVirtualStatus =
+  | 'EXPIRING_30D'
+  | 'EXPIRING_15D'
+  | 'EXPIRING_7D'
+  | 'EXPIRING_3D'
+  | 'EXPIRING_1D';
+
+/**
+ * Combined status type for notification engine.
+ */
+export type NotificationStatus = MembershipStatus | ExpiringVirtualStatus;
+
 export type SpecialState = 'NO_ATHLETE' | 'ERROR';
 
 export type NotificationTemplateId =
@@ -29,7 +45,12 @@ export type NotificationTemplateId =
   | 'membership_rejected'
   | 'membership_expired'
   | 'membership_cancelled'
-  | 'membership_renewed';
+  | 'membership_renewed'
+  | 'membership_expiring_30d'
+  | 'membership_expiring_15d'
+  | 'membership_expiring_7d'
+  | 'membership_expiring_3d'
+  | 'membership_expiring_1d';
 
 export type SupportedLocale = 'pt-BR' | 'en';
 
@@ -52,7 +73,8 @@ export type NotificationPayload =
   | RejectedPayload
   | ExpiredPayload
   | CancelledPayload
-  | RenewedPayload;
+  | RenewedPayload
+  | ExpiringPayload;
 
 export interface ApprovedPayload {
   templateId: 'membership_approved';
@@ -90,10 +112,20 @@ export interface RenewedPayload {
   portalUrl: string;
 }
 
+export interface ExpiringPayload {
+  templateId: 'membership_expiring_30d' | 'membership_expiring_15d' | 'membership_expiring_7d' | 'membership_expiring_3d' | 'membership_expiring_1d';
+  athleteName: string;
+  tenantName: string;
+  daysRemaining: number;
+  expirationDate: string;
+  renewUrl: string;
+}
+
 export interface NotificationInput {
   previousStatus: MembershipStatus | null;
-  newStatus: MembershipStatus;
+  newStatus: NotificationStatus;
   isRenewalConfirmation?: boolean;
+  daysToExpire?: number;
   membership: {
     id: string;
     endDate?: string;
@@ -122,7 +154,41 @@ const CTA_PATHS: Record<NotificationTemplateId, string> = {
   membership_expired: '/membership/renew',
   membership_cancelled: '/membership/new',
   membership_renewed: '/portal',
+  membership_expiring_30d: '/membership/renew',
+  membership_expiring_15d: '/membership/renew',
+  membership_expiring_7d: '/membership/renew',
+  membership_expiring_3d: '/membership/renew',
+  membership_expiring_1d: '/membership/renew',
 } as const;
+
+/**
+ * Mapping of virtual expiring statuses to template IDs.
+ */
+const EXPIRING_TEMPLATE_MAP: Record<ExpiringVirtualStatus, NotificationTemplateId> = {
+  EXPIRING_30D: 'membership_expiring_30d',
+  EXPIRING_15D: 'membership_expiring_15d',
+  EXPIRING_7D: 'membership_expiring_7d',
+  EXPIRING_3D: 'membership_expiring_3d',
+  EXPIRING_1D: 'membership_expiring_1d',
+} as const;
+
+/**
+ * Days remaining for each virtual status.
+ */
+const EXPIRING_DAYS_MAP: Record<ExpiringVirtualStatus, number> = {
+  EXPIRING_30D: 30,
+  EXPIRING_15D: 15,
+  EXPIRING_7D: 7,
+  EXPIRING_3D: 3,
+  EXPIRING_1D: 1,
+} as const;
+
+/**
+ * Check if a status is a virtual expiring status.
+ */
+function isExpiringStatus(status: NotificationStatus): status is ExpiringVirtualStatus {
+  return typeof status === 'string' && status.startsWith('EXPIRING_');
+}
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -146,10 +212,34 @@ function isSameStatusTransition(prev: MembershipStatus | null, next: MembershipS
 // ============================================================================
 
 export function resolveMembershipNotification(input: NotificationInput): NotificationDecision {
-  const { previousStatus, newStatus, isRenewalConfirmation, membership, athlete, tenant, baseUrl } = input;
+  const { previousStatus, newStatus, isRenewalConfirmation, daysToExpire, membership, athlete, tenant, baseUrl } = input;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RULE 0: Handle virtual EXPIRING_* statuses (pre-expiration scheduler)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (isExpiringStatus(newStatus)) {
+    const templateId = EXPIRING_TEMPLATE_MAP[newStatus];
+    const days = daysToExpire ?? EXPIRING_DAYS_MAP[newStatus];
+    const locale = resolveLocale(input);
+    
+    return {
+      shouldSendEmail: true,
+      templateId,
+      ctaUrl: buildCtaUrl(baseUrl, tenant.slug, CTA_PATHS[templateId]),
+      locale,
+      payload: {
+        templateId: templateId as ExpiringPayload['templateId'],
+        athleteName: athlete.fullName,
+        tenantName: tenant.name,
+        daysRemaining: days,
+        expirationDate: membership.endDate ?? '',
+        renewUrl: buildCtaUrl(baseUrl, tenant.slug, '/membership/renew'),
+      } as ExpiringPayload,
+    };
+  }
 
   // RULE 1: No email for same-status transitions
-  if (isSameStatusTransition(previousStatus, newStatus)) {
+  if (isSameStatusTransition(previousStatus, newStatus as MembershipStatus)) {
     return { shouldSendEmail: false };
   }
 

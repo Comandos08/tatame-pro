@@ -10,4 +10,5 @@ export { wrapInLayout, createButton, createInfoBox, type EmailLayoutData } from 
 export { getMembershipApprovedTemplate, type MembershipApprovedData } from "./membership/approved.ts";
 export { getMembershipRejectedTemplate, type MembershipRejectedData } from "./membership/rejected.ts";
 export { getMembershipExpiringTemplate, type MembershipExpiringData } from "./membership/expiring.ts";
+export { getMembershipExpiredTemplate, type MembershipExpiredData } from "./membership/expired.ts";
 export { getMembershipRenewedTemplate, type MembershipRenewedData } from "./membership/renewed.ts";
