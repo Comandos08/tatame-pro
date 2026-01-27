@@ -112,8 +112,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const isAuthenticated = !!currentUser;
 
+  // 🔐 FIX H1: Check for null OR undefined tenantId (DB may return either)
   const isGlobalSuperadmin =
-    currentUser?.roles?.some((r) => r.role === "SUPERADMIN_GLOBAL" && r.tenantId === null) ?? false;
+    currentUser?.roles?.some((r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined)) ?? false;
 
   const currentRolesByTenant = new Map<string, AppRole[]>();
   currentUser?.roles?.forEach((role) => {
