@@ -1,11 +1,24 @@
+/**
+ * 🔐 Request Password Reset Edge Function
+ * 
+ * Public endpoint for password reset requests with:
+ * - Rate limiting (5/hour per email, 20/hour per IP)
+ * - Mandatory decision logging for all rate limit blocks
+ * - Fail-closed behavior (if logging fails, operation fails)
+ * - Anti-enumeration (generic responses)
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getEmailClient, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
+import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const OPERATION_NAME = "request-password-reset";
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
@@ -22,6 +35,8 @@ interface RateLimitResult {
   remaining: number;
   reset: number;
   count: number;
+  limit: number;
+  windowSeconds: number;
 }
 
 async function checkRateLimit(
@@ -33,9 +48,17 @@ async function checkRateLimit(
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
+  // FAIL-CLOSED: If Redis is not configured, block request
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured, allowing request");
-    return { success: true, remaining: limit, reset: Date.now() + windowSeconds * 1000, count: 0 };
+    logStep("Rate limiting not configured - BLOCKING request (fail-closed)");
+    return { 
+      success: false, 
+      remaining: 0, 
+      reset: Date.now() + windowSeconds * 1000, 
+      count: -1,
+      limit,
+      windowSeconds,
+    };
   }
 
   const key = `ratelimit:${prefix}:${identifier}`;
@@ -60,8 +83,15 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error, allowing request");
-      return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+      logStep("Redis error - BLOCKING request (fail-closed)");
+      return { 
+        success: false, 
+        remaining: 0, 
+        reset: now + windowSeconds * 1000, 
+        count: -1,
+        limit,
+        windowSeconds,
+      };
     }
 
     const results = await response.json();
@@ -70,10 +100,17 @@ async function checkRateLimit(
     const success = count <= limit;
 
     logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
-    return { success, remaining, reset: now + windowSeconds * 1000, count };
+    return { success, remaining, reset: now + windowSeconds * 1000, count, limit, windowSeconds };
   } catch (error) {
-    logStep("Rate limit error, allowing request", { error: String(error) });
-    return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+    logStep("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
+    return { 
+      success: false, 
+      remaining: 0, 
+      reset: now + windowSeconds * 1000, 
+      count: -1,
+      limit,
+      windowSeconds,
+    };
   }
 }
 
@@ -93,10 +130,40 @@ function generateToken(): string {
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Generic error response for fail-closed scenarios
+ */
+function genericErrorResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Operation not permitted" }),
+    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+/**
+ * Rate limit response (after successful logging)
+ */
+function rateLimitResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Too many requests" }),
+    { 
+      status: 429, 
+      headers: { 
+        ...corsHeaders, 
+        "Content-Type": "application/json",
+      } 
+    }
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const clientIP = getClientIP(req);
@@ -105,26 +172,34 @@ serve(async (req) => {
     const ipRateLimit = await checkRateLimit(clientIP, "password-reset-ip", 20, 3600);
     if (!ipRateLimit.success) {
       logStep("Rate limited by IP", { ip: clientIP });
-      return new Response(
-        JSON.stringify({ 
-          error: "Muitas solicitações. Aguarde alguns minutos antes de tentar novamente.",
-          retryAfter: Math.ceil((ipRateLimit.reset - Date.now()) / 1000)
-        }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
-            "Content-Type": "application/json",
-            "Retry-After": Math.ceil((ipRateLimit.reset - Date.now()) / 1000).toString()
-          } 
-        }
-      );
+      
+      // MANDATORY: Log decision BEFORE returning 429
+      const logId = await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
+        severity: "MEDIUM",
+        operation: OPERATION_NAME,
+        user_id: null,
+        tenant_id: null,
+        reason_code: "RATE_LIMIT_EXCEEDED",
+        metadata: {
+          ip_address: clientIP,
+          identifier: clientIP,
+          identifier_type: "ip",
+          count: ipRateLimit.count,
+          limit: ipRateLimit.limit,
+          window_seconds: ipRateLimit.windowSeconds,
+        },
+      });
+
+      // FAIL-CLOSED: If logging fails, return generic error
+      if (!logId) {
+        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        return genericErrorResponse();
+      }
+
+      return rateLimitResponse();
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = getEmailClient();
 
     const { email } = await req.json();
@@ -145,6 +220,31 @@ serve(async (req) => {
     const emailRateLimit = await checkRateLimit(normalizedEmail, "password-reset-email", 5, 3600);
     if (!emailRateLimit.success) {
       logStep("Rate limited by email", { email: normalizedEmail });
+      
+      // MANDATORY: Log decision BEFORE returning (anti-enumeration: return 200)
+      const logId = await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
+        severity: "MEDIUM",
+        operation: OPERATION_NAME,
+        user_id: null,
+        tenant_id: null,
+        reason_code: "RATE_LIMIT_EXCEEDED",
+        metadata: {
+          ip_address: clientIP,
+          identifier: normalizedEmail,
+          identifier_type: "email",
+          count: emailRateLimit.count,
+          limit: emailRateLimit.limit,
+          window_seconds: emailRateLimit.windowSeconds,
+        },
+      });
+
+      // FAIL-CLOSED: If logging fails, return generic error
+      if (!logId) {
+        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        return genericErrorResponse();
+      }
+
       // Return success to prevent email enumeration, but don't actually process
       return new Response(
         JSON.stringify({ 
@@ -158,7 +258,7 @@ serve(async (req) => {
     logStep("Password reset requested", { email: normalizedEmail });
 
     // Find profile by email
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id, name, email")
       .eq("email", normalizedEmail)
@@ -177,7 +277,7 @@ serve(async (req) => {
     }
 
     // Invalidate any existing unused tokens for this user
-    await supabase
+    await supabaseAdmin
       .from("password_resets")
       .update({ used_at: new Date().toISOString() })
       .eq("profile_id", profile.id)
@@ -189,7 +289,7 @@ serve(async (req) => {
     expiresAt.setHours(expiresAt.getHours() + 1);
 
     // Save token
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseAdmin
       .from("password_resets")
       .insert({
         profile_id: profile.id,
