@@ -6,6 +6,7 @@
  * - If superadmin, requires valid impersonation
  * - Idempotent: won't create duplicate roles
  * - Full audit logging
+ * - Rate limited: 20 per hour per user
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -14,6 +15,15 @@ import {
   requireImpersonationIfSuperadmin, 
   extractImpersonationId 
 } from "../_shared/requireImpersonationIfSuperadmin.ts";
+import {
+  SecureRateLimitPresets,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  logSecurityEvent,
+  SECURITY_EVENTS,
+  extractRequestContext,
+} from "../_shared/security-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,6 +84,18 @@ serve(async (req) => {
     logStep("User authenticated", { userId: user.id });
 
     // ========================================================================
+    // RATE LIMITING (before any business logic)
+    // ========================================================================
+    const rateLimiter = SecureRateLimitPresets.grantRoles();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
+
+    if (!rateLimitResult.allowed) {
+      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    }
+
+    // ========================================================================
     // PARSE INPUT
     // ========================================================================
     const body: GrantRolesRequest = await req.json();
@@ -116,6 +138,20 @@ serve(async (req) => {
 
     if (!impersonationCheck.valid) {
       logStep("Impersonation validation failed", { error: impersonationCheck.error });
+      
+      // Log security event for invalid impersonation attempt
+      const { ip_address, user_agent } = extractRequestContext(req);
+      await logSecurityEvent(supabase, {
+        event_type: SECURITY_EVENTS.IMPERSONATION_INVALID,
+        severity: 'HIGH',
+        user_id: user.id,
+        tenant_id: tenantId,
+        ip_address,
+        user_agent,
+        operation: 'grant-roles',
+        metadata: { error: impersonationCheck.error },
+      });
+      
       return forbiddenResponse(impersonationCheck.error || "Forbidden");
     }
 

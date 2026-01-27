@@ -9,10 +9,19 @@
  * - Sessions have a hard cap of 60 minutes TTL
  * - All sessions are logged to audit_logs
  * - Target tenant must exist and be active
+ * - Rate limited: 10 per hour per superadmin
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import {
+  SecureRateLimitPresets,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  logSecurityEvent,
+  SECURITY_EVENTS,
+} from "../_shared/security-logger.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,6 +67,16 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Invalid or expired token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // 3.5️⃣ Rate limiting (before permission check)
+    const rateLimiter = SecureRateLimitPresets.startImpersonation();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin);
+
+    if (!rateLimitResult.allowed) {
+      console.warn(`[START-IMPERSONATION] Rate limit exceeded for ${user.id}`);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
     }
 
     // 4️⃣ Verify SUPERADMIN_GLOBAL role (tenant_id IS NULL)

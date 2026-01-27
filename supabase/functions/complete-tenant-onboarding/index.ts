@@ -5,6 +5,7 @@
  * - Requires ADMIN_TENANT or STAFF_ORGANIZACAO role
  * - If superadmin, requires valid impersonation
  * - Validates minimum requirements before marking complete
+ * - Rate limited: 5 per hour per tenant
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,6 +14,15 @@ import {
   requireImpersonationIfSuperadmin, 
   extractImpersonationId 
 } from "../_shared/requireImpersonationIfSuperadmin.ts";
+import {
+  SecureRateLimitPresets,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  logSecurityEvent,
+  SECURITY_EVENTS,
+  extractRequestContext,
+} from "../_shared/security-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,6 +75,17 @@ serve(async (req) => {
 
     logStep("User authenticated", { userId: user.id });
 
+    // ========================================================================
+    // RATE LIMITING (before any business logic)
+    // ========================================================================
+    const rateLimiter = SecureRateLimitPresets.completeOnboarding();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
+
+    if (!rateLimitResult.allowed) {
+      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    }
     // ========================================================================
     // PARSE INPUT
     // ========================================================================

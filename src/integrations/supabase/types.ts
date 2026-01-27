@@ -1488,6 +1488,67 @@ export type Database = {
           },
         ]
       }
+      security_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          operation: string | null
+          severity: Database["public"]["Enums"]["security_severity"]
+          tenant_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          operation?: string | null
+          severity?: Database["public"]["Enums"]["security_severity"]
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          operation?: string | null
+          severity?: Database["public"]["Enums"]["security_severity"]
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "security_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       superadmin_impersonations: {
         Row: {
           created_at: string
@@ -2063,6 +2124,7 @@ export type Database = {
         | "CANCELLED"
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
       payment_status: "NOT_PAID" | "PAID" | "FAILED"
+      security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2240,6 +2302,7 @@ export const Constants = {
       ],
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
       payment_status: ["NOT_PAID", "PAID", "FAILED"],
+      security_severity: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
     },
   },
 } as const
