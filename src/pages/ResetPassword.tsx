@@ -226,6 +226,7 @@ export default function ResetPassword() {
                 <div className="relative">
                   <Input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
                     placeholder={t('auth.minChars')}
                     value={password}
@@ -250,6 +251,7 @@ export default function ResetPassword() {
                 <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
+                  name="confirmPassword"
                   type={showPassword ? "text" : "password"}
                   placeholder={t('auth.confirmPasswordPlaceholder')}
                   value={confirmPassword}

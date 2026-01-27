@@ -122,6 +122,7 @@ export default function AthleteLogin() {
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="email"
+                      name="email"
                       type="email"
                       placeholder={t("auth.magicLink.emailPlaceholder")}
                       value={email}
@@ -129,6 +130,7 @@ export default function AthleteLogin() {
                       className="pl-10"
                       required
                       disabled={isLoading}
+                      autoComplete="email"
                     />
                   </div>
                 </div>
