@@ -53,3 +53,12 @@ verify_jwt = false
 
 [functions.cleanup-tmp-documents]
 verify_jwt = false
+
+[functions.start-impersonation]
+verify_jwt = false
+
+[functions.end-impersonation]
+verify_jwt = false
+
+[functions.validate-impersonation]
+verify_jwt = false

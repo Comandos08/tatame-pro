@@ -59,6 +59,12 @@ export const AUDIT_EVENTS = {
   // Storage cleanup events
   TMP_DOCUMENT_CLEANED: 'TMP_DOCUMENT_CLEANED',
   TMP_DOCUMENT_CLEANUP_RUN: 'TMP_DOCUMENT_CLEANUP_RUN',
+  
+  // Impersonation events
+  IMPERSONATION_STARTED: 'IMPERSONATION_STARTED',
+  IMPERSONATION_ENDED: 'IMPERSONATION_ENDED',
+  IMPERSONATION_EXPIRED: 'IMPERSONATION_EXPIRED',
+  IMPERSONATION_REVOKED: 'IMPERSONATION_REVOKED',
 } as const;
 
 export type AuditEventType = typeof AUDIT_EVENTS[keyof typeof AUDIT_EVENTS];
@@ -99,6 +105,16 @@ export interface AuditMetadata {
   reason?: string;
   source?: string;
   ip_address?: string;
+  
+  // Impersonation context
+  impersonation_id?: string;
+  superadmin_user_id?: string;
+  target_tenant_name?: string;
+  target_tenant_slug?: string;
+  expires_at?: string;
+  started_at?: string;
+  ended_at?: string;
+  expired_at?: string;
   
   // Timestamps
   occurred_at?: string;

@@ -1488,6 +1488,77 @@ export type Database = {
           },
         ]
       }
+      superadmin_impersonations: {
+        Row: {
+          created_at: string
+          created_by_profile_id: string | null
+          ended_at: string | null
+          ended_by_profile_id: string | null
+          expires_at: string
+          id: string
+          metadata: Json | null
+          reason: string | null
+          status: string
+          superadmin_user_id: string
+          target_tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_profile_id?: string | null
+          ended_at?: string | null
+          ended_by_profile_id?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          status?: string
+          superadmin_user_id: string
+          target_tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_profile_id?: string | null
+          ended_at?: string | null
+          ended_by_profile_id?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          status?: string
+          superadmin_user_id?: string
+          target_tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "superadmin_impersonations_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "superadmin_impersonations_ended_by_profile_id_fkey"
+            columns: ["ended_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "superadmin_impersonations_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "superadmin_impersonations_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_billing: {
         Row: {
           cancel_at: string | null

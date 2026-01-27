@@ -1400,6 +1400,26 @@ export const ptBR = {
   'membershipStatus.continueToPortal': 'Acessar Portal',
   'membershipStatus.newRequest': 'Nova Solicitação',
   'membershipStatus.contactOrg': 'Contatar Organização',
+
+  // Impersonation
+  'impersonation.activeBanner': 'Modo Impersonation',
+  'impersonation.expiresIn': 'Expira em',
+  'impersonation.calculating': 'Calculando...',
+  'impersonation.endSession': 'Encerrar Impersonation',
+  'impersonation.started': 'Impersonation iniciada',
+  'impersonation.ended': 'Impersonation encerrada',
+  'impersonation.sessionExpired': 'Sessão de impersonation expirou',
+  'impersonation.startFailed': 'Falha ao iniciar impersonation',
+  'impersonation.startButton': 'Impersonar Tenant',
+  'impersonation.confirmStart': 'Iniciar impersonation para este tenant?',
+  'impersonation.confirmStartDesc': 'Você terá acesso administrativo a este tenant por até 60 minutos. Todas as ações serão registradas.',
+  'impersonation.reasonLabel': 'Motivo (opcional)',
+  'impersonation.reasonPlaceholder': 'Ex: Suporte técnico, investigação...',
+  'impersonation.confirm': 'Confirmar',
+  'impersonation.required': 'Impersonation necessária para acessar este tenant',
+  'impersonation.accessDenied': 'Acesso negado',
+  'impersonation.superadminMustImpersonate': 'Como Superadmin, você precisa iniciar uma sessão de impersonation para acessar recursos de tenant.',
+  'impersonation.goToAdmin': 'Voltar ao Admin',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
