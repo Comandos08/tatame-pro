@@ -3,6 +3,12 @@
  * 
  * Validates behavior when session expires or is invalid.
  * Tests redirect behavior and user messaging.
+ * 
+ * SECURITY CONTRACT (from docs/SECURITY-AUTH-CONTRACT.md):
+ * - Expired tokens → /login with clean state
+ * - Invalid tokens → /login with warning
+ * - No redirect loops
+ * - No white screens
  */
 
 import { test, expect } from '@playwright/test';
@@ -79,12 +85,33 @@ test.describe('Session Expiry Contract', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
-    // Should have limited redirects
+    // Should have limited redirects (max 4)
     expect(navigations.length).toBeLessThan(5);
     
     // Final URL should be stable
     const finalUrl = page.url();
     expect(finalUrl).toContain('/login');
+  });
+
+  test('expired token does not cause white screen', async ({ page }) => {
+    await page.context().clearCookies();
+    
+    await page.goto('/portal');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+    
+    // Page should have visible content (either login form or loading state)
+    const hasContent = await page.evaluate(() => {
+      const body = document.body;
+      return body.innerText.length > 0;
+    });
+    
+    expect(hasContent).toBe(true);
+    
+    // Should not show error boundary
+    const errorBoundary = page.locator('text=Algo deu errado');
+    const hasError = await errorBoundary.isVisible().catch(() => false);
+    expect(hasError).toBe(false);
   });
 });
 
@@ -115,5 +142,61 @@ test.describe('Session State Transitions', () => {
     
     // Eventually redirects to login
     await page.waitForURL('**/login', { timeout: 10000 });
+  });
+
+  test('multiple rapid navigations do not break auth state', async ({ page }) => {
+    const errors: string[] = [];
+    
+    page.on('pageerror', (error) => {
+      errors.push(error.message);
+    });
+    
+    await page.context().clearCookies();
+    
+    // Rapid navigation between protected and public routes
+    for (let i = 0; i < 3; i++) {
+      await page.goto('/portal', { waitUntil: 'commit' });
+      await page.goto('/login', { waitUntil: 'commit' });
+    }
+    
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    
+    // Should not have critical React errors
+    const criticalErrors = errors.filter(e => 
+      e.includes('Cannot read') || 
+      e.includes('setState on unmounted')
+    );
+    expect(criticalErrors).toHaveLength(0);
+  });
+});
+
+test.describe('Auth State Machine Contract', () => {
+  test('unauthenticated state is deterministic', async ({ page }) => {
+    await page.context().clearCookies();
+    
+    // Multiple visits to portal should behave consistently
+    for (let i = 0; i < 3; i++) {
+      await page.goto('/portal');
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(500);
+      
+      const url = page.url();
+      expect(url).toContain('/login');
+    }
+  });
+
+  test('public routes remain accessible without auth', async ({ page }) => {
+    await page.context().clearCookies();
+    
+    const publicRoutes = ['/', '/login', '/help', '/forgot-password'];
+    
+    for (const route of publicRoutes) {
+      const response = await page.goto(route);
+      expect(response?.status()).toBeLessThan(400);
+      
+      // Should stay on the route (or expected redirect for /)
+      await page.waitForLoadState('domcontentloaded');
+    }
   });
 });
