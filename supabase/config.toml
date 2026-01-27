@@ -62,3 +62,12 @@ verify_jwt = false
 
 [functions.validate-impersonation]
 verify_jwt = false
+
+[functions.complete-tenant-onboarding]
+verify_jwt = false
+
+[functions.grant-roles]
+verify_jwt = false
+
+[functions.revoke-roles]
+verify_jwt = false

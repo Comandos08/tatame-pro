@@ -1420,6 +1420,31 @@ export const ptBR = {
   'impersonation.accessDenied': 'Acesso negado',
   'impersonation.superadminMustImpersonate': 'Como Superadmin, você precisa iniciar uma sessão de impersonation para acessar recursos de tenant.',
   'impersonation.goToAdmin': 'Voltar ao Admin',
+  
+  // Onboarding Wizard
+  'onboarding.title': 'Configuração Inicial',
+  'onboarding.subtitle': 'Complete a configuração para começar a usar o sistema',
+  'onboarding.step': 'Etapa',
+  'onboarding.welcomeTitle': 'Bem-vindo!',
+  'onboarding.welcomeDesc': 'Vamos configurar {name} em poucos passos.',
+  'onboarding.welcomeAlert': 'Complete os itens obrigatórios para liberar o acesso completo.',
+  'onboarding.academiesTitle': 'Academias',
+  'onboarding.academiesDesc': 'Cadastre pelo menos uma academia.',
+  'onboarding.coachesTitle': 'Professores',
+  'onboarding.coachesDesc': 'Cadastre seus professores (opcional).',
+  'onboarding.gradingTitle': 'Sistema de Graduação',
+  'onboarding.gradingDesc': 'Configure pelo menos um sistema de graduação.',
+  'onboarding.reviewTitle': 'Revisão Final',
+  'onboarding.reviewDesc': 'Confirme que tudo está pronto.',
+  'onboarding.stepComplete': 'Concluído!',
+  'onboarding.stepPending': 'Pendente',
+  'onboarding.requiredStep': 'Esta etapa é obrigatória.',
+  'onboarding.setupNow': 'Configurar Agora',
+  'onboarding.manageItems': 'Gerenciar',
+  'onboarding.cannotComplete': 'Complete os itens obrigatórios antes de finalizar.',
+  'onboarding.completeSetup': 'Finalizar Configuração',
+  'onboarding.completedSuccess': 'Configuração concluída!',
+  'onboarding.completedError': 'Erro ao finalizar configuração.',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
