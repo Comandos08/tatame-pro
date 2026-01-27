@@ -1,13 +1,41 @@
+/**
+ * 🔐 reject-membership — Hardened Membership Rejection
+ * 
+ * SECURITY (C6 Hardening):
+ * - Requires ADMIN_TENANT or SUPERADMIN_GLOBAL role
+ * - If superadmin, requires valid impersonation session
+ * - Rate limited: 10 per hour per user
+ * - Full decision logging for all paths
+ * - Anti-enumeration responses
+ */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveMembershipNotification, shouldSend, type NotificationInput } from "../_shared/notification-engine.ts";
 import { getEmailClient, DEFAULT_EMAIL_FROM, isEmailConfigured } from "../_shared/emailClient.ts";
 import { getMembershipRejectedTemplate } from "../_shared/email-templates/membership/rejected.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import {
+  requireImpersonationIfSuperadmin,
+  extractImpersonationId,
+} from "../_shared/requireImpersonationIfSuperadmin.ts";
+import {
+  SecureRateLimiter,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  extractRequestContext,
+} from "../_shared/security-logger.ts";
+import {
+  logDecision,
+  logRateLimitBlock,
+  logPermissionDenied,
+  logImpersonationBlock,
+  DECISION_TYPES,
+} from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
 };
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -23,7 +51,29 @@ const logEmail = (step: string, details?: Record<string, unknown>) => {
 interface RejectMembershipRequest {
   membershipId: string;
   reason?: string;
-  rejectionReason?: string; // Alternative field name for compatibility
+  rejectionReason?: string;
+  impersonationId?: string;
+}
+
+/**
+ * Rate limiter preset: 10 rejections per hour per user
+ */
+function rejectMembershipRateLimiter() {
+  return new SecureRateLimiter({
+    operation: "reject-membership",
+    limit: 10,
+    windowSeconds: 3600,
+  });
+}
+
+/**
+ * Generic error response (anti-enumeration)
+ */
+function forbiddenResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Operation not permitted" }),
+    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 }
 
 serve(async (req) => {
@@ -36,36 +86,97 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // =========================================================================
-    // 1️⃣ AUTH & PERMISSION
-    // =========================================================================
+    // ========================================================================
+    // 1️⃣ AUTH VALIDATION
+    // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      throw new Error("Unauthorized: Missing authorization header");
+      logStep("Auth failed - missing header");
+      await logPermissionDenied(supabase, {
+        operation: 'reject-membership',
+        reason: 'MISSING_AUTH',
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      throw new Error("Unauthorized: Invalid token");
+      logStep("Auth failed - invalid token");
+      await logPermissionDenied(supabase, {
+        operation: 'reject-membership',
+        reason: 'INVALID_TOKEN',
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const adminProfileId = user.id;
     logStep("Admin authenticated", { adminProfileId });
 
-    // Parse request body with compatibility for both field names
-    const body: RejectMembershipRequest = await req.json();
+    // ========================================================================
+    // 2️⃣ RATE LIMITING (before any business logic)
+    // ========================================================================
+    const rateLimiter = rejectMembershipRateLimiter();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    // deno-lint-ignore no-explicit-any
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
+    if (!rateLimitResult.allowed) {
+      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      
+      await logRateLimitBlock(supabase, {
+        operation: 'reject-membership',
+        user_id: user.id,
+        ip_address: extractRequestContext(req).ip_address,
+        count: rateLimitResult.count,
+        limit: 10,
+      });
+      
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    }
+
+    // ========================================================================
+    // 3️⃣ PARSE INPUT
+    // ========================================================================
+    let body: RejectMembershipRequest;
+    try {
+      body = await req.json();
+    } catch {
+      logStep("Validation failed - invalid JSON");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'reject-membership',
+        user_id: user.id,
+        reason_code: 'INVALID_PAYLOAD',
+      });
+      return forbiddenResponse();
+    }
+
     const membershipId = body.membershipId;
     const rejectionReason = body.rejectionReason || body.reason || "";
 
     if (!membershipId) {
-      throw new Error("Missing membershipId");
+      logStep("Validation failed - missing membershipId");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'reject-membership',
+        user_id: user.id,
+        reason_code: 'MISSING_MEMBERSHIP_ID',
+      });
+      return forbiddenResponse();
     }
 
-    // =========================================================================
-    // 2️⃣ FETCH MEMBERSHIP (BEFORE UPDATE)
-    // =========================================================================
+    // ========================================================================
+    // 4️⃣ FETCH MEMBERSHIP (before auth check - need tenant_id)
+    // ========================================================================
     const { data: membership, error: membershipError } = await supabase
       .from("memberships")
       .select(`
@@ -81,38 +192,101 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      throw new Error(membershipError?.message || "Membership not found");
+      logStep("Membership not found or error", { membershipId });
+      // Anti-enumeration: don't reveal if it exists
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'reject-membership',
+        user_id: user.id,
+        reason_code: 'MEMBERSHIP_NOT_FOUND',
+      });
+      return forbiddenResponse();
     }
 
+    const targetTenantId = membership.tenant_id;
     const previousStatus = membership.status;
-    logStep("Fetched membership", { previousStatus, membershipId });
+    logStep("Fetched membership", { previousStatus, membershipId, tenantId: targetTenantId });
 
-    // Validate status
-    if (previousStatus !== "PENDING_REVIEW") {
-      throw new Error(`Invalid status: ${previousStatus}. Only PENDING_REVIEW can be rejected.`);
-    }
-
-    // =========================================================================
-    // 3️⃣ CHECK ADMIN PERMISSIONS
-    // =========================================================================
+    // ========================================================================
+    // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
+    // ========================================================================
+    
+    // 5.1 Check user roles
     const { data: roles } = await supabase
       .from("user_roles")
-      .select("role")
-      .eq("user_id", adminProfileId)
-      .or(`tenant_id.eq.${membership.tenant_id},tenant_id.is.null`);
+      .select("role, tenant_id")
+      .eq("user_id", adminProfileId);
 
-    const validRoles = ["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "STAFF_ORGANIZACAO"];
-    const hasPermission = roles?.some(r => validRoles.includes(r.role));
-    
-    if (!hasPermission) {
-      throw new Error("Forbidden: Insufficient permissions");
+    const isSuperadmin = roles?.some(r => r.role === "SUPERADMIN_GLOBAL" && r.tenant_id === null);
+    const isTenantAdmin = roles?.some(r => 
+      (r.role === "ADMIN_TENANT" || r.role === "STAFF_ORGANIZACAO") && 
+      r.tenant_id === targetTenantId
+    );
+
+    if (!isSuperadmin && !isTenantAdmin) {
+      logStep("Permission denied - no valid role");
+      await logPermissionDenied(supabase, {
+        operation: 'reject-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        required_roles: ['ADMIN_TENANT', 'STAFF_ORGANIZACAO', 'SUPERADMIN_GLOBAL'],
+        actual_roles: roles?.map(r => r.role) || [],
+        reason: 'INSUFFICIENT_PERMISSIONS',
+      });
+      return forbiddenResponse();
     }
 
-    logStep("Admin permissions verified");
+    // 5.2 If superadmin, REQUIRE valid impersonation
+    if (isSuperadmin) {
+      const impersonationId = extractImpersonationId(req, body);
+      // deno-lint-ignore no-explicit-any
+      const impersonationCheck = await requireImpersonationIfSuperadmin(
+        supabase as any,
+        user.id,
+        targetTenantId,
+        impersonationId
+      );
 
-    // =========================================================================
-    // 4️⃣ UPDATE MEMBERSHIP TO REJECTED
-    // =========================================================================
+      if (!impersonationCheck.valid) {
+        logStep("Impersonation validation failed", { error: impersonationCheck.error });
+        
+        await logImpersonationBlock(supabase, {
+          operation: 'reject-membership',
+          user_id: user.id,
+          tenant_id: targetTenantId,
+          impersonation_id: impersonationId || undefined,
+          reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
+        });
+        
+        return forbiddenResponse();
+      }
+
+      logStep("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
+    }
+
+    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
+
+    // ========================================================================
+    // 6️⃣ VALIDATE MEMBERSHIP STATUS
+    // ========================================================================
+    if (previousStatus !== "PENDING_REVIEW") {
+      logStep("Invalid status for rejection", { status: previousStatus });
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'reject-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        reason_code: 'INVALID_STATUS',
+        metadata: { current_status: previousStatus },
+      });
+      return forbiddenResponse();
+    }
+
+    // ========================================================================
+    // 7️⃣ UPDATE MEMBERSHIP TO REJECTED
+    // ========================================================================
     const finalRejectionReason = rejectionReason.trim() || membership.rejection_reason || "Motivo não informado";
     
     const { error: updateError } = await supabase
@@ -129,18 +303,40 @@ serve(async (req) => {
       .eq("id", membershipId);
 
     if (updateError) {
-      throw new Error(`Failed to update membership: ${updateError.message}`);
+      logStep("Failed to update membership", { error: updateError.message });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     logStep("Membership rejected", { newStatus: "REJECTED" });
 
-    // Create audit log for rejection
+    // ========================================================================
+    // 8️⃣ DECISION LOG — SUCCESS
+    // ========================================================================
+    await logDecision(supabase, {
+      decision_type: DECISION_TYPES.PASSWORD_RESET, // Reusing as "SUCCESS" for now
+      severity: 'HIGH',
+      operation: 'reject-membership',
+      user_id: adminProfileId,
+      tenant_id: targetTenantId,
+      reason_code: 'SUCCESS',
+      metadata: {
+        membership_id: membershipId,
+        rejection_reason: finalRejectionReason,
+      },
+    });
+
+    // ========================================================================
+    // 9️⃣ AUDIT LOG — Membership Rejected
+    // ========================================================================
     const applicantData = membership.applicant_data as { full_name?: string } | null;
     const applicantName = applicantData?.full_name || "Unknown";
 
     await createAuditLog(supabase, {
       event_type: AUDIT_EVENTS.MEMBERSHIP_REJECTED,
-      tenant_id: membership.tenant_id,
+      tenant_id: targetTenantId,
       profile_id: adminProfileId,
       metadata: {
         membership_id: membershipId,
@@ -150,26 +346,22 @@ serve(async (req) => {
       },
     });
 
-    // =========================================================================
-    // 5️⃣ FETCH DATA FOR NOTIFICATION ENGINE
-    // =========================================================================
-    
-    // Fetch tenant data
+    // ========================================================================
+    // 🔟 FETCH DATA FOR NOTIFICATION ENGINE
+    // ========================================================================
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .select("id, slug, name, default_locale")
-      .eq("id", membership.tenant_id)
+      .eq("id", targetTenantId)
       .single();
 
     if (tenantError || !tenant) {
       logStep("Warning: Could not fetch tenant", { error: tenantError?.message });
     }
 
-    // Get applicant data from membership.applicant_data (since no athlete is created on rejection)
     const applicantEmail = (membership.applicant_data as { email?: string } | null)?.email;
     const applicantFullName = applicantData?.full_name || "Atleta";
 
-    // Resolve baseUrl
     const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
     const originHeader = req.headers.get("origin");
     const baseUrl = (publicAppUrl || originHeader || "https://tatame.pro").replace(/\/$/, "");
@@ -180,11 +372,9 @@ serve(async (req) => {
       baseUrl,
     });
 
-    // =========================================================================
-    // 6️⃣ CALL NOTIFICATION ENGINE
-    // =========================================================================
-    
-    // Prepare email response object
+    // ========================================================================
+    // 1️⃣1️⃣ EMAIL NOTIFICATION
+    // ========================================================================
     const emailResult: {
       shouldSend: boolean;
       sent: boolean;
@@ -197,7 +387,6 @@ serve(async (req) => {
       skippedReason: null,
     };
 
-    // Only proceed with notification if we have required data
     if (!tenant || !applicantEmail) {
       logEmail("Skip - missing required data", { 
         hasTenant: !!tenant, 
@@ -205,7 +394,6 @@ serve(async (req) => {
       });
       emailResult.skippedReason = "missing_data";
     } else {
-      // Build notification input
       const notificationInput: NotificationInput = {
         previousStatus: previousStatus as "PENDING_REVIEW",
         newStatus: "REJECTED",
@@ -237,25 +425,18 @@ serve(async (req) => {
       if (shouldSend(decision)) {
         emailResult.templateId = decision.templateId;
 
-        // =====================================================================
-        // 6.5️⃣ IDEMPOTENCY CHECK - Skip if already sent for REJECTED
-        // =====================================================================
         const emailAlreadySent = membership.email_sent_for_status === "REJECTED";
         
         if (emailAlreadySent) {
           logEmail("Skip - already sent for status REJECTED");
           emailResult.skippedReason = "already_sent";
         } else if (!isEmailConfigured()) {
-          // ===================================================================
-          // 7️⃣ SEND EMAIL
-          // ===================================================================
           logEmail("Skip - email not configured");
           emailResult.skippedReason = "email_not_configured";
         } else {
           try {
             const resend = getEmailClient();
             
-            // Get email template
             const { subject, html } = getMembershipRejectedTemplate({
               athleteName: applicantFullName,
               tenantName: tenant.name,
@@ -277,10 +458,9 @@ serve(async (req) => {
 
             emailResult.sent = true;
 
-            // 8️⃣ AUDIT LOG - EMAIL_SENT
             await createAuditLog(supabase, {
               event_type: "EMAIL_SENT",
-              tenant_id: membership.tenant_id,
+              tenant_id: targetTenantId,
               profile_id: adminProfileId,
               metadata: {
                 template_id: decision.templateId,
@@ -291,7 +471,6 @@ serve(async (req) => {
               },
             });
 
-            // 9️⃣ PERSIST IDEMPOTENCY - Mark email as sent for REJECTED
             await supabase
               .from("memberships")
               .update({ email_sent_for_status: "REJECTED" })
@@ -306,10 +485,9 @@ serve(async (req) => {
             emailResult.sent = false;
             emailResult.skippedReason = "send_failed";
 
-            // 8️⃣ AUDIT LOG - EMAIL_FAILED
             await createAuditLog(supabase, {
               event_type: "EMAIL_FAILED",
-              tenant_id: membership.tenant_id,
+              tenant_id: targetTenantId,
               profile_id: adminProfileId,
               metadata: {
                 template_id: decision.templateId,
@@ -326,9 +504,9 @@ serve(async (req) => {
       }
     }
 
-    // =========================================================================
-    // 🔟 RESPONSE JSON (STANDARDIZED)
-    // =========================================================================
+    // ========================================================================
+    // SUCCESS RESPONSE
+    // ========================================================================
     logStep("Completed", { 
       rejected: true, 
       emailSent: emailResult.sent 
@@ -336,6 +514,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        ok: true,
         rejected: true,
         membershipId,
         previousStatus,
@@ -350,17 +529,12 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    logStep("Unexpected error", { error: errorMessage });
     
-    const statusCode = errorMessage.includes("Unauthorized") ? 401 
-      : errorMessage.includes("Forbidden") ? 403 
-      : errorMessage.includes("Invalid status") ? 400
-      : errorMessage.includes("Missing") ? 400
-      : 500;
-
+    // Anti-enumeration: generic error response
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: statusCode }
+      JSON.stringify({ ok: false, error: "Operation not permitted" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

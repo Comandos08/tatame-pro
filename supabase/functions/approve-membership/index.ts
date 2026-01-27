@@ -1,3 +1,13 @@
+/**
+ * 🔐 approve-membership — Hardened Membership Approval
+ * 
+ * SECURITY (C6 Hardening):
+ * - Requires ADMIN_TENANT or SUPERADMIN_GLOBAL role
+ * - If superadmin, requires valid impersonation session
+ * - Rate limited: 10 per hour per user
+ * - Full decision logging for all paths
+ * - Anti-enumeration responses
+ */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
@@ -8,10 +18,29 @@ import {
   type MembershipStatus,
   type SupportedLocale,
 } from "../_shared/notification-engine.ts";
+import {
+  requireImpersonationIfSuperadmin,
+  extractImpersonationId,
+} from "../_shared/requireImpersonationIfSuperadmin.ts";
+import {
+  SecureRateLimiter,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  extractRequestContext,
+} from "../_shared/security-logger.ts";
+import {
+  logDecision,
+  logRateLimitBlock,
+  logPermissionDenied,
+  logImpersonationBlock,
+  logCrossTenantBlock,
+  DECISION_TYPES,
+} from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
 };
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -24,7 +53,8 @@ interface ApproveMembershipRequest {
   academyId?: string | null;
   coachId?: string | null;
   reviewNotes?: string | null;
-  roles?: string[]; // NEW: Selected roles to assign
+  roles?: string[];
+  impersonationId?: string;
 }
 
 // Valid roles that can be assigned during approval
@@ -59,10 +89,6 @@ interface DocumentUploaded {
   file_type: string;
 }
 
-// ============================================================================
-// EMAIL RESPONSE TYPE
-// ============================================================================
-
 interface EmailResult {
   shouldSend: boolean;
   sent: boolean;
@@ -70,25 +96,37 @@ interface EmailResult {
   skippedReason: 'already_sent' | 'engine_noop' | 'resend_not_configured' | null;
 }
 
-// ============================================================================
-// BASE URL RESOLUTION
-// ============================================================================
-
 function resolveBaseUrl(req: Request): string {
-  // Priority 1: Environment variable
   const envUrl = Deno.env.get("PUBLIC_APP_URL");
   if (envUrl) {
     return envUrl.replace(/\/$/, '');
   }
-
-  // Priority 2: Request origin header
   const origin = req.headers.get("origin");
   if (origin) {
     return origin.replace(/\/$/, '');
   }
-
-  // Fallback: Production URL
   return "https://tatame-pro.lovable.app";
+}
+
+/**
+ * Rate limiter preset: 10 approvals per hour per user
+ */
+function approveMembershipRateLimiter() {
+  return new SecureRateLimiter({
+    operation: "approve-membership",
+    limit: 10,
+    windowSeconds: 3600,
+  });
+}
+
+/**
+ * Generic error response (anti-enumeration)
+ */
+function forbiddenResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Operation not permitted" }),
+    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 }
 
 serve(async (req) => {
@@ -114,62 +152,95 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ========================================================================
-    // AUTH VALIDATION
+    // 1️⃣ AUTH VALIDATION
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      throw new Error("Missing authorization header");
+      logStep("Auth failed - missing header");
+      await logPermissionDenied(supabase, {
+        operation: 'approve-membership',
+        reason: 'MISSING_AUTH',
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      throw new Error("Unauthorized: Invalid token");
+      logStep("Auth failed - invalid token");
+      await logPermissionDenied(supabase, {
+        operation: 'approve-membership',
+        reason: 'INVALID_TOKEN',
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const adminProfileId = user.id;
     logStep("Admin authenticated", { adminProfileId });
 
     // ========================================================================
-    // PARSE INPUT
+    // 2️⃣ RATE LIMITING (before any business logic)
     // ========================================================================
-    const body: ApproveMembershipRequest = await req.json();
+    const rateLimiter = approveMembershipRateLimiter();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    // deno-lint-ignore no-explicit-any
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
+    if (!rateLimitResult.allowed) {
+      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      
+      await logRateLimitBlock(supabase, {
+        operation: 'approve-membership',
+        user_id: user.id,
+        ip_address: extractRequestContext(req).ip_address,
+        count: rateLimitResult.count,
+        limit: 10,
+      });
+      
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    }
+
+    // ========================================================================
+    // 3️⃣ PARSE INPUT
+    // ========================================================================
+    let body: ApproveMembershipRequest;
+    try {
+      body = await req.json();
+    } catch {
+      logStep("Validation failed - invalid JSON");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        reason_code: 'INVALID_PAYLOAD',
+      });
+      return forbiddenResponse();
+    }
+
     membershipId = body.membershipId;
     const { academyId, coachId, reviewNotes, roles: requestedRoles } = body;
 
     if (!membershipId) {
-      throw new Error("Missing membershipId");
+      logStep("Validation failed - missing membershipId");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        reason_code: 'MISSING_MEMBERSHIP_ID',
+      });
+      return forbiddenResponse();
     }
-    
-    // ========================================================================
-    // VALIDATE ROLES - At least one role is required
-    // ========================================================================
-    const validatedRoles: ApprovalRole[] = [];
-    
-    if (!requestedRoles || requestedRoles.length === 0) {
-      // Default to ATLETA if no roles provided (backward compatibility)
-      validatedRoles.push('ATLETA');
-      logStep("No roles provided, defaulting to ATLETA");
-    } else {
-      // Validate each role
-      for (const role of requestedRoles) {
-        if (VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
-          validatedRoles.push(role as ApprovalRole);
-        } else {
-          logStep("Invalid role rejected", { role });
-        }
-      }
-      
-      if (validatedRoles.length === 0) {
-        throw new Error("No valid roles provided. At least one role is required.");
-      }
-    }
-    
-    logStep("Roles validated", { roles: validatedRoles });
 
     // ========================================================================
-    // 1. FETCH MEMBERSHIP (before update)
+    // 4️⃣ FETCH MEMBERSHIP (before auth check - need tenant_id)
     // ========================================================================
     const { data: membership, error: membershipError } = await supabase
       .from("memberships")
@@ -191,68 +262,193 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      throw new Error(membershipError?.message || "Membership not found");
+      logStep("Membership not found or error", { membershipId });
+      // Anti-enumeration: don't reveal if it exists
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        reason_code: 'MEMBERSHIP_NOT_FOUND',
+      });
+      return forbiddenResponse();
     }
 
+    const targetTenantId = membership.tenant_id;
     previousStatus = membership.status as MembershipStatus;
-    logStep("Fetched membership", { status: previousStatus, payment: membership.payment_status });
-
-    // Validate status
-    if (previousStatus !== "PENDING_REVIEW") {
-      throw new Error(`Invalid status: ${previousStatus}. Only PENDING_REVIEW can be approved.`);
-    }
-
-    // Validate payment
-    if (membership.payment_status !== "PAID") {
-      throw new Error("Payment not completed");
-    }
-
-    // Check if applicant_data exists
-    const applicantData = membership.applicant_data as ApplicantData | null;
-    if (!applicantData) {
-      throw new Error("Missing applicant data");
-    }
+    logStep("Fetched membership", { status: previousStatus, payment: membership.payment_status, tenantId: targetTenantId });
 
     // ========================================================================
-    // 2. CHECK ADMIN PERMISSIONS
+    // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
     // ========================================================================
+    
+    // 5.1 Check user roles
     const { data: roles } = await supabase
       .from("user_roles")
-      .select("role")
-      .eq("user_id", adminProfileId)
-      .or(`tenant_id.eq.${membership.tenant_id},tenant_id.is.null`);
+      .select("role, tenant_id")
+      .eq("user_id", adminProfileId);
 
-    const validRoles = ["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "STAFF_ORGANIZACAO"];
-    const hasPermission = roles?.some(r => validRoles.includes(r.role));
-    
-    if (!hasPermission) {
-      throw new Error("Forbidden: Insufficient permissions");
+    const isSuperadmin = roles?.some(r => r.role === "SUPERADMIN_GLOBAL" && r.tenant_id === null);
+    const isTenantAdmin = roles?.some(r => 
+      (r.role === "ADMIN_TENANT" || r.role === "STAFF_ORGANIZACAO") && 
+      r.tenant_id === targetTenantId
+    );
+
+    if (!isSuperadmin && !isTenantAdmin) {
+      logStep("Permission denied - no valid role");
+      await logPermissionDenied(supabase, {
+        operation: 'approve-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        required_roles: ['ADMIN_TENANT', 'STAFF_ORGANIZACAO', 'SUPERADMIN_GLOBAL'],
+        actual_roles: roles?.map(r => r.role) || [],
+        reason: 'INSUFFICIENT_PERMISSIONS',
+      });
+      return forbiddenResponse();
     }
 
-    logStep("Admin permissions verified");
+    // 5.2 If superadmin, REQUIRE valid impersonation
+    if (isSuperadmin) {
+      const impersonationId = extractImpersonationId(req, body);
+      // deno-lint-ignore no-explicit-any
+      const impersonationCheck = await requireImpersonationIfSuperadmin(
+        supabase as any,
+        user.id,
+        targetTenantId,
+        impersonationId
+      );
+
+      if (!impersonationCheck.valid) {
+        logStep("Impersonation validation failed", { error: impersonationCheck.error });
+        
+        await logImpersonationBlock(supabase, {
+          operation: 'approve-membership',
+          user_id: user.id,
+          tenant_id: targetTenantId,
+          impersonation_id: impersonationId || undefined,
+          reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
+        });
+        
+        return forbiddenResponse();
+      }
+
+      // 5.3 Verify tenant scope matches impersonation
+      if (impersonationCheck.isSuperadmin && impersonationCheck.impersonationId) {
+        // Already validated in requireImpersonationIfSuperadmin
+        logStep("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
+      }
+    }
+
+    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
 
     // ========================================================================
-    // 3. FETCH TENANT DATA (for notification engine)
+    // 6️⃣ VALIDATE MEMBERSHIP STATUS & PAYMENT
+    // ========================================================================
+    if (previousStatus !== "PENDING_REVIEW") {
+      logStep("Invalid status for approval", { status: previousStatus });
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        reason_code: 'INVALID_STATUS',
+        metadata: { current_status: previousStatus },
+      });
+      return forbiddenResponse();
+    }
+
+    if (membership.payment_status !== "PAID") {
+      logStep("Payment not completed", { payment_status: membership.payment_status });
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        reason_code: 'PAYMENT_INCOMPLETE',
+      });
+      return forbiddenResponse();
+    }
+
+    const applicantData = membership.applicant_data as ApplicantData | null;
+    if (!applicantData) {
+      logStep("Missing applicant data");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'LOW',
+        operation: 'approve-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        reason_code: 'MISSING_APPLICANT_DATA',
+      });
+      return forbiddenResponse();
+    }
+
+    // ========================================================================
+    // 7️⃣ VALIDATE ROLES
+    // ========================================================================
+    const validatedRoles: ApprovalRole[] = [];
+    
+    if (!requestedRoles || requestedRoles.length === 0) {
+      validatedRoles.push('ATLETA');
+      logStep("No roles provided, defaulting to ATLETA");
+    } else {
+      for (const role of requestedRoles) {
+        if (VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
+          validatedRoles.push(role as ApprovalRole);
+        } else {
+          logStep("Invalid role rejected", { role });
+        }
+      }
+      
+      if (validatedRoles.length === 0) {
+        logStep("No valid roles provided");
+        await logDecision(supabase, {
+          decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+          severity: 'LOW',
+          operation: 'approve-membership',
+          user_id: user.id,
+          tenant_id: targetTenantId,
+          reason_code: 'NO_VALID_ROLES',
+        });
+        return forbiddenResponse();
+      }
+    }
+    
+    logStep("Roles validated", { roles: validatedRoles });
+
+    // ========================================================================
+    // 8️⃣ FETCH TENANT DATA
     // ========================================================================
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .select("id, slug, name, default_locale")
-      .eq("id", membership.tenant_id)
+      .eq("id", targetTenantId)
       .single();
 
     if (tenantError || !tenant) {
-      throw new Error("Tenant not found");
+      logStep("Tenant not found");
+      await logDecision(supabase, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: 'MEDIUM',
+        operation: 'approve-membership',
+        user_id: user.id,
+        tenant_id: targetTenantId,
+        reason_code: 'TENANT_NOT_FOUND',
+      });
+      return forbiddenResponse();
     }
 
     logStep("Tenant data fetched", { slug: tenant.slug });
 
     // ========================================================================
-    // 4. CREATE ATHLETE
+    // 9️⃣ CREATE ATHLETE
     // ========================================================================
     const { data: athlete, error: athleteError } = await supabase
       .from("athletes")
       .insert({
-        tenant_id: membership.tenant_id,
+        tenant_id: targetTenantId,
         profile_id: membership.applicant_profile_id,
         full_name: applicantData.full_name,
         birth_date: applicantData.birth_date,
@@ -273,23 +469,27 @@ serve(async (req) => {
       .single();
 
     if (athleteError) {
-      throw new Error(`Failed to create athlete: ${athleteError.message}`);
+      logStep("Failed to create athlete", { error: athleteError.message });
+      // Internal error, don't expose details
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     logStep("Athlete created", { athleteId: athlete.id });
 
     // ========================================================================
-    // 4.5. CREATE USER ROLES (CRITICAL - Roles only assigned here)
+    // 🔟 CREATE USER ROLES
     // ========================================================================
     const createdRoles: string[] = [];
     
     for (const role of validatedRoles) {
-      // Check if role already exists (idempotency)
       const { data: existingRole } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", membership.applicant_profile_id)
-        .eq("tenant_id", membership.tenant_id)
+        .eq("tenant_id", targetTenantId)
         .eq("role", role)
         .maybeSingle();
       
@@ -298,7 +498,7 @@ serve(async (req) => {
           .from("user_roles")
           .insert({
             user_id: membership.applicant_profile_id,
-            tenant_id: membership.tenant_id,
+            tenant_id: targetTenantId,
             role: role,
           });
 
@@ -310,7 +510,7 @@ serve(async (req) => {
         }
       } else {
         logStep("Role already exists, skipping", { role });
-        createdRoles.push(role); // Count as assigned even if pre-existing
+        createdRoles.push(role);
       }
     }
     
@@ -318,7 +518,7 @@ serve(async (req) => {
     if (createdRoles.length > 0) {
       await supabase.from("audit_logs").insert({
         event_type: "ROLES_GRANTED",
-        tenant_id: membership.tenant_id,
+        tenant_id: targetTenantId,
         profile_id: adminProfileId,
         metadata: {
           target_profile_id: membership.applicant_profile_id,
@@ -333,7 +533,7 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // 5. MOVE DOCUMENTS
+    // 1️⃣1️⃣ MOVE DOCUMENTS
     // ========================================================================
     const documentsUploaded = membership.documents_uploaded as DocumentUploaded[] | null;
     const movedDocuments: DocumentUploaded[] = [];
@@ -342,7 +542,7 @@ serve(async (req) => {
       for (const doc of documentsUploaded) {
         const oldPath = doc.storage_path;
         const fileName = oldPath.split("/").pop() || `${doc.type.toLowerCase()}.${doc.file_type?.split("/")[1] || "pdf"}`;
-        const newPath = `${membership.tenant_id}/${athlete.id}/${fileName}`;
+        const newPath = `${targetTenantId}/${athlete.id}/${fileName}`;
 
         try {
           const { error: copyError } = await supabase.storage
@@ -364,7 +564,7 @@ serve(async (req) => {
           const { error: docInsertError } = await supabase
             .from("documents")
             .insert({
-              tenant_id: membership.tenant_id,
+              tenant_id: targetTenantId,
               athlete_id: athlete.id,
               type: doc.type,
               file_url: newPath,
@@ -384,7 +584,7 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // 6. UPDATE MEMBERSHIP TO APPROVED
+    // 1️⃣2️⃣ UPDATE MEMBERSHIP TO APPROVED
     // ========================================================================
     const now = new Date();
     const startDate = now.toISOString().split("T")[0];
@@ -408,7 +608,11 @@ serve(async (req) => {
       .eq("id", membershipId);
 
     if (updateError) {
-      throw new Error(`Failed to update membership: ${updateError.message}`);
+      logStep("Failed to update membership", { error: updateError.message });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Operation not permitted" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     approved = true;
@@ -416,7 +620,7 @@ serve(async (req) => {
     logStep("Membership updated to APPROVED");
 
     // ========================================================================
-    // 7. GENERATE DIGITAL CARD
+    // 1️⃣3️⃣ GENERATE DIGITAL CARD
     // ========================================================================
     let cardGenerated = false;
     try {
@@ -435,7 +639,7 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // 8. NOTIFICATION ENGINE — Decision Layer
+    // 1️⃣4️⃣ NOTIFICATION ENGINE
     // ========================================================================
     const baseUrl = resolveBaseUrl(req);
     const tenantLocale = (tenant.default_locale === 'en' ? 'en' : 'pt-BR') as SupportedLocale;
@@ -451,7 +655,6 @@ serve(async (req) => {
       athlete: {
         fullName: applicantData.full_name,
         email: applicantData.email,
-        // Athlete doesn't have preferredLocale yet, fall back to tenant
       },
       tenant: {
         name: tenant.name,
@@ -467,29 +670,24 @@ serve(async (req) => {
     });
 
     // ========================================================================
-    // 9. SEND EMAIL (if engine says so)
+    // 1️⃣5️⃣ SEND EMAIL
     // ========================================================================
     if (shouldSend(notificationDecision)) {
       emailResult.shouldSend = true;
       emailResult.templateId = notificationDecision.templateId;
 
-      // ======================================================================
-      // 9.1 IDEMPOTENCY CHECK - Skip if already sent for APPROVED
-      // ======================================================================
       const emailAlreadySent = membership.email_sent_for_status === "APPROVED";
 
       if (emailAlreadySent) {
         logStep("[EMAIL] Skip: already sent for status=APPROVED");
         emailResult.skippedReason = 'already_sent';
       } else if (!isEmailConfigured()) {
-        // Check Resend configuration
         logStep("[EMAIL] Skip: RESEND_API_KEY not configured");
         emailResult.skippedReason = 'resend_not_configured';
       } else {
         try {
           const resend = getEmailClient();
 
-          // Build email content using existing template
           const layoutData: EmailLayoutData = {
             tenantName: tenant.name,
           };
@@ -500,7 +698,6 @@ serve(async (req) => {
             portalUrl: notificationDecision.ctaUrl,
           });
 
-          // Send email
           const { error: emailError } = await resend.emails.send({
             from: DEFAULT_EMAIL_FROM,
             to: [applicantData.email],
@@ -518,10 +715,9 @@ serve(async (req) => {
             templateId: notificationDecision.templateId 
           });
 
-          // Audit log for EMAIL_SENT
           await supabase.from("audit_logs").insert({
             event_type: "EMAIL_SENT",
-            tenant_id: membership.tenant_id,
+            tenant_id: targetTenantId,
             profile_id: adminProfileId,
             metadata: {
               template_id: notificationDecision.templateId,
@@ -533,9 +729,6 @@ serve(async (req) => {
             },
           });
 
-          // ====================================================================
-          // 9.2 PERSIST IDEMPOTENCY - Mark email as sent for APPROVED
-          // ====================================================================
           await supabase
             .from("memberships")
             .update({ email_sent_for_status: "APPROVED" })
@@ -547,17 +740,16 @@ serve(async (req) => {
           const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
           logStep("[EMAIL] Failed", { error: errMsg });
 
-          // Audit log for EMAIL_FAILED
           await supabase.from("audit_logs").insert({
             event_type: "EMAIL_FAILED",
-            tenant_id: membership.tenant_id,
+            tenant_id: targetTenantId,
             profile_id: adminProfileId,
             metadata: {
               template_id: notificationDecision.templateId,
               recipient_email: applicantData.email,
               membership_id: membershipId,
               status: newStatus,
-              error: errMsg.substring(0, 500), // Truncate to avoid huge logs
+              error: errMsg.substring(0, 500),
               occurred_at: new Date().toISOString(),
             },
           });
@@ -569,11 +761,28 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // 10. AUDIT LOG — Membership Approved
+    // 1️⃣6️⃣ DECISION LOG — SUCCESS
+    // ========================================================================
+    await logDecision(supabase, {
+      decision_type: DECISION_TYPES.PASSWORD_RESET, // Reusing as "SUCCESS" for now
+      severity: 'HIGH',
+      operation: 'approve-membership',
+      user_id: adminProfileId,
+      tenant_id: targetTenantId,
+      reason_code: 'SUCCESS',
+      metadata: {
+        membership_id: membershipId,
+        athlete_id: athlete.id,
+        roles_assigned: createdRoles,
+      },
+    });
+
+    // ========================================================================
+    // 1️⃣7️⃣ AUDIT LOG — Membership Approved
     // ========================================================================
     await supabase.from("audit_logs").insert({
       event_type: "MEMBERSHIP_APPROVED",
-      tenant_id: membership.tenant_id,
+      tenant_id: targetTenantId,
       profile_id: adminProfileId,
       metadata: {
         membership_id: membershipId,
@@ -599,6 +808,7 @@ serve(async (req) => {
     // ========================================================================
     return new Response(
       JSON.stringify({
+        ok: true,
         approved: true,
         membershipId,
         previousStatus,
@@ -613,23 +823,12 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    logStep("Unexpected error", { error: errorMessage });
     
-    const statusCode = errorMessage.includes("Unauthorized") ? 401 
-      : errorMessage.includes("Forbidden") ? 403 
-      : errorMessage.includes("Invalid status") ? 400
-      : 500;
-
+    // Anti-enumeration: generic error response
     return new Response(
-      JSON.stringify({ 
-        approved,
-        membershipId,
-        previousStatus,
-        newStatus,
-        email: emailResult,
-        error: errorMessage,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: statusCode }
+      JSON.stringify({ ok: false, error: "Operation not permitted" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
