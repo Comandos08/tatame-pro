@@ -178,8 +178,9 @@ export default function AuthCallback() {
 
       } catch (error) {
         console.error('AuthCallback redirect error:', error);
-        // P3 RULE: Catch SEMPRE vai para /login - NUNCA next, /, ou portal
-        navigate('/login', { replace: true });
+        // 🔐 HARDENED: Catch goes to /portal (decision hub)
+        // /portal will decide correct destination or redirect to /login if needed
+        navigate('/portal', { replace: true });
       }
     };
 

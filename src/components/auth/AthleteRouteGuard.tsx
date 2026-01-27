@@ -85,8 +85,9 @@ export function AthleteRouteGuard({ children }: AthleteRouteGuardProps) {
 
   // HARD FAIL — defesa em profundidade
   // Tenant inexistente NUNCA pode renderizar children
+  // 🔐 HARDENED: redirect to /portal (decision hub), not /
   if (tenantExists === false) {
-    navigate('/', { replace: true });
+    navigate('/portal', { replace: true });
     return null;
   }
 

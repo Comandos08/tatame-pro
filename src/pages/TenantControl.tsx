@@ -190,9 +190,10 @@ export default function TenantControl() {
     }
   };
 
+  // 🔐 HARDENED: Redirect to /portal (decision hub), not /admin
   useEffect(() => {
     if (!authLoading && !isGlobalSuperadmin) {
-      navigate('/admin');
+      navigate('/portal');
       return;
     }
     

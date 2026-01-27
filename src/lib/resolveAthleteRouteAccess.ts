@@ -2,12 +2,14 @@
  * P4A — Athlete Route Access Decision Function
  * PURE FUNCTION: No side effects, no external dependencies
  *
- * IMMUTABLE RULES (ORDER MATTERS):
- * 1. No tenantSlug → '/'
+ * 🔐 HARDENED IMMUTABLE RULES (ORDER MATTERS):
+ * 1. No tenantSlug → /portal (decision hub)
  * 2. /app route → /${tenantSlug}/portal (BLOCK)
- * 3. Tenant doesn't exist → '/'
- * 4. Auth required but not authenticated → /${tenantSlug}/login
+ * 3. Tenant doesn't exist → /portal (decision hub)
+ * 4. Auth required but not authenticated → /${tenantSlug}/login (tenant-specific Magic Link)
  * 5. Otherwise → OK
+ * 
+ * NOTE: /portal is the central decision point. It will redirect to /login if not authenticated.
  */
 
 export interface AthleteRouteDecisionInput {
@@ -36,8 +38,9 @@ export function resolveAthleteRouteAccess(
   const { tenantSlug, pathname, isAuthenticated, tenantExists } = input;
 
   // Rule 1 — No tenant slug
+  // 🔐 HARDENED: redirect to /portal (decision hub), not /
   if (!tenantSlug) {
-    return { allow: false, redirectTo: '/', reason: 'NO_TENANT' };
+    return { allow: false, redirectTo: '/portal', reason: 'NO_TENANT' };
   }
 
   const base = `/${tenantSlug}`;
@@ -52,8 +55,9 @@ export function resolveAthleteRouteAccess(
   }
 
   // Rule 3 — Tenant does not exist
+  // 🔐 HARDENED: redirect to /portal (decision hub), not /
   if (!tenantExists) {
-    return { allow: false, redirectTo: '/', reason: 'TENANT_NOT_FOUND' };
+    return { allow: false, redirectTo: '/portal', reason: 'TENANT_NOT_FOUND' };
   }
 
   // Routes that REQUIRE auth

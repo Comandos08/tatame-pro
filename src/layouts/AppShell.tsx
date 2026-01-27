@@ -57,9 +57,10 @@ export function AppShell({ children }: AppShellProps) {
   const { t, locale, setLocale } = useI18n();
   const navigate = useNavigate();
 
+  // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {
     await signOut();
-    navigate('/login');
+    navigate('/portal');
   };
 
   const getInitials = (name: string | null) => {

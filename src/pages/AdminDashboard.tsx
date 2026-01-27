@@ -78,15 +78,17 @@ export default function AdminDashboard() {
   const [managingAdminsTenant, setManagingAdminsTenant] = useState<Tenant | null>(null);
   const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
 
+  // 🔐 HARDENED: Redirect to /portal (decision hub), not /
   React.useEffect(() => {
     if (!authLoading && !isGlobalSuperadmin && currentUser) {
-      navigate('/');
+      navigate('/portal');
     }
   }, [isGlobalSuperadmin, currentUser, navigate, authLoading]);
 
+  // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {
     await signOut();
-    navigate('/login');
+    navigate('/portal');
   };
 
   // Fetch all tenants

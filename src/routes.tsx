@@ -58,6 +58,7 @@ import { MembershipSuccess } from '@/components/membership/MembershipSuccess';
 import { TenantLayout } from '@/layouts/TenantLayout';
 
 // Protected route wrapper
+// 🔐 HARDENED: Redirects to /portal (the decision hub), never to /login
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useCurrentUser();
 
@@ -70,7 +71,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // 🔐 /portal will decide: if not authenticated → /login
+    return <Navigate to="/portal" replace />;
   }
 
   return <>{children}</>;
@@ -97,6 +99,7 @@ function PortalProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 // Admin route wrapper
+// 🔐 HARDENED: Redirects to /portal (the decision hub), never to /login or /
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isGlobalSuperadmin, isLoading, isAuthenticated } = useCurrentUser();
 
@@ -109,11 +112,13 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // 🔐 /portal will decide: if not authenticated → /login
+    return <Navigate to="/portal" replace />;
   }
 
   if (!isGlobalSuperadmin) {
-    return <Navigate to="/" replace />;
+    // 🔐 /portal will decide correct destination based on user roles
+    return <Navigate to="/portal" replace />;
   }
 
   return <>{children}</>;
