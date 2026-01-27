@@ -1715,6 +1715,9 @@ export type Database = {
           is_active: boolean | null
           logo_url: string | null
           name: string
+          onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
+          onboarding_completed_by: string | null
           primary_color: string | null
           slug: string
           sport_types: string[] | null
@@ -1732,6 +1735,9 @@ export type Database = {
           is_active?: boolean | null
           logo_url?: string | null
           name: string
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          onboarding_completed_by?: string | null
           primary_color?: string | null
           slug: string
           sport_types?: string[] | null
@@ -1749,13 +1755,24 @@ export type Database = {
           is_active?: boolean | null
           logo_url?: string | null
           name?: string
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          onboarding_completed_by?: string | null
           primary_color?: string | null
           slug?: string
           sport_types?: string[] | null
           stripe_customer_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_onboarding_completed_by_fkey"
+            columns: ["onboarding_completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

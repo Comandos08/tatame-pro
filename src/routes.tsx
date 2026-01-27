@@ -40,6 +40,7 @@ import TenantBilling from '@/pages/TenantBilling';
 import AthleteArea from '@/pages/AthleteArea';
 import TenantControl from '@/pages/TenantControl';
 import AthletePortal from '@/pages/AthletePortal';
+import TenantOnboarding from '@/pages/TenantOnboarding';
 import PortalEvents from '@/pages/PortalEvents';
 import PortalCard from '@/pages/PortalCard';
 import EventsList from '@/pages/EventsList';
@@ -179,6 +180,12 @@ export function AppRoutes() {
         } />
         
         {/* 🔐 Protected tenant app routes - with specific role requirements */}
+        <Route path="app/onboarding" element={
+          <RequireRoles allowed={ACCESS_MATRIX.TENANT_SETTINGS}>
+            <TenantOnboarding />
+          </RequireRoles>
+        } />
+        
         <Route path="app" element={
           <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
             <TenantDashboard />
