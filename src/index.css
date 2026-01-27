@@ -233,3 +233,41 @@ button:hover svg,
 a:hover svg {
   color: inherit;
 }
+/* =====================================================
+   ICON COLOR HARD LOCK
+   Prevent shadcn/ui from forcing accent color on icons
+   ===================================================== */
+
+/* Base: icons NEVER change color implicitly */
+button svg,
+a svg,
+[data-state] svg {
+  color: hsl(var(--foreground));
+  stroke: currentColor;
+}
+
+/* Sidebar / menu / navigation items */
+button:hover svg,
+a:hover svg,
+button[data-state="active"] svg,
+a[data-state="active"] svg {
+  color: hsl(var(--foreground));
+}
+
+/* Shadcn specific: Dropdown, NavigationMenu, Sidebar */
+[data-radix-collection-item] svg,
+[data-radix-menu-item] svg,
+[data-radix-navigation-menu-trigger] svg {
+  color: hsl(var(--foreground));
+}
+
+/* Explicit override ONLY when developer wants */
+.icon-primary svg,
+.icon-primary {
+  color: hsl(var(--primary));
+}
+
+.icon-accent svg,
+.icon-accent {
+  color: hsl(var(--accent));
+}
