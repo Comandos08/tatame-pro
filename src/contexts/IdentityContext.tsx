@@ -1,13 +1,14 @@
 /**
- * 🔐 IDENTITY CONTEXT — Wizard State Machine
+ * 🔐 IDENTITY CONTEXT — Consume-Only State Machine
  * 
- * Manages the mandatory identity wizard state.
- * Ensures no user can access protected routes without resolved tenant.
+ * REFACTORED: This context ONLY consumes identity state from the backend.
+ * It NEVER writes to user_roles, tenant_billing, or identity decisions.
  * 
  * RULES:
- * - wizard_completed = false → BLOCKING state
- * - wizard_completed = true → tenant resolved, access granted
- * - Superadmins bypass wizard (no tenant required)
+ * - All identity resolution happens via Edge Function
+ * - No direct queries to profiles/roles/athletes for identity
+ * - Stores only: identityState, tenant, role
+ * - Superadmins bypass wizard (checked by backend)
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,8 +22,14 @@ export type IdentityState =
   | 'error';            // Error state
 
 export interface IdentityError {
-  code: 'TENANT_NOT_FOUND' | 'INVITE_INVALID' | 'PERMISSION_DENIED' | 'IMPERSONATION_INVALID' | 'UNKNOWN';
+  code: 'TENANT_NOT_FOUND' | 'INVITE_INVALID' | 'PERMISSION_DENIED' | 'IMPERSONATION_INVALID' | 'SLUG_TAKEN' | 'VALIDATION_ERROR' | 'UNKNOWN';
   message: string;
+}
+
+export interface TenantInfo {
+  id: string;
+  slug: string;
+  name: string;
 }
 
 interface IdentityContextType {
@@ -31,10 +38,28 @@ interface IdentityContextType {
   wizardCompleted: boolean;
   tenantId: string | null;
   tenantSlug: string | null;
+  tenant: TenantInfo | null;
+  role: 'ADMIN_TENANT' | 'ATHLETE' | 'SUPERADMIN_GLOBAL' | null;
+  redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
-  completeWizard: (tenantId: string, tenantSlug: string) => Promise<void>;
+  completeWizard: (payload: CompleteWizardPayload) => Promise<CompleteWizardResult>;
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
+}
+
+export interface CompleteWizardPayload {
+  joinMode: 'existing' | 'new';
+  inviteCode?: string;
+  newOrgName?: string;
+  profileType: 'admin' | 'athlete';
+}
+
+export interface CompleteWizardResult {
+  success: boolean;
+  tenant?: TenantInfo;
+  role?: 'ADMIN_TENANT' | 'ATHLETE';
+  redirectPath?: string;
+  error?: IdentityError;
 }
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
@@ -44,176 +69,92 @@ interface IdentityProviderProps {
 }
 
 export function IdentityProvider({ children }: IdentityProviderProps) {
-  const { currentUser, isAuthenticated, isLoading: authLoading, isGlobalSuperadmin } = useCurrentUser();
+  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
   
   const [identityState, setIdentityState] = useState<IdentityState>('loading');
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+  const [tenant, setTenant] = useState<TenantInfo | null>(null);
+  const [role, setRole] = useState<'ADMIN_TENANT' | 'ATHLETE' | 'SUPERADMIN_GLOBAL' | null>(null);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
   
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
 
+  /**
+   * Call Edge Function to check identity
+   * This is the ONLY source of truth for identity resolution
+   */
   const checkIdentity = useCallback(async (signal: AbortSignal) => {
     if (!currentUser?.id) {
       if (isMountedRef.current) {
         setIdentityState('loading');
         setWizardCompleted(false);
-        setTenantId(null);
-        setTenantSlug(null);
+        setTenant(null);
+        setRole(null);
+        setRedirectPath(null);
       }
       return;
     }
 
     try {
-      // 1️⃣ Check if superadmin (bypasses wizard)
-      if (isGlobalSuperadmin) {
-        if (!signal.aborted && isMountedRef.current) {
-          setIdentityState('superadmin');
-          setWizardCompleted(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        if (isMountedRef.current) {
+          setIdentityState('loading');
         }
         return;
       }
 
-      // 2️⃣ Check profile for wizard_completed flag
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('wizard_completed, tenant_id')
-        .eq('id', currentUser.id)
-        .maybeSingle();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ action: 'CHECK' }),
+          signal,
+        }
+      );
 
       if (signal.aborted) return;
 
-      if (profileError) {
-        console.error('[IdentityContext] Failed to fetch profile', profileError);
-        if (isMountedRef.current) {
-          setIdentityState('error');
-          setError({ code: 'UNKNOWN', message: 'Failed to verify identity' });
-        }
-        return;
-      }
+      const result = await response.json();
 
-      const isWizardCompleted = profile?.wizard_completed ?? false;
+      if (!isMountedRef.current) return;
 
-      if (!isWizardCompleted) {
-        // Wizard not completed - check if user actually has tenant context
-        // (retroactive check for users created before wizard)
-        const hasContext = await checkTenantContext(currentUser.id, signal);
-        
-        if (signal.aborted) return;
-
-        if (hasContext.hasTenant) {
-          // User has tenant context but wizard not marked - auto-complete
-          await supabase
-            .from('profiles')
-            .update({ wizard_completed: true })
-            .eq('id', currentUser.id);
-
-          if (!signal.aborted && isMountedRef.current) {
-            setWizardCompleted(true);
-            setTenantId(hasContext.tenantId);
-            setTenantSlug(hasContext.tenantSlug);
-            setIdentityState('resolved');
-          }
-          return;
-        }
-
-        // No tenant context - wizard required
-        if (isMountedRef.current) {
-          setWizardCompleted(false);
-          setIdentityState('wizard_required');
-        }
-        return;
-      }
-
-      // 3️⃣ Wizard completed - resolve tenant context
-      const context = await checkTenantContext(currentUser.id, signal);
-      
-      if (signal.aborted) return;
-
-      if (!context.hasTenant) {
-        // Edge case: wizard marked complete but no tenant
-        // Reset wizard_completed and force wizard
-        await supabase
-          .from('profiles')
-          .update({ wizard_completed: false })
-          .eq('id', currentUser.id);
-
-        if (isMountedRef.current) {
-          setWizardCompleted(false);
-          setIdentityState('wizard_required');
-        }
-        return;
-      }
-
-      if (isMountedRef.current) {
+      if (result.status === 'RESOLVED') {
         setWizardCompleted(true);
-        setTenantId(context.tenantId);
-        setTenantSlug(context.tenantSlug);
-        setIdentityState('resolved');
+        setTenant(result.tenant || null);
+        setRole(result.role || null);
+        setRedirectPath(result.redirectPath || null);
+        
+        if (result.role === 'SUPERADMIN_GLOBAL') {
+          setIdentityState('superadmin');
+        } else {
+          setIdentityState('resolved');
+        }
+      } else if (result.status === 'WIZARD_REQUIRED') {
+        setWizardCompleted(false);
+        setIdentityState('wizard_required');
+      } else if (result.status === 'ERROR') {
+        setError(result.error || { code: 'UNKNOWN', message: 'Failed to verify identity' });
+        setIdentityState('error');
       }
     } catch (err) {
       if (signal.aborted) return;
-      console.error('[IdentityContext] Unexpected error', err);
+      console.error('[IdentityContext] Check identity error:', err);
       if (isMountedRef.current) {
         setIdentityState('error');
-        setError({ code: 'UNKNOWN', message: 'Unexpected error during identity check' });
+        setError({ code: 'UNKNOWN', message: 'Failed to connect to identity service' });
       }
     }
-  }, [currentUser?.id, isGlobalSuperadmin]);
-
-  const checkTenantContext = async (
-    userId: string, 
-    signal: AbortSignal
-  ): Promise<{ hasTenant: boolean; tenantId: string | null; tenantSlug: string | null }> => {
-    // Check profile tenant_id
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('tenant_id, tenants!inner(slug)')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (signal.aborted) return { hasTenant: false, tenantId: null, tenantSlug: null };
-
-    if (profile?.tenant_id) {
-      const slug = (profile as any).tenants?.slug;
-      return { hasTenant: true, tenantId: profile.tenant_id, tenantSlug: slug };
-    }
-
-    // Check athlete link
-    const { data: athlete } = await supabase
-      .from('athletes')
-      .select('tenant_id, tenants!inner(slug)')
-      .eq('profile_id', userId)
-      .maybeSingle();
-
-    if (signal.aborted) return { hasTenant: false, tenantId: null, tenantSlug: null };
-
-    if (athlete?.tenant_id) {
-      const slug = (athlete as any).tenants?.slug;
-      return { hasTenant: true, tenantId: athlete.tenant_id, tenantSlug: slug };
-    }
-
-    // Check tenant roles
-    const { data: role } = await supabase
-      .from('user_roles')
-      .select('tenant_id, tenants!inner(slug)')
-      .eq('user_id', userId)
-      .not('tenant_id', 'is', null)
-      .limit(1)
-      .maybeSingle();
-
-    if (signal.aborted) return { hasTenant: false, tenantId: null, tenantSlug: null };
-
-    if (role?.tenant_id) {
-      const slug = (role as any).tenants?.slug;
-      return { hasTenant: true, tenantId: role.tenant_id, tenantSlug: slug };
-    }
-
-    return { hasTenant: false, tenantId: null, tenantSlug: null };
-  };
+  }, [currentUser?.id]);
 
   // Main effect to check identity
   useEffect(() => {
@@ -231,8 +172,9 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     if (!isAuthenticated || !currentUser) {
       setIdentityState('loading');
       setWizardCompleted(false);
-      setTenantId(null);
-      setTenantSlug(null);
+      setTenant(null);
+      setRole(null);
+      setRedirectPath(null);
       setError(null);
       return;
     }
@@ -248,7 +190,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       isMountedRef.current = false;
       abortControllerRef.current?.abort();
     };
-  }, [authLoading, isAuthenticated, currentUser, isGlobalSuperadmin, checkIdentity]);
+  }, [authLoading, isAuthenticated, currentUser, checkIdentity]);
 
   const refreshIdentity = async () => {
     if (abortControllerRef.current) {
@@ -258,30 +200,64 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     await checkIdentity(abortControllerRef.current.signal);
   };
 
-  const completeWizard = async (newTenantId: string, newTenantSlug: string) => {
-    if (!currentUser?.id) return;
+  /**
+   * Complete wizard via Edge Function
+   * All sensitive writes happen on backend
+   */
+  const completeWizard = async (payload: CompleteWizardPayload): Promise<CompleteWizardResult> => {
+    if (!currentUser?.id) {
+      return { success: false, error: { code: 'PERMISSION_DENIED', message: 'Not authenticated' } };
+    }
 
     try {
-      // Update profile with wizard_completed and tenant_id
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          wizard_completed: true,
-          tenant_id: newTenantId 
-        })
-        .eq('id', currentUser.id);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-      if (updateError) {
-        throw updateError;
+      if (!accessToken) {
+        return { success: false, error: { code: 'PERMISSION_DENIED', message: 'No session' } };
       }
 
-      setWizardCompleted(true);
-      setTenantId(newTenantId);
-      setTenantSlug(newTenantSlug);
-      setIdentityState('resolved');
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            action: 'COMPLETE_WIZARD',
+            payload,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.status === 'RESOLVED') {
+        setWizardCompleted(true);
+        setTenant(result.tenant || null);
+        setRole(result.role || null);
+        setRedirectPath(result.redirectPath || null);
+        setIdentityState('resolved');
+
+        return {
+          success: true,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
+        };
+      } else if (result.status === 'ERROR') {
+        return {
+          success: false,
+          error: result.error || { code: 'UNKNOWN', message: 'Failed to complete wizard' },
+        };
+      }
+
+      return { success: false, error: { code: 'UNKNOWN', message: 'Unexpected response' } };
     } catch (err) {
-      console.error('[IdentityContext] Failed to complete wizard', err);
-      setError({ code: 'UNKNOWN', message: 'Failed to complete wizard' });
+      console.error('[IdentityContext] Complete wizard error:', err);
+      return { success: false, error: { code: 'UNKNOWN', message: 'Failed to complete wizard' } };
     }
   };
 
@@ -302,8 +278,11 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         identityState,
         error,
         wizardCompleted,
-        tenantId,
-        tenantSlug,
+        tenantId: tenant?.id || null,
+        tenantSlug: tenant?.slug || null,
+        tenant,
+        role,
+        redirectPath,
         refreshIdentity,
         completeWizard,
         setIdentityError,

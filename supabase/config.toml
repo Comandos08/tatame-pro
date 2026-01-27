@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.admin-reset-password]
 verify_jwt = false
+
+[functions.resolve-identity-wizard]
+verify_jwt = false
