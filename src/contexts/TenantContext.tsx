@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Tenant, TenantContext as TenantContextType } from '@/types/tenant';
@@ -24,18 +24,29 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [billingInfo, setBillingInfo] = useState<TenantBillingInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // 🔐 HARDENING: Track mount state to prevent setState after unmount
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    // 🔐 HARDENING: AbortController for cancellable fetch
+    const abortController = new AbortController();
+
     async function fetchTenant() {
       if (!tenantSlug) {
-        setTenant(null);
-        setBillingInfo(null);
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setTenant(null);
+          setBillingInfo(null);
+          setIsLoading(false);
+        }
         return;
       }
 
-      setIsLoading(true);
-      setError(null);
+      if (isMountedRef.current) {
+        setIsLoading(true);
+        setError(null);
+      }
 
       try {
         // First try to find an active tenant
@@ -46,6 +57,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
           .eq('is_active', true)
           .single();
 
+        // 🔐 Check abort before continuing
+        if (abortController.signal.aborted) return;
+
         // If not found as active, check if tenant exists but is inactive
         if (fetchError?.code === 'PGRST116') {
           const { data: inactiveTenant, error: inactiveError } = await supabase
@@ -55,11 +69,15 @@ export function TenantProvider({ children }: TenantProviderProps) {
             .eq('is_active', false)
             .single();
 
+          if (abortController.signal.aborted) return;
+
           if (!inactiveError && inactiveTenant) {
             data = inactiveTenant;
             fetchError = null;
           }
         }
+
+        if (!isMountedRef.current) return;
 
         if (fetchError) {
           if (fetchError.code === 'PGRST116') {
@@ -87,28 +105,42 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
           // Fetch billing info if tenant is inactive
           if (!data.is_active) {
+            if (abortController.signal.aborted) return;
+            
             const { data: billing } = await supabase
               .from('tenant_billing')
               .select('status, stripe_customer_id')
               .eq('tenant_id', data.id)
               .maybeSingle();
             
-            setBillingInfo(billing);
+            if (!abortController.signal.aborted && isMountedRef.current) {
+              setBillingInfo(billing);
+            }
           } else {
             setBillingInfo(null);
           }
         }
       } catch (err) {
+        if (abortController.signal.aborted || !isMountedRef.current) return;
+        
         console.error('Error fetching tenant:', err);
         setError(err instanceof Error ? err : new Error('Erro ao carregar organização'));
         setTenant(null);
         setBillingInfo(null);
       } finally {
-        setIsLoading(false);
+        if (!abortController.signal.aborted && isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchTenant();
+    
+    // 🔐 Cleanup
+    return () => {
+      isMountedRef.current = false;
+      abortController.abort();
+    };
   }, [tenantSlug]);
 
   return (

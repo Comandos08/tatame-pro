@@ -1,6 +1,6 @@
 # 🔐 HARDENING.md — Security, Stability & Best Practices
 
-**Version:** 1.1.0 (Security Baseline Complete)  
+**Version:** 1.2.0 (Final Sweep Complete)  
 **Last Updated:** 2026-01-27
 
 This document describes the hardening measures implemented to ensure security, stability, and reliability of the application.
@@ -337,6 +337,21 @@ bunx vitest run
 - [ ] New utilities documented
 - [ ] Breaking changes noted
 - [ ] Examples provided
+
+---
+
+## Changelog (v1.2.0 — Final Sweep)
+
+### Fixed Edge Cases:
+- **TenantContext**: Added `AbortController` and `isMountedRef` to prevent `setState` after unmount
+- **AuthCallback**: Added `AbortController`, `hasProcessedRef`, and `isMountedRef` to prevent race conditions and double execution
+- **AthleteRouteGuard**: Removed direct `navigate()` call in render path; now handled entirely in `useEffect` with proper guard
+
+### Verified OK:
+- **Login.tsx**: Correctly navigates to `/portal` post-login (no auto-redirect for authenticated users - expected behavior)
+- **PortalRouter.tsx**: Already has `AbortController` and `hasProcessedRef` pattern
+- **RequireRoles.tsx**: Already has `hasRedirected` ref to prevent loops
+- **ImpersonationContext.tsx**: Already has validation interval and expiration timeout cleanup
 
 ---
 
