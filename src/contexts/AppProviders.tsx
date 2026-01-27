@@ -6,6 +6,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner';
 import { AuthProvider } from './AuthContext';
 import { ThemeProvider } from './ThemeContext';
 import { I18nProvider } from './I18nContext';
+import { JoinProvider } from './JoinContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,11 +27,13 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              {children}
-            </TooltipProvider>
+            <JoinProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                {children}
+              </TooltipProvider>
+            </JoinProvider>
           </AuthProvider>
         </I18nProvider>
       </ThemeProvider>

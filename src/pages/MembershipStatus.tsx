@@ -1,12 +1,14 @@
 /**
- * SAFE GOLD — ETAPA 4
- * Página de status de filiação pendente de análise
- * Rota: /:tenantSlug/membership/status
+ * 🔐 MEMBERSHIP STATUS PAGE
+ * Displays the current status of a user's membership request.
+ * 
+ * Handles states: PENDING_REVIEW, APPROVED, ACTIVE, REJECTED, CANCELLED
+ * Route: /:tenantSlug/membership/status
  */
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, ArrowLeft, Loader2 } from 'lucide-react';
+import { Clock, ArrowLeft, Loader2, CheckCircle2, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,13 +17,80 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
-import { resolveAthletePostLoginRedirect, MembershipStatus as MembershipStatusType } from '@/lib/resolveAthletePostLoginRedirect';
+
+type MembershipStatusValue = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
 
 interface MembershipData {
   id: string;
-  status: string;
+  status: MembershipStatusValue;
   created_at: string;
+  rejection_reason?: string | null;
 }
+
+const STATUS_CONFIG: Record<MembershipStatusValue, {
+  icon: typeof Clock;
+  iconBg: string;
+  iconColor: string;
+  titleKey: string;
+  descKey: string;
+  showCta: boolean;
+  ctaType: 'portal' | 'newRequest' | 'renew' | 'none';
+}> = {
+  PENDING_REVIEW: {
+    icon: Clock,
+    iconBg: 'bg-warning/10',
+    iconColor: 'text-warning',
+    titleKey: 'membershipStatus.pendingReview',
+    descKey: 'membershipStatus.pendingReviewDesc',
+    showCta: false,
+    ctaType: 'none',
+  },
+  APPROVED: {
+    icon: CheckCircle2,
+    iconBg: 'bg-success/10',
+    iconColor: 'text-success',
+    titleKey: 'membershipStatus.approved',
+    descKey: 'membershipStatus.approvedDesc',
+    showCta: true,
+    ctaType: 'portal',
+  },
+  ACTIVE: {
+    icon: CheckCircle2,
+    iconBg: 'bg-success/10',
+    iconColor: 'text-success',
+    titleKey: 'membershipStatus.approved',
+    descKey: 'membershipStatus.approvedDesc',
+    showCta: true,
+    ctaType: 'portal',
+  },
+  REJECTED: {
+    icon: XCircle,
+    iconBg: 'bg-destructive/10',
+    iconColor: 'text-destructive',
+    titleKey: 'membershipStatus.rejected',
+    descKey: 'membershipStatus.rejectedDesc',
+    showCta: true,
+    ctaType: 'newRequest',
+  },
+  CANCELLED: {
+    icon: AlertCircle,
+    iconBg: 'bg-muted',
+    iconColor: 'text-muted-foreground',
+    titleKey: 'membershipStatus.cancelled',
+    descKey: 'membershipStatus.cancelledDesc',
+    showCta: true,
+    ctaType: 'newRequest',
+  },
+  EXPIRED: {
+    icon: AlertCircle,
+    iconBg: 'bg-warning/10',
+    iconColor: 'text-warning',
+    titleKey: 'portal.expiredTitle',
+    descKey: 'portal.expiredDescHumanized',
+    showCta: true,
+    ctaType: 'renew',
+  },
+};
 
 export default function MembershipStatus() {
   const navigate = useNavigate();
@@ -33,7 +102,7 @@ export default function MembershipStatus() {
   const [membership, setMembership] = useState<MembershipData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Buscar membership mais recente do usuário
+  // Fetch most recent membership for this user
   useEffect(() => {
     const fetchMembership = async () => {
       if (!tenant?.id || !currentUser?.id || !isAuthenticated) {
@@ -42,12 +111,11 @@ export default function MembershipStatus() {
       }
 
       try {
-        // Primeiro tenta buscar por athlete vinculado
-        // Cast early to avoid TS2589 (excessively deep type instantiation)
+        // First try to find by linked athlete
         const athleteResult = await (supabase.from('athletes') as any)
           .select('id')
           .eq('tenant_id', tenant.id)
-          .eq('user_id', currentUser.id)
+          .eq('profile_id', currentUser.id)
           .maybeSingle();
         
         const athleteData = athleteResult?.data as { id: string } | null;
@@ -56,7 +124,7 @@ export default function MembershipStatus() {
 
         if (athleteData?.id) {
           const result = await (supabase.from('memberships') as any)
-            .select('id, status, created_at')
+            .select('id, status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('athlete_id', athleteData.id)
             .order('created_at', { ascending: false })
@@ -65,7 +133,7 @@ export default function MembershipStatus() {
           data = result?.data as MembershipData | null;
         } else {
           const result = await (supabase.from('memberships') as any)
-            .select('id, status, created_at')
+            .select('id, status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('applicant_profile_id', currentUser.id)
             .order('created_at', { ascending: false })
@@ -85,22 +153,6 @@ export default function MembershipStatus() {
     fetchMembership();
   }, [tenant?.id, currentUser?.id, isAuthenticated]);
 
-  // Redirect se status não for PENDING_REVIEW
-  useEffect(() => {
-    if (isLoading || !tenantSlug) return;
-
-    const status = membership?.status?.toUpperCase() as MembershipStatusType;
-    
-    // Se não for PENDING_REVIEW, redirecionar para o destino correto
-    if (status !== 'PENDING_REVIEW') {
-      const redirectPath = resolveAthletePostLoginRedirect({
-        tenantSlug,
-        membershipStatus: status || null,
-      });
-      navigate(redirectPath, { replace: true });
-    }
-  }, [membership, isLoading, tenantSlug, navigate]);
-
   // Loading state
   if (authLoading || isLoading) {
     return (
@@ -119,13 +171,50 @@ export default function MembershipStatus() {
     return null;
   }
 
-  const createdDate = membership?.created_at
+  // No membership found - redirect to join
+  if (!membership) {
+    navigate('/join', { replace: true });
+    return null;
+  }
+
+  const status = membership.status.toUpperCase() as MembershipStatusValue;
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING_REVIEW;
+  const IconComponent = config.icon;
+
+  const createdDate = membership.created_at
     ? new Date(membership.created_at).toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
       })
     : null;
+
+  const handleCtaClick = () => {
+    switch (config.ctaType) {
+      case 'portal':
+        navigate(`/${tenantSlug}/portal`, { replace: true });
+        break;
+      case 'newRequest':
+        navigate(`/${tenantSlug}/membership/new`, { replace: true });
+        break;
+      case 'renew':
+        navigate(`/${tenantSlug}/membership/renew`, { replace: true });
+        break;
+    }
+  };
+
+  const getCtaLabel = () => {
+    switch (config.ctaType) {
+      case 'portal':
+        return t('membershipStatus.continueToPortal');
+      case 'newRequest':
+        return t('membershipStatus.newRequest');
+      case 'renew':
+        return t('membership.renewal');
+      default:
+        return t('membershipStatus.accessPortal');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -155,11 +244,11 @@ export default function MembershipStatus() {
         >
           <Card className="text-center">
             <CardHeader className="pb-4">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-warning/10 flex items-center justify-center">
-                <Clock className="h-8 w-8 text-warning" />
+              <div className={`mx-auto mb-4 h-16 w-16 rounded-full ${config.iconBg} flex items-center justify-center`}>
+                <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
               </div>
               <CardTitle className="text-xl">
-                {t('membershipStatus.pendingReview')}
+                {t(config.titleKey)}
               </CardTitle>
               <CardDescription>
                 {tenant?.name}
@@ -167,31 +256,67 @@ export default function MembershipStatus() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                <p>{t('membershipStatus.pendingReviewDesc')}</p>
+                <p>{t(config.descKey)}</p>
               </div>
 
-              <div className="text-sm text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">
-                  {t('membershipStatus.estimatedTime')}
-                </p>
-                {createdDate && (
-                  <p>
-                    {t('approval.requestedAt')}: {createdDate}
+              {/* Show rejection reason if available */}
+              {status === 'REJECTED' && membership.rejection_reason && (
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-sm text-left">
+                  <p className="font-medium text-destructive mb-1">{t('approval.rejectionReason')}:</p>
+                  <p className="text-muted-foreground">{membership.rejection_reason}</p>
+                </div>
+              )}
+
+              {/* Request date for pending status */}
+              {status === 'PENDING_REVIEW' && (
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">
+                    {t('membershipStatus.estimatedTime')}
                   </p>
-                )}
-              </div>
+                  {createdDate && (
+                    <p>
+                      {t('approval.requestedAt')}: {createdDate}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              <Button
-                disabled
-                className="w-full"
-                size="lg"
-              >
-                {t('membershipStatus.accessPortal')}
-              </Button>
+              {/* CTA Button */}
+              {config.showCta ? (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleCtaClick}
+                >
+                  {getCtaLabel()}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  disabled
+                  className="w-full"
+                  size="lg"
+                >
+                  {t('membershipStatus.accessPortal')}
+                </Button>
+              )}
 
-              <p className="text-xs text-muted-foreground">
-                {t('membershipSuccess.accessViaEmail')}
-              </p>
+              {status === 'PENDING_REVIEW' && (
+                <p className="text-xs text-muted-foreground">
+                  {t('membershipSuccess.accessViaEmail')}
+                </p>
+              )}
+
+              {/* Contact organization link for rejected/cancelled */}
+              {(status === 'REJECTED' || status === 'CANCELLED') && (
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => navigate(`/${tenantSlug}`)}
+                >
+                  {t('membershipStatus.contactOrg')}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </motion.div>
