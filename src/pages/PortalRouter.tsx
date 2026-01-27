@@ -1,14 +1,20 @@
 /**
- * 🔐 PORTAL ROUTER — SINGLE DECISION POINT
+ * 🔐 PORTAL ROUTER — SINGLE DECISION POINT (SECURITY HARDENED)
  *
  * Este é o ÚNICO componente que decide o destino final após login.
  *
- * REGRAS IMUTÁVEIS:
+ * REGRAS IMUTÁVEIS (veja docs/SECURITY-AUTH-CONTRACT.md):
  * 1. Usuário não autenticado → /login
  * 2. Global Superadmin → /admin
  * 3. Admin/Staff de tenant → resolver billing → /{tenant}/app
  * 4. Atleta comum → /{tenant}/portal
  * 5. Fallback → exibir estado neutro (nunca loop)
+ *
+ * SECURITY PATTERNS:
+ * - AbortController for all async operations
+ * - useRef guards for single execution
+ * - No setTimeout for redirects
+ * - Deterministic state transitions
  *
  * NENHUM outro componente pode ter lógica de redirect pós-login.
  */
@@ -37,10 +43,17 @@ export default function PortalRouter() {
   // 🔒 Guard de execução única (React 18 / StrictMode safe)
   const hasProcessedRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
+  
+  // 🔒 AbortController for async operations
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [routerState, setRouterState] = useState<RouterState>("loading");
 
   useEffect(() => {
+    // 🔒 Create new AbortController for this effect run
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     // ✅ Reset do guard quando o usuário muda (ou quando currentUser chega/atualiza)
     const userId = currentUser?.id ?? null;
     if (lastUserIdRef.current !== userId) {
@@ -66,12 +79,20 @@ export default function PortalRouter() {
     hasProcessedRef.current = true;
 
     setRouterState("resolving_destination");
-    resolveDestination();
+    resolveDestination(signal);
+    
+    // 🔒 Cleanup: abort ongoing operations
+    return () => {
+      abortControllerRef.current?.abort();
+    };
     // ✅ CRÍTICO: incluir isGlobalSuperadmin para o router reagir corretamente
   }, [isLoading, isAuthenticated, currentUser, isGlobalSuperadmin, navigate]);
 
-  const resolveDestination = async () => {
+  const resolveDestination = async (signal: AbortSignal) => {
     try {
+      // 🔒 Check abort before each async operation
+      if (signal.aborted) return;
+
       // 2️⃣ Global Superadmin → /admin
       if (isGlobalSuperadmin) {
         setRouterState("redirecting");
@@ -87,6 +108,8 @@ export default function PortalRouter() {
         .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO", "COACH_PRINCIPAL"])
         .limit(1);
 
+      if (signal.aborted) return;
+
       if (rolesError) {
         console.error("[PortalRouter] Failed to fetch admin roles", rolesError);
       }
@@ -96,10 +119,12 @@ export default function PortalRouter() {
         const tenantSlug = (adminRoles[0] as any).tenants?.slug;
 
         if (tenantSlug && tenantId) {
-          await redirectToTenantAdmin(tenantId, tenantSlug);
+          await redirectToTenantAdmin(tenantId, tenantSlug, signal);
           return;
         }
       }
+
+      if (signal.aborted) return;
 
       // 4️⃣ Buscar vínculo de atleta
       const { data: athleteData, error: athleteError } = await supabase
@@ -107,6 +132,8 @@ export default function PortalRouter() {
         .select("tenant_id, tenants!inner(slug)")
         .eq("profile_id", currentUser!.id)
         .limit(1);
+
+      if (signal.aborted) return;
 
       if (athleteError) {
         console.error("[PortalRouter] Failed to fetch athlete data", athleteError);
@@ -121,6 +148,8 @@ export default function PortalRouter() {
         }
       }
 
+      if (signal.aborted) return;
+
       // 5️⃣ Buscar membership pendente
       const { data: pendingMembership, error: membershipError } = await supabase
         .from("memberships")
@@ -128,6 +157,8 @@ export default function PortalRouter() {
         .eq("applicant_profile_id", currentUser!.id)
         .order("created_at", { ascending: false })
         .limit(1);
+
+      if (signal.aborted) return;
 
       if (membershipError) {
         console.error("[PortalRouter] Failed to fetch pending membership", membershipError);
@@ -145,20 +176,27 @@ export default function PortalRouter() {
       // 6️⃣ FALLBACK: Nenhum contexto válido
       setRouterState("no_context");
     } catch (error) {
+      if (signal.aborted) return;
       console.error("[PortalRouter] Unexpected error during destination resolution", error);
       setRouterState("no_context");
     }
   };
 
-  const redirectToTenantAdmin = async (tenantId: string, tenantSlug: string) => {
+  const redirectToTenantAdmin = async (tenantId: string, tenantSlug: string, signal: AbortSignal) => {
     try {
+      if (signal.aborted) return;
+
       const { data: tenantData } = await supabase.from("tenants").select("is_active").eq("id", tenantId).maybeSingle();
+
+      if (signal.aborted) return;
 
       const { data: billingData } = await supabase
         .from("tenant_billing")
         .select("status, is_manual_override, override_reason, override_at")
         .eq("tenant_id", tenantId)
         .maybeSingle();
+
+      if (signal.aborted) return;
 
       const billingState = resolveTenantBillingState(
         billingData
@@ -177,6 +215,7 @@ export default function PortalRouter() {
       setRouterState("redirecting");
       navigate(destination, { replace: true });
     } catch (error) {
+      if (signal.aborted) return;
       console.error("[PortalRouter] Failed to resolve tenant admin destination", error);
       setRouterState("redirecting");
       navigate(`/${tenantSlug}/app`, { replace: true });

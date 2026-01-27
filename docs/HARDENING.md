@@ -1,9 +1,14 @@
 # 🔐 HARDENING.md — Security, Stability & Best Practices
 
-**Version:** 1.0.0  
+**Version:** 1.1.0 (Security Baseline Complete)  
 **Last Updated:** 2026-01-27
 
 This document describes the hardening measures implemented to ensure security, stability, and reliability of the application.
+
+**Related Documents:**
+- [Security Auth Contract](./SECURITY-AUTH-CONTRACT.md) — Auth state machine, security boundary, session lifecycle
+- [UI Governance](./UI-GOVERNANCE.md) — Component patterns and ref safety
+- [Security Baseline v1](./SECURITY-BASELINE-v1.md) — Initial security implementation
 
 ---
 
@@ -11,10 +16,11 @@ This document describes the hardening measures implemented to ensure security, s
 
 1. [Overview](#overview)
 2. [Risks Addressed](#risks-addressed)
-3. [Mandatory Patterns](#mandatory-patterns)
-4. [Utilities Reference](#utilities-reference)
-5. [Testing Guide](#testing-guide)
-6. [Pre-Merge Checklist](#pre-merge-checklist)
+3. [Auth Security Hardening](#auth-security-hardening)
+4. [Mandatory Patterns](#mandatory-patterns)
+5. [Utilities Reference](#utilities-reference)
+6. [Testing Guide](#testing-guide)
+7. [Pre-Merge Checklist](#pre-merge-checklist)
 
 ---
 
@@ -69,6 +75,44 @@ The hardening pack addresses common classes of bugs and security issues:
 | Network errors | Standardized `HttpError` class |
 
 ---
+
+## Auth Security Hardening
+
+> Full details in [SECURITY-AUTH-CONTRACT.md](./SECURITY-AUTH-CONTRACT.md)
+
+### Auth State Machine
+
+The authentication system uses a formal state machine:
+
+```
+unauthenticated → authenticating → authenticated → expired → unauthenticated
+                              ↘ error ↗
+```
+
+**Files:**
+- `src/lib/auth/auth-state-machine.ts` — State types and transitions
+- `src/lib/auth/security-boundary.ts` — Centralized security event handling
+
+### Security Boundary
+
+All security events (401, 403, session expiry) flow through a centralized boundary:
+
+| Event | Action |
+|-------|--------|
+| `SESSION_EXPIRED` | Clear session → /login |
+| `TOKEN_INVALID` | Clear session → /login |
+| `UNAUTHORIZED_REQUEST` (401) | Clear session → /login |
+| `FORBIDDEN_REQUEST` (403) | Redirect /portal (no clear) |
+
+### Portal Decision Hub
+
+`/portal` is the ONLY component that decides final destination post-login:
+
+1. Not authenticated → /login
+2. Global Superadmin → /admin
+3. Admin/Staff → /{tenant}/app
+4. Athlete → /{tenant}/portal
+5. No context → /join
 
 ## Mandatory Patterns
 
