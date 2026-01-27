@@ -72,16 +72,8 @@ export default function PortalRouter() {
 
   const resolveDestination = async () => {
     try {
-      // 🔍 DEBUG: Log state for diagnosis (remove after fix confirmed)
-      console.info("[PortalRouter] Resolving destination", {
-        userId: currentUser?.id,
-        roles: currentUser?.roles?.map(r => ({ role: r.role, tenantId: r.tenantId })),
-        isGlobalSuperadmin,
-      });
-
       // 2️⃣ Global Superadmin → /admin
       if (isGlobalSuperadmin) {
-        console.info("[PortalRouter] → Routing to /admin (Global Superadmin)");
         setRouterState("redirecting");
         navigate("/admin", { replace: true });
         return;
@@ -95,11 +87,6 @@ export default function PortalRouter() {
         .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO", "COACH_PRINCIPAL"])
         .limit(1);
 
-      console.info("[PortalRouter] Admin roles query result", {
-        adminRoles,
-        rolesError: rolesError?.message,
-      });
-
       if (rolesError) {
         console.error("[PortalRouter] Failed to fetch admin roles", rolesError);
       }
@@ -107,8 +94,6 @@ export default function PortalRouter() {
       if (adminRoles && adminRoles.length > 0) {
         const tenantId = adminRoles[0].tenant_id;
         const tenantSlug = (adminRoles[0] as any).tenants?.slug;
-
-        console.info("[PortalRouter] → Found admin role", { tenantId, tenantSlug });
 
         if (tenantSlug && tenantId) {
           await redirectToTenantAdmin(tenantId, tenantSlug);

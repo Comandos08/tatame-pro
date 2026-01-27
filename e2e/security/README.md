@@ -13,6 +13,23 @@ These tests validate the **deny-by-default** architecture, ensuring:
 - **GAP 6**: Rate limiting with fail-closed behavior
 - **GAP 7**: Log immutability and hash chain integrity
 - **GAP 8**: Security observability with tenant isolation
+- **E2E Route Protection**: All routes inventoried and tested
+- **Redirect Contract**: PortalRouter is the ONLY post-login decision point
+
+## Test Files
+
+| File | Purpose |
+|------|---------|
+| `routing.spec.ts` | Route inventory validation, guard presence checks |
+| `auth-guards.spec.ts` | Negative testing for auth guards, fail-closed behavior |
+| `deep-links.spec.ts` | Deep link attack prevention, no UI flash |
+| `redirect-contract.spec.ts` | PortalRouter contract validation, no bypass |
+| `dom-warnings.spec.ts` | Console warnings, input semantics, accessibility |
+| `security-matrix.spec.ts` | Core access scenarios matrix |
+| `governance-tests.spec.ts` | Impersonation and role governance |
+| `immutability-tests.spec.ts` | Log immutability validation |
+| `observability-tests.spec.ts` | Security timeline observability |
+| `rate-limiting.spec.ts` | Rate limit fail-closed behavior |
 
 ## Test Scenarios
 
