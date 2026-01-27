@@ -32,6 +32,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -44,17 +45,26 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
+import type { FeatureKey } from '@/lib/accessMatrix';
 
 interface AppShellProps {
   children: ReactNode;
 }
 
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  feature?: FeatureKey;
+}
+
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, signOut, isGlobalSuperadmin, hasRole } = useCurrentUser();
+  const { currentUser, signOut, isGlobalSuperadmin } = useCurrentUser();
   const { tenant } = useTenant();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const navigate = useNavigate();
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
@@ -70,26 +80,28 @@ export function AppShell({ children }: AppShellProps) {
 
   const tenantSlug = tenant?.slug || '';
   
-  // Check if user has admin roles for billing visibility
-  const hasAdminRole = tenant?.id && (
-    hasRole('ADMIN_TENANT', tenant.id) || hasRole('STAFF_ORGANIZACAO', tenant.id)
-  );
-  
-  const navigation = [
-    { name: t('nav.athleteArea'), href: `/${tenantSlug}/app/me`, icon: UserCircle },
-    { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home },
-    { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users },
-    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: UserCheck },
-    { name: t('nav.academies'), href: `/${tenantSlug}/app/academies`, icon: Building2 },
-    { name: t('nav.coaches'), href: `/${tenantSlug}/app/coaches`, icon: Award },
-    { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award },
-    { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings },
-    { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy },
-    { name: t('nav.events' as any) || 'Eventos', href: `/${tenantSlug}/app/events`, icon: Calendar },
-    { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText },
-    ...(hasAdminRole || isGlobalSuperadmin ? [{ name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard }] : []),
-    { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings },
+  // 🔐 Navigation items with feature-based access control
+  const allNavigation: NavItem[] = [
+    { name: t('nav.athleteArea'), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: 'TENANT_MY_AREA' },
+    { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home, feature: 'TENANT_APP' },
+    { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: 'TENANT_ATHLETES' },
+    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: UserCheck, feature: 'TENANT_MEMBERSHIPS' },
+    { name: t('nav.academies'), href: `/${tenantSlug}/app/academies`, icon: Building2, feature: 'TENANT_ACADEMIES' },
+    { name: t('nav.coaches'), href: `/${tenantSlug}/app/coaches`, icon: Award, feature: 'TENANT_COACHES' },
+    { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award, feature: 'TENANT_GRADINGS' },
+    { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings, feature: 'TENANT_APPROVALS' },
+    { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy, feature: 'TENANT_RANKINGS' },
+    { name: t('nav.events' as any) || 'Eventos', href: `/${tenantSlug}/app/events`, icon: Calendar, feature: 'TENANT_EVENTS' },
+    { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText, feature: 'TENANT_AUDIT_LOG' },
+    { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard, feature: 'TENANT_BILLING' },
+    { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings, feature: 'TENANT_SETTINGS' },
   ];
+  
+  // 🔐 Filter navigation based on permissions (UX only - guards still enforce)
+  const navigation = allNavigation.filter(item => {
+    if (!item.feature) return true;
+    return can(item.feature);
+  });
 
   const languages: { code: Locale; label: string }[] = [
     { code: 'pt-BR', label: t('language.ptBR') },

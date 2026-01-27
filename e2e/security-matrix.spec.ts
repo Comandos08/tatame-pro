@@ -516,3 +516,134 @@ test.describe('📋 Acceptance Criteria Validation', () => {
   });
   
 });
+
+test.describe('🔐 Role-Based Access Control Tests', () => {
+  
+  test('R.1: Athlete CANNOT access /{tenant}/app/* routes', async ({ page }) => {
+    await loginAsApprovedAthlete(page);
+    
+    // Try various app routes - all should redirect to /portal
+    const appRoutes = [
+      `/${TEST_TENANT_SLUG}/app`,
+      `/${TEST_TENANT_SLUG}/app/memberships`,
+      `/${TEST_TENANT_SLUG}/app/athletes`,
+      `/${TEST_TENANT_SLUG}/app/approvals`,
+      `/${TEST_TENANT_SLUG}/app/settings`,
+      `/${TEST_TENANT_SLUG}/app/billing`,
+    ];
+    
+    for (const route of appRoutes) {
+      await page.goto(route);
+      const finalUrl = await waitForStableUrl(page);
+      
+      // Should NOT be on any /app route
+      expect(finalUrl).toContain('/portal');
+      expect(finalUrl).not.toMatch(/\/app(\/|$)/);
+    }
+  });
+  
+  test('R.2: Tenant admin CAN access /{tenant}/app/* routes', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+    
+    const appRoutes = [
+      `/${TEST_TENANT_SLUG}/app`,
+      `/${TEST_TENANT_SLUG}/app/memberships`,
+      `/${TEST_TENANT_SLUG}/app/athletes`,
+      `/${TEST_TENANT_SLUG}/app/approvals`,
+      `/${TEST_TENANT_SLUG}/app/settings`,
+    ];
+    
+    for (const route of appRoutes) {
+      await page.goto(route);
+      const finalUrl = await waitForStableUrl(page);
+      
+      // Should stay on /app routes (or sub-routes)
+      expect(finalUrl).toContain('/app');
+      expect(await hasVisibleContent(page)).toBe(true);
+    }
+  });
+  
+  test('R.3: Tenant admin CANNOT access /admin routes', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+    
+    await page.goto('/admin');
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should redirect to /portal -> their tenant app
+    expect(finalUrl).not.toContain('/admin');
+    expect(finalUrl).toContain(`/${TEST_TENANT_SLUG}`);
+  });
+  
+  test('R.4: Superadmin CAN access /admin routes', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    
+    await page.goto('/admin');
+    const finalUrl = await waitForStableUrl(page);
+    
+    expect(finalUrl).toContain('/admin');
+    expect(await hasVisibleContent(page)).toBe(true);
+  });
+  
+  test('R.5: User without tenant roles redirects to /portal', async ({ page }) => {
+    await loginAsNoContext(page);
+    
+    // Try to access a protected route
+    await page.goto(`/${TEST_TENANT_SLUG}/app`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should redirect to /portal (user has no roles in this tenant)
+    expect(finalUrl).toContain('/portal');
+  });
+  
+  test('R.6: Approvals route requires specific roles', async ({ page }) => {
+    // Athlete should NOT access approvals
+    await loginAsApprovedAthlete(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/approvals`);
+    const athleteUrl = await waitForStableUrl(page);
+    
+    expect(athleteUrl).not.toMatch(/\/app\/approvals/);
+    
+    // Admin should access approvals
+    await clearAuthSession(page);
+    await loginAsTenantAdmin(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/approvals`);
+    const adminUrl = await waitForStableUrl(page);
+    
+    expect(adminUrl).toContain('/app');
+    expect(await hasVisibleContent(page)).toBe(true);
+  });
+  
+  test('R.7: Billing route requires admin role', async ({ page }) => {
+    // Athlete should NOT access billing
+    await loginAsApprovedAthlete(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/billing`);
+    const athleteUrl = await waitForStableUrl(page);
+    
+    expect(athleteUrl).not.toMatch(/\/app\/billing/);
+    
+    // Admin should access billing
+    await clearAuthSession(page);
+    await loginAsTenantAdmin(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/billing`);
+    const adminUrl = await waitForStableUrl(page);
+    
+    expect(adminUrl).toContain('/app');
+    expect(await hasVisibleContent(page)).toBe(true);
+  });
+  
+  test('R.8: Deny by default - unknown routes redirect appropriately', async ({ page }) => {
+    await loginAsApprovedAthlete(page);
+    
+    // Access a non-existent app route
+    await page.goto(`/${TEST_TENANT_SLUG}/app/unknown-route`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should redirect to portal (athlete has no app access)
+    expect(finalUrl).toContain('/portal');
+  });
+  
+});
