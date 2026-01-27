@@ -10,6 +10,7 @@ export const es: Record<string, string> = {
   'nav.settings': 'Configuración',
   'nav.help': 'Ayuda',
   'nav.auditLog': 'Auditoría',
+  'nav.security': 'Seguridad',
   'nav.accessPortal': 'Acceder al Portal',
   'nav.createAccount': 'Crear Cuenta',
   'nav.myAccount': 'Mi Cuenta',
@@ -1461,4 +1462,16 @@ export const es: Record<string, string> = {
   'roles.cannotRemoveLast': 'No se puede eliminar el último rol. El usuario quedaría huérfano.',
   'roles.forceRemoveAll': 'Forzar eliminación de todos los roles',
   'roles.forceRemoveWarning': 'Esto terminará la membresía del usuario en esta organización.',
+
+  // Security Timeline
+  'security.title': 'Seguridad',
+  'security.description': 'Monitorear decisiones y eventos de seguridad',
+  'security.searchOperation': 'Buscar por operación...',
+  'security.severity': 'Severidad',
+  'security.source': 'Fuente',
+  'security.decisions': 'Decisiones',
+  'security.events': 'Eventos',
+  'security.recentActivity': 'Actividad Reciente',
+  'security.eventsFound': 'eventos encontrados',
+  'security.noEvents': 'No se encontraron eventos de seguridad',
 };

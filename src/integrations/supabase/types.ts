@@ -2094,6 +2094,23 @@ export type Database = {
         }
         Relationships: []
       }
+      security_timeline: {
+        Row: {
+          created_at: string | null
+          event_type: string | null
+          id: string | null
+          ip_address: string | null
+          metadata: Json | null
+          operation: string | null
+          reason_code: string | null
+          severity: string | null
+          source: string | null
+          tenant_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       athlete_has_active_membership: {
@@ -2112,6 +2129,19 @@ export type Database = {
         Args: { _coach_id: string }
         Returns: boolean
       }
+      explain_security_decision: {
+        Args: { p_decision_id: string }
+        Returns: {
+          created_at: string
+          decision_type: string
+          explanation: string
+          id: string
+          metadata: Json
+          operation: string
+          reason_code: string
+          severity: string
+        }[]
+      }
       find_memberships_by_tmp_storage_path: {
         Args: { p_storage_path: string }
         Returns: {
@@ -2122,6 +2152,32 @@ export type Database = {
       get_next_diploma_serial: {
         Args: { p_sport_type: string; p_tenant_id: string }
         Returns: string
+      }
+      get_security_timeline: {
+        Args: {
+          p_from_date?: string
+          p_limit?: number
+          p_offset?: number
+          p_operation?: string
+          p_severity?: string
+          p_source?: string
+          p_tenant_id?: string
+          p_to_date?: string
+        }
+        Returns: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: string
+          metadata: Json
+          operation: string
+          reason_code: string
+          severity: string
+          source: string
+          tenant_id: string
+          user_agent: string
+          user_id: string
+        }[]
       }
       get_user_tenant_id: { Args: never; Returns: string }
       has_role: {

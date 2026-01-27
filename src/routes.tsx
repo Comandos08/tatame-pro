@@ -32,6 +32,7 @@ import NotFound from '@/pages/NotFound';
 import Help from '@/pages/Help';
 import TenantHelp from '@/pages/TenantHelp';
 import AuditLog from '@/pages/AuditLog';
+import SecurityTimeline from '@/pages/SecurityTimeline';
 import PublicAcademies from '@/pages/PublicAcademies';
 import PublicRankings from '@/pages/PublicRankings';
 import InternalRankings from '@/pages/InternalRankings';
@@ -283,6 +284,13 @@ export function AppRoutes() {
         <Route path="app/audit-log" element={
           <RequireRoles allowed={ACCESS_MATRIX.TENANT_AUDIT_LOG}>
             <AuditLog />
+          </RequireRoles>
+        } />
+        
+        {/* 🔐 SENSITIVE: Security timeline - admin only */}
+        <Route path="app/security" element={
+          <RequireRoles allowed={ACCESS_MATRIX.TENANT_SECURITY}>
+            <SecurityTimeline />
           </RequireRoles>
         } />
         

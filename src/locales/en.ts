@@ -10,6 +10,7 @@ export const en: Record<string, string> = {
   'nav.settings': 'Settings',
   'nav.help': 'Help',
   'nav.auditLog': 'Audit Log',
+  'nav.security': 'Security',
   'nav.accessPortal': 'Access Portal',
   'nav.createAccount': 'Create Account',
   'nav.myAccount': 'My Account',
@@ -1461,4 +1462,16 @@ export const en: Record<string, string> = {
   'roles.cannotRemoveLast': 'Cannot remove last role. User would become orphaned.',
   'roles.forceRemoveAll': 'Force remove all roles',
   'roles.forceRemoveWarning': 'This will end the user\'s membership in this organization.',
+
+  // Security Timeline
+  'security.title': 'Security',
+  'security.description': 'Monitor security decisions and events',
+  'security.searchOperation': 'Search by operation...',
+  'security.severity': 'Severity',
+  'security.source': 'Source',
+  'security.decisions': 'Decisions',
+  'security.events': 'Events',
+  'security.recentActivity': 'Recent Activity',
+  'security.eventsFound': 'events found',
+  'security.noEvents': 'No security events found',
 };

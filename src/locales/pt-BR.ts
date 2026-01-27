@@ -10,6 +10,7 @@ export const ptBR = {
   'nav.settings': 'Configurações',
   'nav.help': 'Ajuda',
   'nav.auditLog': 'Auditoria',
+  'nav.security': 'Segurança',
   'nav.accessPortal': 'Acessar Portal',
   'nav.createAccount': 'Criar Conta',
   'nav.myAccount': 'Minha Conta',
@@ -1445,6 +1446,18 @@ export const ptBR = {
   'onboarding.completeSetup': 'Finalizar Configuração',
   'onboarding.completedSuccess': 'Configuração concluída!',
   'onboarding.completedError': 'Erro ao finalizar configuração.',
+
+  // Security Timeline
+  'security.title': 'Segurança',
+  'security.description': 'Monitore decisões e eventos de segurança',
+  'security.searchOperation': 'Buscar por operação...',
+  'security.severity': 'Severidade',
+  'security.source': 'Fonte',
+  'security.decisions': 'Decisões',
+  'security.events': 'Eventos',
+  'security.recentActivity': 'Atividade Recente',
+  'security.eventsFound': 'eventos encontrados',
+  'security.noEvents': 'Nenhum evento de segurança encontrado',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
