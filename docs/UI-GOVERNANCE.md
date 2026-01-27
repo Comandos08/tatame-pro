@@ -1,6 +1,6 @@
 # UI GOVERNANCE — TATAME PRO
 
-## Version: 1.0.0
+## Version: 1.1.0
 ## Last Updated: 2026-01-27
 
 ---
@@ -14,20 +14,99 @@ All engineers MUST follow these rules. No exceptions.
 
 ## 📋 TABLE OF CONTENTS
 
-1. [Button & Action Standards](#1-button--action-standards)
-2. [Form Semantics](#2-form-semantics)
-3. [Dropdown & Menu Standards](#3-dropdown--menu-standards)
-4. [Visibility Contract](#4-visibility-contract)
-5. [Icon Standards](#5-icon-standards)
-6. [Accessibility Requirements](#6-accessibility-requirements)
-7. [Color & Token Usage](#7-color--token-usage)
-8. [Component Patterns](#8-component-patterns)
-9. [Anti-Patterns (DO NOT DO)](#9-anti-patterns-do-not-do)
-10. [Testing Checklist](#10-testing-checklist)
+1. [Ref Safety Contract](#1-ref-safety-contract)
+2. [Button & Action Standards](#2-button--action-standards)
+3. [Form Semantics](#3-form-semantics)
+4. [Dropdown & Menu Standards](#4-dropdown--menu-standards)
+5. [Visibility Contract](#5-visibility-contract)
+6. [Icon Standards](#6-icon-standards)
+7. [Accessibility Requirements](#7-accessibility-requirements)
+8. [Color & Token Usage](#8-color--token-usage)
+9. [Component Patterns](#9-component-patterns)
+10. [Anti-Patterns (DO NOT DO)](#10-anti-patterns-do-not-do)
+11. [Testing Checklist](#11-testing-checklist)
 
 ---
 
-## 1. BUTTON & ACTION STANDARDS
+## 1. REF SAFETY CONTRACT
+
+### CRITICAL: ForwardRef Requirements
+
+**Any component used with `asChild` MUST be a `forwardRef` component.**
+
+This is a zero-tolerance policy. The warning "Function components cannot be given refs" 
+indicates a violation that MUST be fixed immediately.
+
+### ✅ DO
+
+```tsx
+// Correct: forwardRef with displayName
+const MyButton = React.forwardRef<HTMLButtonElement, Props>((props, ref) => (
+  <button ref={ref} {...props} />
+));
+MyButton.displayName = 'MyButton';
+
+// Correct: Using with asChild
+<DropdownMenuTrigger asChild>
+  <MyButton>Click</MyButton>
+</DropdownMenuTrigger>
+
+// Correct: Using built-in components (Button, Link) that already forwardRef
+<DialogTrigger asChild>
+  <Button variant="outline">Open</Button>
+</DialogTrigger>
+```
+
+### ❌ DON'T
+
+```tsx
+// BANNED: Function component without forwardRef used with asChild
+const BadButton = (props) => <button {...props} />;
+
+<DropdownMenuTrigger asChild>
+  <BadButton /> // ❌ WILL CAUSE REF WARNING
+</DropdownMenuTrigger>
+
+// BANNED: forwardRef without displayName
+const AnonComponent = React.forwardRef((props, ref) => <div ref={ref} />);
+// ❌ Missing displayName - DevTools will show "ForwardRef"
+```
+
+### Root Cause Analysis
+
+Ref warnings occur when:
+1. A component receives a `ref` prop but doesn't forward it
+2. Radix `asChild` pattern merges props including `ref` onto child
+3. Child is a function component without `forwardRef`
+
+### Valid Patterns for asChild
+
+| Component | Safe with asChild? | Notes |
+|-----------|-------------------|-------|
+| `<Button>` | ✅ Yes | shadcn Button uses forwardRef |
+| `<Link>` | ✅ Yes | react-router-dom Link forwards ref |
+| `<a>` | ✅ Yes | Native HTML element |
+| `<button>` | ✅ Yes | Native HTML element |
+| Custom component | ⚠️ Only if forwardRef | Must verify implementation |
+
+### Debugging Ref Warnings
+
+If you see the warning, add this temporarily to find the source:
+
+```typescript
+// TEMPORARY DEBUG - REMOVE BEFORE COMMIT
+const originalError = console.error;
+console.error = (...args) => {
+  if (args[0]?.includes?.('cannot be given refs')) {
+    console.log('REF WARNING SOURCE:', new Error().stack);
+  }
+  originalError.apply(console, args);
+};
+```
+
+---
+
+## 2. BUTTON & ACTION STANDARDS
 
 ### ✅ DO
 
@@ -68,7 +147,7 @@ const MyButton = (props) => <button {...props} />;
 
 ---
 
-## 2. FORM SEMANTICS
+## 3. FORM SEMANTICS
 
 ### ✅ DO
 
@@ -110,7 +189,7 @@ const MyButton = (props) => <button {...props} />;
 
 ---
 
-## 3. DROPDOWN & MENU STANDARDS
+## 4. DROPDOWN & MENU STANDARDS
 
 ### ✅ DO
 
@@ -128,6 +207,27 @@ const MyButton = (props) => <button {...props} />;
 </DropdownMenu>
 ```
 
+### Technical Implementation
+
+The `DropdownMenuContent` component wraps Radix's Portal internally:
+
+```tsx
+const DropdownMenuContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Content
+      ref={ref}  // ref goes to Content, NOT Portal
+      sideOffset={sideOffset}
+      className={cn("z-50 bg-popover ...", className)}
+      {...props}
+    />
+  </DropdownMenuPrimitive.Portal>
+));
+DropdownMenuContent.displayName = "DropdownMenuContent";
+```
+
 ### ❌ DON'T
 
 ```tsx
@@ -135,11 +235,14 @@ const MyButton = (props) => <button {...props} />;
 <DropdownMenuTrigger asChild>
   <CustomButton /> // ❌ Will cause ref warning
 </DropdownMenuTrigger>
+
+// NEVER pass ref to Portal (it doesn't accept one)
+<DropdownMenuPrimitive.Portal ref={ref}> // ❌ WRONG
 ```
 
 ---
 
-## 4. VISIBILITY CONTRACT
+## 5. VISIBILITY CONTRACT
 
 ### RULE: All interactive elements MUST be visible without hover
 
@@ -181,7 +284,7 @@ button { pointer-events: none; }
 
 ---
 
-## 5. ICON STANDARDS
+## 6. ICON STANDARDS
 
 ### ✅ DO
 
@@ -212,7 +315,7 @@ button { pointer-events: none; }
 
 ---
 
-## 6. ACCESSIBILITY REQUIREMENTS
+## 7. ACCESSIBILITY REQUIREMENTS
 
 ### Mandatory Attributes
 
@@ -241,7 +344,7 @@ button { pointer-events: none; }
 
 ---
 
-## 7. COLOR & TOKEN USAGE
+## 8. COLOR & TOKEN USAGE
 
 ### ✅ DO — Use Semantic Tokens
 
@@ -280,7 +383,7 @@ button { pointer-events: none; }
 
 ---
 
-## 8. COMPONENT PATTERNS
+## 9. COMPONENT PATTERNS
 
 ### ForwardRef Template
 
@@ -325,7 +428,7 @@ useEffect(() => {
 
 ---
 
-## 9. ANTI-PATTERNS (DO NOT DO)
+## 10. ANTI-PATTERNS (DO NOT DO)
 
 ### ❌ BANNED PATTERNS
 
@@ -342,7 +445,7 @@ useEffect(() => {
 
 ---
 
-## 10. TESTING CHECKLIST
+## 11. TESTING CHECKLIST
 
 ### Before Every PR
 
@@ -356,16 +459,28 @@ useEffect(() => {
 - [ ] Keyboard navigation works
 - [ ] No `opacity-0` on interactive elements
 - [ ] forwardRef components have displayName
+- [ ] Components used with `asChild` are forwardRef
 
 ### E2E Tests to Run
 
 ```bash
+# Console warning detection (CRITICAL)
+bun run test:e2e e2e/ui/console-warnings.spec.ts
+
 # Security/routing tests
 bun run test:e2e e2e/security/
 
 # UI governance tests
 bun run test:e2e e2e/ui/
 ```
+
+### Automated Checks
+
+The following E2E tests enforce governance:
+- `e2e/ui/console-warnings.spec.ts` - Zero ref/hydration warnings
+- `e2e/ui/dropdown-ref.spec.ts` - Dropdown integrity
+- `e2e/ui/actions-visibility.spec.ts` - Visibility contract
+- `e2e/ui/icon-buttons.spec.ts` - Icon button standards
 
 ---
 
