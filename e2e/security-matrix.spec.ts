@@ -647,3 +647,94 @@ test.describe('🔐 Role-Based Access Control Tests', () => {
   });
   
 });
+
+test.describe('🏗️ Tenant Onboarding Access Control', () => {
+  
+  test('O.1: Tenant admin can access onboarding route', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/onboarding`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should either be on onboarding or redirect to app (if already complete)
+    expect(await hasVisibleContent(page)).toBe(true);
+    // Should stay within the tenant's app area
+    expect(finalUrl).toContain(`/${TEST_TENANT_SLUG}`);
+  });
+  
+  test('O.2: Athlete CANNOT access onboarding route', async ({ page }) => {
+    await loginAsApprovedAthlete(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/onboarding`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Athletes should be redirected away from /app/onboarding
+    expect(finalUrl).not.toMatch(/\/app\/onboarding/);
+    expect(finalUrl).toContain('/portal');
+  });
+  
+  test('O.3: User without context cannot access onboarding', async ({ page }) => {
+    await loginAsNoContext(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/onboarding`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should be redirected to /portal or /join
+    expect(finalUrl).not.toContain('/app/onboarding');
+  });
+  
+  test('O.4: Onboarding page shows wizard content for admin', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+    
+    await page.goto(`/${TEST_TENANT_SLUG}/app/onboarding`);
+    await page.waitForLoadState('networkidle');
+    
+    // Check for wizard elements
+    const body = page.locator('body');
+    const content = await body.textContent();
+    
+    // Should have meaningful content (checklist, steps, etc)
+    expect(content?.trim().length).toBeGreaterThan(50);
+    expect(await hasVisibleContent(page)).toBe(true);
+  });
+  
+});
+
+test.describe('🔄 Join Wizard (Anti-Orphan) Tests', () => {
+  
+  test('J.1: Orphan user is redirected towards join flow', async ({ page }) => {
+    await loginAsNoContext(page);
+    
+    // User should not be able to access app directly
+    await page.goto(`/${TEST_TENANT_SLUG}/app`);
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should not stay on /app
+    expect(finalUrl).not.toMatch(/\/app(\/|$)/);
+    expect(await hasVisibleContent(page)).toBe(true);
+  });
+  
+  test('J.2: Join flow pages are accessible', async ({ page }) => {
+    // Join pages should be accessible without special auth
+    const joinPages = ['/join', '/join/org'];
+    
+    for (const joinPage of joinPages) {
+      await page.goto(joinPage);
+      await page.waitForLoadState('networkidle');
+      
+      expect(await hasVisibleContent(page)).toBe(true);
+    }
+  });
+  
+  test('J.3: Authenticated user with context should NOT see join', async ({ page }) => {
+    await loginAsApprovedAthlete(page);
+    
+    // Athlete has context - should redirect to their portal
+    await page.goto('/join');
+    const finalUrl = await waitForStableUrl(page);
+    
+    // Should redirect away from join (athlete already has context)
+    expect(finalUrl).toContain('/portal');
+  });
+  
+});
