@@ -5,10 +5,11 @@
  *
  * REGRAS IMUTÁVEIS (veja docs/SECURITY-AUTH-CONTRACT.md):
  * 1. Usuário não autenticado → /login
- * 2. Global Superadmin → /admin
- * 3. Admin/Staff de tenant → resolver billing → /{tenant}/app
- * 4. Atleta comum → /{tenant}/portal
- * 5. Fallback → exibir estado neutro (nunca loop)
+ * 2. Wizard não completo → /identity/wizard (BLOCKING)
+ * 3. Global Superadmin → /admin
+ * 4. Admin/Staff de tenant → resolver billing → /{tenant}/app
+ * 5. Atleta comum → /{tenant}/portal
+ * 6. Fallback → /identity/wizard (force wizard)
  *
  * SECURITY PATTERNS:
  * - AbortController for all async operations
@@ -24,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
 
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { useIdentity } from "@/contexts/IdentityContext";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveTenantBillingState } from "@/lib/billing";
 import { resolveAdminPostLoginRedirect } from "@/lib/resolveAdminPostLoginRedirect";
@@ -32,13 +34,14 @@ import { useI18n } from "@/contexts/I18nContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-type RouterState = "loading" | "not_authenticated" | "resolving_destination" | "redirecting" | "no_context";
+type RouterState = "loading" | "not_authenticated" | "wizard_required" | "resolving_destination" | "redirecting" | "no_context";
 
 export default function PortalRouter() {
   const navigate = useNavigate();
   const { t } = useI18n();
 
   const { currentUser, isAuthenticated, isLoading, isGlobalSuperadmin, signOut } = useCurrentUser();
+  const { identityState, wizardCompleted } = useIdentity();
 
   // 🔒 Guard de execução única (React 18 / StrictMode safe)
   const hasProcessedRef = useRef(false);
@@ -61,8 +64,8 @@ export default function PortalRouter() {
       hasProcessedRef.current = false;
     }
 
-    // Aguardar carregamento inicial do AuthContext
-    if (isLoading) {
+    // Aguardar carregamento inicial do AuthContext e IdentityContext
+    if (isLoading || identityState === 'loading') {
       setRouterState("loading");
       return;
     }
@@ -71,6 +74,13 @@ export default function PortalRouter() {
     if (!isAuthenticated || !currentUser) {
       setRouterState("not_authenticated");
       navigate("/login", { replace: true });
+      return;
+    }
+
+    // 2️⃣ Wizard NÃO completo → /identity/wizard (BLOCKING)
+    if (identityState === 'wizard_required' || (!wizardCompleted && identityState !== 'superadmin')) {
+      setRouterState("wizard_required");
+      navigate("/identity/wizard", { replace: true });
       return;
     }
 
@@ -85,8 +95,8 @@ export default function PortalRouter() {
     return () => {
       abortControllerRef.current?.abort();
     };
-    // ✅ CRÍTICO: incluir isGlobalSuperadmin para o router reagir corretamente
-  }, [isLoading, isAuthenticated, currentUser, isGlobalSuperadmin, navigate]);
+    // ✅ CRÍTICO: incluir identityState e wizardCompleted para reagir corretamente
+  }, [isLoading, isAuthenticated, currentUser, isGlobalSuperadmin, identityState, wizardCompleted, navigate]);
 
   const resolveDestination = async (signal: AbortSignal) => {
     try {
@@ -173,12 +183,15 @@ export default function PortalRouter() {
         }
       }
 
-      // 6️⃣ FALLBACK: Nenhum contexto válido
+      // 6️⃣ FALLBACK: Nenhum contexto válido → force wizard
       setRouterState("no_context");
+      // Instead of showing no_context screen, force wizard
+      navigate("/identity/wizard", { replace: true });
     } catch (error) {
       if (signal.aborted) return;
       console.error("[PortalRouter] Unexpected error during destination resolution", error);
       setRouterState("no_context");
+      navigate("/identity/wizard", { replace: true });
     }
   };
 
@@ -232,7 +245,7 @@ export default function PortalRouter() {
   };
 
   // ===== RENDER =====
-  if (routerState === "loading" || routerState === "resolving_destination" || routerState === "redirecting") {
+  if (routerState === "loading" || routerState === "resolving_destination" || routerState === "redirecting" || routerState === "wizard_required") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -241,35 +254,22 @@ export default function PortalRouter() {
             {routerState === "loading" && t("common.loading")}
             {routerState === "resolving_destination" && t("portal.resolvingDestination")}
             {routerState === "redirecting" && t("portal.redirecting")}
+            {routerState === "wizard_required" && t("portal.redirecting")}
           </p>
         </div>
       </div>
     );
   }
 
+  // 🔒 no_context should never be rendered - always redirect to wizard
+  // This is a fallback in case the navigate() in resolveDestination didn't work
   if (routerState === "no_context") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle>{t("portal.noContextTitle")}</CardTitle>
-            <CardDescription>{t("join.noContextCtaDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Button onClick={() => navigate("/join", { replace: true })} className="w-full">
-              {t("join.noContextCta")}
-            </Button>
-            <Button onClick={handleGoHome} variant="outline" className="w-full">
-              {t("common.goToHome")}
-            </Button>
-            <Button onClick={handleLogout} variant="ghost" className="w-full">
-              {t("auth.logout")}
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">{t("portal.redirecting")}</p>
+        </div>
       </div>
     );
   }

@@ -1516,6 +1516,7 @@ export type Database = {
           name: string | null
           tenant_id: string | null
           updated_at: string | null
+          wizard_completed: boolean | null
         }
         Insert: {
           avatar_url?: string | null
@@ -1525,6 +1526,7 @@ export type Database = {
           name?: string | null
           tenant_id?: string | null
           updated_at?: string | null
+          wizard_completed?: boolean | null
         }
         Update: {
           avatar_url?: string | null
@@ -1534,6 +1536,7 @@ export type Database = {
           name?: string | null
           tenant_id?: string | null
           updated_at?: string | null
+          wizard_completed?: boolean | null
         }
         Relationships: [
           {
@@ -2203,6 +2206,11 @@ export type Database = {
         Args: { _tenant_id: string }
         Returns: boolean
       }
+      user_has_completed_wizard: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      user_has_tenant_context: { Args: { _user_id: string }; Returns: boolean }
       verify_decision_log_chain: {
         Args: { p_tenant_id: string }
         Returns: {

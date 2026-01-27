@@ -34,7 +34,9 @@ export default function Login() {
           title: t("auth.accountCreated"),
           description: t("auth.accountCreatedDesc"),
         });
-        setIsSignUp(false);
+        // 🔒 After signup, navigate to /portal which will redirect to wizard
+        // because wizard_completed = FALSE for new users
+        navigate("/portal", { replace: true });
       } else {
         await signIn(email, password);
         toast({
