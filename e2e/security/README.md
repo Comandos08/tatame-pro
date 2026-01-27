@@ -12,6 +12,7 @@ These tests validate the **deny-by-default** architecture, ensuring:
 - Direct API bypass attempts are blocked
 - **GAP 6**: Rate limiting with fail-closed behavior
 - **GAP 7**: Log immutability and hash chain integrity
+- **GAP 8**: Security observability with tenant isolation
 
 ## Test Scenarios
 

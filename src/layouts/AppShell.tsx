@@ -22,7 +22,8 @@ import {
   UserCircle,
   Check,
   UserCheck,
-  Calendar
+  Calendar,
+  Shield
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
@@ -93,6 +94,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy, feature: 'TENANT_RANKINGS' },
     { name: t('nav.events' as any) || 'Eventos', href: `/${tenantSlug}/app/events`, icon: Calendar, feature: 'TENANT_EVENTS' },
     { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText, feature: 'TENANT_AUDIT_LOG' },
+    { name: t('nav.security' as any) || 'Segurança', href: `/${tenantSlug}/app/security`, icon: Shield, feature: 'TENANT_SECURITY' },
     { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard, feature: 'TENANT_BILLING' },
     { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings, feature: 'TENANT_SETTINGS' },
   ];

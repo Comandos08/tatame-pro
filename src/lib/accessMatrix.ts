@@ -30,6 +30,7 @@ export type FeatureKey =
   | 'TENANT_RANKINGS'         // /{tenantSlug}/app/rankings
   | 'TENANT_EVENTS'           // /{tenantSlug}/app/events
   | 'TENANT_AUDIT_LOG'        // /{tenantSlug}/app/audit-log
+  | 'TENANT_SECURITY'         // /{tenantSlug}/app/security (admin only!)
   | 'TENANT_SETTINGS'         // /{tenantSlug}/app/settings
   | 'TENANT_BILLING'          // /{tenantSlug}/app/billing (admin only!)
   | 'TENANT_MY_AREA'          // /{tenantSlug}/app/me
@@ -126,6 +127,11 @@ export const ACCESS_MATRIX: Record<FeatureKey, AppRole[]> = {
     'STAFF_ORGANIZACAO',
   ],
 
+  // 🔐 SENSITIVE: Security timeline - admin only
+  TENANT_SECURITY: [
+    'ADMIN_TENANT',
+  ],
+
   TENANT_SETTINGS: [
     'ADMIN_TENANT',
     'STAFF_ORGANIZACAO',
@@ -209,6 +215,7 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   'app/rankings': 'TENANT_RANKINGS',
   'app/events': 'TENANT_EVENTS',
   'app/audit-log': 'TENANT_AUDIT_LOG',
+  'app/security': 'TENANT_SECURITY',
   'app/settings': 'TENANT_SETTINGS',
   'app/billing': 'TENANT_BILLING',
   'app/me': 'TENANT_MY_AREA',
