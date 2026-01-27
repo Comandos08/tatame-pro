@@ -1,11 +1,24 @@
+/**
+ * 🔐 Create Membership Checkout Edge Function
+ * 
+ * Public endpoint for Stripe checkout with:
+ * - Rate limiting (10/hour per IP, 3/10min per membership)
+ * - Mandatory decision logging for all rate limit blocks
+ * - Fail-closed behavior (if logging fails, operation fails)
+ * - CAPTCHA validation (Cloudflare Turnstile)
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const OPERATION_NAME = "create-membership-checkout";
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
@@ -22,6 +35,8 @@ interface RateLimitResult {
   remaining: number;
   reset: number;
   count: number;
+  limit: number;
+  windowSeconds: number;
 }
 
 async function checkRateLimit(
@@ -33,9 +48,17 @@ async function checkRateLimit(
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
+  // FAIL-CLOSED: If Redis is not configured, block request
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured, allowing request");
-    return { success: true, remaining: limit, reset: Date.now() + windowSeconds * 1000, count: 0 };
+    logStep("Rate limiting not configured - BLOCKING request (fail-closed)");
+    return { 
+      success: false, 
+      remaining: 0, 
+      reset: Date.now() + windowSeconds * 1000, 
+      count: -1,
+      limit,
+      windowSeconds,
+    };
   }
 
   const key = `ratelimit:${prefix}:${identifier}`;
@@ -60,8 +83,15 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error, allowing request");
-      return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+      logStep("Redis error - BLOCKING request (fail-closed)");
+      return { 
+        success: false, 
+        remaining: 0, 
+        reset: now + windowSeconds * 1000, 
+        count: -1,
+        limit,
+        windowSeconds,
+      };
     }
 
     const results = await response.json();
@@ -70,10 +100,17 @@ async function checkRateLimit(
     const success = count <= limit;
 
     logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
-    return { success, remaining, reset: now + windowSeconds * 1000, count };
+    return { success, remaining, reset: now + windowSeconds * 1000, count, limit, windowSeconds };
   } catch (error) {
-    logStep("Rate limit error, allowing request", { error: String(error) });
-    return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+    logStep("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
+    return { 
+      success: false, 
+      remaining: 0, 
+      reset: now + windowSeconds * 1000, 
+      count: -1,
+      limit,
+      windowSeconds,
+    };
   }
 }
 
@@ -119,7 +156,7 @@ async function validateCaptcha(token: string | null | undefined, clientIP: strin
 
     if (!response.ok) {
       logStep("Turnstile API error");
-      return { success: true }; // Fail-open
+      return { success: true }; // Fail-open for CAPTCHA only
     }
 
     const result = await response.json();
@@ -132,7 +169,7 @@ async function validateCaptcha(token: string | null | undefined, clientIP: strin
     return { success: true };
   } catch (error) {
     logStep("CAPTCHA error", { error: String(error) });
-    return { success: true }; // Fail-open
+    return { success: true }; // Fail-open for CAPTCHA only
   }
 }
 
@@ -144,10 +181,40 @@ interface MembershipCheckoutRequest {
   captchaToken?: string;
 }
 
+/**
+ * Generic error response for fail-closed scenarios
+ */
+function genericErrorResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Operation not permitted" }),
+    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+/**
+ * Rate limit response (after successful logging)
+ */
+function rateLimitResponse(): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: "Too many requests" }),
+    { 
+      status: 429, 
+      headers: { 
+        ...corsHeaders, 
+        "Content-Type": "application/json",
+      } 
+    }
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const clientIP = getClientIP(req);
@@ -156,31 +223,40 @@ serve(async (req) => {
     const ipRateLimit = await checkRateLimit(clientIP, "checkout-ip", 10, 3600);
     if (!ipRateLimit.success) {
       logStep("Rate limited by IP", { ip: clientIP });
-      return new Response(
-        JSON.stringify({ 
-          error: "Muitas tentativas de pagamento. Aguarde alguns minutos.",
-          retryAfter: Math.ceil((ipRateLimit.reset - Date.now()) / 1000)
-        }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
-            "Content-Type": "application/json",
-            "Retry-After": Math.ceil((ipRateLimit.reset - Date.now()) / 1000).toString()
-          } 
-        }
-      );
+      
+      // MANDATORY: Log decision BEFORE returning 429
+      const logId = await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
+        severity: "MEDIUM",
+        operation: OPERATION_NAME,
+        user_id: null,
+        tenant_id: null,
+        reason_code: "RATE_LIMIT_EXCEEDED",
+        metadata: {
+          ip_address: clientIP,
+          identifier: clientIP,
+          identifier_type: "ip",
+          count: ipRateLimit.count,
+          limit: ipRateLimit.limit,
+          window_seconds: ipRateLimit.windowSeconds,
+        },
+      });
+
+      // FAIL-CLOSED: If logging fails, return generic error
+      if (!logId) {
+        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        return genericErrorResponse();
+      }
+
+      return rateLimitResponse();
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 
     if (!stripeSecretKey) {
       throw new Error("Stripe secret key not configured");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-08-27.basil",
     });
@@ -207,20 +283,49 @@ serve(async (req) => {
       );
     }
 
+    // Fetch membership to get tenant_id for logging context
+    const { data: membershipForContext } = await supabaseAdmin
+      .from("memberships")
+      .select("tenant_id")
+      .eq("id", membershipId)
+      .maybeSingle();
+
+    const tenantIdForLogging = membershipForContext?.tenant_id || null;
+
     // Rate limit by membership (3 attempts per 10 minutes)
     const membershipRateLimit = await checkRateLimit(membershipId, "checkout-membership", 3, 600);
     if (!membershipRateLimit.success) {
       logStep("Rate limited by membership", { membershipId });
-      return new Response(
-        JSON.stringify({ 
-          error: "Muitas tentativas para esta filiação. Aguarde alguns minutos." 
-        }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      
+      // MANDATORY: Log decision BEFORE returning 429
+      const logId = await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
+        severity: "MEDIUM",
+        operation: OPERATION_NAME,
+        user_id: null,
+        tenant_id: tenantIdForLogging,
+        reason_code: "RATE_LIMIT_EXCEEDED",
+        metadata: {
+          ip_address: clientIP,
+          identifier: membershipId,
+          identifier_type: "membership",
+          count: membershipRateLimit.count,
+          limit: membershipRateLimit.limit,
+          window_seconds: membershipRateLimit.windowSeconds,
+        },
+      });
+
+      // FAIL-CLOSED: If logging fails, return generic error
+      if (!logId) {
+        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        return genericErrorResponse();
+      }
+
+      return rateLimitResponse();
     }
 
     // Fetch membership (pode ter ou não athlete)
-    const { data: membership, error: membershipError } = await supabase
+    const { data: membership, error: membershipError } = await supabaseAdmin
       .from("memberships")
       .select(`
         *,
@@ -290,7 +395,7 @@ serve(async (req) => {
     });
 
     // Update membership with checkout session id and status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from("memberships")
       .update({
         stripe_checkout_session_id: session.id,
