@@ -6,6 +6,7 @@
  * - If superadmin, requires valid impersonation
  * - Prevents removing last role (would leave user orphaned)
  * - Full audit logging
+ * - Rate limited: 20 per hour per user
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -14,6 +15,15 @@ import {
   requireImpersonationIfSuperadmin, 
   extractImpersonationId 
 } from "../_shared/requireImpersonationIfSuperadmin.ts";
+import {
+  SecureRateLimitPresets,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  logSecurityEvent,
+  SECURITY_EVENTS,
+  extractRequestContext,
+} from "../_shared/security-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +71,17 @@ serve(async (req) => {
 
     logStep("User authenticated", { userId: user.id });
 
+    // ========================================================================
+    // RATE LIMITING (before any business logic)
+    // ========================================================================
+    const rateLimiter = SecureRateLimitPresets.revokeRoles();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
+
+    if (!rateLimitResult.allowed) {
+      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    }
     // ========================================================================
     // PARSE INPUT
     // ========================================================================
