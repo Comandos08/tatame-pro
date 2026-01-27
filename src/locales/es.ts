@@ -937,6 +937,25 @@ export const es: Record<string, string> = {
   'approval.successReject': 'Afiliación rechazada',
   'approval.errorApprove': 'Error al aprobar afiliación',
   'approval.errorReject': 'Error al rechazar afiliación',
+  'approval.selectRoles': 'Roles en el Sistema',
+  'approval.selectRolesDescription': 'Seleccione uno o más roles para otorgar al miembro. Al menos un rol es obligatorio.',
+  'approval.roleRequired': 'Seleccione al menos un rol para aprobar',
+  'approval.roleWarning': 'Está otorgando permisos oficiales. Los roles determinan qué puede acceder y hacer el miembro en el sistema.',
+  'approval.role': 'rol',
+  'approval.roles': 'roles',
+  'approval.rejectionReason': 'Motivo del rechazo',
+  
+  // Roles
+  'roles.athlete': 'Atleta',
+  'roles.athleteDesc': 'Acceso al portal de atleta, tarjeta y eventos',
+  'roles.assistantCoach': 'Coach Asistente',
+  'roles.assistantCoachDesc': 'Puede asistir en clases y ver atletas',
+  'roles.headCoach': 'Coach Principal',
+  'roles.headCoachDesc': 'Gestiona graduaciones y puede aprobar afiliaciones de la academia',
+  'roles.instructor': 'Instructor',
+  'roles.instructorDesc': 'Puede impartir clases y seguir estudiantes',
+  'roles.staff': 'Staff Organizacional',
+  'roles.staffDesc': 'Acceso administrativo completo al tenant',
   
   // Atleta
   'athlete.digitalCard': 'Tarjeta Digital',

@@ -16,7 +16,8 @@ import {
   Building2,
   QrCode,
   UserCheck,
-  MapPin
+  MapPin,
+  ShieldAlert
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -30,6 +31,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Select,
@@ -48,6 +51,7 @@ import {
   GENDER_LABELS,
   GenderType,
 } from '@/types/membership';
+import type { AppRole } from '@/types/auth';
 
 // Type for applicant_data JSONB
 interface ApplicantData {
@@ -135,6 +139,28 @@ export default function ApprovalDetails() {
   const [selectedAcademyId, setSelectedAcademyId] = useState<string>('');
   const [selectedCoachId, setSelectedCoachId] = useState<string>('');
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
+  
+  // Role selection state - ATLETA is pre-selected by default
+  const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(['ATLETA']);
+  
+  // Available roles that can be assigned during approval
+  const ASSIGNABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
+    { value: 'ATLETA', label: t('roles.athlete'), description: t('roles.athleteDesc') },
+    { value: 'COACH_ASSISTENTE', label: t('roles.assistantCoach'), description: t('roles.assistantCoachDesc') },
+    { value: 'COACH_PRINCIPAL', label: t('roles.headCoach'), description: t('roles.headCoachDesc') },
+    { value: 'INSTRUTOR', label: t('roles.instructor'), description: t('roles.instructorDesc') },
+    { value: 'STAFF_ORGANIZACAO', label: t('roles.staff'), description: t('roles.staffDesc') },
+  ];
+  
+  const toggleRole = (role: AppRole) => {
+    setSelectedRoles(prev => 
+      prev.includes(role) 
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    );
+  };
+  
+  const hasMinimumRoleSelected = selectedRoles.length > 0;
 
   const canApprove = isGlobalSuperadmin || 
     (tenant && (
@@ -249,10 +275,15 @@ export default function ApprovalDetails() {
     }
   };
 
-  // APPROVE via edge function
+  // APPROVE via edge function - NOW WITH ROLE SELECTION
   const approveMutation = useMutation({
     mutationFn: async () => {
       if (!membershipId) throw new Error('Missing data');
+      
+      // CRITICAL: At least one role must be selected
+      if (selectedRoles.length === 0) {
+        throw new Error(t('approval.roleRequired'));
+      }
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.access_token) {
@@ -265,6 +296,8 @@ export default function ApprovalDetails() {
           academyId: selectedAcademyId || null,
           coachId: selectedCoachId || null,
           reviewNotes: reviewNotes || null,
+          // NEW: Pass selected roles to backend
+          roles: selectedRoles,
         },
       });
 
@@ -279,11 +312,12 @@ export default function ApprovalDetails() {
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['athletes-list'] });
       setIsApproveDialogOpen(false);
+      setSelectedRoles(['ATLETA']); // Reset for next approval
       toast.success(t('approval.successApprove'));
       navigate(`/${tenantSlug}/app/approvals`);
     },
     onError: (error) => {
-      toast.error(t('approval.errorApprove'));
+      toast.error(error.message || t('approval.errorApprove'));
       console.error(error);
     },
   });
@@ -740,32 +774,79 @@ export default function ApprovalDetails() {
           </>
         )}
 
-        {/* Approve Dialog */}
+        {/* Approve Dialog - WITH ROLE SELECTION */}
         <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{t('approval.confirmApprove')}</DialogTitle>
               <DialogDescription>
-                {t('approval.confirmApproveMessage')} {applicantData?.full_name}.
-                {selectedAcademyId && academies && (
-                  <span className="block mt-2">
-                    <strong>{t('common.academy')}:</strong> {academies.find(a => a.id === selectedAcademyId)?.name}
-                  </span>
-                )}
-                {selectedCoachId && coaches && (
-                  <span className="block">
-                    <strong>{t('common.coach')}:</strong> {coaches.find(c => c.id === selectedCoachId)?.full_name}
-                  </span>
-                )}
+                {t('approval.confirmApproveMessage')} <strong>{applicantData?.full_name}</strong>.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            
+            {/* Role Selection - MANDATORY */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-semibold">{t('approval.selectRoles')}</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('approval.selectRolesDescription')}
+                </p>
+              </div>
+              
+              <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                {ASSIGNABLE_ROLES.map((role) => (
+                  <div key={role.value} className="flex items-start space-x-3">
+                    <Checkbox
+                      id={`role-${role.value}`}
+                      checked={selectedRoles.includes(role.value)}
+                      onCheckedChange={() => toggleRole(role.value)}
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={`role-${role.value}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {role.label}
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        {role.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Responsibility Warning */}
+              <Alert variant="default" className="border-warning bg-warning/10">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  {t('approval.roleWarning')}
+                </AlertDescription>
+              </Alert>
+
+              {/* Summary */}
+              {(selectedAcademyId || selectedCoachId) && (
+                <div className="text-sm space-y-1 pt-2 border-t">
+                  {selectedAcademyId && academies && (
+                    <p><strong>{t('common.academy')}:</strong> {academies.find(a => a.id === selectedAcademyId)?.name}</p>
+                  )}
+                  {selectedCoachId && coaches && (
+                    <p><strong>{t('common.coach')}:</strong> {coaches.find(c => c.id === selectedCoachId)?.full_name}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
                 {t('common.cancel')}
               </Button>
-              <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}>
+              <Button 
+                onClick={() => approveMutation.mutate()} 
+                disabled={approveMutation.isPending || !hasMinimumRoleSelected}
+              >
                 {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {t('approval.confirmApprove')}
+                {t('approval.confirmApprove')} ({selectedRoles.length} {selectedRoles.length === 1 ? t('approval.role') : t('approval.roles')})
               </Button>
             </DialogFooter>
           </DialogContent>

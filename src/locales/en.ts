@@ -937,6 +937,25 @@ export const en: Record<string, string> = {
   'approval.successReject': 'Membership rejected',
   'approval.errorApprove': 'Error approving membership',
   'approval.errorReject': 'Error rejecting membership',
+  'approval.selectRoles': 'System Roles',
+  'approval.selectRolesDescription': 'Select one or more roles to grant to the member. At least one role is required.',
+  'approval.roleRequired': 'Select at least one role to approve',
+  'approval.roleWarning': 'You are granting official permissions. Roles determine what the member can access and do in the system.',
+  'approval.role': 'role',
+  'approval.roles': 'roles',
+  'approval.rejectionReason': 'Rejection reason',
+  
+  // Roles
+  'roles.athlete': 'Athlete',
+  'roles.athleteDesc': 'Access to athlete portal, card and events',
+  'roles.assistantCoach': 'Assistant Coach',
+  'roles.assistantCoachDesc': 'Can assist in classes and view athletes',
+  'roles.headCoach': 'Head Coach',
+  'roles.headCoachDesc': 'Manages gradings and can approve academy memberships',
+  'roles.instructor': 'Instructor',
+  'roles.instructorDesc': 'Can teach classes and follow students',
+  'roles.staff': 'Organization Staff',
+  'roles.staffDesc': 'Full administrative access to the tenant',
   
   // Athlete
   'athlete.digitalCard': 'Digital Card',

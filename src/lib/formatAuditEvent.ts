@@ -96,13 +96,32 @@ export function formatAuditEvent(
         description: amount || 'Pagamento processado com sucesso',
       };
     }
-    case 'MEMBERSHIP_APPROVED':
+    case 'MEMBERSHIP_APPROVED': {
+      // Extract roles if available
+      const rolesAssigned = Array.isArray(metadata.roles_assigned) 
+        ? (metadata.roles_assigned as string[]).join(', ')
+        : undefined;
       return {
         title: 'Filiação Aprovada',
         description: athleteName ? `Atleta: ${athleteName}` : 'Filiação aprovada',
         before: 'PENDING_REVIEW',
         after: 'APPROVED',
+        meta: rolesAssigned ? `Papéis: ${rolesAssigned}` : undefined,
       };
+    }
+    case 'ROLES_GRANTED': {
+      const targetProfileId = typeof metadata.target_profile_id === 'string' 
+        ? metadata.target_profile_id.substring(0, 8) 
+        : '';
+      const rolesGranted = Array.isArray(metadata.roles_granted) 
+        ? (metadata.roles_granted as string[]).join(', ')
+        : '';
+      return {
+        title: 'Papéis Concedidos',
+        description: `Usuário ${targetProfileId}... recebeu: ${rolesGranted}`,
+        meta: athleteName ? `Atleta: ${athleteName}` : undefined,
+      };
+    }
     case 'MEMBERSHIP_REJECTED':
       return {
         title: 'Filiação Rejeitada',

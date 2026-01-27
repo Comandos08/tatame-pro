@@ -24,7 +24,19 @@ interface ApproveMembershipRequest {
   academyId?: string | null;
   coachId?: string | null;
   reviewNotes?: string | null;
+  roles?: string[]; // NEW: Selected roles to assign
 }
+
+// Valid roles that can be assigned during approval
+const VALID_APPROVAL_ROLES = [
+  'ATLETA',
+  'COACH_ASSISTENTE', 
+  'COACH_PRINCIPAL',
+  'INSTRUTOR',
+  'STAFF_ORGANIZACAO',
+] as const;
+
+type ApprovalRole = typeof VALID_APPROVAL_ROLES[number];
 
 interface ApplicantData {
   full_name: string;
@@ -124,11 +136,37 @@ serve(async (req) => {
     // ========================================================================
     const body: ApproveMembershipRequest = await req.json();
     membershipId = body.membershipId;
-    const { academyId, coachId, reviewNotes } = body;
+    const { academyId, coachId, reviewNotes, roles: requestedRoles } = body;
 
     if (!membershipId) {
       throw new Error("Missing membershipId");
     }
+    
+    // ========================================================================
+    // VALIDATE ROLES - At least one role is required
+    // ========================================================================
+    const validatedRoles: ApprovalRole[] = [];
+    
+    if (!requestedRoles || requestedRoles.length === 0) {
+      // Default to ATLETA if no roles provided (backward compatibility)
+      validatedRoles.push('ATLETA');
+      logStep("No roles provided, defaulting to ATLETA");
+    } else {
+      // Validate each role
+      for (const role of requestedRoles) {
+        if (VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
+          validatedRoles.push(role as ApprovalRole);
+        } else {
+          logStep("Invalid role rejected", { role });
+        }
+      }
+      
+      if (validatedRoles.length === 0) {
+        throw new Error("No valid roles provided. At least one role is required.");
+      }
+    }
+    
+    logStep("Roles validated", { roles: validatedRoles });
 
     // ========================================================================
     // 1. FETCH MEMBERSHIP (before update)
@@ -239,6 +277,60 @@ serve(async (req) => {
     }
 
     logStep("Athlete created", { athleteId: athlete.id });
+
+    // ========================================================================
+    // 4.5. CREATE USER ROLES (CRITICAL - Roles only assigned here)
+    // ========================================================================
+    const createdRoles: string[] = [];
+    
+    for (const role of validatedRoles) {
+      // Check if role already exists (idempotency)
+      const { data: existingRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", membership.applicant_profile_id)
+        .eq("tenant_id", membership.tenant_id)
+        .eq("role", role)
+        .maybeSingle();
+      
+      if (!existingRole) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: membership.applicant_profile_id,
+            tenant_id: membership.tenant_id,
+            role: role,
+          });
+
+        if (roleError) {
+          logStep("Role creation warning", { role, error: roleError.message });
+        } else {
+          createdRoles.push(role);
+          logStep("Role created", { role, profileId: membership.applicant_profile_id });
+        }
+      } else {
+        logStep("Role already exists, skipping", { role });
+        createdRoles.push(role); // Count as assigned even if pre-existing
+      }
+    }
+    
+    // Audit log for role grants
+    if (createdRoles.length > 0) {
+      await supabase.from("audit_logs").insert({
+        event_type: "ROLES_GRANTED",
+        tenant_id: membership.tenant_id,
+        profile_id: adminProfileId,
+        metadata: {
+          target_profile_id: membership.applicant_profile_id,
+          membership_id: membershipId,
+          athlete_id: athlete.id,
+          roles_granted: createdRoles,
+          granted_by: adminProfileId,
+          granted_at: new Date().toISOString(),
+        },
+      });
+      logStep("Roles audit log created", { roles: createdRoles });
+    }
 
     // ========================================================================
     // 5. MOVE DOCUMENTS
@@ -491,6 +583,7 @@ serve(async (req) => {
         coach_id: coachId || null,
         approved_by: adminProfileId,
         review_notes: reviewNotes || null,
+        roles_assigned: createdRoles,
         start_date: startDate,
         end_date: endDate,
         card_generated: cardGenerated,
@@ -499,7 +592,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Audit log created");
+    logStep("Audit log created", { roles: createdRoles });
 
     // ========================================================================
     // SUCCESS RESPONSE
@@ -511,6 +604,7 @@ serve(async (req) => {
         previousStatus,
         newStatus,
         athleteId: athlete.id,
+        rolesAssigned: createdRoles,
         cardGenerated,
         email: emailResult,
       }),
