@@ -18,6 +18,7 @@ import { useI18n, Locale } from '@/contexts/I18nContext';
 const TriggerButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
   <Button ref={ref} {...props} />
 ));
+TriggerButton.displayName = 'TriggerButton';
 
 interface Tenant {
   name: string;
