@@ -1,17 +1,16 @@
 /**
- * 🔐 IDENTITY WIZARD — Blocking Onboarding Flow
+ * 🔐 IDENTITY WIZARD — Blocking Onboarding Flow (Backend-Driven)
  * 
- * Mandatory 3-step wizard that ensures every user has:
- * 1. Tenant binding (join existing or create new)
- * 2. Profile type (Admin/Athlete)
- * 3. Completion validation
+ * REFACTORED: All sensitive operations happen via Edge Function.
+ * Client NEVER writes to: user_roles, tenant_billing, tenants.
  * 
  * RULES:
  * - Cannot be bypassed
  * - Refresh/deep link/back button don't break the block
  * - Must complete to access any protected route
+ * - All writes via resolve-identity-wizard Edge Function
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Building2, UserCheck, CheckCircle2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,25 +22,16 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useIdentity } from '@/contexts/IdentityContext';
+import { useIdentity, CompleteWizardPayload } from '@/contexts/IdentityContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { useI18n } from '@/contexts/I18nContext';
-import { supabase } from '@/integrations/supabase/client';
 
 type WizardStep = 1 | 2 | 3;
 type JoinMode = 'existing' | 'new' | null;
 type ProfileType = 'admin' | 'athlete' | null;
 
-interface SelectedTenant {
-  id: string;
-  slug: string;
-  name: string;
-}
-
 export default function IdentityWizard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { t } = useI18n();
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState, completeWizard, setIdentityError } = useIdentity();
 
@@ -49,15 +39,11 @@ export default function IdentityWizard() {
   const [step, setStep] = useState<WizardStep>(1);
   const [joinMode, setJoinMode] = useState<JoinMode>(null);
   const [profileType, setProfileType] = useState<ProfileType>(null);
-  const [selectedTenant, setSelectedTenant] = useState<SelectedTenant | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form fields
+  // Form fields - NO open search, only exact invite code
   const [inviteCode, setInviteCode] = useState('');
   const [newOrgName, setNewOrgName] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SelectedTenant[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -73,175 +59,9 @@ export default function IdentityWizard() {
     }
   }, [identityState, navigate]);
 
-  // Search for tenants
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
-    
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('id, slug, name')
-        .eq('is_active', true)
-        .ilike('name', `%${query}%`)
-        .limit(10);
-
-      if (error) throw error;
-
-      setSearchResults(data?.map(t => ({
-        id: t.id,
-        slug: t.slug,
-        name: t.name,
-      })) || []);
-    } catch (err) {
-      console.error('Search failed:', err);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  // Validate invite code
-  const handleValidateInvite = async () => {
-    if (!inviteCode.trim()) {
-      toast({
-        title: 'Código obrigatório',
-        description: 'Digite o código de convite.',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Try to find tenant by slug or special invite code
-      const { data: tenant, error } = await supabase
-        .from('tenants')
-        .select('id, slug, name')
-        .or(`slug.eq.${inviteCode.toLowerCase()},id.eq.${inviteCode}`)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error || !tenant) {
-        setIdentityError({ 
-          code: 'INVITE_INVALID', 
-          message: 'Código de convite inválido ou organização não encontrada.' 
-        });
-        return false;
-      }
-
-      setSelectedTenant({
-        id: tenant.id,
-        slug: tenant.slug,
-        name: tenant.name,
-      });
-      return true;
-    } catch (err) {
-      console.error('Invite validation failed:', err);
-      toast({
-        title: 'Erro',
-        description: 'Falha ao validar código. Tente novamente.',
-        variant: 'destructive',
-      });
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Create new organization
-  const handleCreateOrganization = async () => {
-    if (!newOrgName.trim()) {
-      toast({
-        title: 'Nome obrigatório',
-        description: 'Digite o nome da organização.',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Generate slug from name
-      const slug = newOrgName
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
-      // Check if slug is available
-      const { data: existing } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (existing) {
-        toast({
-          title: 'Nome já utilizado',
-          description: 'Este nome de organização já está em uso. Escolha outro.',
-          variant: 'destructive',
-        });
-        return false;
-      }
-
-      // Create tenant
-      const { data: newTenant, error: createError } = await supabase
-        .from('tenants')
-        .insert({
-          name: newOrgName.trim(),
-          slug,
-          is_active: true,
-          primary_color: '#dc2626',
-          sport_types: ['BJJ'],
-        })
-        .select('id, slug, name')
-        .single();
-
-      if (createError || !newTenant) {
-        throw createError || new Error('Failed to create tenant');
-      }
-
-      // Create billing record (trial)
-      await supabase
-        .from('tenant_billing')
-        .insert({
-          tenant_id: newTenant.id,
-          status: 'TRIALING',
-        });
-
-      setSelectedTenant({
-        id: newTenant.id,
-        slug: newTenant.slug,
-        name: newTenant.name,
-      });
-
-      // Auto-set profile type to admin for new org creators
-      setProfileType('admin');
-      
-      return true;
-    } catch (err) {
-      console.error('Organization creation failed:', err);
-      toast({
-        title: 'Erro',
-        description: 'Falha ao criar organização. Tente novamente.',
-        variant: 'destructive',
-      });
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Complete wizard
+  // Complete wizard via backend
   const handleComplete = async () => {
-    if (!selectedTenant || !profileType) {
+    if (!joinMode || !profileType) {
       toast({
         title: 'Configuração incompleta',
         description: 'Complete todas as etapas antes de continuar.',
@@ -250,34 +70,64 @@ export default function IdentityWizard() {
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      // Grant appropriate role based on profile type
-      if (profileType === 'admin') {
-        await supabase
-          .from('user_roles')
-          .insert({
-            user_id: currentUser!.id,
-            tenant_id: selectedTenant.id,
-            role: 'ADMIN_TENANT',
-          });
-      }
-      // For athletes, they need to go through membership flow
-      // Just set tenant context for now
-
-      // Complete the wizard
-      await completeWizard(selectedTenant.id, selectedTenant.slug);
-
+    // Validate required fields
+    if (joinMode === 'existing' && !inviteCode.trim()) {
       toast({
-        title: 'Configuração concluída!',
-        description: 'Sua conta foi configurada com sucesso.',
+        title: 'Código obrigatório',
+        description: 'Digite o código de convite da organização.',
+        variant: 'destructive',
       });
+      return;
+    }
 
-      // Navigate to appropriate destination
-      if (profileType === 'admin') {
-        navigate(`/${selectedTenant.slug}/app/onboarding`, { replace: true });
-      } else {
-        navigate(`/${selectedTenant.slug}/membership/new`, { replace: true });
+    if (joinMode === 'new' && !newOrgName.trim()) {
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Digite o nome da organização.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload: CompleteWizardPayload = {
+        joinMode,
+        profileType,
+        ...(joinMode === 'existing' && { inviteCode: inviteCode.trim() }),
+        ...(joinMode === 'new' && { newOrgName: newOrgName.trim() }),
+      };
+
+      const result = await completeWizard(payload);
+
+      if (result.success && result.redirectPath) {
+        toast({
+          title: 'Configuração concluída!',
+          description: 'Sua conta foi configurada com sucesso.',
+        });
+        navigate(result.redirectPath, { replace: true });
+      } else if (result.error) {
+        // Handle specific errors
+        if (result.error.code === 'INVITE_INVALID') {
+          toast({
+            title: 'Código inválido',
+            description: 'O código de convite não foi encontrado ou está inativo.',
+            variant: 'destructive',
+          });
+        } else if (result.error.code === 'SLUG_TAKEN') {
+          toast({
+            title: 'Nome já utilizado',
+            description: 'Este nome de organização já está em uso. Escolha outro.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Erro',
+            description: result.error.message || 'Falha ao finalizar configuração.',
+            variant: 'destructive',
+          });
+        }
       }
     } catch (err) {
       console.error('Wizard completion failed:', err);
@@ -292,16 +142,9 @@ export default function IdentityWizard() {
   };
 
   // Step navigation
-  const handleNextStep = async () => {
+  const handleNextStep = () => {
     if (step === 1) {
-      // Validate step 1
-      if (joinMode === 'existing' && !selectedTenant) {
-        const valid = await handleValidateInvite();
-        if (!valid) return;
-      } else if (joinMode === 'new') {
-        const valid = await handleCreateOrganization();
-        if (!valid) return;
-      } else if (!joinMode) {
+      if (!joinMode) {
         toast({
           title: 'Seleção obrigatória',
           description: 'Escolha como deseja prosseguir.',
@@ -309,6 +152,31 @@ export default function IdentityWizard() {
         });
         return;
       }
+
+      // Validate inputs before advancing
+      if (joinMode === 'existing' && !inviteCode.trim()) {
+        toast({
+          title: 'Código obrigatório',
+          description: 'Digite o código de convite da organização.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (joinMode === 'new' && !newOrgName.trim()) {
+        toast({
+          title: 'Nome obrigatório',
+          description: 'Digite o nome da organização.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Auto-set profile type to admin for new org creators
+      if (joinMode === 'new') {
+        setProfileType('admin');
+      }
+
       setStep(2);
     } else if (step === 2) {
       if (!profileType) {
@@ -414,7 +282,7 @@ export default function IdentityWizard() {
                     <Label htmlFor="existing" className="flex-1 cursor-pointer">
                       <div className="font-medium">Sim, tenho um código/convite</div>
                       <div className="text-sm text-muted-foreground">
-                        Digite o código da sua organização ou busque pelo nome
+                        Digite o código da sua organização
                       </div>
                     </Label>
                   </div>
@@ -437,39 +305,17 @@ export default function IdentityWizard() {
                   <div className="space-y-4 pt-4">
                     <Separator />
                     <div className="space-y-2">
-                      <Label htmlFor="invite">Código ou nome da organização</Label>
+                      <Label htmlFor="invite">Código de convite</Label>
                       <Input
                         id="invite"
                         value={inviteCode}
                         onChange={(e) => setInviteCode(e.target.value)}
-                        placeholder="Ex: demo-bjj ou código de convite"
+                        placeholder="Ex: demo-bjj ou código recebido"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Digite o código exato que você recebeu da sua organização
+                      </p>
                     </div>
-
-                    {/* Search results */}
-                    {searchResults.length > 0 && (
-                      <div className="space-y-2">
-                        <Label>Resultados da busca</Label>
-                        <div className="border rounded-lg divide-y">
-                          {searchResults.map((tenant) => (
-                            <button
-                              key={tenant.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedTenant(tenant);
-                                setInviteCode(tenant.slug);
-                              }}
-                              className={`w-full p-3 text-left hover:bg-muted transition-colors ${
-                                selectedTenant?.id === tenant.id ? 'bg-primary/10' : ''
-                              }`}
-                            >
-                              <div className="font-medium">{tenant.name}</div>
-                              <div className="text-sm text-muted-foreground">{tenant.slug}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -538,6 +384,14 @@ export default function IdentityWizard() {
                     </Label>
                   </div>
                 </RadioGroup>
+
+                {joinMode === 'new' && (
+                  <div className="bg-muted/50 border rounded-lg p-3">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Nota:</strong> Como criador da organização, você será automaticamente o administrador.
+                    </p>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -559,8 +413,19 @@ export default function IdentityWizard() {
 
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Organização:</span>
-                    <span className="font-medium">{selectedTenant?.name}</span>
+                    <span className="text-muted-foreground">Modo:</span>
+                    <span className="font-medium">
+                      {joinMode === 'new' ? 'Criar nova organização' : 'Entrar em organização existente'}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {joinMode === 'new' ? 'Nome:' : 'Código:'}
+                    </span>
+                    <span className="font-medium">
+                      {joinMode === 'new' ? newOrgName : inviteCode}
+                    </span>
                   </div>
                   <Separator />
                   <div className="flex justify-between">
