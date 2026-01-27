@@ -935,6 +935,25 @@ export const ptBR = {
   'approval.successReject': 'Filiação rejeitada',
   'approval.errorApprove': 'Erro ao aprovar filiação',
   'approval.errorReject': 'Erro ao rejeitar filiação',
+  'approval.selectRoles': 'Papéis no Sistema',
+  'approval.selectRolesDescription': 'Selecione um ou mais papéis para conceder ao membro. Pelo menos um papel é obrigatório.',
+  'approval.roleRequired': 'Selecione pelo menos um papel para aprovar',
+  'approval.roleWarning': 'Você está concedendo permissões oficiais. Papéis determinam o que o membro pode acessar e fazer no sistema.',
+  'approval.role': 'papel',
+  'approval.roles': 'papéis',
+  'approval.rejectionReason': 'Motivo da rejeição',
+  
+  // Roles
+  'roles.athlete': 'Atleta',
+  'roles.athleteDesc': 'Acesso ao portal de atleta, carteirinha e eventos',
+  'roles.assistantCoach': 'Coach Assistente',
+  'roles.assistantCoachDesc': 'Pode auxiliar nas aulas e visualizar atletas',
+  'roles.headCoach': 'Coach Principal',
+  'roles.headCoachDesc': 'Gerencia graduações e pode aprovar filiações da academia',
+  'roles.instructor': 'Instrutor',
+  'roles.instructorDesc': 'Pode ministrar aulas e acompanhar alunos',
+  'roles.staff': 'Staff Organizacional',
+  'roles.staffDesc': 'Acesso administrativo completo ao tenant',
   
   // Athlete
   'athlete.digitalCard': 'Carteira Digital',
