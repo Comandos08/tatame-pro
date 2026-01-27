@@ -57,6 +57,11 @@ DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayNam
  * 
  * NOTE: This component includes its own Portal wrapper. The forwardRef
  * passes the ref to the actual Content element, not the Portal.
+ * 
+ * ⚠️ KNOWN UPSTREAM ISSUE: Radix UI's Portal component may emit a
+ * "Function components cannot be given refs" warning in development.
+ * This is a cosmetic React warning from Radix internals and does not
+ * affect functionality. See: https://github.com/radix-ui/primitives/issues/1341
  */
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,

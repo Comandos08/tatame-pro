@@ -1,6 +1,6 @@
 # UI GOVERNANCE — TATAME PRO
 
-## Version: 1.1.0
+## Version: 1.2.0
 ## Last Updated: 2026-01-27
 
 ---
@@ -9,6 +9,19 @@
 
 This document defines the **mandatory standards** for all UI development in TATAME PRO.
 All engineers MUST follow these rules. No exceptions.
+
+## ⚠️ KNOWN UPSTREAM ISSUES
+
+### Radix UI Portal Ref Warning
+
+You may see a console warning: `"Function components cannot be given refs"` from `DropdownMenuPortal`.
+
+**Status:** Known upstream issue in Radix UI  
+**Impact:** Cosmetic only - no functional impact  
+**Tracking:** https://github.com/radix-ui/primitives/issues/1341
+
+This warning comes from Radix's internal Portal implementation, not our code.
+The warning is acknowledged and documented; it does not indicate a code defect.
 
 ---
 
