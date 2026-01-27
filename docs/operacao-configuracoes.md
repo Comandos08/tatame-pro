@@ -138,6 +138,7 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 
 | Job | Função | Horário (UTC) | Criticidade |
 |-----|--------|---------------|-------------|
+| `pre-expiration-scheduler-daily` | Envia alertas pré-expiração (30, 15, 7, 3, 1 dias) | 02:30 | 🔴 Alta |
 | `expire-memberships-daily` | Marca filiações vencidas como EXPIRED | 03:00 | 🔴 Alta |
 | `cleanup-tmp-documents-daily` | Remove arquivos tmp/ > 7 dias | 03:30 | 🟡 Média |
 | `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
@@ -150,6 +151,32 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 
 **⚠️ IMPORTANTE:** Substitua `SEU_ANON_KEY` pela anon key real do projeto:
 `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0`
+
+#### pre-expiration-scheduler (diário às 02:30 UTC)
+Envia alertas de pré-expiração nas janelas de 30, 15, 7, 3 e 1 dias antes do vencimento.
+
+```sql
+SELECT cron.schedule(
+  'pre-expiration-scheduler-daily',
+  '30 2 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/pre-expiration-scheduler',
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0"}'::jsonb,
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+```
+
+**Janelas de notificação:**
+- 30 dias antes: Aviso inicial amigável
+- 15 dias antes: Lembrete
+- 7 dias antes: Lembrete urgente
+- 3 dias antes: Alerta urgente ⚠️
+- 1 dia antes: Último aviso ⚠️
+
+**Idempotência:** Usa flag `email_sent_for_status` (EXPIRING_30D, EXPIRING_15D, etc.) para evitar duplicatas.
 
 #### expire-memberships (diário às 03:00 UTC)
 Marca filiações vencidas como EXPIRED.
@@ -277,7 +304,7 @@ LIMIT 20;
 ```sql
 SELECT event_type, created_at, metadata
 FROM audit_logs 
-WHERE event_type IN ('MEMBERSHIP_EXPIRED', 'MEMBERSHIP_ABANDONED_CLEANUP', 'TRIAL_END_NOTIFICATION_SENT')
+WHERE event_type IN ('MEMBERSHIP_EXPIRED', 'MEMBERSHIP_ABANDONED_CLEANUP', 'TRIAL_END_NOTIFICATION_SENT', 'MEMBERSHIP_EXPIRING_NOTIFIED')
 ORDER BY created_at DESC 
 LIMIT 10;
 ```
@@ -305,7 +332,7 @@ SELECT cron.unschedule('expire-memberships-daily');
 
 ### Checklist de verificação (cron jobs)
 - [ ] Extensões `pg_cron` e `pg_net` estão ativas
-- [ ] `SELECT * FROM cron.job` retorna 4 jobs
+- [ ] `SELECT * FROM cron.job` retorna 6 jobs (incluindo pre-expiration-scheduler e cleanup-tmp-documents)
 - [ ] Todos os jobs mostram `active = true`
 - [ ] `cron.job_run_details` mostra execuções recentes com `status = 'succeeded'`
 - [ ] PlatformHealthCard no Admin Global mostra status "OK" ou "Operacional"

@@ -13,6 +13,8 @@ export {
 
 export type {
   MembershipStatus,
+  ExpiringVirtualStatus,
+  NotificationStatus,
   SpecialState,
   NotificationTemplateId,
   SupportedLocale,
@@ -25,5 +27,6 @@ export type {
   ExpiredPayload,
   CancelledPayload,
   RenewedPayload,
+  ExpiringPayload,
   NotificationInput,
 } from './resolveMembershipNotification';
