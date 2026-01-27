@@ -8,7 +8,9 @@ import { ThemeProvider } from './ThemeContext';
 import { I18nProvider } from './I18nContext';
 import { JoinProvider } from './JoinContext';
 import { ImpersonationProvider } from './ImpersonationContext';
+import { IdentityProvider } from './IdentityContext';
 import { ImpersonationBanner, ImpersonationBannerSpacer } from '@/components/impersonation/ImpersonationBanner';
+import { IdentityGuard } from '@/components/identity/IdentityGuard';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,17 +31,21 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
-            <ImpersonationProvider>
-              <JoinProvider>
-                <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <ImpersonationBanner />
-                  <ImpersonationBannerSpacer />
-                  {children}
-                </TooltipProvider>
-              </JoinProvider>
-            </ImpersonationProvider>
+            <IdentityProvider>
+              <ImpersonationProvider>
+                <JoinProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <ImpersonationBanner />
+                    <ImpersonationBannerSpacer />
+                    <IdentityGuard>
+                      {children}
+                    </IdentityGuard>
+                  </TooltipProvider>
+                </JoinProvider>
+              </ImpersonationProvider>
+            </IdentityProvider>
           </AuthProvider>
         </I18nProvider>
       </ThemeProvider>

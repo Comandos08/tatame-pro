@@ -52,7 +52,11 @@ import AuthCallback from '@/pages/AuthCallback';
 import AthleteLogin from '@/pages/AthleteLogin';
 import PortalRouter from '@/pages/PortalRouter';
 
-// 🔐 Join Wizard (Anti-Orphan User)
+// 🔐 Identity Wizard (Blocking Flow)
+import IdentityWizard from '@/pages/IdentityWizard';
+import { IdentityErrorPage } from '@/components/identity/IdentityErrorScreen';
+
+// 🔐 Join Wizard (Anti-Orphan User) - Legacy, redirects to Identity Wizard
 import JoinOrg from '@/pages/JoinOrg';
 import JoinAccount from '@/pages/JoinAccount';
 import JoinConfirm from '@/pages/JoinConfirm';
@@ -105,11 +109,15 @@ export function AppRoutes() {
       {/* Auth callback for Magic Link */}
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* 🔐 JOIN WIZARD — Mandatory onboarding for new users (Anti-Orphan) */}
-      <Route path="/join" element={<Navigate to="/join/org" replace />} />
-      <Route path="/join/org" element={<JoinOrg />} />
-      <Route path="/join/account" element={<JoinAccount />} />
-      <Route path="/join/confirm" element={<JoinConfirm />} />
+      {/* 🔐 IDENTITY WIZARD — Blocking onboarding (replaces /join) */}
+      <Route path="/identity/wizard" element={<IdentityWizard />} />
+      <Route path="/identity/error" element={<IdentityErrorPage />} />
+
+      {/* 🔐 JOIN WIZARD — Legacy routes, redirect to Identity Wizard */}
+      <Route path="/join" element={<Navigate to="/identity/wizard" replace />} />
+      <Route path="/join/org" element={<Navigate to="/identity/wizard" replace />} />
+      <Route path="/join/account" element={<Navigate to="/identity/wizard" replace />} />
+      <Route path="/join/confirm" element={<Navigate to="/identity/wizard" replace />} />
 
       {/* 🔐 PORTAL ROUTER — Single decision point for post-login routing */}
       <Route path="/portal" element={<PortalRouter />} />
