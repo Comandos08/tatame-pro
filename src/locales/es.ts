@@ -38,6 +38,7 @@ export const es: Record<string, string> = {
   'common.back': 'Volver',
   'common.error': 'Error',
   'common.success': 'Éxito',
+  'common.goToHome': 'Ir al Inicio',
 
   // Theme
   'theme.select': 'Tema',
@@ -525,6 +526,7 @@ export const es: Record<string, string> = {
   'auth.loginSuccess': 'Inicio de sesión exitoso.',
   'auth.error': 'Error',
   'auth.genericError': 'Ocurrió un error. Intente de nuevo.',
+  'auth.logout': 'Cerrar Sesión',
   'auth.alreadyHaveAccount': '¿Ya tiene una cuenta?',
   'auth.dontHaveAccount': '¿No tiene una cuenta?',
   'auth.manageOrganization': 'Gestione su federación',
@@ -726,6 +728,10 @@ export const es: Record<string, string> = {
   'portal.paymentStatus': 'Pago',
   'portal.authenticity': 'Autenticidad',
   'portal.logout': 'Salir',
+  'portal.resolvingDestination': 'Verificando tu acceso...',
+  'portal.redirecting': 'Redireccionando...',
+  'portal.noContextTitle': 'Cuenta sin contexto',
+  'portal.noContextDescription': 'No encontramos un vínculo activo para tu cuenta. Contacta con tu organización.',
   'portal.noAthlete': 'No tienes registro de atleta en este tenant',
   'portal.noAthleteDesc': 'Contacta con tu academia para vincular tu perfil.',
   'portal.pendingReview': 'Esperando aprobación de la academia',

@@ -46,6 +46,7 @@ import PublicEventsList from '@/pages/PublicEventsList';
 import PublicEventDetails from '@/pages/PublicEventDetails';
 import AuthCallback from '@/pages/AuthCallback';
 import AthleteLogin from '@/pages/AthleteLogin';
+import PortalRouter from '@/pages/PortalRouter';
 
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
@@ -130,6 +131,9 @@ export function AppRoutes() {
       
       {/* Auth callback for Magic Link */}
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* 🔐 PORTAL ROUTER — Single decision point for post-login routing */}
+      <Route path="/portal" element={<PortalRouter />} />
 
       {/* Admin routes */}
       <Route

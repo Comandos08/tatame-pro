@@ -38,6 +38,7 @@ export const ptBR = {
   'common.back': 'Voltar',
   'common.error': 'Erro',
   'common.success': 'Sucesso',
+  'common.goToHome': 'Ir para Início',
 
   // Theme
   'theme.select': 'Tema',
@@ -523,6 +524,7 @@ export const ptBR = {
   'auth.loginSuccess': 'Login realizado com sucesso.',
   'auth.error': 'Erro',
   'auth.genericError': 'Ocorreu um erro. Tente novamente.',
+  'auth.logout': 'Sair',
   'auth.alreadyHaveAccount': 'Já tem uma conta?',
   'auth.dontHaveAccount': 'Não tem uma conta?',
   'auth.manageOrganization': 'Gerencie sua federação',
@@ -724,6 +726,10 @@ export const ptBR = {
   'portal.paymentStatus': 'Pagamento',
   'portal.authenticity': 'Autenticidade',
   'portal.logout': 'Sair',
+  'portal.resolvingDestination': 'Verificando seu acesso...',
+  'portal.redirecting': 'Redirecionando...',
+  'portal.noContextTitle': 'Conta sem contexto',
+  'portal.noContextDescription': 'Não encontramos um vínculo ativo para sua conta. Entre em contato com sua organização.',
   'portal.noAthlete': 'Você não possui cadastro de atleta neste tenant',
   'portal.noAthleteDesc': 'Entre em contato com sua academia para vincular seu perfil.',
   'portal.pendingReview': 'Aguardando aprovação da academia',
