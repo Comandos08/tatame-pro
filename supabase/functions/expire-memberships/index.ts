@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
-import { resolveMembershipNotification, shouldSend, type SupportedLocale } from "../_shared/notification-engine.ts";
+import { resolveMembershipNotification, shouldSend, type MembershipStatus, type SupportedLocale } from "../_shared/notification-engine.ts";
 import { getEmailClient, DEFAULT_EMAIL_FROM, isEmailConfigured } from "../_shared/emailClient.ts";
-import { getMembershipExpiringTemplate } from "../_shared/email-templates/membership/expiring.ts";
+import { getMembershipExpiredTemplate } from "../_shared/email-templates/membership/expired.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,11 +23,12 @@ const logEmail = (step: string, details?: Record<string, unknown>) => {
 interface MembershipResult {
   membershipId: string;
   success: boolean;
+  skipped?: boolean;
   email: {
     shouldSend: boolean;
     sent: boolean;
     templateId: string | null;
-    skippedReason: "already_sent" | "engine_noop" | "resend_not_configured" | "missing_data" | "send_failed" | null;
+    skippedReason: "already_sent" | "already_processed" | "engine_noop" | "resend_not_configured" | "missing_data" | "send_failed" | null;
   };
   error?: string;
 }
@@ -42,16 +43,21 @@ interface MembershipResult {
  * 
  * This function runs on a schedule (daily at 03:00 UTC) to:
  * 1. Find all memberships with status ACTIVE where end_date < today
- * 2. Update their status to EXPIRED
+ * 2. Update their status to EXPIRED (with conditional update for race protection)
  * 3. Send notification email using Notification Engine (idempotent)
  * 4. Log the change in audit_logs
  * 
- * This is idempotent - running multiple times won't cause duplicate emails.
+ * This is idempotent and race-safe - running multiple times or in parallel won't cause issues.
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // ========================================================================
+  // 4️⃣ JOB CORRELATION ID
+  // ========================================================================
+  const jobRunId = crypto.randomUUID();
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -59,7 +65,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    logStep("Starting membership expiration job");
+    logStep("Job started", { jobRunId });
 
     // Resolve baseUrl for email CTAs
     const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
@@ -68,10 +74,10 @@ serve(async (req) => {
 
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split("T")[0];
-    logStep("Checking memberships with end_date before", { today });
+    logStep("Checking memberships with end_date before", { jobRunId, today });
 
     // ========================================================================
-    // 1️⃣ FIND MEMBERSHIPS TO EXPIRE (only ACTIVE, not APPROVED)
+    // 1️⃣ FIND MEMBERSHIPS TO EXPIRE (only ACTIVE)
     // ========================================================================
     const { data: expiredMemberships, error: fetchError } = await supabase
       .from("memberships")
@@ -92,14 +98,20 @@ serve(async (req) => {
       throw new Error(`Failed to fetch memberships: ${fetchError.message}`);
     }
 
-    logStep("Found memberships to expire", { count: expiredMemberships?.length || 0 });
+    const totalFound = expiredMemberships?.length || 0;
+    logStep("Found memberships to expire", { jobRunId, count: totalFound });
 
     if (!expiredMemberships || expiredMemberships.length === 0) {
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          expired: 0, 
-          message: "No memberships to expire" 
+          job: "expire-memberships",
+          jobRunId,
+          success: true,
+          processed: 0,
+          expired: 0,
+          emailsSent: 0,
+          failed: 0,
+          message: "No memberships to expire",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
@@ -108,6 +120,8 @@ serve(async (req) => {
     const results: MembershipResult[] = [];
 
     for (const membership of expiredMemberships) {
+      const previousStatus = membership.status as MembershipStatus;
+      
       const emailResult: MembershipResult["email"] = {
         shouldSend: false,
         sent: false,
@@ -117,21 +131,39 @@ serve(async (req) => {
 
       try {
         // ====================================================================
-        // 2️⃣ UPDATE STATUS TO EXPIRED
+        // 2️⃣ CONDITIONAL UPDATE TO EXPIRED (RACE PROTECTION)
         // ====================================================================
-        const { error: updateError } = await supabase
+        const { data: updatedMembership, error: updateError } = await supabase
           .from("memberships")
           .update({ 
             status: "EXPIRED",
             updated_at: new Date().toISOString()
           })
-          .eq("id", membership.id);
+          .eq("id", membership.id)
+          .eq("status", "ACTIVE") // 🔒 Race condition protection
+          .select("id")
+          .maybeSingle();
 
         if (updateError) {
           throw new Error(updateError.message);
         }
 
-        logStep("Membership expired", { membershipId: membership.id });
+        // If no row was updated, another job already processed this
+        if (!updatedMembership) {
+          logStep("Skip - already processed by another job", { 
+            jobRunId, 
+            membershipId: membership.id,
+          });
+          results.push({
+            membershipId: membership.id,
+            success: true,
+            skipped: true,
+            email: { ...emailResult, skippedReason: "already_processed" },
+          });
+          continue;
+        }
+
+        logStep("Membership expired", { jobRunId, membershipId: membership.id });
 
         // Log to audit - MEMBERSHIP_EXPIRED
         await createAuditLog(supabase, {
@@ -140,26 +172,31 @@ serve(async (req) => {
           metadata: {
             membership_id: membership.id,
             athlete_id: membership.athlete_id,
-            previous_status: membership.status,
+            previous_status: previousStatus,
             new_status: "EXPIRED",
             end_date: membership.end_date,
             automatic: true,
             scheduled: true,
             source: "expire-memberships-job",
+            job_run_id: jobRunId,
           },
         });
 
         // ====================================================================
         // 3️⃣ PREPARE DATA FOR NOTIFICATION ENGINE
         // ====================================================================
-        // Handle array relation from Supabase (take first element)
         const athleteData = membership.athlete as unknown;
         const tenantData = membership.tenant as unknown;
-        const athlete = Array.isArray(athleteData) ? athleteData[0] as { id: string; full_name: string; email: string } | undefined : athleteData as { id: string; full_name: string; email: string } | null;
-        const tenant = Array.isArray(tenantData) ? tenantData[0] as { id: string; slug: string; name: string; default_locale: string } | undefined : tenantData as { id: string; slug: string; name: string; default_locale: string } | null;
+        const athlete = Array.isArray(athleteData) 
+          ? athleteData[0] as { id: string; full_name: string; email: string } | undefined 
+          : athleteData as { id: string; full_name: string; email: string } | null;
+        const tenant = Array.isArray(tenantData) 
+          ? tenantData[0] as { id: string; slug: string; name: string; default_locale: string } | undefined 
+          : tenantData as { id: string; slug: string; name: string; default_locale: string } | null;
 
         if (!athlete || !tenant) {
           logEmail("Skip - missing athlete or tenant data", { 
+            jobRunId,
             membershipId: membership.id,
             hasAthlete: !!athlete,
             hasTenant: !!tenant,
@@ -167,10 +204,10 @@ serve(async (req) => {
           emailResult.skippedReason = "missing_data";
         } else {
           // ==================================================================
-          // 4️⃣ CALL NOTIFICATION ENGINE
+          // 4️⃣ CALL NOTIFICATION ENGINE (using actual previousStatus)
           // ==================================================================
           const decision = resolveMembershipNotification({
-            previousStatus: "ACTIVE",
+            previousStatus, // 3️⃣ Use actual status from DB
             newStatus: "EXPIRED",
             membership: {
               id: membership.id,
@@ -189,6 +226,7 @@ serve(async (req) => {
           });
 
           logEmail("Engine decision", {
+            jobRunId,
             membershipId: membership.id,
             shouldSendEmail: decision.shouldSendEmail,
             templateId: shouldSend(decision) ? decision.templateId : null,
@@ -205,22 +243,21 @@ serve(async (req) => {
             const emailAlreadySent = membership.email_sent_for_status === "EXPIRED";
 
             if (emailAlreadySent) {
-              logEmail("Skip: already sent for status=EXPIRED", { membershipId: membership.id });
+              logEmail("Skip: already sent for status=EXPIRED", { jobRunId, membershipId: membership.id });
               emailResult.skippedReason = "already_sent";
             } else if (!isEmailConfigured()) {
-              logEmail("Skip: RESEND_API_KEY not configured");
+              logEmail("Skip: RESEND_API_KEY not configured", { jobRunId });
               emailResult.skippedReason = "resend_not_configured";
             } else {
               // ==============================================================
-              // 6️⃣ SEND EMAIL
+              // 6️⃣ SEND EMAIL (using correct expired template)
               // ==============================================================
               try {
                 const resend = getEmailClient();
 
-                const { subject, html } = getMembershipExpiringTemplate({
+                const { subject, html } = getMembershipExpiredTemplate({
                   athleteName: athlete.full_name,
                   tenantName: tenant.name,
-                  daysRemaining: 0, // Already expired
                   expirationDate: membership.end_date,
                   renewUrl: decision.ctaUrl,
                 });
@@ -238,6 +275,7 @@ serve(async (req) => {
 
                 emailResult.sent = true;
                 logEmail("Sent successfully", {
+                  jobRunId,
                   membershipId: membership.id,
                   recipient: athlete.email,
                 });
@@ -253,6 +291,7 @@ serve(async (req) => {
                     status: "EXPIRED",
                     sent_at: new Date().toISOString(),
                     source: "expire-memberships-job",
+                    job_run_id: jobRunId,
                   },
                 });
 
@@ -265,13 +304,14 @@ serve(async (req) => {
                   .eq("id", membership.id);
 
                 logEmail("Idempotency flag set", { 
+                  jobRunId,
                   membershipId: membership.id,
                   email_sent_for_status: "EXPIRED",
                 });
 
               } catch (emailErr) {
                 const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
-                logEmail("Failed", { membershipId: membership.id, error: errMsg });
+                logEmail("Failed", { jobRunId, membershipId: membership.id, error: errMsg });
 
                 emailResult.skippedReason = "send_failed";
 
@@ -286,6 +326,7 @@ serve(async (req) => {
                     status: "EXPIRED",
                     error: errMsg.substring(0, 500),
                     source: "expire-memberships-job",
+                    job_run_id: jobRunId,
                   },
                 });
               }
@@ -303,7 +344,7 @@ serve(async (req) => {
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        logStep("Error expiring membership", { membershipId: membership.id, error: errorMessage });
+        logStep("Error expiring membership", { jobRunId, membershipId: membership.id, error: errorMessage });
         results.push({ 
           membershipId: membership.id, 
           success: false, 
@@ -313,17 +354,26 @@ serve(async (req) => {
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    // ========================================================================
+    // 5️⃣ RESPONSE — STANDARDIZED JOB FORMAT
+    // ========================================================================
+    const processed = results.length;
+    const expired = results.filter(r => r.success && !r.skipped).length;
+    const skipped = results.filter(r => r.skipped).length;
+    const failed = results.filter(r => !r.success).length;
     const emailsSent = results.filter(r => r.email.sent).length;
 
-    logStep("Job completed", { successCount, failCount, emailsSent });
+    logStep("Job completed", { jobRunId, processed, expired, skipped, failed, emailsSent });
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        expired: successCount,
-        failed: failCount,
+        job: "expire-memberships",
+        jobRunId,
+        success: true,
+        processed,
+        expired,
+        skipped,
+        failed,
         emailsSent,
         results,
       }),
@@ -332,9 +382,14 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    logStep("Error", { jobRunId, error: errorMessage });
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        job: "expire-memberships",
+        jobRunId,
+        success: false,
+        error: errorMessage,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
