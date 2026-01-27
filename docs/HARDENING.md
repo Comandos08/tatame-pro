@@ -6,6 +6,7 @@
 This document describes the hardening measures implemented to ensure security, stability, and reliability of the application.
 
 **Related Documents:**
+- [SSF Constitution](./SSF-CONSTITUTION.md) — Documento constitucional (precedência máxima)
 - [Security Auth Contract](./SECURITY-AUTH-CONTRACT.md) — Auth state machine, security boundary, session lifecycle
 - [UI Governance](./UI-GOVERNANCE.md) — Component patterns and ref safety
 - [Security Baseline v1](./SECURITY-BASELINE-v1.md) — Initial security implementation
