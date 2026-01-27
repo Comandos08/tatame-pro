@@ -146,7 +146,8 @@ serve(async (req) => {
         price_cents,
         currency,
         end_date,
-        rejection_reason
+        rejection_reason,
+        email_sent_for_status
       `)
       .eq("id", membershipId)
       .maybeSingle();
@@ -380,8 +381,16 @@ serve(async (req) => {
       emailResult.shouldSend = true;
       emailResult.templateId = notificationDecision.templateId;
 
-      // Check Resend configuration
-      if (!isEmailConfigured()) {
+      // ======================================================================
+      // 9.1 IDEMPOTENCY CHECK - Skip if already sent for APPROVED
+      // ======================================================================
+      const emailAlreadySent = membership.email_sent_for_status === "APPROVED";
+
+      if (emailAlreadySent) {
+        logStep("[EMAIL] Skip: already sent for status=APPROVED");
+        emailResult.skippedReason = 'already_sent';
+      } else if (!isEmailConfigured()) {
+        // Check Resend configuration
         logStep("[EMAIL] Skip: RESEND_API_KEY not configured");
         emailResult.skippedReason = 'resend_not_configured';
       } else {
@@ -431,6 +440,16 @@ serve(async (req) => {
               sent_at: new Date().toISOString(),
             },
           });
+
+          // ====================================================================
+          // 9.2 PERSIST IDEMPOTENCY - Mark email as sent for APPROVED
+          // ====================================================================
+          await supabase
+            .from("memberships")
+            .update({ email_sent_for_status: "APPROVED" })
+            .eq("id", membershipId);
+
+          logStep("[EMAIL] Idempotency flag set", { email_sent_for_status: "APPROVED" });
 
         } catch (emailErr) {
           const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
