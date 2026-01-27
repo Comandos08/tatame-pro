@@ -35,6 +35,7 @@ import {
   logPermissionDenied,
   logImpersonationBlock,
   logCrossTenantBlock,
+  logMembershipApproved,
   DECISION_TYPES,
 } from "../_shared/decision-logger.ts";
 
@@ -763,18 +764,16 @@ serve(async (req) => {
     // ========================================================================
     // 1️⃣6️⃣ DECISION LOG — SUCCESS
     // ========================================================================
-    await logDecision(supabase, {
-      decision_type: DECISION_TYPES.PASSWORD_RESET, // Reusing as "SUCCESS" for now
-      severity: 'HIGH',
-      operation: 'approve-membership',
+    const actorRole = isSuperadmin ? 'SUPERADMIN_GLOBAL' : 'ADMIN_TENANT';
+    const impersonationIdForLog = isSuperadmin ? extractImpersonationId(req, body) : null;
+    
+    await logMembershipApproved(supabase, {
       user_id: adminProfileId,
       tenant_id: targetTenantId,
-      reason_code: 'SUCCESS',
-      metadata: {
-        membership_id: membershipId,
-        athlete_id: athlete.id,
-        roles_assigned: createdRoles,
-      },
+      membership_id: membershipId,
+      impersonation_id: impersonationIdForLog,
+      actor_role: actorRole,
+      athlete_id: athlete.id,
     });
 
     // ========================================================================
