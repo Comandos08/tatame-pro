@@ -1,7 +1,8 @@
 # 🔐 HARDENING.md — Security, Stability & Best Practices
 
-**Version:** 1.2.0 (Final Sweep Complete)  
-**Last Updated:** 2026-01-27
+**Version:** 1.3.0 (SSF Baseline Locked)  
+**Last Updated:** 2026-01-27  
+**Status:** ✅ BASELINE CONFIRMED & LOCKED
 
 This document describes the hardening measures implemented to ensure security, stability, and reliability of the application.
 
@@ -341,14 +342,49 @@ bunx vitest run
 
 ---
 
-## Changelog (v1.2.0 — Final Sweep)
+## Changelog
 
-### Fixed Edge Cases:
+### v1.3.0 — SSF Baseline Locked (2026-01-27)
+
+**STATUS: SSF BASELINE CONFIRMED & LOCKED**
+
+✅ Full holistic sweep completed with ZERO violations found.
+
+| Area | Status |
+|------|--------|
+| Auth State Machine | ✅ Compliant |
+| Security Boundary | ✅ Compliant |
+| Portal Router (Decision Hub) | ✅ Compliant |
+| AthleteRouteGuard | ✅ Compliant |
+| RequireRoles Guard | ✅ Compliant |
+| TenantContext | ✅ Compliant |
+| AuthCallback | ✅ Compliant |
+| ImpersonationContext | ✅ Compliant |
+
+**Verification Results:**
+- ❌ No `setTimeout` with navigate found
+- ❌ No improper `window.location.href` found (only ErrorBoundary and Stripe redirects - allowed)
+- ❌ No implicit auth states found
+- ❌ No missing AbortController in async effects
+- ❌ No missing mount guards
+- ❌ No redirect chains or loops
+
+**Constitution Compliance:**
+- All frozen files follow mandatory patterns
+- `/portal` remains sole decision hub
+- All guards redirect to `/portal`, never to final destinations
+- AbortController + isMountedRef + hasProcessedRef in all critical paths
+
+---
+
+### v1.2.0 — Final Sweep (2026-01-27)
+
+**Fixed Edge Cases:**
 - **TenantContext**: Added `AbortController` and `isMountedRef` to prevent `setState` after unmount
 - **AuthCallback**: Added `AbortController`, `hasProcessedRef`, and `isMountedRef` to prevent race conditions and double execution
 - **AthleteRouteGuard**: Removed direct `navigate()` call in render path; now handled entirely in `useEffect` with proper guard
 
-### Verified OK:
+**Verified OK:**
 - **Login.tsx**: Correctly navigates to `/portal` post-login (no auto-redirect for authenticated users - expected behavior)
 - **PortalRouter.tsx**: Already has `AbortController` and `hasProcessedRef` pattern
 - **RequireRoles.tsx**: Already has `hasRedirected` ref to prevent loops
@@ -362,6 +398,18 @@ bunx vitest run
 2. **Performance Monitoring**: Add Core Web Vitals tracking
 3. **Feature Flags**: Add runtime feature flag system
 4. **Session Refresh**: Implement proactive token refresh
+
+---
+
+## 🔏 SSF BASELINE DECLARATION
+
+```
+STATUS: SSF BASELINE v1.0.0 LOCKED
+DATE: 2026-01-27
+NEXT CHANGE: ONLY VIA CONSTITUTIONAL REVIEW
+```
+
+> Este sistema agora se recusa a funcionar fora do contrato SSF.
 
 ---
 
