@@ -24,6 +24,11 @@ import {
   SECURITY_EVENTS,
   extractRequestContext,
 } from "../_shared/security-logger.ts";
+import {
+  logRateLimitBlock,
+  logPermissionDenied,
+  logImpersonationBlock,
+} from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,6 +97,16 @@ serve(async (req) => {
 
     if (!rateLimitResult.allowed) {
       logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      
+      // Log decision BEFORE responding
+      await logRateLimitBlock(supabase, {
+        operation: 'grant-roles',
+        user_id: user.id,
+        tenant_id: null,
+        ip_address: extractRequestContext(req).ip_address,
+        count: rateLimitResult.count,
+      });
+      
       return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
     }
 
@@ -152,6 +167,15 @@ serve(async (req) => {
         metadata: { error: impersonationCheck.error },
       });
       
+      // Log decision BEFORE responding
+      await logImpersonationBlock(supabase, {
+        operation: 'grant-roles',
+        user_id: user.id,
+        tenant_id: tenantId,
+        impersonation_id: impersonationId || undefined,
+        reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
+      });
+      
       return forbiddenResponse(impersonationCheck.error || "Forbidden");
     }
 
@@ -168,6 +192,16 @@ serve(async (req) => {
 
       if (!roleCheck.allowed) {
         logStep("Role check failed", { error: roleCheck.error });
+        
+        // Log permission denied decision BEFORE responding
+        await logPermissionDenied(supabase, {
+          operation: 'grant-roles',
+          user_id: user.id,
+          tenant_id: tenantId,
+          required_roles: ["ADMIN_TENANT", "STAFF_ORGANIZACAO"],
+          reason: roleCheck.error || 'INSUFFICIENT_PERMISSIONS',
+        });
+        
         return forbiddenResponse(roleCheck.error || "Insufficient permissions");
       }
     }

@@ -22,6 +22,10 @@ import {
   logSecurityEvent,
   SECURITY_EVENTS,
 } from "../_shared/security-logger.ts";
+import {
+  logRateLimitBlock,
+  logPermissionDenied,
+} from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,6 +80,20 @@ Deno.serve(async (req) => {
 
     if (!rateLimitResult.allowed) {
       console.warn(`[START-IMPERSONATION] Rate limit exceeded for ${user.id}`);
+      
+      // Log decision BEFORE responding
+      const ip = req.headers.get('cf-connecting-ip') || 
+                 req.headers.get('x-real-ip') || 
+                 req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                 'unknown';
+      await logRateLimitBlock(supabaseAdmin, {
+        operation: 'start-impersonation',
+        user_id: user.id,
+        tenant_id: null,
+        ip_address: ip,
+        count: rateLimitResult.count,
+      });
+      
       return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
     }
 
@@ -90,6 +108,16 @@ Deno.serve(async (req) => {
 
     if (roleError || !superadminRole) {
       console.warn(`[START-IMPERSONATION] Unauthorized attempt by user ${user.id}`);
+      
+      // Log permission denied decision BEFORE responding
+      await logPermissionDenied(supabaseAdmin, {
+        operation: 'start-impersonation',
+        user_id: user.id,
+        tenant_id: null,
+        required_roles: ['SUPERADMIN_GLOBAL'],
+        reason: 'NOT_SUPERADMIN',
+      });
+      
       return new Response(
         JSON.stringify({ error: 'Only SUPERADMIN_GLOBAL can start impersonation' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
