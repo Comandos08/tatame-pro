@@ -459,6 +459,70 @@ export type Database = {
           },
         ]
       }
+      decision_logs: {
+        Row: {
+          created_at: string
+          current_hash: string
+          decision_type: string
+          id: string
+          metadata: Json | null
+          operation: string | null
+          previous_hash: string | null
+          reason_code: string
+          severity: Database["public"]["Enums"]["security_severity"]
+          tenant_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_hash: string
+          decision_type: string
+          id?: string
+          metadata?: Json | null
+          operation?: string | null
+          previous_hash?: string | null
+          reason_code: string
+          severity?: Database["public"]["Enums"]["security_severity"]
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_hash?: string
+          decision_type?: string
+          id?: string
+          metadata?: Json | null
+          operation?: string | null
+          previous_hash?: string | null
+          reason_code?: string
+          severity?: Database["public"]["Enums"]["security_severity"]
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "decision_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decision_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       digital_cards: {
         Row: {
           content_hash_sha256: string | null
@@ -1491,11 +1555,13 @@ export type Database = {
       security_events: {
         Row: {
           created_at: string
+          current_hash: string | null
           event_type: string
           id: string
           ip_address: string | null
           metadata: Json | null
           operation: string | null
+          previous_hash: string | null
           severity: Database["public"]["Enums"]["security_severity"]
           tenant_id: string | null
           user_agent: string | null
@@ -1503,11 +1569,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_hash?: string | null
           event_type: string
           id?: string
           ip_address?: string | null
           metadata?: Json | null
           operation?: string | null
+          previous_hash?: string | null
           severity?: Database["public"]["Enums"]["security_severity"]
           tenant_id?: string | null
           user_agent?: string | null
@@ -1515,11 +1583,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_hash?: string | null
           event_type?: string
           id?: string
           ip_address?: string | null
           metadata?: Json | null
           operation?: string | null
+          previous_hash?: string | null
           severity?: Database["public"]["Enums"]["security_severity"]
           tenant_id?: string | null
           user_agent?: string | null
@@ -2076,6 +2146,15 @@ export type Database = {
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
         Returns: boolean
+      }
+      verify_decision_log_chain: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          actual_previous: string
+          expected_previous: string
+          is_valid: boolean
+          log_id: string
+        }[]
       }
     }
     Enums: {

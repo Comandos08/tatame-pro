@@ -10,6 +10,8 @@ These tests validate the **deny-by-default** architecture, ensuring:
 - Users cannot become orphaned (without context)
 - All sensitive operations are audited
 - Direct API bypass attempts are blocked
+- **GAP 6**: Rate limiting with fail-closed behavior
+- **GAP 7**: Log immutability and hash chain integrity
 
 ## Test Scenarios
 
@@ -62,6 +64,38 @@ These tests validate the **deny-by-default** architecture, ensuring:
 **Risk Mitigated**: Missing or inconsistent audit trail
 - Tests that all sensitive operations create proper audit logs
 - Validates metadata completeness (tenant_id, profile_id, impersonation_id)
+
+## GAP 7: Immutability & Governance
+
+### Immutable Tables
+The following tables are protected from UPDATE/DELETE:
+
+| Table | Purpose | Hash Chain |
+|-------|---------|------------|
+| `audit_logs` | System events | No |
+| `security_events` | Security violations | Optional |
+| `decision_logs` | Block/denial decisions | Yes (SHA-256) |
+
+### Hash Chain Integrity
+The `decision_logs` table uses SHA-256 hash chaining:
+
+```
+Log 1: previous_hash = null,     current_hash = SHA256(payload_1)
+Log 2: previous_hash = hash_1,   current_hash = SHA256(payload_2 + hash_1)
+Log 3: previous_hash = hash_2,   current_hash = SHA256(payload_3 + hash_2)
+```
+
+Verify chain integrity:
+```sql
+SELECT * FROM verify_decision_log_chain('tenant-uuid');
+```
+
+### Decision Types Logged
+- `RATE_LIMIT_BLOCK` - Request blocked due to rate limiting
+- `PERMISSION_DENIED` - Insufficient permissions for operation
+- `IMPERSONATION_BLOCK` - Invalid/missing impersonation session
+- `CROSS_TENANT_BLOCK` - Cross-tenant access attempt
+- `ONBOARDING_BLOCK` - Incomplete tenant attempting protected operation
 
 ## Running the Tests
 
