@@ -1,13 +1,16 @@
 # 🔐 Security & Authentication Contract
 
-> **Version**: 1.0.0  
-> **Status**: ACTIVE  
-> **Last Updated**: 2026-01-27
+> **Version**: 1.1.0  
+> **Status**: CONGELADO  
+> **Last Updated**: 2026-01-27  
+> **Parent Document**: [SSF Constitution](./SSF-CONSTITUTION.md)
 
 ## Overview
 
 This document defines the FORMAL security and authentication contract for the application.
 All developers MUST follow these rules. Violations are considered security bugs.
+
+> ⚠️ Este documento faz parte da Constituição SSF e está CONGELADO.
 
 ---
 

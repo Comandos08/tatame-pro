@@ -1,9 +1,11 @@
-# UI GOVERNANCE — TATAME PRO
+# 🎨 UI Governance Contract — TATAME PRO
 
-## Version: 1.2.0
-## Last Updated: 2026-01-27
+> **Version**: 1.3.0  
+> **Status**: CONGELADO  
+> **Last Updated**: 2026-01-27  
+> **Parent Document**: [SSF Constitution](./SSF-CONSTITUTION.md)
 
----
+> ⚠️ Este documento faz parte da Constituição SSF e está CONGELADO.
 
 ## 🎯 PURPOSE
 
