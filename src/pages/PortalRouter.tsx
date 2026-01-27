@@ -224,19 +224,22 @@ export default function PortalRouter() {
     );
   }
 
-  // No context fallback — estado neutro, NUNCA loop
+  // No context fallback — redirect to join wizard
   if (routerState === 'no_context') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-muted-foreground" />
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-primary" />
             </div>
             <CardTitle>{t('portal.noContextTitle')}</CardTitle>
-            <CardDescription>{t('portal.noContextDescription')}</CardDescription>
+            <CardDescription>{t('join.noContextCtaDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            <Button onClick={() => navigate('/join', { replace: true })} className="w-full">
+              {t('join.noContextCta')}
+            </Button>
             <Button onClick={handleGoHome} variant="outline" className="w-full">
               {t('common.goToHome')}
             </Button>

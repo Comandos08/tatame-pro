@@ -48,6 +48,11 @@ import AuthCallback from '@/pages/AuthCallback';
 import AthleteLogin from '@/pages/AthleteLogin';
 import PortalRouter from '@/pages/PortalRouter';
 
+// 🔐 Join Wizard (Anti-Orphan User)
+import JoinOrg from '@/pages/JoinOrg';
+import JoinAccount from '@/pages/JoinAccount';
+import JoinConfirm from '@/pages/JoinConfirm';
+
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
 import { AdultMembershipForm } from '@/components/membership/AdultMembershipForm';
@@ -136,6 +141,12 @@ export function AppRoutes() {
       
       {/* Auth callback for Magic Link */}
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* 🔐 JOIN WIZARD — Mandatory onboarding for new users (Anti-Orphan) */}
+      <Route path="/join" element={<Navigate to="/join/org" replace />} />
+      <Route path="/join/org" element={<JoinOrg />} />
+      <Route path="/join/account" element={<JoinAccount />} />
+      <Route path="/join/confirm" element={<JoinConfirm />} />
 
       {/* 🔐 PORTAL ROUTER — Single decision point for post-login routing */}
       <Route path="/portal" element={<PortalRouter />} />
