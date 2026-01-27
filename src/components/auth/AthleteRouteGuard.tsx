@@ -69,6 +69,12 @@ export function AthleteRouteGuard({ children }: AthleteRouteGuardProps) {
       hasRedirected.current = true;
       navigate(decision.redirectTo, { replace: true });
     }
+    
+    // 🔐 HARDENING: Handle tenant not found case explicitly in effect
+    if (tenantExists === false && !hasRedirected.current) {
+      hasRedirected.current = true;
+      navigate('/portal', { replace: true });
+    }
   }, [authLoading, isCheckingTenant, tenantSlug, pathname, isAuthenticated, tenantExists, navigate]);
 
   // Loading state
@@ -85,10 +91,16 @@ export function AthleteRouteGuard({ children }: AthleteRouteGuardProps) {
 
   // HARD FAIL — defesa em profundidade
   // Tenant inexistente NUNCA pode renderizar children
-  // 🔐 HARDENED: redirect to /portal (decision hub), not /
+  // 🔐 HARDENED: redirect handled in useEffect, show loading while redirecting
   if (tenantExists === false) {
-    navigate('/portal', { replace: true });
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Redirecionando...</p>
+        </div>
+      </div>
+    );
   }
 
   // Final decision check before render

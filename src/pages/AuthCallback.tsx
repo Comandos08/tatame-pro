@@ -9,7 +9,7 @@
  * - Atleta NUNCA acessa /app
  * - Redirect NUNCA sai do tenant
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -74,22 +74,39 @@ export default function AuthCallback() {
   const navigate = useNavigate();
   const { currentUser, isAuthenticated, isLoading } = useCurrentUser();
   const [redirecting, setRedirecting] = useState(false);
+  
+  // 🔐 HARDENING: Prevent double execution and handle unmount
+  const hasProcessedRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   // P3: Não usar default - validação será feita pela função pura
   const nextRaw = searchParams.get('next');
 
   useEffect(() => {
+    isMountedRef.current = true;
     // Garante que o Supabase finalize a sessão do magic link
     supabase.auth.getSession();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
+    // 🔐 AbortController for cancellable async operations
+    const abortController = new AbortController();
+    
     const handleRedirect = async () => {
+      // 🔐 Guard: prevent double execution
+      if (hasProcessedRef.current) return;
       if (isLoading || !isAuthenticated || !currentUser?.id || redirecting) {
         return;
       }
 
-      setRedirecting(true);
+      hasProcessedRef.current = true;
+      if (isMountedRef.current) {
+        setRedirecting(true);
+      }
 
       const tenantSlug = extractTenantSlug(nextRaw);
 
@@ -101,11 +118,16 @@ export default function AuthCallback() {
       }
 
       try {
+        // 🔐 Check abort before each async operation
+        if (abortController.signal.aborted) return;
+        
         // Buscar o tenant para obter o ID
         const tenantResult = await (supabase.from('tenants') as any)
           .select('id')
           .eq('slug', tenantSlug)
           .maybeSingle();
+
+        if (abortController.signal.aborted || !isMountedRef.current) return;
 
         const tenantData = tenantResult?.data as { id: string } | null;
 
@@ -116,6 +138,8 @@ export default function AuthCallback() {
           return;
         }
 
+        if (abortController.signal.aborted) return;
+
         // Buscar athlete vinculado ao usuário neste tenant
         const athleteResult = await (supabase.from('athletes') as any)
           .select('id')
@@ -123,11 +147,15 @@ export default function AuthCallback() {
           .eq('user_id', currentUser.id)
           .maybeSingle();
 
+        if (abortController.signal.aborted || !isMountedRef.current) return;
+
         const athleteData = athleteResult?.data as { id: string } | null;
 
         let membershipStatus: MembershipStatus = null;
 
         if (athleteData?.id) {
+          if (abortController.signal.aborted) return;
+          
           // Buscar membership mais recente do atleta
           const membershipResult = await (supabase.from('memberships') as any)
             .select('status')
@@ -137,9 +165,13 @@ export default function AuthCallback() {
             .limit(1)
             .maybeSingle();
 
+          if (abortController.signal.aborted || !isMountedRef.current) return;
+
           const membershipData = membershipResult?.data as { status: string } | null;
           membershipStatus = (membershipData?.status?.toUpperCase() as MembershipStatus) || null;
         } else {
+          if (abortController.signal.aborted) return;
+          
           // Buscar por applicant_profile_id (caso seja aplicante ainda não aprovado)
           const membershipResult = await (supabase.from('memberships') as any)
             .select('status')
@@ -148,6 +180,8 @@ export default function AuthCallback() {
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
+
+          if (abortController.signal.aborted || !isMountedRef.current) return;
 
           const membershipData = membershipResult?.data as { status: string } | null;
           membershipStatus = (membershipData?.status?.toUpperCase() as MembershipStatus) || null;
@@ -172,11 +206,15 @@ export default function AuthCallback() {
           targetPath = redirectPath;
         }
 
+        if (abortController.signal.aborted || !isMountedRef.current) return;
+
         // P3: SEMPRE validar antes de navegar
         const destination = resolveAthletePostAuthRedirect(tenantSlug, targetPath);
         navigate(destination, { replace: true });
 
       } catch (error) {
+        if (abortController.signal.aborted || !isMountedRef.current) return;
+        
         console.error('AuthCallback redirect error:', error);
         // 🔐 HARDENED: Catch goes to /portal (decision hub)
         // /portal will decide correct destination or redirect to /login if needed
@@ -185,6 +223,11 @@ export default function AuthCallback() {
     };
 
     handleRedirect();
+    
+    // 🔐 Cleanup
+    return () => {
+      abortController.abort();
+    };
   }, [isLoading, isAuthenticated, currentUser, nextRaw, navigate, redirecting]);
 
   return (
