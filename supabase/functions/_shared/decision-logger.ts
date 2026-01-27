@@ -23,6 +23,8 @@ export const DECISION_TYPES = {
   AUTH_FAILURE: 'AUTH_FAILURE',
   VALIDATION_FAILURE: 'VALIDATION_FAILURE',
   PASSWORD_RESET: 'PASSWORD_RESET',
+  MEMBERSHIP_APPROVED: 'MEMBERSHIP_APPROVED',
+  MEMBERSHIP_REJECTED: 'MEMBERSHIP_REJECTED',
 } as const;
 
 export type DecisionType = typeof DECISION_TYPES[keyof typeof DECISION_TYPES];
@@ -260,6 +262,66 @@ export async function logCrossTenantBlock(
     metadata: {
       source_tenant_id: options.source_tenant_id,
       target_tenant_id: options.target_tenant_id,
+    },
+  });
+}
+
+/**
+ * Log a membership approval decision
+ */
+export async function logMembershipApproved(
+  supabaseAdmin: SupabaseAdminClient,
+  options: {
+    user_id: string;
+    tenant_id: string;
+    membership_id: string;
+    impersonation_id?: string | null;
+    actor_role: 'ADMIN_TENANT' | 'SUPERADMIN_GLOBAL';
+    athlete_id?: string;
+  }
+): Promise<string | null> {
+  return logDecision(supabaseAdmin, {
+    decision_type: DECISION_TYPES.MEMBERSHIP_APPROVED,
+    severity: 'HIGH',
+    operation: 'approve-membership',
+    user_id: options.user_id,
+    tenant_id: options.tenant_id,
+    reason_code: 'SUCCESS',
+    metadata: {
+      membership_id: options.membership_id,
+      impersonation_id: options.impersonation_id,
+      actor_role: options.actor_role,
+      athlete_id: options.athlete_id,
+    },
+  });
+}
+
+/**
+ * Log a membership rejection decision
+ */
+export async function logMembershipRejected(
+  supabaseAdmin: SupabaseAdminClient,
+  options: {
+    user_id: string;
+    tenant_id: string;
+    membership_id: string;
+    rejection_reason?: string;
+    impersonation_id?: string | null;
+    actor_role: 'ADMIN_TENANT' | 'SUPERADMIN_GLOBAL';
+  }
+): Promise<string | null> {
+  return logDecision(supabaseAdmin, {
+    decision_type: DECISION_TYPES.MEMBERSHIP_REJECTED,
+    severity: 'HIGH',
+    operation: 'reject-membership',
+    user_id: options.user_id,
+    tenant_id: options.tenant_id,
+    reason_code: 'SUCCESS',
+    metadata: {
+      membership_id: options.membership_id,
+      rejection_reason: options.rejection_reason,
+      impersonation_id: options.impersonation_id,
+      actor_role: options.actor_role,
     },
   });
 }
