@@ -84,11 +84,13 @@ export default function Login() {
                 <Label htmlFor="name">{t("auth.fullName")}</Label>
                 <Input
                   id="name"
+                  name="name"
                   type="text"
                   placeholder={t("auth.fullNamePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  autoComplete="name"
                 />
               </div>
             )}
@@ -99,12 +101,14 @@ export default function Login() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder={t("auth.emailPlaceholder")}
                   className="pl-10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -115,6 +119,7 @@ export default function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder={t("auth.passwordPlaceholder")}
                   className="pl-10 pr-10"
@@ -122,6 +127,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
                 />
                 <button
                   type="button"

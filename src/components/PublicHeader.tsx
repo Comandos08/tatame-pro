@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Monitor, Globe, ArrowLeft, ArrowRight, Trophy, Check } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonProps } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+
+// ForwardRef wrapper for Button to fix DropdownMenuTrigger ref warning
+const TriggerButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
+  <Button ref={ref} {...props} />
+));
 
 interface Tenant {
   name: string;
@@ -54,9 +59,9 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" title={t('language.select')}>
+                <TriggerButton variant="ghost" size="icon" title={t('language.select')}>
                   <Globe className="h-5 w-5" />
-                </Button>
+                </TriggerButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {(Object.keys(localeLabels) as Locale[]).map((loc) => (
@@ -74,9 +79,9 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             {/* Theme Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" title={t('theme.select')}>
+                <TriggerButton variant="ghost" size="icon" title={t('theme.select')}>
                   {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                </Button>
+                </TriggerButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
@@ -145,9 +150,9 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
           {/* Language Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" title={t('language.select')}>
+              <TriggerButton variant="ghost" size="icon" title={t('language.select')}>
                 <Globe className="h-5 w-5" />
-              </Button>
+              </TriggerButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(Object.keys(localeLabels) as Locale[]).map((loc) => (
@@ -165,9 +170,9 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
           {/* Theme Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" title={t('theme.select')}>
+              <TriggerButton variant="ghost" size="icon" title={t('theme.select')}>
                 {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-              </Button>
+              </TriggerButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">

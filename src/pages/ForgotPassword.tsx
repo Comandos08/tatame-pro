@@ -122,6 +122,7 @@ export default function ForgotPassword() {
                 <Label htmlFor="email">E-mail</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="seu@email.com"
                   value={email}

@@ -178,12 +178,14 @@ export default function JoinAccount() {
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="name"
+                          name="name"
                           type="text"
                           placeholder={t('auth.fullNamePlaceholder')}
                           className="pl-10"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           required={activeTab === 'signup'}
+                          autoComplete="name"
                         />
                       </div>
                     </div>
@@ -195,12 +197,14 @@ export default function JoinAccount() {
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="email"
+                        name="email"
                         type="email"
                         placeholder={t('auth.emailPlaceholder')}
                         className="pl-10"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        autoComplete="email"
                       />
                     </div>
                   </div>
@@ -211,6 +215,7 @@ export default function JoinAccount() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="password"
+                        name="password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder={t('auth.passwordPlaceholder')}
                         className="pl-10 pr-10"
@@ -218,6 +223,7 @@ export default function JoinAccount() {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={6}
+                        autoComplete={activeTab === 'signup' ? 'new-password' : 'current-password'}
                       />
                       <button
                         type="button"
