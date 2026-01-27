@@ -128,13 +128,38 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
   });
 
   const removeAdminMutation = useMutation({
-    mutationFn: async (roleId: string) => {
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('id', roleId);
+    mutationFn: async (admin: TenantAdmin) => {
+      // 🔐 C3 FIX: Route ALL role revocations through revoke-roles Edge Function
+      // This ensures: audit logging, decision logs, rate limiting, impersonation checks
+      const { data, error } = await supabase.functions.invoke('revoke-roles', {
+        body: {
+          targetProfileId: admin.user_id,
+          tenantId: tenant.id,
+          roles: ['ADMIN_TENANT'],
+          reason: 'Removed via ManageAdminsDialog',
+          forceRemoveAll: false, // Don't orphan the user
+        },
+      });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[ManageAdminsDialog] revoke-roles invocation error:', error);
+        throw new Error('Operation not permitted');
+      }
+
+      // Handle specific error codes from the Edge Function
+      if (!data?.ok) {
+        const errorCode = data?.code;
+        
+        // Map error codes to user-friendly messages (anti-enumeration)
+        if (errorCode === 'VALIDATION_FAILED') {
+          throw new Error('Cannot remove the last admin role');
+        }
+        
+        // Generic error for all other cases (security)
+        throw new Error('Operation not permitted');
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-admins', tenant.id] });
@@ -142,8 +167,9 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
       setAdminToRemove(null);
     },
     onError: (error) => {
-      toast.error('Erro ao remover admin');
-      console.error(error);
+      // Anti-enumeration: show generic message
+      toast.error(error instanceof Error ? error.message : 'Erro ao remover admin');
+      setAdminToRemove(null);
     },
   });
 
@@ -380,7 +406,7 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => adminToRemove && removeAdminMutation.mutate(adminToRemove.id)}
+              onClick={() => adminToRemove && removeAdminMutation.mutate(adminToRemove)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {removeAdminMutation.isPending ? (
