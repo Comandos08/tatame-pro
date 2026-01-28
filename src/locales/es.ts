@@ -1544,4 +1544,11 @@ export const es: Record<string, string> = {
   'identity.error.tryAgain': 'Intentar de Nuevo',
   'identity.error.contactSupport': 'Contactar Soporte',
   'identity.error.goToAdmin': 'Volver al Admin',
+  
+  // Identity Gate (F0.2)
+  'identity.error': 'Error de Identidad',
+  'identity.unknownError': 'Error desconocido al verificar identidad',
+  'identity.noContext': 'Contexto no encontrado',
+  'identity.noContextDesc': 'No se pudo determinar tu organización. Por favor, intenta de nuevo o cierra sesión.',
+  'common.retry': 'Intentar de Nuevo',
 };

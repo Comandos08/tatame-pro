@@ -1528,6 +1528,13 @@ export const ptBR = {
   'identity.error.tryAgain': 'Tentar Novamente',
   'identity.error.contactSupport': 'Contatar Suporte',
   'identity.error.goToAdmin': 'Voltar ao Admin',
+  
+  // Identity Gate (F0.2)
+  'identity.error': 'Erro de Identidade',
+  'identity.unknownError': 'Erro desconhecido ao verificar identidade',
+  'identity.noContext': 'Contexto não encontrado',
+  'identity.noContextDesc': 'Não foi possível determinar sua organização. Por favor, tente novamente ou faça logout.',
+  'common.retry': 'Tentar Novamente',
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
