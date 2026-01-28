@@ -1,24 +1,9 @@
 /**
- * 🔐 IDENTITY GUARD — Compatibility Re-export
+ * 🔐 IDENTITY GUARD — Pure Re-export for Backward Compatibility
  * 
- * F0.2.1 CONTRACT: This is now a pass-through wrapper.
- * All routing logic lives in IdentityGate.
+ * F0.2.2 CONTRACT: This is now a pure alias.
+ * All routing logic lives ONLY in IdentityGate.
  * 
- * Kept ONLY for backward compatibility with existing imports.
- * NO ROUTING LOGIC HERE.
+ * NO ROUTING LOGIC HERE. NO WRAPPER. JUST RE-EXPORT.
  */
-import React, { ReactNode } from 'react';
-
-interface IdentityGuardProps {
-  children: ReactNode;
-}
-
-/**
- * Pass-through wrapper for backward compatibility.
- * Does NOT make any routing decisions.
- */
-export function IdentityGuard({ children }: IdentityGuardProps) {
-  return <React.Fragment>{children}</React.Fragment>;
-}
-
-export default IdentityGuard;
+export { IdentityGate as IdentityGuard, IdentityGate as default } from './IdentityGate';
