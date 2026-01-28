@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+// src/pages/Login.tsx
+
+import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -14,18 +16,27 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState("");
 
-  const { signIn, signUp } = useCurrentUser();
+  const { signIn, signUp, isAuthenticated } = useCurrentUser();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useI18n();
 
+  // ✅ Single source of navigation after auth is truly stable
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/portal", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
 
     try {
       if (isSignUp) {
@@ -34,18 +45,14 @@ export default function Login() {
           title: t("auth.accountCreated"),
           description: t("auth.accountCreatedDesc"),
         });
-        // 🔒 After signup, navigate to /portal which will redirect to wizard
-        // because wizard_completed = FALSE for new users
-        navigate("/portal", { replace: true });
+        // DO NOT navigate here. Wait for isAuthenticated and then go /portal.
       } else {
         await signIn(email, password);
         toast({
           title: t("auth.welcome"),
           description: t("auth.loginSuccess"),
         });
-        // 🔒 Login apenas autentica - redirect neutro para /portal
-        // Guards decidem destino final (admin, tenant/app, ou portal)
-        navigate("/portal", { replace: true });
+        // DO NOT navigate here. Wait for isAuthenticated and then go /portal.
       }
     } catch (error) {
       console.error("Auth error:", error);
@@ -54,14 +61,16 @@ export default function Login() {
         description: error instanceof Error ? error.message : t("auth.genericError"),
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
+      return;
     }
+
+    // Keep submitting state until auth stabilizes or user leaves
+    // (AuthContext will flip isAuthenticated; effect will navigate)
   };
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -141,8 +150,8 @@ export default function Login() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="w-full h-11" disabled={isSubmitting}>
+              {isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isSignUp ? (
                 t("auth.createAccount")
@@ -164,7 +173,10 @@ export default function Login() {
             {isSignUp ? t("auth.alreadyHaveAccount") : t("auth.dontHaveAccount")}{" "}
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setIsSubmitting(false);
+              }}
               className="text-primary hover:underline font-medium"
             >
               {isSignUp ? t("auth.login") : t("auth.createAccount")}
@@ -173,7 +185,6 @@ export default function Login() {
         </motion.div>
       </div>
 
-      {/* Right side - Decorative */}
       <div className="hidden lg:flex flex-1 items-center justify-center bg-card border-l border-border relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-glow opacity-30" />
         <motion.div
