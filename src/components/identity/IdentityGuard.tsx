@@ -1,9 +1,26 @@
+import { ReactNode } from "react";
+
+interface IdentityGuardProps {
+  children: ReactNode;
+}
+
 /**
- * 🔐 IDENTITY GUARD — Pure Re-export for Backward Compatibility
- * 
- * F0.2.2 CONTRACT: This is now a pure alias.
- * All routing logic lives ONLY in IdentityGate.
- * 
- * NO ROUTING LOGIC HERE. NO WRAPPER. JUST RE-EXPORT.
+ * 🔓 IdentityGuard — PASS-THROUGH (NEUTRO)
+ *
+ * IMPORTANTE:
+ * - NÃO faz redirect
+ * - NÃO renderiza loader
+ * - NÃO consome IdentityContext
+ * - NÃO consome AuthContext
+ *
+ * Toda decisão de navegação e bloqueio é responsabilidade
+ * EXCLUSIVA do IdentityGate.
+ *
+ * Este componente existe APENAS para manter compatibilidade
+ * estrutural com AppProviders.
  */
-export { IdentityGate as IdentityGuard, IdentityGate as default } from './IdentityGate';
+export function IdentityGuard({ children }: IdentityGuardProps) {
+  return <>{children}</>;
+}
+
+export default IdentityGuard;
