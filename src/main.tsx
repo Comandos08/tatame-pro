@@ -1,6 +1,29 @@
 import React from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
-createRoot(document.getElementById("root")!).render(<App />);
+import App from "./App";
+
+// 🔐 CONTEXTS (ORDEM IMPORTA)
+import { AuthProvider } from "@/contexts/AuthContext";
+import { IdentityProvider } from "@/contexts/IdentityContext";
+
+// 🌍 I18N
+import { I18nProvider } from "@/contexts/I18nContext";
+
+// 🎨 STYLES
+import "@/index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <IdentityProvider>
+          <I18nProvider>
+            <App />
+          </I18nProvider>
+        </IdentityProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+);
