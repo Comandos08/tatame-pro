@@ -40,6 +40,8 @@ export const ptBR = {
   'common.error': 'Erro',
   'common.success': 'Sucesso',
   'common.goToHome': 'Ir para Início',
+  'common.goBack': 'Voltar',
+  'common.goHome': 'Ir para Início',
 
   // Theme
   'theme.select': 'Tema',
@@ -526,6 +528,8 @@ export const ptBR = {
   'auth.error': 'Erro',
   'auth.genericError': 'Ocorreu um erro. Tente novamente.',
   'auth.logout': 'Sair',
+  'auth.accessDenied': 'Acesso Negado',
+  'auth.accessDeniedDesc': 'Você não tem permissão para acessar esta página. Entre em contato com o administrador se acredita que isso é um erro.',
   'auth.alreadyHaveAccount': 'Já tem uma conta?',
   'auth.dontHaveAccount': 'Não tem uma conta?',
   'auth.manageOrganization': 'Gerencie sua federação',
