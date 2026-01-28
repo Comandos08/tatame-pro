@@ -4,11 +4,9 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 
-// 🔐 CONTEXTS (ORDEM IMPORTA)
+// 🔐 CONTEXTS
 import { AuthProvider } from "@/contexts/AuthContext";
 import { IdentityProvider } from "@/contexts/IdentityContext";
-
-// 🌍 I18N
 import { I18nProvider } from "@/contexts/I18nContext";
 
 // 🎨 STYLES
