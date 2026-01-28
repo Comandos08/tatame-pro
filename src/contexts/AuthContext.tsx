@@ -1,15 +1,16 @@
 /**
- * 🔐 AUTH CONTEXT — Stability & Anti-Loop Version
- * Safe bootstrap, guaranteed loading resolution.
+ * 🔐 AUTH CONTEXT — Session-First Architecture
+ * 
+ * Key principle: isAuthenticated is based on SESSION, not profile.
+ * Profile loading happens in parallel and doesn't block navigation.
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
-
 import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { User, Session } from "@supabase/supabase-js";
 import { CurrentUser, UserRole, AppRole } from "@/types/auth";
 
-type AuthState = "authenticating" | "authenticated" | "unauthenticated" | "error";
+type AuthState = "initializing" | "authenticated" | "unauthenticated";
 
 export interface AuthContextType {
   currentUser: CurrentUser | null;
@@ -26,19 +27,32 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Session state (source of truth for authentication)
+  const [session, setSession] = useState<Session | null>(null);
+  const [authState, setAuthState] = useState<AuthState>("initializing");
+  
+  // Profile state (loaded in parallel, doesn't block auth)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  
+  // Loading only for initial bootstrap
   const [isLoading, setIsLoading] = useState(true);
-  const [authState, setAuthState] = useState<AuthState>("authenticating");
 
   const mountedRef = useRef(true);
 
   const fetchProfile = async (user: User): Promise<CurrentUser | null> => {
     try {
-      const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
       if (error || !profile) return null;
 
-      const { data: roles } = await supabase.from("user_roles").select("*").eq("user_id", user.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", user.id);
 
       const userRoles: UserRole[] = (roles || []).map((r: any) => ({
         id: r.id,
@@ -66,23 +80,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mountedRef.current = true;
 
-    const init = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-
+    // Set up auth listener FIRST (as recommended by Supabase)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
         if (!mountedRef.current) return;
 
-        if (data.session?.user) {
-          const user = await fetchProfile(data.session.user);
-          setCurrentUser(user);
-          setAuthState(user ? "authenticated" : "unauthenticated");
+        // Update session immediately
+        setSession(newSession);
+        
+        if (newSession) {
+          setAuthState("authenticated");
+          
+          // Load profile in parallel (non-blocking)
+          // Use setTimeout to avoid potential deadlock with Supabase client
+          setTimeout(async () => {
+            if (!mountedRef.current) return;
+            const profile = await fetchProfile(newSession.user);
+            if (mountedRef.current) {
+              setCurrentUser(profile);
+            }
+          }, 0);
         } else {
+          setAuthState("unauthenticated");
           setCurrentUser(null);
+        }
+        
+        // Bootstrap complete
+        setIsLoading(false);
+      }
+    );
+
+    // Then check initial session
+    const initSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        
+        if (!mountedRef.current) return;
+
+        if (data.session) {
+          setSession(data.session);
+          setAuthState("authenticated");
+          
+          // Load profile in parallel
+          const profile = await fetchProfile(data.session.user);
+          if (mountedRef.current) {
+            setCurrentUser(profile);
+          }
+        } else {
+          setSession(null);
           setAuthState("unauthenticated");
         }
       } catch {
-        setCurrentUser(null);
-        setAuthState("unauthenticated");
+        if (mountedRef.current) {
+          setSession(null);
+          setAuthState("unauthenticated");
+        }
       } finally {
         if (mountedRef.current) {
           setIsLoading(false);
@@ -90,77 +142,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, session) => {
-      if (!mountedRef.current) return;
-
-      setIsLoading(true);
-
-      try {
-        if (session?.user) {
-          const user = await fetchProfile(session.user);
-          setCurrentUser(user);
-          setAuthState(user ? "authenticated" : "error");
-        } else {
-          setCurrentUser(null);
-          setAuthState("unauthenticated");
-        }
-      } finally {
-        if (mountedRef.current) {
-          setIsLoading(false);
-        }
-      }
-    });
+    initSession();
 
     return () => {
       mountedRef.current = false;
-      sub.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
-    setAuthState("authenticating");
-
+    // Don't set isLoading here - onAuthStateChange handles state transitions
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setIsLoading(false);
-      setAuthState("unauthenticated");
-      throw error;
-    }
+    if (error) throw error;
+    // Session update happens via onAuthStateChange
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
-    setIsLoading(true);
-    setAuthState("authenticating");
-
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
-
-    if (error) {
-      setIsLoading(false);
-      setAuthState("unauthenticated");
-      throw error;
-    }
+    if (error) throw error;
+    // Session update happens via onAuthStateChange
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setCurrentUser(null);
-    setAuthState("unauthenticated");
-    setIsLoading(false);
+    // State cleanup happens via onAuthStateChange
   };
 
-  const isAuthenticated = authState === "authenticated" && !!currentUser;
+  // ✅ isAuthenticated is based on SESSION, not profile
+  const isAuthenticated = authState === "authenticated" && !!session;
 
+  // Derived from currentUser (may be null initially after login)
   const isGlobalSuperadmin =
     currentUser?.roles?.some(
-      (r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined),
+      (r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined)
     ) ?? false;
 
   const currentRolesByTenant = new Map<string, AppRole[]>();
