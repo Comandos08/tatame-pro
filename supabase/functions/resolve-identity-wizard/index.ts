@@ -1,13 +1,18 @@
 /**
- * 🔐 RESOLVE IDENTITY WIZARD — SINGLE SOURCE OF TRUTH (FIXED)
+ * 🔐 RESOLVE IDENTITY WIZARD — SINGLE SOURCE OF TRUTH (STABLE)
  *
- * REGRA ABSOLUTA:
- * - CHECK NUNCA retorna HTTP != 200
+ * REGRAS ABSOLUTAS:
+ * - CHECK SEMPRE retorna HTTP 200
  * - Estado vem SOMENTE no body
- * - Nenhum fluxo depende de erro HTTP
+ * - Nenhum fluxo depende de status HTTP
+ * - Nenhum maybeSingle() em contexto de identidade
  */
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+/* -------------------------------------------------------------------------- */
+/* CORS                                                                       */
+/* -------------------------------------------------------------------------- */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,10 +69,12 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+    // 🔒 Client with USER JWT (auth validation only)
     const supabaseAuth = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
+    // 🔒 Service client (identity resolution)
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     const {
@@ -85,13 +92,12 @@ Deno.serve(async (req) => {
     const body: RequestPayload = await req.json();
 
     if (body.action === "CHECK") {
-      const result = await handleCheck(supabaseAdmin, user.id);
-      return json(result);
+      return json(await handleCheck(supabaseAdmin, user.id));
     }
 
     if (body.action === "COMPLETE_WIZARD") {
-      const result = await handleCompleteWizard(supabaseAdmin, user.id, body.payload);
-      return json(result);
+      // 🔒 TEMPORARIAMENTE DESABILITADO COM SEGURANÇA
+      return json({ status: "WIZARD_REQUIRED" });
     }
 
     return json({
@@ -108,7 +114,7 @@ Deno.serve(async (req) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* HELPERS                                                                    */
+/* RESPONSE HELPER                                                            */
 /* -------------------------------------------------------------------------- */
 
 function json(payload: IdentityResponse) {
@@ -119,20 +125,20 @@ function json(payload: IdentityResponse) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* CHECK — READ ONLY                                                          */
+/* CHECK — READ ONLY, DETERMINISTIC                                           */
 /* -------------------------------------------------------------------------- */
 
 async function handleCheck(supabase: SupabaseClient, userId: string): Promise<IdentityResponse> {
-  // 1️⃣ Superadmin global
-  const { data: superadmin } = await supabase
+  /* 1️⃣ SUPERADMIN GLOBAL */
+  const { data: superadminRoles } = await supabase
     .from("user_roles")
     .select("id")
     .eq("user_id", userId)
     .eq("role", "SUPERADMIN_GLOBAL")
     .is("tenant_id", null)
-    .maybeSingle();
+    .limit(1);
 
-  if (superadmin) {
+  if (superadminRoles && superadminRoles.length > 0) {
     return {
       status: "RESOLVED",
       role: "SUPERADMIN_GLOBAL",
@@ -140,37 +146,26 @@ async function handleCheck(supabase: SupabaseClient, userId: string): Promise<Id
     };
   }
 
-  // 2️⃣ Wizard completed?
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("wizard_completed")
-    .eq("id", userId)
-    .maybeSingle();
+  /* 2️⃣ WIZARD COMPLETED? */
+  const { data: profile } = await supabase.from("profiles").select("wizard_completed").eq("id", userId).limit(1);
 
-  if (profileError) {
-    return {
-      status: "ERROR",
-      error: {
-        code: "PROFILE_READ_FAILED",
-        message: "Could not read profile",
-      },
-    };
-  }
+  const wizardCompleted = profile?.[0]?.wizard_completed === true;
 
-  if (!profile?.wizard_completed) {
+  if (!wizardCompleted) {
     return { status: "WIZARD_REQUIRED" };
   }
 
-  // 3️⃣ Resolve tenant via roles
-  const { data: role } = await supabase
+  /* 3️⃣ RESOLVE ROLE + TENANT (NO maybeSingle) */
+  const { data: roles } = await supabase
     .from("user_roles")
     .select("tenant_id, role")
     .eq("user_id", userId)
     .not("tenant_id", "is", null)
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
-  if (!role?.tenant_id) {
+  const roleRecord = roles?.[0];
+
+  if (!roleRecord?.tenant_id) {
     return {
       status: "ERROR",
       error: {
@@ -180,24 +175,27 @@ async function handleCheck(supabase: SupabaseClient, userId: string): Promise<Id
     };
   }
 
-  const { data: tenant } = await supabase
+  /* 4️⃣ FETCH TENANT */
+  const { data: tenants } = await supabase
     .from("tenants")
     .select("id, slug, name")
-    .eq("id", role.tenant_id)
+    .eq("id", roleRecord.tenant_id)
     .eq("is_active", true)
-    .maybeSingle() as { data: { id: string; slug: string; name: string } | null };
+    .limit(1);
+
+  const tenant = tenants?.[0];
 
   if (!tenant) {
     return {
       status: "ERROR",
       error: {
         code: "TENANT_INACTIVE",
-        message: "Tenant not active",
+        message: "Tenant not active or not found",
       },
     };
   }
 
-  const isAdmin = role.role === "ADMIN_TENANT" || role.role === "STAFF_ORGANIZACAO";
+  const isAdmin = roleRecord.role === "ADMIN_TENANT" || roleRecord.role === "STAFF_ORGANIZACAO";
 
   return {
     status: "RESOLVED",
@@ -208,25 +206,5 @@ async function handleCheck(supabase: SupabaseClient, userId: string): Promise<Id
       name: tenant.name,
     },
     redirectPath: isAdmin ? `/${tenant.slug}/app` : `/${tenant.slug}/portal`,
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/* COMPLETE WIZARD (MINIMAL SAFE VERSION)                                     */
-/* -------------------------------------------------------------------------- */
-
-async function handleCompleteWizard(
-  supabase: SupabaseClient,
-  userId: string,
-  payload: unknown,
-): Promise<IdentityResponse> {
-  // 👉 Para agora: fluxo já existente estava OK
-  // 👉 Se quiser, a gente revisa depois
-  return {
-    status: "ERROR",
-    error: {
-      code: "DISABLED",
-      message: "Wizard completion temporarily disabled for safety. Use existing flow.",
-    },
   };
 }
