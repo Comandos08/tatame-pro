@@ -1,9 +1,22 @@
+/* src/index.css */
+
+/* =========================
+   IMPORTS (MUST BE FIRST)
+   ========================= */
+
+/* Font imports */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+/* UI Actions Visibility Hardening Kit */
+@import "./styles/ui-actions-visibility.css";
+
+/* =========================
+   TAILWIND
+   ========================= */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* UI Actions Visibility Hardening Kit */
-@import './styles/ui-actions-visibility.css';
 
 /* TATAME PRO - Design System
    Combat Sports Multi-tenant SaaS Platform
@@ -48,7 +61,7 @@
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning - Golden bronze that complements combat red */
+    /* Warning */
     --warning: 45 93% 47%;
     --warning-foreground: 0 0% 0%;
 
@@ -104,7 +117,7 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Semantic status colors - Light theme (darker for contrast) */
+    /* Semantic status colors - Light theme */
     --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
     --warning: 45 93% 41%;
@@ -172,6 +185,20 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/30;
   }
+
+  html {
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    @apply font-bold tracking-tight;
+  }
 }
 
 @layer utilities {
@@ -202,27 +229,8 @@
   }
 }
 
-/* Font imports */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap");
-
-@layer base {
-  html {
-    font-family: "Inter", system-ui, sans-serif;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
-    @apply font-bold tracking-tight;
-  }
-}
 /* ===============================
    ICON COLOR STABILITY
-   Prevent icons from inheriting accent on hover
    =============================== */
 
 svg {
@@ -231,17 +239,15 @@ svg {
   fill: none;
 }
 
-/* Buttons and links should not force accent color on icons */
 button:hover svg,
 a:hover svg {
   color: inherit;
 }
+
 /* =====================================================
    ICON COLOR HARD LOCK
-   Prevent shadcn/ui from forcing accent color on icons
    ===================================================== */
 
-/* Base: icons NEVER change color implicitly */
 button svg,
 a svg,
 [data-state] svg {
@@ -249,7 +255,6 @@ a svg,
   stroke: currentColor;
 }
 
-/* Sidebar / menu / navigation items */
 button:hover svg,
 a:hover svg,
 button[data-state="active"] svg,
@@ -257,14 +262,12 @@ a[data-state="active"] svg {
   color: hsl(var(--foreground));
 }
 
-/* Shadcn specific: Dropdown, NavigationMenu, Sidebar */
 [data-radix-collection-item] svg,
 [data-radix-menu-item] svg,
 [data-radix-navigation-menu-trigger] svg {
   color: hsl(var(--foreground));
 }
 
-/* Explicit override ONLY when developer wants */
 .icon-primary svg,
 .icon-primary {
   color: hsl(var(--primary));
