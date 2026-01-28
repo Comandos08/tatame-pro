@@ -1,19 +1,20 @@
 /**
  * 🔐 IDENTITY GATE — Single Canonical Router/Guard
  * 
- * F0.2 CONTRACT-COMPLIANT:
+ * F0.2.1 CONTRACT-COMPLIANT:
  * - Routes ONLY based on backend state (IdentityContext)
  * - NO client-side DB queries
  * - NO heuristic-based routing
  * - Uses <Navigate> instead of useEffect navigate
+ * - NO superadmin bypass
  * 
  * ROUTING RULES (deterministic):
- * 1. authLoading OR identityState='loading' → Loader
- * 2. !isAuthenticated → <Navigate to="/login" />
- * 3. identityState='wizard_required' → <Navigate to="/identity/wizard" />
- * 4. identityState='superadmin' → <Navigate to="/admin" />
- * 5. identityState='resolved' → <Navigate to={redirectPath} />
- * 6. identityState='error' → Error screen
+ * R1. authLoading OR identityState='loading' → Loader
+ * R2. !isAuthenticated → <Navigate to="/login" />
+ * R3. identityState='wizard_required' → <Navigate to="/identity/wizard" />
+ * R4. identityState='superadmin' → <Navigate to="/admin" /> (NO bypass)
+ * R5. identityState='resolved' → <Navigate to={redirectPath} />
+ * R6. identityState='error' → Error screen
  */
 
 import React, { ReactNode } from 'react';
@@ -46,7 +47,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
 
   const pathname = location.pathname;
 
-  // ===== RULE 1: Loading state =====
+  // ===== R1: Loading state =====
   if (authLoading || identityState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -58,48 +59,34 @@ export function IdentityGate({ children }: IdentityGateProps) {
     );
   }
 
-  // ===== RULE 2: Not authenticated → /login =====
+  // ===== R2: Not authenticated → /login =====
   if (!isAuthenticated) {
-    // Already on login, don't redirect
     if (pathname === '/login') {
-      return <>{children}</>;
+      return <React.Fragment>{children}</React.Fragment>;
     }
     return <Navigate to="/login" replace />;
   }
 
-  // ===== RULE 3: Wizard required → /identity/wizard =====
+  // ===== R3: Wizard required → /identity/wizard =====
   if (identityState === 'wizard_required') {
-    // Already on wizard, render children
     if (pathname === '/identity/wizard') {
-      return <>{children}</>;
+      return <React.Fragment>{children}</React.Fragment>;
     }
     return <Navigate to="/identity/wizard" replace />;
   }
 
-  // ===== RULE 4: Superadmin → /admin =====
+  // ===== R4: Superadmin → /admin (NO bypass) =====
   if (identityState === 'superadmin') {
-    // Already on admin routes, render children
-    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      return <>{children}</>;
+    if (pathname.startsWith('/admin')) {
+      return <React.Fragment>{children}</React.Fragment>;
     }
-    // Allow superadmin to access tenant routes via impersonation
-    // But if they hit /portal or protected routes without context, go to /admin
-    if (pathname === '/portal') {
-      return <Navigate to="/admin" replace />;
-    }
-    // Otherwise render children (they might be impersonating)
-    return <>{children}</>;
+    return <Navigate to="/admin" replace />;
   }
 
-  // ===== RULE 5: Resolved → redirectPath =====
+  // ===== R5: Resolved → redirectPath =====
   if (identityState === 'resolved') {
-    // If we have a redirect path and we're on /portal, navigate there
-    if (pathname === '/portal' && redirectPath) {
-      return <Navigate to={redirectPath} replace />;
-    }
-    
-    // If no redirect path and on /portal, show error (shouldn't happen)
-    if (pathname === '/portal' && !redirectPath) {
+    // No redirect path = error state
+    if (!redirectPath) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
           <Card className="max-w-md w-full">
@@ -128,11 +115,16 @@ export function IdentityGate({ children }: IdentityGateProps) {
       );
     }
 
-    // On any other route, render children (route guards will handle specifics)
-    return <>{children}</>;
+    // On /portal → redirect to redirectPath
+    if (pathname === '/portal' && redirectPath !== '/portal') {
+      return <Navigate to={redirectPath} replace />;
+    }
+
+    // Already on redirectPath or any valid route → render children
+    return <React.Fragment>{children}</React.Fragment>;
   }
 
-  // ===== RULE 6: Error state =====
+  // ===== R6: Error state =====
   if (identityState === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -162,8 +154,8 @@ export function IdentityGate({ children }: IdentityGateProps) {
     );
   }
 
-  // Fallback: render children
-  return <>{children}</>;
+  // Fallback: render children (shouldn't reach here with proper state)
+  return <React.Fragment>{children}</React.Fragment>;
 }
 
 export default IdentityGate;
