@@ -40,6 +40,8 @@ export const en: Record<string, string> = {
   'common.error': 'Error',
   'common.success': 'Success',
   'common.goToHome': 'Go to Home',
+  'common.goBack': 'Go Back',
+  'common.goHome': 'Go to Home',
 
   // Theme
   'theme.select': 'Theme',
@@ -528,6 +530,8 @@ export const en: Record<string, string> = {
   'auth.error': 'Error',
   'auth.genericError': 'An error occurred. Please try again.',
   'auth.logout': 'Logout',
+  'auth.accessDenied': 'Access Denied',
+  'auth.accessDeniedDesc': 'You do not have permission to access this page. Please contact the administrator if you believe this is an error.',
   'auth.alreadyHaveAccount': 'Already have an account?',
   'auth.dontHaveAccount': 'Don\'t have an account?',
   'auth.manageOrganization': 'Manage your federation',

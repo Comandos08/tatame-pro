@@ -1,9 +1,10 @@
 import React from 'react';
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { AthleteRouteGuard } from '@/components/auth/AthleteRouteGuard';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { RequireRoles } from '@/components/auth/RequireRoles';
-import { useCurrentUser } from '@/contexts/AuthContext';
 import { ACCESS_MATRIX } from '@/lib/accessMatrix';
+import { IdentityGate } from '@/components/identity/IdentityGate';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { AccessDenied } from '@/components/auth/AccessDenied';
 
 // Pages
 import Landing from '@/pages/Landing';
@@ -56,11 +57,6 @@ import PortalRouter from '@/pages/PortalRouter';
 import IdentityWizard from '@/pages/IdentityWizard';
 import { IdentityErrorPage } from '@/components/identity/IdentityErrorScreen';
 
-// 🔐 Join Wizard (Anti-Orphan User) - Legacy, redirects to Identity Wizard
-import JoinOrg from '@/pages/JoinOrg';
-import JoinAccount from '@/pages/JoinAccount';
-import JoinConfirm from '@/pages/JoinConfirm';
-
 // Membership components
 import { MembershipTypeSelector } from '@/components/membership/MembershipTypeSelector';
 import { AdultMembershipForm } from '@/components/membership/AdultMembershipForm';
@@ -72,10 +68,10 @@ import { TenantLayout } from '@/layouts/TenantLayout';
 
 /**
  * 🔐 AdminRoute — Global Superadmin Only
- * Redirects to /portal (decision hub) on unauthorized access.
+ * Shows AccessDenied on unauthorized access (NO redirect).
  */
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isGlobalSuperadmin, isLoading, isAuthenticated } = useCurrentUser();
+  const { isGlobalSuperadmin, isLoading } = useCurrentUser();
 
   if (isLoading) {
     return (
@@ -85,12 +81,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/portal" replace />;
-  }
-
+  // NO Navigate - just show AccessDenied
   if (!isGlobalSuperadmin) {
-    return <Navigate to="/portal" replace />;
+    return <AccessDenied />;
   }
 
   return <>{children}</>;
@@ -99,7 +92,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
-      {/* Public routes */}
+      {/* ============================================
+          PUBLIC ROUTES - No guard required
+          ============================================ */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -109,46 +104,56 @@ export function AppRoutes() {
       {/* Auth callback for Magic Link */}
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* 🔐 IDENTITY WIZARD — Blocking onboarding (replaces /join) */}
-      <Route path="/identity/wizard" element={<IdentityWizard />} />
+      {/* ============================================
+          IDENTITY WIZARD — Protected by IdentityGate
+          ============================================ */}
+      <Route path="/identity/wizard" element={
+        <IdentityGate>
+          <IdentityWizard />
+        </IdentityGate>
+      } />
       <Route path="/identity/error" element={<IdentityErrorPage />} />
 
-      {/* 🔐 JOIN WIZARD — Legacy routes, redirect to Identity Wizard */}
+      {/* Legacy join routes - redirect to Identity Wizard */}
       <Route path="/join" element={<Navigate to="/identity/wizard" replace />} />
       <Route path="/join/org" element={<Navigate to="/identity/wizard" replace />} />
       <Route path="/join/account" element={<Navigate to="/identity/wizard" replace />} />
       <Route path="/join/confirm" element={<Navigate to="/identity/wizard" replace />} />
 
-      {/* 🔐 PORTAL ROUTER — Single decision point for post-login routing */}
-      <Route path="/portal" element={<PortalRouter />} />
+      {/* ============================================
+          PORTAL ROUTER — Decision hub (protected)
+          ============================================ */}
+      <Route path="/portal" element={
+        <IdentityGate>
+          <PortalRouter />
+        </IdentityGate>
+      } />
 
-      {/* Admin routes - Global Superadmin only */}
-      <Route
-        path="/admin"
-        element={
+      {/* ============================================
+          ADMIN ROUTES - Global Superadmin only
+          ============================================ */}
+      <Route path="/admin" element={
+        <IdentityGate>
           <AdminRoute>
             <AdminDashboard />
           </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/tenants/:tenantId/control"
-        element={
+        </IdentityGate>
+      } />
+      <Route path="/admin/tenants/:tenantId/control" element={
+        <IdentityGate>
           <AdminRoute>
             <TenantControl />
           </AdminRoute>
-        }
-      />
+        </IdentityGate>
+      } />
 
-      {/* Tenant routes */}
+      {/* ============================================
+          TENANT ROUTES
+          ============================================ */}
       <Route path="/:tenantSlug" element={<TenantLayout />}>
-        {/* Public tenant landing */}
+        {/* PUBLIC tenant routes - no guard */}
         <Route index element={<TenantLanding />} />
-        
-        {/* Athlete login (Magic Link) */}
         <Route path="login" element={<AthleteLogin />} />
-        
-        {/* Public verification routes */}
         <Route path="verify/card/:cardId" element={<VerifyCard />} />
         <Route path="verify/diploma/:diplomaId" element={<VerifyDiploma />} />
         <Route path="verify/membership/:membershipId" element={<VerifyMembership />} />
@@ -157,167 +162,225 @@ export function AppRoutes() {
         <Route path="events" element={<PublicEventsList />} />
         <Route path="events/:eventId" element={<PublicEventDetails />} />
         
-        {/* Public membership routes */}
+        {/* PUBLIC membership routes */}
         <Route path="membership/new" element={<MembershipTypeSelector />} />
         <Route path="membership/adult" element={<AdultMembershipForm />} />
         <Route path="membership/youth" element={<YouthMembershipForm />} />
         <Route path="membership/success" element={<MembershipSuccess />} />
-        <Route path="membership/status" element={<AthleteRouteGuard><MembershipStatus /></AthleteRouteGuard>} />
-        <Route path="membership/renew" element={<AthleteRouteGuard><MembershipRenew /></AthleteRouteGuard>} />
         
-        {/* 🔐 Portal do Atleta - protected with AthleteRouteGuard + RequireRoles */}
+        {/* PROTECTED membership routes - RequireRoles only (IdentityGate in parent) */}
+        <Route path="membership/status" element={
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.ATHLETE_PORTAL}>
+              <MembershipStatus />
+            </RequireRoles>
+          </IdentityGate>
+        } />
+        <Route path="membership/renew" element={
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.ATHLETE_PORTAL}>
+              <MembershipRenew />
+            </RequireRoles>
+          </IdentityGate>
+        } />
+        
+        {/* 🔐 ATHLETE PORTAL - protected */}
         <Route path="portal" element={
-          <AthleteRouteGuard>
+          <IdentityGate>
             <RequireRoles allowed={ACCESS_MATRIX.ATHLETE_PORTAL}>
               <AthletePortal />
             </RequireRoles>
-          </AthleteRouteGuard>
+          </IdentityGate>
         } />
         <Route path="portal/events" element={
-          <AthleteRouteGuard>
+          <IdentityGate>
             <RequireRoles allowed={ACCESS_MATRIX.ATHLETE_PORTAL_EVENTS}>
               <PortalEvents />
             </RequireRoles>
-          </AthleteRouteGuard>
+          </IdentityGate>
         } />
         <Route path="portal/card" element={
-          <AthleteRouteGuard>
+          <IdentityGate>
             <RequireRoles allowed={ACCESS_MATRIX.ATHLETE_PORTAL_CARD}>
               <PortalCard />
             </RequireRoles>
-          </AthleteRouteGuard>
+          </IdentityGate>
         } />
         
-        {/* 🔐 Protected tenant app routes - with specific role requirements */}
+        {/* 🔐 TENANT APP ROUTES - protected with RequireRoles */}
         <Route path="app/onboarding" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_SETTINGS}>
-            <TenantOnboarding />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_SETTINGS}>
+              <TenantOnboarding />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
-            <TenantDashboard />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
+              <TenantDashboard />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/memberships" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
-            <MembershipList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
+              <MembershipList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         <Route path="app/memberships/:membershipId" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
-            <MembershipDetails />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
+              <MembershipDetails />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/academies" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_ACADEMIES}>
-            <AcademiesList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_ACADEMIES}>
+              <AcademiesList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/coaches" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_COACHES}>
-            <CoachesList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_COACHES}>
+              <CoachesList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         {/* 🔐 SENSITIVE: Approval flow */}
         <Route path="app/approvals" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_APPROVALS}>
-            <ApprovalsList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_APPROVALS}>
+              <ApprovalsList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         <Route path="app/approvals/:membershipId" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_APPROVALS}>
-            <ApprovalDetails />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_APPROVALS}>
+              <ApprovalDetails />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/grading-schemes" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_GRADINGS}>
-            <GradingSchemesList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_GRADINGS}>
+              <GradingSchemesList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         <Route path="app/grading-schemes/:schemeId/levels" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_GRADINGS}>
-            <GradingLevelsList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_GRADINGS}>
+              <GradingLevelsList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/athletes" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_ATHLETES}>
-            <AthletesList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_ATHLETES}>
+              <AthletesList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         <Route path="app/athletes/:athleteId/gradings" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_ATHLETES}>
-            <AthleteGradingsPage />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_ATHLETES}>
+              <AthleteGradingsPage />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/rankings" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_RANKINGS}>
-            <InternalRankings />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_RANKINGS}>
+              <InternalRankings />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/settings" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_SETTINGS}>
-            <TenantSettings />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_SETTINGS}>
+              <TenantSettings />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         {/* 🔐 SENSITIVE: Billing - admin only */}
         <Route path="app/billing" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_BILLING}>
-            <TenantBilling />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_BILLING}>
+              <TenantBilling />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/me" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_MY_AREA}>
-            <AthleteArea />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_MY_AREA}>
+              <AthleteArea />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/help" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_HELP}>
-            <TenantHelp />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_HELP}>
+              <TenantHelp />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/audit-log" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_AUDIT_LOG}>
-            <AuditLog />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_AUDIT_LOG}>
+              <AuditLog />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         {/* 🔐 SENSITIVE: Security timeline - admin only */}
         <Route path="app/security" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_SECURITY}>
-            <SecurityTimeline />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_SECURITY}>
+              <SecurityTimeline />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         <Route path="app/events" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_EVENTS}>
-            <EventsList />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_EVENTS}>
+              <EventsList />
+            </RequireRoles>
+          </IdentityGate>
         } />
         <Route path="app/events/:eventId" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_EVENTS}>
-            <EventDetails />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_EVENTS}>
+              <EventDetails />
+            </RequireRoles>
+          </IdentityGate>
         } />
         
         {/* Catch-all for /app/* - redirect unknown routes to dashboard */}
         <Route path="app/*" element={
-          <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
-            <TenantDashboard />
-          </RequireRoles>
+          <IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
+              <TenantDashboard />
+            </RequireRoles>
+          </IdentityGate>
         } />
       </Route>
 
