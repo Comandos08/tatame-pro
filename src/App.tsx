@@ -1,16 +1,25 @@
-import { BrowserRouter } from 'react-router-dom';
-import { AppProviders } from '@/contexts/AppProviders';
-import { AppRoutes } from '@/routes';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Routes, Route } from "react-router-dom";
+import IdentityGate from "@/components/identity/IdentityGate";
 
-const App = () => (
-  <ErrorBoundary>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AppProviders>
-        <AppRoutes />
-      </AppProviders>
-    </BrowserRouter>
-  </ErrorBoundary>
-);
+import Login from "@/pages/Login";
+import PortalRouter from "@/pages/PortalRouter";
+import IdentityWizard from "@/pages/IdentityWizard";
+import AuthCallback from "@/pages/AuthCallback";
 
-export default App;
+export default function App() {
+  return (
+    <IdentityGate>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+
+        {/* Identity */}
+        <Route path="/identity/wizard" element={<IdentityWizard />} />
+
+        {/* Protected */}
+        <Route path="/*" element={<PortalRouter />} />
+      </Routes>
+    </IdentityGate>
+  );
+}
