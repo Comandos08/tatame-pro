@@ -1,186 +1,96 @@
 
-# Análise de Causa Raiz: Loop Infinito
 
-## Resumo Executivo
+# Plano de Correção: Spinner Infinito na Rota "/"
 
-O sistema está em loop infinito porque **a estrutura de providers e routing está completamente quebrada**. Existem **3 problemas críticos** que se combinam para criar o loop.
+## Diagnóstico
 
----
+O spinner infinito acontece porque:
 
-## Problema 1: main.tsx NÃO Usa os Providers
+1. **App.tsx não tem a rota "/" definida** - quando o usuário acessa "/", não existe um match direto e cai no wildcard "/*" que leva ao PortalRouter
+2. **PortalRouter exige autenticação** - ele chama `useCurrentUser()` e mostra um spinner enquanto `isLoading=true`
+3. **Mesmo após auth carregar**, se o usuário não estiver autenticado, o PortalRouter redireciona para "/login", mas como não há match para "/", o ciclo pode se repetir
 
-### Evidência
-```typescript
-// src/main.tsx (ATUAL)
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />  // ❌ App é renderizado SEM providers!
-  </React.StrictMode>,
-);
-```
+## Solução
 
-### Consequência
-- **SEM BrowserRouter**: O React Router não funciona (Routes/Route precisam de Router)
-- **SEM AuthProvider**: `useCurrentUser()` falha ou retorna undefined
-- **SEM IdentityProvider**: `useIdentity()` falha ou retorna undefined
-- **SEM I18nProvider**: `t()` falha
+### Arquivo 1: `src/App.tsx`
 
-### Console Error Confirmado
-```
-The above error occurred in the <IdentityGate> component:
-    at IdentityGate
-    at App  ← App está sendo renderizado diretamente sem providers!
-```
+**O que muda:**
+- Adicionar a rota `"/"` apontando para o componente `Landing`
+- Adicionar todas as rotas públicas que estão faltando (`/help`, `/forgot-password`, `/reset-password`)
 
----
+**Código final:**
+```tsx
+import { Routes, Route } from "react-router-dom";
+import IdentityGate from "@/components/identity/IdentityGate";
 
-## Problema 2: App.tsx Usa Hooks SEM Providers
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Help from "@/pages/Help";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import PortalRouter from "@/pages/PortalRouter";
+import IdentityWizard from "@/pages/IdentityWizard";
+import AuthCallback from "@/pages/AuthCallback";
+import NotFound from "@/pages/NotFound";
 
-### Evidência
-```typescript
-// src/App.tsx
 export default function App() {
   return (
-    <IdentityGate>  // ❌ Usa useIdentity() e useCurrentUser()
-      <Routes>       // ❌ Precisa de BrowserRouter
-        ...
+    <IdentityGate>
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+
+        {/* Identity */}
+        <Route path="/identity/wizard" element={<IdentityWizard />} />
+
+        {/* Protected - todas as outras rotas */}
+        <Route path="/portal/*" element={<PortalRouter />} />
+        
+        {/* Fallback */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </IdentityGate>
   );
 }
 ```
 
-### Consequência
-O `IdentityGate` chama:
-- `useCurrentUser()` → Precisa de `AuthProvider`
-- `useIdentity()` → Precisa de `IdentityProvider`
-- `useI18n()` → Precisa de `I18nProvider`
-- `useLocation()` → Precisa de `BrowserRouter`
+### Arquivo 2: `src/contexts/IdentityContext.tsx` (Opcional mas Recomendado)
 
-**NENHUM desses providers existe na árvore!**
+**O que muda:**
+- Mudar o estado inicial de `"loading"` para `"resolved"`
+- Isso evita que rotas públicas mostrem loading desnecessário enquanto o IdentityContext inicializa
 
----
+**Linha 88:**
+```tsx
+// DE:
+const [identityState, setIdentityState] = useState<IdentityState>("loading");
 
-## Problema 3: AppProviders Existe Mas NÃO É Usado
-
-### Evidência
-```typescript
-// src/contexts/AppProviders.tsx (EXISTE, MAS NÃO É USADO)
-export function AppProviders({ children }: AppProvidersProps) {
-  return (
-    <QueryClientProvider>
-      <ThemeProvider>
-        <I18nProvider>
-          <AuthProvider>
-            <IdentityProvider>
-              ...
-            </IdentityProvider>
-          </AuthProvider>
-        </I18nProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
-}
+// PARA:
+const [identityState, setIdentityState] = useState<IdentityState>("resolved");
 ```
-
-**Este arquivo existe, mas NUNCA é importado em main.tsx!**
-
----
-
-## Diagrama do Problema
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    ESTRUTURA ATUAL (QUEBRADA)               │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   main.tsx                                                  │
-│   ├── React.StrictMode                                      │
-│   │   └── App  ← SEM PROVIDERS! SEM ROUTER!                │
-│   │       └── IdentityGate  ← CRASH! useIdentity() falha   │
-│   │           └── Routes  ← CRASH! sem BrowserRouter       │
-│                                                             │
-│   AppProviders.tsx  ← EXISTE MAS NÃO É USADO!              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Diagrama da Solução
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    ESTRUTURA CORRETA                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   main.tsx                                                  │
-│   ├── React.StrictMode                                      │
-│   │   └── BrowserRouter  ← ADICIONAR                       │
-│   │       └── AppProviders  ← ADICIONAR                    │
-│   │           └── App                                       │
-│   │               └── Routes (agora funciona!)              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Correção Necessária
-
-### Arquivo: `src/main.tsx`
-
-**De:**
-```typescript
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import "@/index.css";
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-```
-
-**Para:**
-```typescript
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { AppProviders } from "@/contexts/AppProviders";
-import App from "./App";
-import "@/index.css";
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <AppProviders>
-        <App />
-      </AppProviders>
-    </BrowserRouter>
-  </React.StrictMode>,
-);
-```
-
----
-
-## Resumo da Correção
-
-| Componente | Status Atual | Ação |
-|------------|-------------|------|
-| `BrowserRouter` | Ausente | Adicionar em main.tsx |
-| `AppProviders` | Existe mas não usado | Importar e usar em main.tsx |
-| `App.tsx` | OK | Nenhuma mudança |
-| `IdentityGate` | OK | Nenhuma mudança |
-
----
 
 ## Resultado Esperado
 
-Após a correção:
-- `/` → Landing carrega (sem loop)
-- `/login` → Login funciona (signIn/signUp disponíveis)
-- `/portal` → IdentityGate funciona corretamente
-- Todos os hooks (useCurrentUser, useIdentity, useI18n) funcionam
+Após aplicar essas correções:
+
+| Rota | Comportamento |
+|------|---------------|
+| `/` | Landing carrega IMEDIATAMENTE (sem spinner) |
+| `/login` | Tela de login carrega imediatamente |
+| `/help` | Página de ajuda carrega imediatamente |
+| `/forgot-password` | Formulário de recuperação carrega imediatamente |
+| `/reset-password` | Formulário de nova senha carrega imediatamente |
+| `/portal` | Verifica autenticação → se não logado, vai para `/login` |
+| `/admin` | Verifica autenticação + superadmin |
+
+## Detalhes Técnicos
+
+O IdentityGate já tem a lógica correta de bypass para rotas públicas (função `isPublicPath`), mas essa lógica só funciona se a rota estiver definida. Sem a rota "/" no App.tsx, o React Router não sabe o que renderizar e cai no wildcard que leva ao PortalRouter (que é protegido).
+
+A mudança do estado inicial do IdentityContext de "loading" para "resolved" é uma otimização que evita delays desnecessários. Quando o usuário está em uma rota pública, não precisamos esperar a resolução de identidade - o bypass já cuida disso.
+
