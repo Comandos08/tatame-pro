@@ -7,7 +7,7 @@
  * - Nenhum fluxo depende de erro HTTP
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -122,7 +122,7 @@ function json(payload: IdentityResponse) {
 /* CHECK — READ ONLY                                                          */
 /* -------------------------------------------------------------------------- */
 
-async function handleCheck(supabase: ReturnType<typeof createClient>, userId: string): Promise<IdentityResponse> {
+async function handleCheck(supabase: SupabaseClient, userId: string): Promise<IdentityResponse> {
   // 1️⃣ Superadmin global
   const { data: superadmin } = await supabase
     .from("user_roles")
@@ -185,7 +185,7 @@ async function handleCheck(supabase: ReturnType<typeof createClient>, userId: st
     .select("id, slug, name")
     .eq("id", role.tenant_id)
     .eq("is_active", true)
-    .maybeSingle();
+    .maybeSingle() as { data: { id: string; slug: string; name: string } | null };
 
   if (!tenant) {
     return {
@@ -216,9 +216,9 @@ async function handleCheck(supabase: ReturnType<typeof createClient>, userId: st
 /* -------------------------------------------------------------------------- */
 
 async function handleCompleteWizard(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
-  payload: any,
+  payload: unknown,
 ): Promise<IdentityResponse> {
   // 👉 Para agora: fluxo já existente estava OK
   // 👉 Se quiser, a gente revisa depois
