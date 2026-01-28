@@ -3,15 +3,19 @@ import { Loader2 } from "lucide-react";
 
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useIdentity } from "@/contexts/IdentityContext";
-import { useI18n } from "@/contexts/I18nContext";
 
 export default function PortalRouter() {
-  const { t } = useI18n();
   const { isAuthenticated, isLoading, isGlobalSuperadmin } = useCurrentUser();
   const { identityState, wizardCompleted, redirectPath } = useIdentity();
 
-  // 1️⃣ Auth ainda carregando
-  if (isLoading || identityState === "loading") {
+  /**
+   * 🔐 REGRA ABSOLUTA
+   * PortalRouter só bloqueia por AUTH.
+   * Identity nunca deve travar render aqui.
+   */
+
+  // 1️⃣ Auth ainda carregando (ÚNICO loading permitido aqui)
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -19,7 +23,7 @@ export default function PortalRouter() {
     );
   }
 
-  // 2️⃣ Não autenticado
+  // 2️⃣ Não autenticado → login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -39,6 +43,6 @@ export default function PortalRouter() {
     return <Navigate to={redirectPath} replace />;
   }
 
-  // 6️⃣ Fallback seguro
+  // 6️⃣ Fallback seguro (nunca spinner infinito)
   return <Navigate to="/identity/wizard" replace />;
 }
