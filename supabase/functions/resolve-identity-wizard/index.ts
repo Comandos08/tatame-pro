@@ -147,8 +147,9 @@ Deno.serve(async (req) => {
 });
 
 /**
- * CHECK — Verify identity state (read-only)
- * Never modifies data
+ * CHECK — Verify identity state (READ-ONLY ABSOLUTE)
+ * NEVER modifies data - no UPDATE, INSERT, DELETE
+ * CONTRACT: F0.1 PATCH 1
  */
 async function handleCheck(
   supabase: SupabaseAdmin,
@@ -171,10 +172,10 @@ async function handleCheck(
     };
   }
 
-  // 2. Check profile wizard_completed
+  // 2. Check profile wizard_completed (READ ONLY)
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("wizard_completed, tenant_id")
+    .select("wizard_completed")
     .eq("id", userId)
     .maybeSingle();
 
@@ -186,44 +187,29 @@ async function handleCheck(
     };
   }
 
-  // 3. If wizard not completed, check for existing context
   const wizardCompleted = profile?.wizard_completed ?? false;
 
+  // 3. If wizard not completed → WIZARD_REQUIRED (NO AUTO-COMPLETE)
   if (!wizardCompleted) {
-    // Check if user has tenant context (retroactive for existing users)
-    const context = await resolveTenantContext(supabase, userId);
-    
-    if (context.hasTenant && context.tenant) {
-      // Auto-complete wizard for existing users with context
-      await supabase
-        .from("profiles")
-        .update({ wizard_completed: true, tenant_id: context.tenantId })
-        .eq("id", userId);
-
-      return {
-        status: "RESOLVED",
-        tenant: context.tenant,
-        role: context.role,
-        redirectPath: context.redirectPath,
-      };
-    }
-
-    // No context - wizard required
+    // CONTRACT: Do NOT auto-complete, do NOT check existing context
+    // User must explicitly complete the wizard
     return { status: "WIZARD_REQUIRED" };
   }
 
-  // 4. Wizard completed - resolve tenant
+  // 4. Wizard completed - resolve tenant via CANONICAL order
   const context = await resolveTenantContext(supabase, userId);
 
   if (!context.hasTenant || !context.tenant) {
-    // Edge case: wizard marked complete but no tenant
-    // Reset wizard_completed
-    await supabase
-      .from("profiles")
-      .update({ wizard_completed: false })
-      .eq("id", userId);
-
-    return { status: "WIZARD_REQUIRED" };
+    // CONTRACT: Do NOT reset wizard_completed
+    // Invalid state must be visible as ERROR
+    console.error("[CHECK] Wizard completed but no tenant context found for user:", userId);
+    return {
+      status: "ERROR",
+      error: { 
+        code: "TENANT_NOT_FOUND", 
+        message: "Identity inconsistency detected. Please contact support." 
+      },
+    };
   }
 
   return {
@@ -237,6 +223,7 @@ async function handleCheck(
 /**
  * COMPLETE_WIZARD — Create tenant, roles, billing
  * All sensitive writes happen here
+ * CONTRACT: F0.1 PATCH 3 - IDEMPOTENT
  */
 async function handleCompleteWizard(
   supabase: SupabaseAdmin,
@@ -249,6 +236,31 @@ async function handleCompleteWizard(
   }
 ): Promise<IdentityResponse> {
   const { joinMode, inviteCode, newOrgName, profileType } = payload;
+
+  // CONTRACT: IDEMPOTENCY CHECK - If already completed, just return current state
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("wizard_completed")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (existingProfile?.wizard_completed === true) {
+    // Already completed - resolve and return (NO writes)
+    const context = await resolveTenantContext(supabase, userId);
+    if (context.hasTenant && context.tenant) {
+      return {
+        status: "RESOLVED",
+        tenant: context.tenant,
+        role: context.role,
+        redirectPath: context.redirectPath,
+      };
+    }
+    // Inconsistent state - wizard complete but no tenant
+    return {
+      status: "ERROR",
+      error: { code: "TENANT_NOT_FOUND", message: "Identity inconsistency detected" },
+    };
+  }
 
   // Validate payload
   if (!joinMode || !profileType) {
@@ -271,19 +283,19 @@ async function handleCompleteWizard(
       };
     }
 
-    // SECURITY: Exact match only, no enumeration
+    // CONTRACT: PATCH 4 - EXACT SLUG MATCH ONLY, NO .or(), NO ID fallback
     const code = inviteCode.trim().toLowerCase();
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .select("id, slug, name")
       .eq("is_active", true)
-      .or(`slug.eq.${code},id.eq.${inviteCode.trim()}`)
+      .eq("slug", code)
       .maybeSingle();
 
     if (tenantError || !tenant) {
       return {
         status: "ERROR",
-        error: { code: "INVITE_INVALID", message: "Invalid invite code or organization not found" },
+        error: { code: "INVITE_INVALID", message: "Invalid invite code" },
       };
     }
 
@@ -349,34 +361,44 @@ async function handleCompleteWizard(
     tenantSlug = String(newTenant.slug);
     tenantName = String(newTenant.name);
 
-    // Create billing record (trial)
+    // Create billing record (trial) - UPSERT for idempotency
     const { error: billingError } = await supabase
       .from("tenant_billing")
-      .insert({
-        tenant_id: tenantId,
-        status: "TRIALING",
-      });
+      .upsert(
+        { tenant_id: tenantId, status: "TRIALING" },
+        { onConflict: "tenant_id", ignoreDuplicates: true }
+      );
 
     if (billingError) {
       console.error("[COMPLETE_WIZARD] Billing creation error:", billingError);
       // Don't fail the whole operation for billing
     }
 
-    // For new org, creator is always admin
-    const { error: roleError } = await supabase
+    // For new org, creator is always admin - check existing first
+    const { data: existingAdminRole } = await supabase
       .from("user_roles")
-      .insert({
-        user_id: userId,
-        tenant_id: tenantId,
-        role: "ADMIN_TENANT",
-      });
+      .select("id")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
+      .eq("role", "ADMIN_TENANT")
+      .maybeSingle();
 
-    if (roleError) {
-      console.error("[COMPLETE_WIZARD] Role creation error:", roleError);
-      return {
-        status: "ERROR",
-        error: { code: "UNKNOWN", message: "Failed to assign role" },
-      };
+    if (!existingAdminRole) {
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: userId,
+          tenant_id: tenantId,
+          role: "ADMIN_TENANT",
+        });
+
+      if (roleError) {
+        console.error("[COMPLETE_WIZARD] Role creation error:", roleError);
+        return {
+          status: "ERROR",
+          error: { code: "UNKNOWN", message: "Failed to assign role" },
+        };
+      }
     }
 
   } else {
@@ -452,37 +474,38 @@ async function handleCompleteWizard(
 }
 
 /**
- * Resolve tenant context from various sources
+ * Resolve tenant context from CANONICAL sources only
+ * CONTRACT: F0.1 PATCH 2
+ * ORDER: user_roles → athletes (for ATHLETE only)
+ * profiles.tenant_id is LEGACY and NOT used for identity resolution
  */
 async function resolveTenantContext(
   supabase: SupabaseAdmin,
   userId: string
 ): Promise<TenantContextResult> {
-  // 1. Check profile tenant_id
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("tenant_id")
-    .eq("id", userId)
+  let tenantId: string | null = null;
+  let userRole: "ADMIN_TENANT" | "ATHLETE" | null = null;
+
+  // 1. CANONICAL SOURCE: user_roles (tenant_id IS NOT NULL)
+  const { data: roleRecord } = await supabase
+    .from("user_roles")
+    .select("tenant_id, role")
+    .eq("user_id", userId)
+    .not("tenant_id", "is", null)
+    .limit(1)
     .maybeSingle();
 
-  let tenantId = profile?.tenant_id ? String(profile.tenant_id) : null;
-
-  // 2. Check user_roles for tenant
-  if (!tenantId) {
-    const { data: role } = await supabase
-      .from("user_roles")
-      .select("tenant_id, role")
-      .eq("user_id", userId)
-      .not("tenant_id", "is", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (role?.tenant_id) {
-      tenantId = String(role.tenant_id);
+  if (roleRecord?.tenant_id) {
+    tenantId = String(roleRecord.tenant_id);
+    // Determine role from the record
+    if (roleRecord.role === "ADMIN_TENANT" || roleRecord.role === "STAFF_ORGANIZACAO") {
+      userRole = "ADMIN_TENANT";
+    } else {
+      userRole = "ATHLETE";
     }
   }
 
-  // 3. Check athlete link
+  // 2. If no role record, check athletes table (for ATHLETE role only)
   if (!tenantId) {
     const { data: athlete } = await supabase
       .from("athletes")
@@ -492,8 +515,12 @@ async function resolveTenantContext(
 
     if (athlete?.tenant_id) {
       tenantId = String(athlete.tenant_id);
+      userRole = "ATHLETE";
     }
   }
+
+  // CONTRACT: profiles.tenant_id is NOT used for resolution
+  // It's a legacy field that does NOT decide identity
 
   if (!tenantId) {
     return { hasTenant: false };
@@ -504,24 +531,32 @@ async function resolveTenantContext(
     .from("tenants")
     .select("id, slug, name")
     .eq("id", tenantId)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (!tenant) {
     return { hasTenant: false };
   }
 
-  // Determine role
-  const { data: adminRole } = await supabase
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("tenant_id", tenantId)
-    .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO"])
-    .limit(1)
-    .maybeSingle();
+  // Double-check admin status if we resolved from athletes
+  if (userRole === "ATHLETE") {
+    const { data: adminCheck } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
+      .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO"])
+      .limit(1)
+      .maybeSingle();
 
-  const isAdmin = !!adminRole;
-  const redirectPath = isAdmin ? `/${tenant.slug}/app` : `/${tenant.slug}/portal`;
+    if (adminCheck) {
+      userRole = "ADMIN_TENANT";
+    }
+  }
+
+  const redirectPath = userRole === "ADMIN_TENANT" 
+    ? `/${tenant.slug}/app` 
+    : `/${tenant.slug}/portal`;
 
   return {
     hasTenant: true,
@@ -531,7 +566,7 @@ async function resolveTenantContext(
       slug: String(tenant.slug), 
       name: String(tenant.name) 
     },
-    role: isAdmin ? "ADMIN_TENANT" : "ATHLETE",
+    role: userRole ?? "ATHLETE",
     redirectPath,
   };
 }
