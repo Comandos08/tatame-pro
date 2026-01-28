@@ -1,78 +1,85 @@
-/**
- * 🔐 AUTH CONTEXT — Enterprise Security Baseline
- *
- * FIX P0:
- * - isLoading NEVER stays stuck due to AbortController
- * - We ALWAYS finish loading when mounted, even if signal was aborted
- */
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Session, User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
+import { AppRole, CurrentUser, UserRole } from "@/types/auth";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { AuthContextType, CurrentUser, UserRole, AppRole } from "@/types/auth";
-import { User, AuthChangeEvent } from "@supabase/supabase-js";
-import { AuthState, transitionAuthState, mapSupabaseEventToAuthState, isSessionExpiredError } from "@/lib/auth";
+type AuthState = "idle" | "loading" | "authenticated" | "unauthenticated" | "error";
+
+interface AuthContextType {
+  session: Session | null;
+  user: CurrentUser | null;
+  authState: AuthState;
+  isAuthenticated: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [authState, setAuthState] = useState<AuthState>("idle");
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authState, setAuthState] = useState<AuthState>("authenticating");
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Mounted ref
-  const isMountedRef = useRef(true);
+  /**
+   * Fetch profile + roles.
+   * Se o profile NÃO existir, ele é criado automaticamente.
+   */
+  const fetchUserProfile = useCallback(async (authUser: User, signal?: AbortSignal): Promise<CurrentUser | null> => {
+    try {
+      if (signal?.aborted) return null;
 
-  // Abort controller for async operations
-  const abortControllerRef = useRef<AbortController | null>(null);
+      // 1) Tentativa inicial de buscar profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
 
-  const safeSetCurrentUser = useCallback((user: CurrentUser | null) => {
-    if (isMountedRef.current) setCurrentUser(user);
-  }, []);
+      if (signal?.aborted) return null;
 
-  const safeSetIsLoading = useCallback((loading: boolean) => {
-    if (isMountedRef.current) setIsLoading(loading);
-  }, []);
+      // 2) Detecta profile inexistente
+      const isMissingProfile =
+        !!profileError &&
+        (profileError.code === "PGRST116" ||
+          String(profileError.message || "")
+            .toLowerCase()
+            .includes("0 rows"));
 
-  const safeSetAuthState = useCallback((newState: AuthState) => {
-    if (!isMountedRef.current) return;
-    setAuthState((currentState) => {
-      const result = transitionAuthState(currentState, newState, "AuthContext");
-      return result.success ? newState : currentState;
-    });
-  }, []);
+      // 3) Auto-criação do profile (fix definitivo do loop)
+      if (isMissingProfile) {
+        const { error: insertError } = await supabase.from("profiles").insert({
+          id: authUser.id,
+          email: authUser.email ?? "",
+          name: authUser.user_metadata?.name ?? authUser.user_metadata?.full_name ?? null,
+          avatar_url: authUser.user_metadata?.avatar_url ?? null,
+          tenant_id: null,
+        });
 
-  const fetchUserProfile = useCallback(
-    async (user: User, signal?: AbortSignal): Promise<CurrentUser | null> => {
-      try {
         if (signal?.aborted) return null;
 
-        const { data: profile, error: profileError } = await supabase
+        if (insertError) {
+          console.error("[AuthContext] Failed to auto-create profile:", insertError);
+          return null;
+        }
+
+        // Re-fetch após criação
+        const { data: profile2, error: profileError2 } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user.id)
+          .eq("id", authUser.id)
           .single();
 
         if (signal?.aborted) return null;
 
-        if (profileError) {
-          console.error("[AuthContext] Error fetching profile:", profileError);
-          if (isSessionExpiredError(profileError)) {
-            safeSetAuthState("expired");
-          }
+        if (profileError2 || !profile2) {
+          console.error("[AuthContext] Failed to fetch profile after auto-create:", profileError2);
           return null;
         }
 
-        const { data: roles, error: rolesError } = await supabase.from("user_roles").select("*").eq("user_id", user.id);
-
-        if (signal?.aborted) return null;
-
-        if (rolesError) {
-          console.error("[AuthContext] Error fetching roles:", rolesError);
-        }
+        const { data: roles } = await supabase.from("user_roles").select("*").eq("user_id", authUser.id);
 
         const userRoles: UserRole[] = (roles || []).map((r: any) => ({
           id: r.id,
@@ -82,225 +89,156 @@ export function AuthProvider({ children }: AuthProviderProps) {
           createdAt: r.created_at,
         }));
 
-        const built: CurrentUser = {
-          id: profile.id,
-          tenantId: profile.tenant_id,
-          email: profile.email,
-          name: profile.name,
-          avatarUrl: profile.avatar_url,
-          createdAt: profile.created_at,
-          updatedAt: profile.updated_at,
+        return {
+          id: profile2.id,
+          tenantId: profile2.tenant_id,
+          email: profile2.email,
+          name: profile2.name,
+          avatarUrl: profile2.avatar_url,
+          createdAt: profile2.created_at,
+          updatedAt: profile2.updated_at,
           roles: userRoles,
         };
+      }
 
-        return built;
-      } catch (error: any) {
-        if (signal?.aborted) return null;
-
-        console.error("[AuthContext] Error in fetchUserProfile:", error);
-        if (isSessionExpiredError(error)) {
-          safeSetAuthState("expired");
-        }
+      // 4) Erro real de profile (não é "missing")
+      if (profileError || !profile) {
+        console.error("[AuthContext] Error fetching profile:", profileError);
         return null;
       }
-    },
-    [safeSetAuthState],
-  );
 
-  const handleAuthStateChange = useCallback(
-    async (event: AuthChangeEvent, session: { user: User } | null, signal?: AbortSignal) => {
-      if (signal?.aborted) return;
+      // 5) Busca roles normalmente
+      const { data: roles } = await supabase.from("user_roles").select("*").eq("user_id", authUser.id);
 
-      const newAuthState = mapSupabaseEventToAuthState(event, !!session, !!session?.user);
+      const userRoles: UserRole[] = (roles || []).map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        role: r.role as AppRole,
+        tenantId: r.tenant_id,
+        createdAt: r.created_at,
+      }));
 
-      try {
-        if (event === "SIGNED_OUT") {
-          safeSetCurrentUser(null);
-          safeSetAuthState("unauthenticated");
-          safeSetIsLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          safeSetAuthState("authenticating");
-          safeSetIsLoading(true);
-
-          const userProfile = await fetchUserProfile(session.user, signal);
-
-          if (signal?.aborted) return;
-
-          if (userProfile) {
-            safeSetCurrentUser(userProfile);
-            safeSetAuthState("authenticated");
-          } else {
-            safeSetCurrentUser(null);
-            safeSetAuthState("error");
-          }
-
-          safeSetIsLoading(false);
-          return;
-        }
-
-        safeSetCurrentUser(null);
-        safeSetAuthState(newAuthState);
-        safeSetIsLoading(false);
-      } catch (e) {
-        if (signal?.aborted) return;
-
-        console.error("[AuthContext] handleAuthStateChange error:", e);
-        safeSetAuthState("error");
-        safeSetIsLoading(false);
+      return {
+        id: profile.id,
+        tenantId: profile.tenant_id,
+        email: profile.email,
+        name: profile.name,
+        avatarUrl: profile.avatar_url,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+        roles: userRoles,
+      };
+    } catch (err) {
+      if (!signal?.aborted) {
+        console.error("[AuthContext] Unexpected error:", err);
       }
+      return null;
+    }
+  }, []);
+
+  /**
+   * Resolve sessão e usuário
+   */
+  const resolveSession = useCallback(
+    async (session: Session | null) => {
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
+      if (!session?.user) {
+        setSession(null);
+        setUser(null);
+        setAuthState("unauthenticated");
+        return;
+      }
+
+      setAuthState("loading");
+
+      const currentUser = await fetchUserProfile(session.user, abortRef.current.signal);
+
+      if (abortRef.current.signal.aborted) return;
+
+      if (!currentUser) {
+        setSession(null);
+        setUser(null);
+        setAuthState("error");
+        return;
+      }
+
+      setSession(session);
+      setUser(currentUser);
+      setAuthState("authenticated");
     },
-    [fetchUserProfile, safeSetCurrentUser, safeSetAuthState, safeSetIsLoading],
+    [fetchUserProfile],
   );
 
+  /**
+   * Inicialização + listener de auth
+   */
   useEffect(() => {
-    isMountedRef.current = true;
+    let mounted = true;
 
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      resolveSession(data.session);
+    });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await handleAuthStateChange(event, session as any, signal);
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      resolveSession(session);
     });
-
-    // Initial session check
-    (async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (signal.aborted) return;
-
-        if (session?.user) {
-          safeSetAuthState("authenticating");
-          safeSetIsLoading(true);
-
-          const userProfile = await fetchUserProfile(session.user, signal);
-
-          if (signal.aborted) return;
-
-          if (userProfile) {
-            safeSetCurrentUser(userProfile);
-            safeSetAuthState("authenticated");
-          } else {
-            safeSetCurrentUser(null);
-            safeSetAuthState("unauthenticated");
-          }
-        } else {
-          safeSetCurrentUser(null);
-          safeSetAuthState("unauthenticated");
-        }
-      } catch (e) {
-        if (signal.aborted) return;
-        console.error("[AuthContext] getSession error:", e);
-        safeSetAuthState("error");
-      } finally {
-        // ✅ FIX P0: ALWAYS end loading if mounted
-        safeSetIsLoading(false);
-      }
-    })();
 
     return () => {
-      isMountedRef.current = false;
-      abortControllerRef.current?.abort();
+      mounted = false;
       subscription.unsubscribe();
+      abortRef.current?.abort();
     };
-  }, [handleAuthStateChange, fetchUserProfile, safeSetCurrentUser, safeSetAuthState, safeSetIsLoading]);
+  }, [resolveSession]);
 
-  const isAuthenticated = authState === "authenticated" && !!currentUser;
+  /**
+   * Actions
+   */
+  const signIn = useCallback(async (email: string, password: string) => {
+    setAuthState("loading");
 
-  const isGlobalSuperadmin =
-    currentUser?.roles?.some(
-      (r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined),
-    ) ?? false;
-
-  const currentRolesByTenant = new Map<string, AppRole[]>();
-  currentUser?.roles?.forEach((role) => {
-    const key = role.tenantId || "global";
-    const existing = currentRolesByTenant.get(key) || [];
-    currentRolesByTenant.set(key, [...existing, role.role]);
-  });
-
-  const hasRole = useCallback(
-    (role: AppRole, tenantId?: string): boolean => {
-      if (!currentUser) return false;
-      return currentUser.roles.some((r) => r.role === role && (tenantId ? r.tenantId === tenantId : true));
-    },
-    [currentUser],
-  );
-
-  const signIn = async (email: string, password: string) => {
-    safeSetAuthState("authenticating");
-    safeSetIsLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      safeSetAuthState("error");
-      safeSetIsLoading(false);
-      throw error;
-    }
-
-    // onAuthStateChange will finish the state
-  };
-
-  const signUp = async (email: string, password: string, name?: string) => {
-    safeSetAuthState("authenticating");
-    safeSetIsLoading(true);
-
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { name },
-      },
     });
 
     if (error) {
-      safeSetAuthState("error");
-      safeSetIsLoading(false);
+      setAuthState("error");
       throw error;
     }
-  };
+  }, []);
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+  const signOut = useCallback(async () => {
+    setAuthState("loading");
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setAuthState("unauthenticated");
+  }, []);
 
-    safeSetCurrentUser(null);
-    safeSetAuthState("unauthenticated");
-    safeSetIsLoading(false);
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        isLoading,
-        isAuthenticated,
-        isGlobalSuperadmin,
-        currentRolesByTenant,
-        signIn,
-        signUp,
-        signOut,
-        hasRole,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      session,
+      user,
+      authState,
+      isAuthenticated: authState === "authenticated",
+      signIn,
+      signOut,
+    }),
+    [session, user, authState, signIn, signOut],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useCurrentUser() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useCurrentUser must be used within an AuthProvider");
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthProvider");
   }
-  return context;
+  return ctx;
 }
