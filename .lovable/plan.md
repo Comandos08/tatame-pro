@@ -1,37 +1,107 @@
 
+# Plano de Correção: Rotas Faltando no App.tsx
 
-# Plano de Correção: Spinner Infinito na Rota "/"
+## Diagnóstico Final
 
-## Diagnóstico
+### O que está acontecendo
 
-O spinner infinito acontece porque:
+```text
+Login.tsx                IdentityGate.tsx           App.tsx Routes
+    │                         │                          │
+    │ signIn() OK             │                          │
+    │─────────────────────────>                          │
+    │ isAuthenticated=true    │                          │
+    │ navigate("/portal")     │                          │
+    │                         │                          │
+    │                         │ authLoading=false        │
+    │                         │ identityState="loading"  │
+    │                         │ → mostra spinner         │
+    │                         │                          │
+    │                         │ checkIdentity() retorna: │
+    │                         │ status=RESOLVED          │
+    │                         │ role=SUPERADMIN_GLOBAL   │
+    │                         │ redirectPath="/admin"    │
+    │                         │                          │
+    │                         │ identityState="superadmin"
+    │                         │ R5: pathname != /admin   │
+    │                         │ → Navigate to /admin     │
+    │                         │                          │
+    │                         │                          │ /admin NÃO EXISTE
+    │                         │                          │ → cai no path="*"
+    │                         │                          │ → NotFound 😱
+```
 
-1. **App.tsx não tem a rota "/" definida** - quando o usuário acessa "/", não existe um match direto e cai no wildcard "/*" que leva ao PortalRouter
-2. **PortalRouter exige autenticação** - ele chama `useCurrentUser()` e mostra um spinner enquanto `isLoading=true`
-3. **Mesmo após auth carregar**, se o usuário não estiver autenticado, o PortalRouter redireciona para "/login", mas como não há match para "/", o ciclo pode se repetir
+### Problema
+
+O arquivo `App.tsx` foi simplificado e agora tem APENAS estas rotas:
+
+| Rota | Existe? |
+|------|---------|
+| `/` | ✅ |
+| `/login` | ✅ |
+| `/help` | ✅ |
+| `/forgot-password` | ✅ |
+| `/reset-password` | ✅ |
+| `/auth/callback` | ✅ |
+| `/identity/wizard` | ✅ |
+| `/portal/*` | ✅ |
+| `/admin/*` | ❌ FALTANDO |
+| `/:tenantSlug/*` | ❌ FALTANDO |
+
+O arquivo `routes.tsx` tem a estrutura completa de rotas, mas **não está sendo usado**.
+
+---
 
 ## Solução
 
-### Arquivo 1: `src/App.tsx`
+### Opção A: Usar o AppRoutes do routes.tsx (Recomendado)
 
-**O que muda:**
-- Adicionar a rota `"/"` apontando para o componente `Landing`
-- Adicionar todas as rotas públicas que estão faltando (`/help`, `/forgot-password`, `/reset-password`)
+Modificar `App.tsx` para usar o componente `AppRoutes` já existente:
 
-**Código final:**
 ```tsx
+// src/App.tsx
+import { AppRoutes } from "@/routes";
+
+export default function App() {
+  return <AppRoutes />;
+}
+```
+
+**Problema**: O `routes.tsx` tem `IdentityGate` dentro de cada rota protegida, mas o `App.tsx` atual envolve tudo com `IdentityGate` no topo. Isso pode causar duplicação.
+
+### Opção B: Restaurar as rotas faltantes no App.tsx (Cirúrgico)
+
+Adicionar as rotas `/admin/*` e `/:tenantSlug/*` diretamente no `App.tsx` atual:
+
+```tsx
+// src/App.tsx - com todas as rotas necessárias
 import { Routes, Route } from "react-router-dom";
 import IdentityGate from "@/components/identity/IdentityGate";
 
+// Public pages
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Help from "@/pages/Help";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
-import PortalRouter from "@/pages/PortalRouter";
-import IdentityWizard from "@/pages/IdentityWizard";
 import AuthCallback from "@/pages/AuthCallback";
 import NotFound from "@/pages/NotFound";
+
+// Identity
+import IdentityWizard from "@/pages/IdentityWizard";
+
+// Portal
+import PortalRouter from "@/pages/PortalRouter";
+
+// Admin
+import AdminDashboard from "@/pages/AdminDashboard";
+import TenantControl from "@/pages/TenantControl";
+
+// Tenant
+import { TenantLayout } from "@/layouts/TenantLayout";
+import TenantLanding from "@/pages/TenantLanding";
+import TenantDashboard from "@/pages/TenantDashboard";
+// ... outros componentes de tenant
 
 export default function App() {
   return (
@@ -48,9 +118,20 @@ export default function App() {
         {/* Identity */}
         <Route path="/identity/wizard" element={<IdentityWizard />} />
 
-        {/* Protected - todas as outras rotas */}
+        {/* Portal */}
         <Route path="/portal/*" element={<PortalRouter />} />
-        
+
+        {/* Admin (Superadmin only - já protegido pelo IdentityGate) */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />
+
+        {/* Tenant routes */}
+        <Route path="/:tenantSlug" element={<TenantLayout />}>
+          <Route index element={<TenantLanding />} />
+          <Route path="app" element={<TenantDashboard />} />
+          {/* ... outras rotas de tenant */}
+        </Route>
+
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -59,38 +140,43 @@ export default function App() {
 }
 ```
 
-### Arquivo 2: `src/contexts/IdentityContext.tsx` (Opcional mas Recomendado)
+---
 
-**O que muda:**
-- Mudar o estado inicial de `"loading"` para `"resolved"`
-- Isso evita que rotas públicas mostrem loading desnecessário enquanto o IdentityContext inicializa
+## Recomendação
 
-**Linha 88:**
-```tsx
-// DE:
-const [identityState, setIdentityState] = useState<IdentityState>("loading");
+**Opção B** é mais segura porque:
+1. Não requer refatorar o `routes.tsx`
+2. Mantém o `IdentityGate` como wrapper único
+3. Adiciona apenas as rotas que faltam
 
-// PARA:
-const [identityState, setIdentityState] = useState<IdentityState>("resolved");
-```
+---
+
+## Mudanças Necessárias
+
+### Arquivo: `src/App.tsx`
+
+Adicionar:
+1. Importação de `AdminDashboard` e `TenantControl`
+2. Importação de `TenantLayout`, `TenantLanding`, `TenantDashboard`
+3. Rotas para `/admin` e `/admin/tenants/:tenantId/control`
+4. Rotas para `/:tenantSlug/*`
+
+### Verificação de Segurança
+
+O `IdentityGate` já protege as rotas:
+- **R5**: Se `identityState === "superadmin"` e pathname não começa com `/admin`, redireciona para `/admin`
+- Isso significa que só superadmins chegam em `/admin/*`
+
+Para rotas de tenant (`/:tenantSlug/app`), precisamos verificar se há proteção adequada no `TenantLayout` ou adicionar um guard similar.
+
+---
 
 ## Resultado Esperado
 
-Após aplicar essas correções:
+Após aplicar a correção:
 
-| Rota | Comportamento |
-|------|---------------|
-| `/` | Landing carrega IMEDIATAMENTE (sem spinner) |
-| `/login` | Tela de login carrega imediatamente |
-| `/help` | Página de ajuda carrega imediatamente |
-| `/forgot-password` | Formulário de recuperação carrega imediatamente |
-| `/reset-password` | Formulário de nova senha carrega imediatamente |
-| `/portal` | Verifica autenticação → se não logado, vai para `/login` |
-| `/admin` | Verifica autenticação + superadmin |
-
-## Detalhes Técnicos
-
-O IdentityGate já tem a lógica correta de bypass para rotas públicas (função `isPublicPath`), mas essa lógica só funciona se a rota estiver definida. Sem a rota "/" no App.tsx, o React Router não sabe o que renderizar e cai no wildcard que leva ao PortalRouter (que é protegido).
-
-A mudança do estado inicial do IdentityContext de "loading" para "resolved" é uma otimização que evita delays desnecessários. Quando o usuário está em uma rota pública, não precisamos esperar a resolução de identidade - o bypass já cuida disso.
-
+| Ação | Resultado |
+|------|-----------|
+| Login como superadmin | → /portal → identity resolve → /admin (Dashboard carrega) |
+| Login como admin de tenant | → /portal → identity resolve → /tenant-slug/app |
+| Login como atleta | → /portal → identity resolve → /tenant-slug/portal |
