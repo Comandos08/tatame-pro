@@ -24,6 +24,11 @@ interface AppProvidersProps {
   children: ReactNode;
 }
 
+/**
+ * 🔒 PROVIDERS ONLY
+ * ❌ NO GUARDS
+ * ❌ NO REDIRECT LOGIC
+ */
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
