@@ -1,24 +1,19 @@
+// src/contexts/IdentityContext.tsx
+
 /**
  * 🔐 IDENTITY CONTEXT — Consume-Only State Machine (HARDENED)
  *
- * Fixes:
- * - Never infinite 'loading'
- * - Only checks identity when authenticated AND token exists
- * - 10s timeout fail-safe
- * - Prevent concurrent checks
- * - Proper response.ok handling
+ * FIX P0:
+ * - Adds HARD TIMEOUT to prevent infinite loading if Edge Function hangs
+ * - Never leaves identityState stuck in "loading"
+ * - Resets cleanly on logout
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 
-export type IdentityState =
-  | "resolved" // stable / neutral (doesn't block UI by itself)
-  | "loading"
-  | "wizard_required"
-  | "superadmin"
-  | "error";
+export type IdentityState = "loading" | "wizard_required" | "resolved" | "superadmin" | "error";
 
 export interface IdentityError {
   code:
@@ -74,27 +69,23 @@ interface IdentityProviderProps {
   children: ReactNode;
 }
 
-function resetState(setters: {
-  setIdentityState: (s: IdentityState) => void;
-  setError: (e: IdentityError | null) => void;
-  setWizardCompleted: (b: boolean) => void;
-  setTenant: (t: TenantInfo | null) => void;
-  setRole: (r: "ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null) => void;
-  setRedirectPath: (p: string | null) => void;
-}) {
-  setters.setIdentityState("resolved");
-  setters.setError(null);
-  setters.setWizardCompleted(false);
-  setters.setTenant(null);
-  setters.setRole(null);
-  setters.setRedirectPath(null);
+// ✅ HARD timeout (ms) – evita loader infinito
+const IDENTITY_TIMEOUT_MS = 12_000;
+
+function hardAbortableFetch(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    abort: () => controller.abort(),
+    clear: () => window.clearTimeout(timeoutId),
+  };
 }
 
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
-  // ✅ Start stable: do NOT block the app on boot
-  const [identityState, setIdentityState] = useState<IdentityState>("resolved");
+  const [identityState, setIdentityState] = useState<IdentityState>("loading");
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
@@ -102,77 +93,92 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
-  const abortRef = useRef<AbortController | null>(null);
-  const timeoutRef = useRef<number | null>(null);
-  const isCheckingRef = useRef(false);
+  const inFlightAbortRef = useRef<null | (() => void)>(null);
 
-  const clearTimersAndAbort = () => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    abortRef.current?.abort();
-    abortRef.current = null;
-    isCheckingRef.current = false;
-  };
+  const reset = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setIdentityState("resolved"); // ✅ não bloqueia rotas públicas
+    setError(null);
+    setWizardCompleted(false);
+    setTenant(null);
+    setRole(null);
+    setRedirectPath(null);
+  }, []);
 
-  const checkIdentity = useCallback(async () => {
-    // Prevent concurrent checks
-    if (isCheckingRef.current) return;
+  const applyResult = useCallback((result: any) => {
+    if (!isMountedRef.current) return;
 
-    // Must be authenticated with a currentUser id
-    if (!isAuthenticated || !currentUser?.id) {
-      if (isMountedRef.current) {
-        resetState({
-          setIdentityState,
-          setError,
-          setWizardCompleted,
-          setTenant,
-          setRole,
-          setRedirectPath,
-        });
-      }
+    if (result?.status === "RESOLVED") {
+      setWizardCompleted(true);
+      setTenant(result.tenant || null);
+      setRole(result.role || null);
+      setRedirectPath(result.redirectPath || null);
+
+      if (result.role === "SUPERADMIN_GLOBAL") setIdentityState("superadmin");
+      else setIdentityState("resolved");
+
+      setError(null);
       return;
     }
 
-    isCheckingRef.current = true;
-    setError(null);
+    if (result?.status === "WIZARD_REQUIRED") {
+      setWizardCompleted(false);
+      setTenant(null);
+      setRole(null);
+      setRedirectPath(null);
+      setIdentityState("wizard_required");
+      setError(null);
+      return;
+    }
+
+    // ERROR / unknown
+    setIdentityState("error");
+    setError(
+      result?.error || {
+        code: "UNKNOWN",
+        message: "Falha ao verificar identidade (resposta inesperada).",
+      },
+    );
+  }, []);
+
+  const checkIdentity = useCallback(async () => {
+    // Abort anterior
+    if (inFlightAbortRef.current) {
+      inFlightAbortRef.current();
+      inFlightAbortRef.current = null;
+    }
+
+    // Se não autenticado (ou sem user id), não tem porque travar identidade
+    if (!currentUser?.id || !isAuthenticated) {
+      reset();
+      return;
+    }
+
+    // Aqui SIM: usuário autenticado → identidade precisa resolver
+    if (!isMountedRef.current) return;
     setIdentityState("loading");
+    setError(null);
 
-    // New abort controller per check
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
-
-    // Hard timeout: never infinite loading
-    timeoutRef.current = window.setTimeout(() => {
-      if (!isMountedRef.current) return;
-      if (signal.aborted) return;
-      console.error("[IdentityContext] Timeout in identity check");
-      setIdentityState("error");
-      setError({ code: "UNKNOWN", message: "Identity check timed out" });
-      clearTimersAndAbort();
-    }, 10000);
+    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
+    inFlightAbortRef.current = abort;
 
     try {
       const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (signal.aborted) return;
-
       if (sessionErr) {
-        throw new Error(sessionErr.message || "Failed to get session");
+        throw sessionErr;
       }
 
       const accessToken = sessionData?.session?.access_token;
-
-      // ✅ CRITICAL: If user is authenticated but token is missing -> ERROR (not loading forever)
       if (!accessToken) {
-        console.error("[IdentityContext] Authenticated but no access token");
+        // sem token => não dá pra chamar a function
         setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Missing access token after login" });
+        setError({ code: "PERMISSION_DENIED", message: "Sessão inválida (sem token)." });
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`;
+
+      const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -182,109 +188,84 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         signal,
       });
 
-      if (signal.aborted) return;
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(`Identity check failed (${response.status}) ${text}`.trim());
+      // Se abortou por timeout
+      if (signal.aborted) {
+        setIdentityState("error");
+        setError({
+          code: "UNKNOWN",
+          message: "Identity service timeout (Edge Function não respondeu).",
+        });
+        return;
       }
 
-      const result = await response.json();
+      // Response inválida
+      if (!resp.ok) {
+        let body: any = null;
+        try {
+          body = await resp.json();
+        } catch {
+          // ignore
+        }
+        setIdentityState("error");
+        setError({
+          code: "UNKNOWN",
+          message: body?.error?.message || `Falha ao verificar identidade (HTTP ${resp.status}).`,
+        });
+        return;
+      }
+
+      const result = await resp.json();
+      applyResult(result);
+    } catch (err: any) {
       if (!isMountedRef.current) return;
 
-      switch (result.status) {
-        case "RESOLVED": {
-          setWizardCompleted(true);
-          setTenant(result.tenant || null);
-          setRole(result.role || null);
-          setRedirectPath(result.redirectPath || null);
-
-          if (result.role === "SUPERADMIN_GLOBAL") setIdentityState("superadmin");
-          else setIdentityState("resolved");
-          break;
-        }
-
-        case "WIZARD_REQUIRED": {
-          setWizardCompleted(false);
-          setTenant(null);
-          setRole(null);
-          setRedirectPath(null);
-          setIdentityState("wizard_required");
-          break;
-        }
-
-        case "ERROR": {
-          setIdentityState("error");
-          setError(result.error || { code: "UNKNOWN", message: "Failed to verify identity" });
-          break;
-        }
-
-        default: {
-          setIdentityState("error");
-          setError({ code: "UNKNOWN", message: `Unknown identity status: ${String(result.status)}` });
-          break;
-        }
-      }
-    } catch (e: any) {
-      if (abortRef.current?.signal.aborted) return;
-      console.error("[IdentityContext] Check identity error:", e);
-      if (isMountedRef.current) {
+      // Timeout/abort
+      if (err?.name === "AbortError") {
         setIdentityState("error");
-        setError({ code: "UNKNOWN", message: e?.message || "Failed to connect to identity service" });
+        setError({
+          code: "UNKNOWN",
+          message: "Identity service timeout (request abortada).",
+        });
+        return;
       }
+
+      console.error("[IdentityContext] checkIdentity error:", err);
+      setIdentityState("error");
+      setError({
+        code: "UNKNOWN",
+        message: "Falha ao conectar ao serviço de identidade.",
+      });
     } finally {
-      if (!abortRef.current?.signal.aborted) {
-        if (timeoutRef.current) {
-          window.clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-        isCheckingRef.current = false;
-      }
+      clear();
+      inFlightAbortRef.current = null;
     }
-  }, [isAuthenticated, currentUser?.id]);
+  }, [applyResult, currentUser?.id, isAuthenticated, reset]);
 
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Always cleanup previous inflight work on relevant changes
-    clearTimersAndAbort();
+    // Enquanto auth carrega, não trava tudo (deixa o app respirar)
+    if (authLoading) return;
 
-    // While auth is loading: do not force identity to loading
-    if (authLoading) {
-      return () => {
-        isMountedRef.current = false;
-        clearTimersAndAbort();
-      };
-    }
-
-    // Not authenticated: stable state
+    // Logout / usuário não autenticado
     if (!isAuthenticated || !currentUser?.id) {
-      resetState({
-        setIdentityState,
-        setError,
-        setWizardCompleted,
-        setTenant,
-        setRole,
-        setRedirectPath,
-      });
-
-      return () => {
-        isMountedRef.current = false;
-        clearTimersAndAbort();
-      };
+      reset();
+      return;
     }
 
-    // Authenticated: check identity once
+    // Usuário autenticado -> checar identidade
     checkIdentity();
 
     return () => {
       isMountedRef.current = false;
-      clearTimersAndAbort();
+      if (inFlightAbortRef.current) {
+        inFlightAbortRef.current();
+        inFlightAbortRef.current = null;
+      }
     };
-  }, [authLoading, isAuthenticated, currentUser?.id, checkIdentity]);
+  }, [authLoading, isAuthenticated, currentUser?.id, checkIdentity, reset]);
 
   const refreshIdentity = async () => {
-    clearTimersAndAbort();
     await checkIdentity();
   };
 
@@ -293,42 +274,46 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
     }
 
+    // Abort anterior
+    if (inFlightAbortRef.current) {
+      inFlightAbortRef.current();
+      inFlightAbortRef.current = null;
+    }
+
+    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
+    inFlightAbortRef.current = abort;
+
     try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
-      if (sessionErr || !accessToken) {
+      if (!accessToken) {
         return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+      setIdentityState("loading");
+      setError(null);
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ action: "COMPLETE_WIZARD", payload }),
+        signal,
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        return {
-          success: false,
-          error: { code: "UNKNOWN", message: `Wizard failed (${response.status}) ${text}`.trim() },
-        };
+      if (signal.aborted) {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Timeout ao completar wizard." });
+        return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
       }
 
-      const result = await response.json();
+      const result = await resp.json();
 
-      if (result.status === "RESOLVED") {
-        setWizardCompleted(true);
-        setTenant(result.tenant || null);
-        setRole(result.role || null);
-        setRedirectPath(result.redirectPath || null);
-
-        if (result.role === "SUPERADMIN_GLOBAL") setIdentityState("superadmin");
-        else setIdentityState("resolved");
-
+      if (result?.status === "RESOLVED") {
+        applyResult(result);
         return {
           success: true,
           tenant: result.tenant,
@@ -337,14 +322,29 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         };
       }
 
-      if (result.status === "ERROR") {
-        return { success: false, error: result.error || { code: "UNKNOWN", message: "Failed to complete wizard" } };
+      if (result?.status === "ERROR") {
+        setIdentityState("error");
+        setError(result.error || { code: "UNKNOWN", message: "Falha ao completar wizard" });
+        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao completar wizard" } };
       }
 
-      return { success: false, error: { code: "UNKNOWN", message: "Unexpected response" } };
-    } catch (e: any) {
-      console.error("[IdentityContext] Complete wizard error:", e);
-      return { success: false, error: { code: "UNKNOWN", message: e?.message || "Failed to complete wizard" } };
+      setIdentityState("error");
+      setError({ code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." });
+      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." } };
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Timeout ao completar wizard (abort)." });
+        return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
+      }
+
+      console.error("[IdentityContext] completeWizard error:", err);
+      setIdentityState("error");
+      setError({ code: "UNKNOWN", message: "Falha ao completar wizard." });
+      return { success: false, error: { code: "UNKNOWN", message: "Falha ao completar wizard." } };
+    } finally {
+      clear();
+      inFlightAbortRef.current = null;
     }
   };
 
@@ -355,12 +355,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 
   const clearError = () => {
     setError(null);
-    // Re-check only if authenticated; otherwise keep stable
-    if (isAuthenticated && currentUser?.id) {
-      refreshIdentity();
-    } else {
-      setIdentityState("resolved");
-    }
+    // tenta resolver de novo
+    checkIdentity();
   };
 
   return (
@@ -386,7 +382,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 }
 
 export function useIdentity() {
-  const context = useContext(IdentityContext);
-  if (!context) throw new Error("useIdentity must be used within an IdentityProvider");
-  return context;
+  const ctx = useContext(IdentityContext);
+  if (!ctx) throw new Error("useIdentity must be used within an IdentityProvider");
+  return ctx;
 }
