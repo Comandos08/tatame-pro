@@ -1544,4 +1544,11 @@ export const en: Record<string, string> = {
   'identity.error.tryAgain': 'Try Again',
   'identity.error.contactSupport': 'Contact Support',
   'identity.error.goToAdmin': 'Back to Admin',
+  
+  // Identity Gate (F0.2)
+  'identity.error': 'Identity Error',
+  'identity.unknownError': 'Unknown error verifying identity',
+  'identity.noContext': 'Context not found',
+  'identity.noContextDesc': 'Could not determine your organization. Please try again or log out.',
+  'common.retry': 'Try Again',
 };

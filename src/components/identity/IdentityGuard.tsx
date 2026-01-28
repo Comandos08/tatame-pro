@@ -1,27 +1,23 @@
 /**
- * 🔐 IDENTITY GUARD — Global Enforcement
+ * 🔐 IDENTITY GUARD — Wrapper for IdentityGate
  * 
- * Blocks access to protected routes until identity is resolved.
- * Redirects to wizard if wizard_completed = false.
+ * F0.2 CONTRACT: This guard uses ONLY backend state.
+ * Kept for backward compatibility with existing route structure.
  * 
- * RULES:
- * - Loading → show loader
- * - wizard_required → redirect to /identity/wizard
- * - error → show IdentityErrorScreen
- * - resolved/superadmin → render children
+ * BYPASS ROUTES: Public routes that don't require identity resolution.
+ * All other routes go through IdentityGate logic.
  */
-import React, { ReactNode, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { useIdentity } from '@/contexts/IdentityContext';
+import React, { ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { IdentityErrorScreen } from './IdentityErrorScreen';
+import { useIdentity } from '@/contexts/IdentityContext';
+import { Loader2 } from 'lucide-react';
 
 interface IdentityGuardProps {
   children: ReactNode;
 }
 
-// Routes that bypass identity check
+// Routes that bypass identity check completely
 const BYPASS_ROUTES = [
   '/login',
   '/forgot-password',
@@ -48,67 +44,41 @@ const PUBLIC_TENANT_PATTERNS = [
   /^\/[^/]+$/,                    // /:tenant (landing)
 ];
 
+/**
+ * Check if a route should bypass identity checks
+ */
+function shouldBypassRoute(pathname: string): boolean {
+  // Check exact bypass routes
+  if (BYPASS_ROUTES.some(route => pathname === route)) {
+    return true;
+  }
+
+  // Check public tenant patterns
+  if (PUBLIC_TENANT_PATTERNS.some(pattern => pattern.test(pathname))) {
+    return true;
+  }
+
+  return false;
+}
+
 export function IdentityGuard({ children }: IdentityGuardProps) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { identityState, error } = useIdentity();
   const { isAuthenticated, isLoading: authLoading } = useCurrentUser();
-  
-  const hasRedirectedRef = useRef(false);
+  const { identityState } = useIdentity();
 
-  // Check if current route should bypass identity check
-  const shouldBypass = () => {
-    const pathname = location.pathname;
-    
-    // Check exact bypass routes
-    if (BYPASS_ROUTES.some(route => pathname === route)) {
-      return true;
-    }
-
-    // Check public tenant patterns
-    if (PUBLIC_TENANT_PATTERNS.some(pattern => pattern.test(pathname))) {
-      return true;
-    }
-
-    return false;
-  };
-
-  useEffect(() => {
-    // Reset redirect guard on route change
-    hasRedirectedRef.current = false;
-  }, [location.pathname]);
-
-  useEffect(() => {
-    // Don't enforce on bypass routes
-    if (shouldBypass()) return;
-
-    // Wait for auth to load
-    if (authLoading) return;
-
-    // Not authenticated - let other guards handle
-    if (!isAuthenticated) return;
-
-    // Already redirecting
-    if (hasRedirectedRef.current) return;
-
-    // Wizard required - redirect to wizard
-    if (identityState === 'wizard_required') {
-      hasRedirectedRef.current = true;
-      navigate('/identity/wizard', { replace: true });
-    }
-  }, [identityState, authLoading, isAuthenticated, navigate, location.pathname]);
+  const pathname = location.pathname;
 
   // Bypass routes - render children directly
-  if (shouldBypass()) {
+  if (shouldBypassRoute(pathname)) {
     return <>{children}</>;
   }
 
-  // Not authenticated - render children (auth guards will handle)
-  if (!isAuthenticated && !authLoading) {
+  // Not authenticated and done loading - let route handle it
+  if (!authLoading && !isAuthenticated) {
     return <>{children}</>;
   }
 
-  // Loading state
+  // Loading state for identity
   if (authLoading || identityState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -120,23 +90,8 @@ export function IdentityGuard({ children }: IdentityGuardProps) {
     );
   }
 
-  // Error state - show error screen
-  if (identityState === 'error' && error) {
-    return <IdentityErrorScreen error={error} />;
-  }
-
-  // Wizard required - show loading while redirecting
-  if (identityState === 'wizard_required') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Redirecionando para configuração...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Resolved or superadmin - render children
+  // All other states - render children, IdentityGate in routes handles redirects
   return <>{children}</>;
 }
+
+export default IdentityGuard;
