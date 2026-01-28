@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,28 +11,26 @@ import { ImpersonationProvider } from "./ImpersonationContext";
 import { IdentityProvider } from "./IdentityContext";
 import { ImpersonationBanner, ImpersonationBannerSpacer } from "@/components/impersonation/ImpersonationBanner";
 
-// QueryClient MUST be instantiated OUTSIDE the component
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      retry: 1,
-    },
-  },
-});
-
 interface AppProvidersProps {
   children: React.ReactNode;
 }
 
-/**
- * 🔒 PROVIDERS ONLY
- * ❌ NO GUARDS
- * ❌ NO REDIRECT LOGIC
- */
 export function AppProviders({ children }: AppProvidersProps) {
+  const queryClientRef = useRef<QueryClient | null>(null);
+
+  if (!queryClientRef.current) {
+    queryClientRef.current = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 5 * 60 * 1000,
+          retry: 1,
+        },
+      },
+    });
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClientRef.current}>
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
