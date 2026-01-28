@@ -88,6 +88,8 @@ function resetIdentityState(setters: {
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
+  // 🔐 F0.2.6 FIX: Start with "resolved" to avoid blocking public routes
+  // Identity loading only happens AFTER auth is confirmed and user is authenticated
   const [identityState, setIdentityState] = useState<IdentityState>("resolved");
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
@@ -249,9 +251,10 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
 
-    // While auth is loading, show loading (ok)
+    // 🔐 F0.2.6 FIX: While auth is loading, DO NOT set identity to loading
+    // This prevents blocking public routes during initial auth check
     if (authLoading) {
-      setIdentityState("loading");
+      // Keep current state (resolved by default), don't block render
       return () => {
         isMountedRef.current = false;
       };
