@@ -1,20 +1,22 @@
 /**
  * 🔐 IDENTITY GATE — Single Canonical Router/Guard
  * 
- * F0.2.1 CONTRACT-COMPLIANT:
+ * F0.2.6 FIXED - No infinite loading:
  * - Routes ONLY based on backend state (IdentityContext)
  * - NO client-side DB queries
  * - NO heuristic-based routing
  * - Uses <Navigate> instead of useEffect navigate
  * - NO superadmin bypass
+ * - STABLE state when unauthenticated (no loading spinner)
  * 
  * ROUTING RULES (deterministic):
- * R1. authLoading OR identityState='loading' → Loader
- * R2. !isAuthenticated → <Navigate to="/login" />
- * R3. identityState='wizard_required' → <Navigate to="/identity/wizard" />
- * R4. identityState='superadmin' → <Navigate to="/admin" /> (NO bypass)
- * R5. identityState='resolved' → <Navigate to={redirectPath} />
- * R6. identityState='error' → Error screen
+ * R1. authLoading → Loader (ONLY)
+ * R2. !isAuthenticated → children (no loader, no redirect - public routes work)
+ * R3. identityState='loading' → Loader
+ * R4. identityState='wizard_required' → <Navigate to="/identity/wizard" />
+ * R5. identityState='superadmin' → <Navigate to="/admin" /> (NO bypass)
+ * R6. identityState='resolved' → <Navigate to={redirectPath} /> or children
+ * R7. identityState='error' → Error screen
  */
 
 import React, { ReactNode } from 'react';
@@ -47,8 +49,8 @@ export function IdentityGate({ children }: IdentityGateProps) {
 
   const pathname = location.pathname;
 
-  // ===== R1: Loading state =====
-  if (authLoading || identityState === 'loading') {
+  // ===== R1: Auth loading state (only auth, not identity) =====
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -59,15 +61,32 @@ export function IdentityGate({ children }: IdentityGateProps) {
     );
   }
 
-  // ===== R2: Not authenticated → /login =====
+  // ===== R2: Not authenticated → render children (public routes work) =====
+  // The route itself will handle redirect if needed via its own logic
   if (!isAuthenticated) {
-    if (pathname === '/login') {
+    // If on /login or public routes, just render
+    if (pathname === '/login' || pathname === '/identity/wizard') {
       return <React.Fragment>{children}</React.Fragment>;
     }
+    // Protected route without auth → redirect to login
     return <Navigate to="/login" replace />;
   }
 
-  // ===== R3: Wizard required → /identity/wizard =====
+  // ===== USER IS AUTHENTICATED FROM HERE =====
+
+  // ===== R3: Identity loading state =====
+  if (identityState === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">{t('common.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== R4: Wizard required → /identity/wizard =====
   if (identityState === 'wizard_required') {
     if (pathname === '/identity/wizard') {
       return <React.Fragment>{children}</React.Fragment>;
@@ -75,7 +94,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
     return <Navigate to="/identity/wizard" replace />;
   }
 
-  // ===== R4: Superadmin → /admin (NO bypass) =====
+  // ===== R5: Superadmin → /admin (NO bypass) =====
   if (identityState === 'superadmin') {
     if (pathname.startsWith('/admin')) {
       return <React.Fragment>{children}</React.Fragment>;
@@ -83,7 +102,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
     return <Navigate to="/admin" replace />;
   }
 
-  // ===== R5: Resolved → redirectPath =====
+  // ===== R6: Resolved → redirectPath =====
   if (identityState === 'resolved') {
     // No redirect path = error state
     if (!redirectPath) {
@@ -124,7 +143,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
     return <React.Fragment>{children}</React.Fragment>;
   }
 
-  // ===== R6: Error state =====
+  // ===== R7: Error state =====
   if (identityState === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
