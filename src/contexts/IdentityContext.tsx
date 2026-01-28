@@ -85,7 +85,7 @@ function hardAbortableFetch(timeoutMs: number) {
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
-  const [identityState, setIdentityState] = useState<IdentityState>("loading");
+  const [identityState, setIdentityState] = useState<IdentityState>("resolved");
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
