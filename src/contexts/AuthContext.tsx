@@ -1,14 +1,9 @@
 /**
  * 🔐 AUTH CONTEXT — Enterprise Security Baseline
  *
- * This is the SINGLE SOURCE OF TRUTH for authentication state.
- *
- * SECURITY PRINCIPLES:
- * 1. Uses formal AuthState machine (no implicit states)
- * 2. All async operations have AbortController
- * 3. No setState after unmount
- * 4. Proper cleanup on session end
- * 5. Deterministic state transitions
+ * FIX P0:
+ * - isLoading NEVER stays stuck due to AbortController
+ * - We ALWAYS finish loading when mounted, even if signal was aborted
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
@@ -28,67 +23,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [authState, setAuthState] = useState<AuthState>("authenticating");
 
-  // 🔐 Mounted ref to prevent setState after unmount
+  // Mounted ref
   const isMountedRef = useRef(true);
 
-  // 🔐 Abort controller for async operations
+  // Abort controller for async operations
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  /**
-   * Safe state setter that checks mount status
-   */
   const safeSetCurrentUser = useCallback((user: CurrentUser | null) => {
-    if (isMountedRef.current) {
-      setCurrentUser(user);
-    }
+    if (isMountedRef.current) setCurrentUser(user);
   }, []);
 
   const safeSetIsLoading = useCallback((loading: boolean) => {
-    if (isMountedRef.current) {
-      setIsLoading(loading);
-    }
+    if (isMountedRef.current) setIsLoading(loading);
   }, []);
 
   const safeSetAuthState = useCallback((newState: AuthState) => {
-    if (isMountedRef.current) {
-      setAuthState((currentState) => {
-        const result = transitionAuthState(currentState, newState, "AuthContext");
-        return result.success ? newState : currentState;
-      });
-    }
+    if (!isMountedRef.current) return;
+    setAuthState((currentState) => {
+      const result = transitionAuthState(currentState, newState, "AuthContext");
+      return result.success ? newState : currentState;
+    });
   }, []);
 
-  /**
-   * Fetches user profile with abort signal support
-   */
   const fetchUserProfile = useCallback(
     async (user: User, signal?: AbortSignal): Promise<CurrentUser | null> => {
       try {
-        // Check if aborted before making request
         if (signal?.aborted) return null;
 
-        // Profile
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
 
-        // Check abort after each async operation
         if (signal?.aborted) return null;
 
         if (profileError) {
           console.error("[AuthContext] Error fetching profile:", profileError);
-
-          // Check if session expired during fetch
           if (isSessionExpiredError(profileError)) {
             safeSetAuthState("expired");
-            return null;
           }
           return null;
         }
 
-        // Roles
         const { data: roles, error: rolesError } = await supabase.from("user_roles").select("*").eq("user_id", user.id);
 
         if (signal?.aborted) return null;
@@ -117,24 +94,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         };
 
         return built;
-      } catch (error) {
+      } catch (error: any) {
         if (signal?.aborted) return null;
 
         console.error("[AuthContext] Error in fetchUserProfile:", error);
-
         if (isSessionExpiredError(error)) {
           safeSetAuthState("expired");
         }
-
         return null;
       }
     },
     [safeSetAuthState],
   );
 
-  /**
-   * Handles auth state changes from Supabase
-   */
   const handleAuthStateChange = useCallback(
     async (event: AuthChangeEvent, session: { user: User } | null, signal?: AbortSignal) => {
       if (signal?.aborted) return;
@@ -149,7 +121,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        // For auth events that require user data
         if (session?.user) {
           safeSetAuthState("authenticating");
           safeSetIsLoading(true);
@@ -170,7 +141,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        // No session
         safeSetCurrentUser(null);
         safeSetAuthState(newAuthState);
         safeSetIsLoading(false);
@@ -185,18 +155,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [fetchUserProfile, safeSetCurrentUser, safeSetAuthState, safeSetIsLoading],
   );
 
-  /**
-   * Main effect: Subscribe to auth changes
-   */
   useEffect(() => {
     isMountedRef.current = true;
+
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await handleAuthStateChange(event, session, signal);
+      await handleAuthStateChange(event, session as any, signal);
     });
 
     // Initial session check
@@ -210,6 +178,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (session?.user) {
           safeSetAuthState("authenticating");
+          safeSetIsLoading(true);
+
           const userProfile = await fetchUserProfile(session.user, signal);
 
           if (signal.aborted) return;
@@ -218,9 +188,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
             safeSetCurrentUser(userProfile);
             safeSetAuthState("authenticated");
           } else {
+            safeSetCurrentUser(null);
             safeSetAuthState("unauthenticated");
           }
         } else {
+          safeSetCurrentUser(null);
           safeSetAuthState("unauthenticated");
         }
       } catch (e) {
@@ -228,13 +200,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error("[AuthContext] getSession error:", e);
         safeSetAuthState("error");
       } finally {
-        if (!signal.aborted) {
-          safeSetIsLoading(false);
-        }
+        // ✅ FIX P0: ALWAYS end loading if mounted
+        safeSetIsLoading(false);
       }
     })();
 
-    // Cleanup
     return () => {
       isMountedRef.current = false;
       abortControllerRef.current?.abort();
@@ -242,10 +212,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [handleAuthStateChange, fetchUserProfile, safeSetCurrentUser, safeSetAuthState, safeSetIsLoading]);
 
-  // Derived state
   const isAuthenticated = authState === "authenticated" && !!currentUser;
 
-  // 🔐 FIX H1: Check for null OR undefined tenantId (DB may return either)
   const isGlobalSuperadmin =
     currentUser?.roles?.some(
       (r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined),
@@ -268,16 +236,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signIn = async (email: string, password: string) => {
     safeSetAuthState("authenticating");
+    safeSetIsLoading(true);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+
     if (error) {
       safeSetAuthState("error");
+      safeSetIsLoading(false);
       throw error;
     }
-    // Auth state will be updated by onAuthStateChange
+
+    // onAuthStateChange will finish the state
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
     safeSetAuthState("authenticating");
+    safeSetIsLoading(true);
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -286,8 +261,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         data: { name },
       },
     });
+
     if (error) {
       safeSetAuthState("error");
+      safeSetIsLoading(false);
       throw error;
     }
   };
@@ -295,9 +272,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    // Clear state immediately for better UX
+
     safeSetCurrentUser(null);
     safeSetAuthState("unauthenticated");
+    safeSetIsLoading(false);
   };
 
   return (
