@@ -78,14 +78,15 @@ export function IdentityGate({ children }: IdentityGateProps) {
   const location = useLocation();
   const pathname = location.pathname;
 
+  // ✅ ALL HOOKS MUST BE CALLED UNCONDITIONALLY (React rules)
+  const { t } = useI18n();
+  const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
+  const { identityState, redirectPath, error, refreshIdentity } = useIdentity();
+
   // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
   if (isPublicPath(pathname)) {
     return <>{children}</>;
   }
-
-  const { t } = useI18n();
-  const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
-  const { identityState, redirectPath, error, refreshIdentity } = useIdentity();
 
   // ===== R1: Auth loading state (ONLY for protected routes) =====
   if (authLoading) {
