@@ -1,9 +1,9 @@
 /**
- * 🔐 AUTH CONTEXT — Compatibility + Stability Layer
- * This file EXISTS to keep the app alive during refactor.
+ * 🔐 AUTH CONTEXT — Stability & Anti-Loop Version
+ * Safe bootstrap, guaranteed loading resolution.
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
@@ -33,50 +33,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
 
   const fetchProfile = async (user: User): Promise<CurrentUser | null> => {
-    const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    try {
+      const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
 
-    if (error || !profile) return null;
+      if (error || !profile) return null;
 
-    const { data: roles } = await supabase.from("user_roles").select("*").eq("user_id", user.id);
+      const { data: roles } = await supabase.from("user_roles").select("*").eq("user_id", user.id);
 
-    const userRoles: UserRole[] = (roles || []).map((r: any) => ({
-      id: r.id,
-      userId: r.user_id,
-      role: r.role as AppRole,
-      tenantId: r.tenant_id,
-      createdAt: r.created_at,
-    }));
+      const userRoles: UserRole[] = (roles || []).map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        role: r.role as AppRole,
+        tenantId: r.tenant_id,
+        createdAt: r.created_at,
+      }));
 
-    return {
-      id: profile.id,
-      tenantId: profile.tenant_id,
-      email: profile.email,
-      name: profile.name,
-      avatarUrl: profile.avatar_url,
-      createdAt: profile.created_at,
-      updatedAt: profile.updated_at,
-      roles: userRoles,
-    };
+      return {
+        id: profile.id,
+        tenantId: profile.tenant_id,
+        email: profile.email,
+        name: profile.name,
+        avatarUrl: profile.avatar_url,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+        roles: userRoles,
+      };
+    } catch {
+      return null;
+    }
   };
 
   useEffect(() => {
     mountedRef.current = true;
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
+      try {
+        const { data } = await supabase.auth.getSession();
 
-      if (!mountedRef.current) return;
+        if (!mountedRef.current) return;
 
-      if (data.session?.user) {
-        const user = await fetchProfile(data.session.user);
-        setCurrentUser(user);
-        setAuthState(user ? "authenticated" : "unauthenticated");
-      } else {
+        if (data.session?.user) {
+          const user = await fetchProfile(data.session.user);
+          setCurrentUser(user);
+          setAuthState(user ? "authenticated" : "unauthenticated");
+        } else {
+          setCurrentUser(null);
+          setAuthState("unauthenticated");
+        }
+      } catch {
         setCurrentUser(null);
         setAuthState("unauthenticated");
+      } finally {
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
-
-      setIsLoading(false);
     };
 
     init();
@@ -84,15 +95,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, session) => {
       if (!mountedRef.current) return;
 
-      if (session?.user) {
-        setIsLoading(true);
-        const user = await fetchProfile(session.user);
-        setCurrentUser(user);
-        setAuthState(user ? "authenticated" : "error");
-        setIsLoading(false);
-      } else {
-        setCurrentUser(null);
-        setAuthState("unauthenticated");
+      setIsLoading(true);
+
+      try {
+        if (session?.user) {
+          const user = await fetchProfile(session.user);
+          setCurrentUser(user);
+          setAuthState(user ? "authenticated" : "error");
+        } else {
+          setCurrentUser(null);
+          setAuthState("unauthenticated");
+        }
+      } finally {
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
     });
 
@@ -104,22 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
+    setAuthState("authenticating");
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+
     if (error) {
       setIsLoading(false);
+      setAuthState("unauthenticated");
       throw error;
     }
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
     setIsLoading(true);
+    setAuthState("authenticating");
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
+
     if (error) {
       setIsLoading(false);
+      setAuthState("unauthenticated");
       throw error;
     }
   };
@@ -169,7 +194,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 /**
  * 🔁 LEGACY / COMPATIBILITY HOOK
- * DO NOT REMOVE until all imports are migrated
  */
 export function useCurrentUser() {
   const ctx = useContext(AuthContext);
