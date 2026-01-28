@@ -38,7 +38,6 @@ export function AppProviders({ children }: AppProvidersProps) {
                     <Sonner />
                     <ImpersonationBanner />
                     <ImpersonationBannerSpacer />
-                    {/* ❌ IdentityGuard REMOVIDO daqui */}
                     {children}
                   </TooltipProvider>
                 </JoinProvider>
