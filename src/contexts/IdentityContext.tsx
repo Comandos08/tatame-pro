@@ -85,7 +85,7 @@ function hardAbortableFetch(timeoutMs: number) {
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
-  const [identityState, setIdentityState] = useState<IdentityState>("resolved");
+  const [identityState, setIdentityState] = useState<IdentityState>("loading");
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
@@ -113,8 +113,10 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   const reset = useCallback(() => {
     if (!isMountedRef.current) return;
 
-    // Important: do NOT block the app on logout / unauth flows
-    setIdentityState("resolved");
+    // Set to loading: auth check in IdentityGate runs BEFORE identity check,
+    // so logout flows redirect to /login without showing loader.
+    // Login flows will properly wait for checkIdentity() to resolve.
+    setIdentityState("loading");
     setError(null);
     setWizardCompleted(false);
     setTenant(null);
