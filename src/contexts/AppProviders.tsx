@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,6 +11,7 @@ import { ImpersonationProvider } from "./ImpersonationContext";
 import { IdentityProvider } from "./IdentityContext";
 import { ImpersonationBanner, ImpersonationBannerSpacer } from "@/components/impersonation/ImpersonationBanner";
 
+// QueryClient MUST be instantiated OUTSIDE the component
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,7 +22,7 @@ const queryClient = new QueryClient({
 });
 
 interface AppProvidersProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 /**
