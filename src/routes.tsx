@@ -10,22 +10,21 @@ import { AccessDenied } from "@/components/auth/AccessDenied";
 // Pages
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
-import AdminDashboard from "@/pages/AdminDashboard";
-import TenantLanding from "@/pages/TenantLanding";
-import TenantDashboard from "@/pages/TenantDashboard";
-import MembershipList from "@/pages/MembershipList";
-import MembershipDetails from "@/pages/MembershipDetails";
+import Help from "@/pages/Help";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
-import NotFound from "@/pages/NotFound";
-import Help from "@/pages/Help";
 import AuthCallback from "@/pages/AuthCallback";
-import PortalRouter from "@/pages/PortalRouter";
+import NotFound from "@/pages/NotFound";
+
 import IdentityWizard from "@/pages/IdentityWizard";
-import { IdentityErrorPage } from "@/components/identity/IdentityErrorScreen";
+import PortalRouter from "@/pages/PortalRouter";
+import AdminDashboard from "@/pages/AdminDashboard";
+import TenantControl from "@/pages/TenantControl";
 
 // Layout
 import { TenantLayout } from "@/layouts/TenantLayout";
+import TenantLanding from "@/pages/TenantLanding";
+import TenantDashboard from "@/pages/TenantDashboard";
 
 /**
  * 🔐 AdminRoute — Global Superadmin Only
@@ -48,29 +47,29 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function AppRoutes() {
+export function AppRoutes() {
   return (
     <Routes>
       {/* ================= PUBLIC ================= */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/help" element={<Help />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/help" element={<Help />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
       {/* ================= IDENTITY ================= */}
       <Route
-        path="/identity/wizard"
+        path="/identity/*"
         element={
           <IdentityGate>
-            <IdentityWizard />
+            <Routes>
+              <Route path="wizard" element={<IdentityWizard />} />
+              <Route path="*" element={<Navigate to="wizard" replace />} />
+            </Routes>
           </IdentityGate>
         }
       />
-      <Route path="/identity/error" element={<IdentityErrorPage />} />
-
-      <Route path="/join/*" element={<Navigate to="/identity/wizard" replace />} />
 
       {/* ================= PORTAL ================= */}
       <Route
@@ -84,11 +83,14 @@ export default function AppRoutes() {
 
       {/* ================= ADMIN ================= */}
       <Route
-        path="/admin"
+        path="/admin/*"
         element={
           <IdentityGate>
             <AdminRoute>
-              <AdminDashboard />
+              <Routes>
+                <Route index element={<AdminDashboard />} />
+                <Route path="tenants/:tenantId/control" element={<TenantControl />} />
+              </Routes>
             </AdminRoute>
           </IdentityGate>
         }
@@ -97,34 +99,13 @@ export default function AppRoutes() {
       {/* ================= TENANT ================= */}
       <Route path="/:tenantSlug" element={<TenantLayout />}>
         <Route index element={<TenantLanding />} />
+
         <Route
           path="app"
           element={
-            <IdentityGate>
-              <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
-                <TenantDashboard />
-              </RequireRoles>
-            </IdentityGate>
-          }
-        />
-        <Route
-          path="app/memberships"
-          element={
-            <IdentityGate>
-              <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
-                <MembershipList />
-              </RequireRoles>
-            </IdentityGate>
-          }
-        />
-        <Route
-          path="app/memberships/:membershipId"
-          element={
-            <IdentityGate>
-              <RequireRoles allowed={ACCESS_MATRIX.TENANT_MEMBERSHIPS}>
-                <MembershipDetails />
-              </RequireRoles>
-            </IdentityGate>
+            <RequireRoles allowed={ACCESS_MATRIX.TENANT_APP}>
+              <TenantDashboard />
+            </RequireRoles>
           }
         />
       </Route>
