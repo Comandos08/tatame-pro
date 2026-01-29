@@ -396,6 +396,37 @@ button { pointer-events: none; }
 | Cards | `bg-card text-card-foreground` |
 | Popover/Dropdown | `bg-popover text-popover-foreground` |
 
+### Token Semantic Hierarchy
+
+The design system tokens follow a strict semantic hierarchy:
+
+| Token | Purpose | Usage Context |
+|-------|---------|---------------|
+| `--primary` | Main brand color, CTAs | Buttons, links, primary actions |
+| `--accent` | Interactive state feedback | Hover, focus, selection states ONLY |
+| `--secondary` | Supporting surfaces | Cards, panels, secondary elements |
+| `--muted` | Subdued content | Placeholder text, disabled states |
+| `--destructive` | Danger actions | Delete, remove, cancel |
+
+### CRITICAL: Accent Token Rules
+
+The `--accent` token is **exclusively reserved** for interactive state feedback:
+
+**ALLOWED uses:**
+- Dropdown/menu item hover backgrounds
+- Focus ring highlights
+- Toggle/checkbox selection indicators
+- Slider track active portions
+
+**FORBIDDEN uses:**
+- Primary action buttons (use `--primary`)
+- Brand identity elements
+- Text color for emphasis
+- Background for content cards
+
+This separation ensures visual hierarchy remains consistent and prevents
+competing colors from diluting the primary brand identity.
+
 ---
 
 ## 9. COMPONENT PATTERNS
