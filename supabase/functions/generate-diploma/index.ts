@@ -3,6 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { encode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
+import {
+  requireBillingStatus,
+  billingRestrictedResponse,
+} from "../_shared/requireBillingStatus.ts";
+import { logBillingRestricted } from "../_shared/decision-logger.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -107,6 +112,25 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // ========================================================================
+    // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
+    // ========================================================================
+    const billingCheck = await requireBillingStatus(supabase, tenantId);
+    if (!billingCheck.allowed) {
+      console.log("[GENERATE-DIPLOMA] Billing status blocked operation:", billingCheck.status);
+      
+      await logBillingRestricted(supabase, {
+        operation: 'generate-diploma',
+        user_id: athleteId, // Using athleteId as context since no user auth here
+        tenant_id: tenantId,
+        billing_status: billingCheck.status,
+      });
+      
+      return billingRestrictedResponse(billingCheck.status);
+    }
+
+    console.log("[GENERATE-DIPLOMA] Billing status OK:", billingCheck.status);
 
     // Fetch academy if provided
     let academyName = null;
