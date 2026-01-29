@@ -25,6 +25,7 @@ export const DECISION_TYPES = {
   PASSWORD_RESET: 'PASSWORD_RESET',
   MEMBERSHIP_APPROVED: 'MEMBERSHIP_APPROVED',
   MEMBERSHIP_REJECTED: 'MEMBERSHIP_REJECTED',
+  BILLING_RESTRICTED: 'BILLING_RESTRICTED',
 } as const;
 
 export type DecisionType = typeof DECISION_TYPES[keyof typeof DECISION_TYPES];
@@ -322,6 +323,32 @@ export async function logMembershipRejected(
       rejection_reason: options.rejection_reason,
       impersonation_id: options.impersonation_id,
       actor_role: options.actor_role,
+    },
+  });
+}
+
+/**
+ * Log a billing restricted decision (P1 enforcement)
+ */
+export async function logBillingRestricted(
+  supabaseAdmin: SupabaseAdminClient,
+  options: {
+    operation: string;
+    user_id: string;
+    tenant_id: string;
+    billing_status: string | null;
+  }
+): Promise<string | null> {
+  return logDecision(supabaseAdmin, {
+    decision_type: DECISION_TYPES.BILLING_RESTRICTED,
+    severity: 'MEDIUM',
+    operation: options.operation,
+    user_id: options.user_id,
+    tenant_id: options.tenant_id,
+    reason_code: 'BILLING_RESTRICTED',
+    metadata: {
+      billing_status: options.billing_status,
+      blocked_at: new Date().toISOString(),
     },
   });
 }

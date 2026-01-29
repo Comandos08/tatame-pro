@@ -41,40 +41,58 @@ interface SafeDeleteResult {
 
 /**
  * Safeguard checks before deletion (A2 requirement)
+ * 
+ * P0 FIX: Payment check now filters by tenant's stripe_customer_id
+ * to avoid global payment blocking all tenant deletions.
  */
 async function canSafelyDelete(
   supabase: SupabaseClientAny,
   tenantId: string
 ): Promise<SafeDeleteResult> {
-  // 1. Check for recent payment (last 30 days)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: recentPayment } = await supabase
-    .from("webhook_events")
-    .select("id")
-    .eq("event_type", "invoice.payment_succeeded")
-    .gt("created_at", thirtyDaysAgo)
-    .limit(1);
-
-  if (recentPayment && recentPayment.length > 0) {
-    return { safe: false, reason: "RECENT_PAYMENT_FOUND" };
-  }
-
-  // 2. Verify billing status and manual override
+  // 1. Fetch tenant billing info (includes stripe_customer_id)
   const { data: billing } = await supabase
     .from("tenant_billing")
-    .select("status, is_manual_override")
+    .select("status, is_manual_override, stripe_customer_id")
     .eq("tenant_id", tenantId)
     .single();
 
+  // 2. Check manual override first
   if (billing?.is_manual_override) {
     return { safe: false, reason: "MANUAL_OVERRIDE_ACTIVE" };
   }
 
+  // 3. Verify status is still PENDING_DELETE
   if (billing?.status !== "PENDING_DELETE") {
     return { safe: false, reason: "STATUS_CHANGED" };
   }
 
-  // 3. Check athlete count (protection against deleting large organizations)
+  // 4. P0 FIX: Check for recent payment FILTERED BY TENANT's stripe_customer_id
+  if (billing?.stripe_customer_id) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Query webhook_events for invoice.payment_succeeded
+    const { data: recentPayments } = await supabase
+      .from("webhook_events")
+      .select("id, payload")
+      .eq("event_type", "invoice.payment_succeeded")
+      .gt("created_at", thirtyDaysAgo);
+
+    // Filter payments by this tenant's stripe_customer_id in the payload
+    const hasRecentPayment = recentPayments?.some((event: { payload: { customer?: string } | null }) => {
+      const payload = event.payload;
+      return payload?.customer === billing.stripe_customer_id;
+    });
+
+    if (hasRecentPayment) {
+      logStep("Recent payment found for tenant", { 
+        tenantId, 
+        stripe_customer_id: billing.stripe_customer_id 
+      });
+      return { safe: false, reason: "RECENT_PAYMENT_FOUND" };
+    }
+  }
+
+  // 5. Check athlete count (protection against deleting large organizations)
   const { count: activeAthletes } = await supabase
     .from("athletes")
     .select("id", { count: "exact", head: true })

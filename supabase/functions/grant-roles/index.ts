@@ -28,7 +28,12 @@ import {
   logRateLimitBlock,
   logPermissionDenied,
   logImpersonationBlock,
+  logBillingRestricted,
 } from "../_shared/decision-logger.ts";
+import {
+  requireBillingStatus,
+  billingRestrictedResponse,
+} from "../_shared/requireBillingStatus.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,6 +212,28 @@ serve(async (req) => {
     }
 
     logStep("Permissions verified");
+
+    // ========================================================================
+    // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
+    // ========================================================================
+    const billingCheck = await requireBillingStatus(supabase, tenantId);
+    if (!billingCheck.allowed) {
+      logStep("Billing status blocked operation", { 
+        status: billingCheck.status, 
+        code: billingCheck.code 
+      });
+      
+      await logBillingRestricted(supabase, {
+        operation: 'grant-roles',
+        user_id: user.id,
+        tenant_id: tenantId,
+        billing_status: billingCheck.status,
+      });
+      
+      return billingRestrictedResponse(billingCheck.status);
+    }
+
+    logStep("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // GET CURRENT ROLES (for audit)

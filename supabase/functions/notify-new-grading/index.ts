@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import {
+  requireBillingStatus,
+  billingRestrictedResponse,
+} from "../_shared/requireBillingStatus.ts";
+import { logBillingRestricted } from "../_shared/decision-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,6 +75,30 @@ serve(async (req) => {
         JSON.stringify({ success: true, skipped: true, reason: "No athlete email" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
+    }
+
+    // ========================================================================
+    // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
+    // ========================================================================
+    if (tenant?.id) {
+      const billingCheck = await requireBillingStatus(supabase, tenant.id);
+      if (!billingCheck.allowed) {
+        logStep("Billing status blocked operation", { 
+          status: billingCheck.status, 
+          code: billingCheck.code 
+        });
+        
+        await logBillingRestricted(supabase, {
+          operation: 'notify-new-grading',
+          user_id: athlete.id,
+          tenant_id: tenant.id,
+          billing_status: billingCheck.status,
+        });
+        
+        return billingRestrictedResponse(billingCheck.status);
+      }
+
+      logStep("Billing status OK", { status: billingCheck.status });
     }
 
     logStep("Sending grading notification", { 
