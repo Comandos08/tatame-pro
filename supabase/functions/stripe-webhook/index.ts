@@ -506,20 +506,6 @@ async function handleSubscriptionChange(
 
   const previousStatus = existingBilling?.status;
 
-  // Map Stripe status to our enum
-  const statusMap: Record<string, string> = {
-    active: "ACTIVE",
-    past_due: "PAST_DUE",
-    canceled: "CANCELED",
-    incomplete: "INCOMPLETE",
-    trialing: "TRIALING",
-    unpaid: "UNPAID",
-    incomplete_expired: "CANCELED",
-    paused: "PAST_DUE",
-  };
-
-  const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
-
   // Upsert billing record
   const planType = subscription.metadata?.plan_type || 'annual';
   const planName = planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
