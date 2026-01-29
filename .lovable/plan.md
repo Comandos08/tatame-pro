@@ -1,182 +1,129 @@
 
-# Plano de Correção: Rotas Faltando no App.tsx
+# Plano: Atualização das Modalidades Esportivas (Sem Emojis)
 
-## Diagnóstico Final
+## Resumo das Mudanças
 
-### O que está acontecendo
-
-```text
-Login.tsx                IdentityGate.tsx           App.tsx Routes
-    │                         │                          │
-    │ signIn() OK             │                          │
-    │─────────────────────────>                          │
-    │ isAuthenticated=true    │                          │
-    │ navigate("/portal")     │                          │
-    │                         │                          │
-    │                         │ authLoading=false        │
-    │                         │ identityState="loading"  │
-    │                         │ → mostra spinner         │
-    │                         │                          │
-    │                         │ checkIdentity() retorna: │
-    │                         │ status=RESOLVED          │
-    │                         │ role=SUPERADMIN_GLOBAL   │
-    │                         │ redirectPath="/admin"    │
-    │                         │                          │
-    │                         │ identityState="superadmin"
-    │                         │ R5: pathname != /admin   │
-    │                         │ → Navigate to /admin     │
-    │                         │                          │
-    │                         │                          │ /admin NÃO EXISTE
-    │                         │                          │ → cai no path="*"
-    │                         │                          │ → NotFound 😱
-```
-
-### Problema
-
-O arquivo `App.tsx` foi simplificado e agora tem APENAS estas rotas:
-
-| Rota | Existe? |
-|------|---------|
-| `/` | ✅ |
-| `/login` | ✅ |
-| `/help` | ✅ |
-| `/forgot-password` | ✅ |
-| `/reset-password` | ✅ |
-| `/auth/callback` | ✅ |
-| `/identity/wizard` | ✅ |
-| `/portal/*` | ✅ |
-| `/admin/*` | ❌ FALTANDO |
-| `/:tenantSlug/*` | ❌ FALTANDO |
-
-O arquivo `routes.tsx` tem a estrutura completa de rotas, mas **não está sendo usado**.
+1. Renomear **BJJ → Jiu-Jitsu** e **MuayThai → Muay Thai**
+2. Adicionar novas modalidades: **Sambo** e **Krav Maga**
+3. Remover **todos os emojis** da plataforma para manter tom institucional
 
 ---
 
-## Solução
+## Arquivos a Alterar
 
-### Opção A: Usar o AppRoutes do routes.tsx (Recomendado)
+### 1. `src/types/tenant.ts`
+Atualizar o tipo `SportType`:
 
-Modificar `App.tsx` para usar o componente `AppRoutes` já existente:
+```typescript
+// ANTES
+export type SportType = 'BJJ' | 'Judo' | 'MuayThai' | 'Wrestling' | 'Boxing' | 'Karate' | 'Taekwondo' | 'MMA';
+
+// DEPOIS
+export type SportType = 'Jiu-Jitsu' | 'Judo' | 'Muay Thai' | 'Wrestling' | 'Boxing' | 'Karate' | 'Taekwondo' | 'MMA' | 'Sambo' | 'Krav Maga';
+```
+
+---
+
+### 2. `src/components/admin/CreateTenantDialog.tsx`
+Atualizar lista de modalidades e estilo das badges:
 
 ```tsx
-// src/App.tsx
-import { AppRoutes } from "@/routes";
+// Lista atualizada
+const SPORT_TYPES = [
+  'Jiu-Jitsu', 
+  'Judo', 
+  'Muay Thai', 
+  'Wrestling', 
+  'Karate', 
+  'Taekwondo', 
+  'Boxing', 
+  'MMA', 
+  'Sambo', 
+  'Krav Maga'
+];
 
-export default function App() {
-  return <AppRoutes />;
-}
+// Default atualizado
+const [selectedSports, setSelectedSports] = useState<string[]>(['Jiu-Jitsu']);
+
+// Badge com estilo profissional (sem emoji, com indicador visual de seleção)
+<Badge
+  key={sport}
+  variant="outline"
+  className={cn(
+    "cursor-pointer transition-colors",
+    selectedSports.includes(sport) && "border-primary bg-primary/10 text-primary"
+  )}
+  onClick={() => toggleSport(sport)}
+>
+  {sport}
+</Badge>
 ```
 
-**Problema**: O `routes.tsx` tem `IdentityGate` dentro de cada rota protegida, mas o `App.tsx` atual envolve tudo com `IdentityGate` no topo. Isso pode causar duplicação.
+---
 
-### Opção B: Restaurar as rotas faltantes no App.tsx (Cirúrgico)
+### 3. `src/pages/TenantLanding.tsx`
+Remover emojis e simplificar exibição:
 
-Adicionar as rotas `/admin/*` e `/:tenantSlug/*` diretamente no `App.tsx` atual:
-
+**Mudança 1 - Remover mapa de ícones:**
 ```tsx
-// src/App.tsx - com todas as rotas necessárias
-import { Routes, Route } from "react-router-dom";
-import IdentityGate from "@/components/identity/IdentityGate";
+// REMOVER completamente
+const sportIcons: Record<string, string> = { ... };
+```
 
-// Public pages
-import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
-import Help from "@/pages/Help";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
-import AuthCallback from "@/pages/AuthCallback";
-import NotFound from "@/pages/NotFound";
+**Mudança 2 - Hero badge (linha ~90):**
+```tsx
+// ANTES
+{tenant.sportTypes.map((sport) => sportIcons[sport] || "🏅").join(" ")} {tenant.sportTypes.join(" • ")}
 
-// Identity
-import IdentityWizard from "@/pages/IdentityWizard";
+// DEPOIS
+{tenant.sportTypes.join(" • ")}
+```
 
-// Portal
-import PortalRouter from "@/pages/PortalRouter";
+**Mudança 3 - Badges na seção Sports (linha ~130):**
+```tsx
+// ANTES
+<Badge ...>
+  <span className="mr-2 text-xl">{sportIcons[sport] || "🏅"}</span>
+  {sport}
+</Badge>
 
-// Admin
-import AdminDashboard from "@/pages/AdminDashboard";
-import TenantControl from "@/pages/TenantControl";
-
-// Tenant
-import { TenantLayout } from "@/layouts/TenantLayout";
-import TenantLanding from "@/pages/TenantLanding";
-import TenantDashboard from "@/pages/TenantDashboard";
-// ... outros componentes de tenant
-
-export default function App() {
-  return (
-    <IdentityGate>
-      <Routes>
-        {/* Public */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-
-        {/* Identity */}
-        <Route path="/identity/wizard" element={<IdentityWizard />} />
-
-        {/* Portal */}
-        <Route path="/portal/*" element={<PortalRouter />} />
-
-        {/* Admin (Superadmin only - já protegido pelo IdentityGate) */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />
-
-        {/* Tenant routes */}
-        <Route path="/:tenantSlug" element={<TenantLayout />}>
-          <Route index element={<TenantLanding />} />
-          <Route path="app" element={<TenantDashboard />} />
-          {/* ... outras rotas de tenant */}
-        </Route>
-
-        {/* Fallback */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </IdentityGate>
-  );
-}
+// DEPOIS
+<Badge ...>
+  {sport}
+</Badge>
 ```
 
 ---
 
-## Recomendação
+## Resultado Visual
 
-**Opção B** é mais segura porque:
-1. Não requer refatorar o `routes.tsx`
-2. Mantém o `IdentityGate` como wrapper único
-3. Adiciona apenas as rotas que faltam
+### Dialog de Criação
+| Antes | Depois |
+|-------|--------|
+| BJJ (fundo vermelho sólido) | Jiu-Jitsu (borda primária, fundo sutil) |
+| MuayThai | Muay Thai |
+| — | Sambo |
+| — | Krav Maga |
 
----
-
-## Mudanças Necessárias
-
-### Arquivo: `src/App.tsx`
-
-Adicionar:
-1. Importação de `AdminDashboard` e `TenantControl`
-2. Importação de `TenantLayout`, `TenantLanding`, `TenantDashboard`
-3. Rotas para `/admin` e `/admin/tenants/:tenantId/control`
-4. Rotas para `/:tenantSlug/*`
-
-### Verificação de Segurança
-
-O `IdentityGate` já protege as rotas:
-- **R5**: Se `identityState === "superadmin"` e pathname não começa com `/admin`, redireciona para `/admin`
-- Isso significa que só superadmins chegam em `/admin/*`
-
-Para rotas de tenant (`/:tenantSlug/app`), precisamos verificar se há proteção adequada no `TenantLayout` ou adicionar um guard similar.
+### Landing do Tenant
+| Antes | Depois |
+|-------|--------|
+| 🥋 Jiu-Jitsu 🥊 Muay Thai | Jiu-Jitsu • Muay Thai |
+| 🥋 Badge com emoji | Badge limpa só com texto |
 
 ---
 
-## Resultado Esperado
+## Seção Técnica
 
-Após aplicar a correção:
+### Import adicional em CreateTenantDialog.tsx
+```tsx
+import { cn } from "@/lib/utils";
+```
 
-| Ação | Resultado |
-|------|-----------|
-| Login como superadmin | → /portal → identity resolve → /admin (Dashboard carrega) |
-| Login como admin de tenant | → /portal → identity resolve → /tenant-slug/app |
-| Login como atleta | → /portal → identity resolve → /tenant-slug/portal |
+### Impacto em dados existentes
+O campo `sport_types` no banco é `text[]` (strings livres). Valores antigos como "BJJ" continuarão salvos mas podem ser atualizados manualmente se desejado. Não requer migração obrigatória.
+
+### Arquivos modificados
+- `src/types/tenant.ts`
+- `src/components/admin/CreateTenantDialog.tsx`
+- `src/pages/TenantLanding.tsx`
