@@ -18,17 +18,6 @@ interface Academy {
   sport_type: string | null;
 }
 
-const sportIcons: Record<string, string> = {
-  JiuJitsu: "🥋",
-  Judo: "🥋",
-  MuayThai: "🥊",
-  Wrestling: "🤼",
-  Boxing: "🥊",
-  Karate: "🥋",
-  Taekwondo: "🥋",
-  MMA: "🥊",
-  Sambo: "🤼",
-};
 
 export default function TenantLanding() {
   const { tenant } = useTenant();
@@ -87,7 +76,7 @@ export default function TenantLanding() {
               className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm mb-6"
               style={{ color: tenant.primaryColor }}
             >
-              {tenant.sportTypes.map((sport) => sportIcons[sport] || "🏅").join(" ")} {tenant.sportTypes.join(" • ")}
+              {tenant.sportTypes.join(" • ")}
             </div>
             <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
               {t("tenant.welcome")} <span style={{ color: tenant.primaryColor }}>{tenant.name}</span>
@@ -129,7 +118,6 @@ export default function TenantLanding() {
                     borderColor: tenant.primaryColor,
                   }}
                 >
-                  <span className="mr-2 text-xl">{sportIcons[sport] || "🏅"}</span>
                   {sport}
                 </Badge>
               </motion.div>

@@ -1,4 +1,4 @@
-export type SportType = 'BJJ' | 'Judo' | 'MuayThai' | 'Wrestling' | 'Boxing' | 'Karate' | 'Taekwondo' | 'MMA';
+export type SportType = 'Jiu-Jitsu' | 'Judo' | 'Muay Thai' | 'Wrestling' | 'Boxing' | 'Karate' | 'Taekwondo' | 'MMA' | 'Sambo' | 'Krav Maga';
 
 export interface Tenant {
   id: string;
