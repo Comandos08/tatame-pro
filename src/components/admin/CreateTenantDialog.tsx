@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Plus, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
+const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
 const LOCALES = [
   { code: 'pt-BR', label: 'Português (BR)' },
   { code: 'en', label: 'English' },
@@ -41,7 +42,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedSports, setSelectedSports] = useState<string[]>(['BJJ']);
+  const [selectedSports, setSelectedSports] = useState<string[]>(['Jiu-Jitsu']);
   const [defaultLocale, setDefaultLocale] = useState('pt-BR');
   const [primaryColor, setPrimaryColor] = useState('#dc2626');
   
@@ -124,7 +125,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
     setName('');
     setSlug('');
     setDescription('');
-    setSelectedSports(['BJJ']);
+    setSelectedSports(['Jiu-Jitsu']);
     setDefaultLocale('pt-BR');
     setPrimaryColor('#dc2626');
   };
@@ -179,8 +180,11 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
               {SPORT_TYPES.map((sport) => (
                 <Badge
                   key={sport}
-                  variant={selectedSports.includes(sport) ? 'default' : 'outline'}
-                  className="cursor-pointer"
+                  variant="outline"
+                  className={cn(
+                    "cursor-pointer transition-colors",
+                    selectedSports.includes(sport) && "border-primary bg-primary/10 text-primary"
+                  )}
                   onClick={() => toggleSport(sport)}
                 >
                   {sport}
