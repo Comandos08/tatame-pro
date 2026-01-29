@@ -77,3 +77,12 @@ verify_jwt = false
 
 [functions.resolve-identity-wizard]
 verify_jwt = false
+
+[functions.expire-trials]
+verify_jwt = false
+
+[functions.mark-pending-delete]
+verify_jwt = false
+
+[functions.cleanup-expired-tenants]
+verify_jwt = false

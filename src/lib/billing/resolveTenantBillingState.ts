@@ -6,11 +6,18 @@
  * 1. Se is_manual_override = true → Stripe é COMPLETAMENTE ignorado
  * 2. canUseStripe = !isManualOverride
  * 3. Fallback é SEMPRE restritivo (isReadOnly: true, isBlocked: true)
+ * 
+ * GROWTH TRIAL STATES:
+ * - TRIALING: Trial ativo (7 dias), acesso total
+ * - TRIAL_EXPIRED: Grace period (8 dias), ações sensíveis bloqueadas
+ * - PENDING_DELETE: Aguardando deleção, tenant bloqueado
  */
 
 export type BillingStatus =
   | 'ACTIVE'
   | 'TRIALING'
+  | 'TRIAL_EXPIRED'
+  | 'PENDING_DELETE'
   | 'PAST_DUE'
   | 'CANCELED'
   | 'UNPAID'
@@ -28,14 +35,22 @@ export interface TenantBillingState {
   source: BillingSource;
   overrideReason: string | null;
   overrideAt: Date | null;
+  // Growth Trial states
+  isTrialActive: boolean;
+  isTrialExpired: boolean;
+  isPendingDelete: boolean;
+  canPerformSensitiveActions: boolean;
 }
 
-// AJUSTE #3: Tipos Raw declarados explicitamente
+// Raw types for input data
 interface RawBillingData {
   status: string | null;
   is_manual_override: boolean;
   override_reason?: string | null;
   override_at?: string | null;
+  trial_expires_at?: string | null;
+  grace_period_ends_at?: string | null;
+  scheduled_delete_at?: string | null;
 }
 
 interface RawTenantData {
@@ -43,49 +58,65 @@ interface RawTenantData {
 }
 
 const VALID_STATUSES: BillingStatus[] = [
-  'ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE'
+  'ACTIVE', 'TRIALING', 'TRIAL_EXPIRED', 'PENDING_DELETE',
+  'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE'
 ];
 
 export function resolveTenantBillingState(
   billing: RawBillingData | null,
   tenant: RawTenantData | null
 ): TenantBillingState {
-  // P1.1 FIX #2: Calcular isManualOverride ANTES do fallback
+  // Calculate isManualOverride BEFORE fallback
   const isManualOverride = billing?.is_manual_override === true;
   
-  // Fallback quando dados ausentes - SEMPRE RESTRITIVO
+  // Fallback when data is missing - ALWAYS RESTRICTIVE
   if (!billing || !tenant) {
     return {
       status: 'INCOMPLETE',
       isManualOverride,
       isActive: false,
-      isReadOnly: true,           // AJUSTE #2: true, não false
+      isReadOnly: true,
       isBlocked: true,
       canUseStripe: !isManualOverride,
       source: isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE',
       overrideReason: billing?.override_reason ?? null,
       overrideAt: billing?.override_at ? new Date(billing.override_at) : null,
+      // Growth Trial states - restrictive fallback
+      isTrialActive: false,
+      isTrialExpired: false,
+      isPendingDelete: false,
+      canPerformSensitiveActions: false,
     };
   }
 
-  // AJUSTE #1: Normalizar status ANTES de qualquer uso
+  // Normalize status BEFORE any usage
   const rawStatus = (billing.status || 'INCOMPLETE').toUpperCase() as BillingStatus;
   const status: BillingStatus = VALID_STATUSES.includes(rawStatus)
     ? rawStatus
     : 'INCOMPLETE';
 
-  // Source e canUseStripe
+  // Source and canUseStripe
   const source: BillingSource = isManualOverride ? 'MANUAL_OVERRIDE' : 'STRIPE';
   const canUseStripe = !isManualOverride;
 
-  // P1.1 FIX #1: isActive respeita override manual
+  // Growth Trial derived flags
+  const isTrialActive = status === 'TRIALING';
+  const isTrialExpired = status === 'TRIAL_EXPIRED';
+  const isPendingDelete = status === 'PENDING_DELETE';
+
+  // isActive respects manual override
   const isActive = isManualOverride
     ? status === 'ACTIVE' || status === 'TRIALING'
     : tenant.is_active === true;
 
-  // Flags derivadas
-  const isBlocked = !isActive || status === 'CANCELED';
-  const isReadOnly = ['PAST_DUE', 'UNPAID', 'INCOMPLETE'].includes(status);
+  // Derived flags - PENDING_DELETE and CANCELED are blocked
+  const isBlocked = !isActive || isPendingDelete || status === 'CANCELED';
+  
+  // Read-only includes TRIAL_EXPIRED for grace period restrictions
+  const isReadOnly = ['PAST_DUE', 'UNPAID', 'INCOMPLETE', 'TRIAL_EXPIRED'].includes(status);
+
+  // Sensitive actions only allowed when fully active
+  const canPerformSensitiveActions = ['ACTIVE', 'TRIALING'].includes(status) && !isBlocked;
 
   return {
     status,
@@ -97,5 +128,10 @@ export function resolveTenantBillingState(
     source,
     overrideReason: billing.override_reason ?? null,
     overrideAt: billing.override_at ? new Date(billing.override_at) : null,
+    // Growth Trial states
+    isTrialActive,
+    isTrialExpired,
+    isPendingDelete,
+    canPerformSensitiveActions,
   };
 }

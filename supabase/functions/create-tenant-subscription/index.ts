@@ -7,8 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Trial period in days for new tenants
-const TRIAL_PERIOD_DAYS = 14;
+// Trial period in days for new tenants (Growth Trial Strategy)
+const TRIAL_PERIOD_DAYS = 7;
 
 // Price IDs from environment - support monthly and annual plans
 const getPriceId = (planType: 'monthly' | 'annual' | null): string => {
@@ -250,7 +250,10 @@ serve(async (req) => {
 
     const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
 
-    // Upsert tenant_billing record
+    // Upsert tenant_billing record with trial tracking
+    const now = new Date();
+    const trialExpiresAt = new Date(subscription.current_period_end * 1000);
+    
     const billingData = {
       tenant_id: tenantId,
       stripe_customer_id: stripeCustomerId,
@@ -262,6 +265,9 @@ serve(async (req) => {
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
       cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
       canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+      // Trial tracking fields (Growth Trial)
+      trial_started_at: isNewTenant ? now.toISOString() : undefined,
+      trial_expires_at: isNewTenant && billingStatus === "TRIALING" ? trialExpiresAt.toISOString() : undefined,
     };
 
     if (existingBilling) {

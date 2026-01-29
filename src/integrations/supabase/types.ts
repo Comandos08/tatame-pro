@@ -523,6 +523,54 @@ export type Database = {
           },
         ]
       }
+      deleted_tenants: {
+        Row: {
+          athletes_count: number | null
+          billing_email: string | null
+          creator_email: string | null
+          deleted_at: string | null
+          deletion_reason: string | null
+          events_count: number | null
+          id: string
+          memberships_count: number | null
+          metadata: Json | null
+          original_tenant_id: string
+          tenant_name: string
+          tenant_slug: string
+          trial_started_at: string | null
+        }
+        Insert: {
+          athletes_count?: number | null
+          billing_email?: string | null
+          creator_email?: string | null
+          deleted_at?: string | null
+          deletion_reason?: string | null
+          events_count?: number | null
+          id?: string
+          memberships_count?: number | null
+          metadata?: Json | null
+          original_tenant_id: string
+          tenant_name: string
+          tenant_slug: string
+          trial_started_at?: string | null
+        }
+        Update: {
+          athletes_count?: number | null
+          billing_email?: string | null
+          creator_email?: string | null
+          deleted_at?: string | null
+          deletion_reason?: string | null
+          events_count?: number | null
+          id?: string
+          memberships_count?: number | null
+          metadata?: Json | null
+          original_tenant_id?: string
+          tenant_name?: string
+          tenant_slug?: string
+          trial_started_at?: string | null
+        }
+        Relationships: []
+      }
       digital_cards: {
         Row: {
           content_hash_sha256: string | null
@@ -1700,6 +1748,8 @@ export type Database = {
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
+          deletion_reason: string | null
+          grace_period_ends_at: string | null
           id: string
           is_manual_override: boolean | null
           override_at: string | null
@@ -1707,11 +1757,14 @@ export type Database = {
           override_reason: string | null
           plan_name: string
           plan_price_id: string
+          scheduled_delete_at: string | null
           status: Database["public"]["Enums"]["billing_status"]
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           tenant_id: string
           trial_end_notification_sent: boolean | null
+          trial_expires_at: string | null
+          trial_started_at: string | null
           updated_at: string
         }
         Insert: {
@@ -1720,6 +1773,8 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
+          deletion_reason?: string | null
+          grace_period_ends_at?: string | null
           id?: string
           is_manual_override?: boolean | null
           override_at?: string | null
@@ -1727,11 +1782,14 @@ export type Database = {
           override_reason?: string | null
           plan_name?: string
           plan_price_id?: string
+          scheduled_delete_at?: string | null
           status?: Database["public"]["Enums"]["billing_status"]
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tenant_id: string
           trial_end_notification_sent?: boolean | null
+          trial_expires_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -1740,6 +1798,8 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
+          deletion_reason?: string | null
+          grace_period_ends_at?: string | null
           id?: string
           is_manual_override?: boolean | null
           override_at?: string | null
@@ -1747,11 +1807,14 @@ export type Database = {
           override_reason?: string | null
           plan_name?: string
           plan_price_id?: string
+          scheduled_delete_at?: string | null
           status?: Database["public"]["Enums"]["billing_status"]
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tenant_id?: string
           trial_end_notification_sent?: boolean | null
+          trial_expires_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2240,6 +2303,8 @@ export type Database = {
         | "INCOMPLETE"
         | "TRIALING"
         | "UNPAID"
+        | "TRIAL_EXPIRED"
+        | "PENDING_DELETE"
       diploma_status: "DRAFT" | "ISSUED" | "REVOKED"
       document_type:
         | "ID_DOCUMENT"
@@ -2414,6 +2479,8 @@ export const Constants = {
         "INCOMPLETE",
         "TRIALING",
         "UNPAID",
+        "TRIAL_EXPIRED",
+        "PENDING_DELETE",
       ],
       diploma_status: ["DRAFT", "ISSUED", "REVOKED"],
       document_type: [
