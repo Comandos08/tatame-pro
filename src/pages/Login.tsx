@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { useIdentity } from "@/contexts/IdentityContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -21,16 +22,25 @@ export default function Login() {
   const [name, setName] = useState("");
 
   const { signIn, signUp, isAuthenticated } = useCurrentUser();
+  const { identityState, redirectPath } = useIdentity();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useI18n();
 
-  // ✅ Single source of navigation after auth is truly stable
+  // ✅ Aguardar auth E identity estarem resolvidos antes de navegar
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/portal", { replace: true });
+    if (isAuthenticated && identityState !== "loading") {
+      // Se wizard required, deixar o fluxo normal lidar
+      if (identityState === "wizard_required") {
+        navigate("/identity/wizard", { replace: true });
+        return;
+      }
+      
+      // Usar redirectPath do backend (mais preciso que /portal hardcoded)
+      const destination = redirectPath || "/portal";
+      navigate(destination, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, identityState, redirectPath, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
