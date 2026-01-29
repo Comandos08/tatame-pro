@@ -1,3 +1,5 @@
+import { Session } from "@supabase/supabase-js";
+
 export type AppRole = 
   | 'SUPERADMIN_GLOBAL'
   | 'ADMIN_TENANT'
@@ -33,8 +35,10 @@ export interface CurrentUser extends Profile {
 
 export interface AuthContextType {
   currentUser: CurrentUser | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isSessionReady: boolean;
   isGlobalSuperadmin: boolean;
   currentRolesByTenant: Map<string, AppRole[]>;
   signIn: (email: string, password: string) => Promise<void>;

@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
@@ -38,6 +39,8 @@ interface CreateTenantDialogProps {
 }
 
 export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
+  const { isSessionReady } = useCurrentUser();
+  
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -72,6 +75,11 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      // ✅ GUARD ESTRUTURAL: Garantir sessão pronta antes de qualquer operação
+      if (!isSessionReady) {
+        throw new Error('Aguardando sincronização de sessão. Tente novamente.');
+      }
+
       if (!name.trim() || !slug.trim()) {
         throw new Error('Nome e slug são obrigatórios');
       }
@@ -246,7 +254,10 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+          <Button 
+            onClick={() => createMutation.mutate()} 
+            disabled={createMutation.isPending || !isSessionReady}
+          >
             {createMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -83,7 +83,7 @@ function hardAbortableFetch(timeoutMs: number) {
 }
 
 export function IdentityProvider({ children }: IdentityProviderProps) {
-  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
+  const { session, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
   const [identityState, setIdentityState] = useState<IdentityState>("loading");
   const [error, setError] = useState<IdentityError | null>(null);
@@ -166,8 +166,9 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       inFlightAbortRef.current = null;
     }
 
-    // If not authenticated, do not block
-    if (!currentUser?.id || !isAuthenticated) {
+    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
+    // Isso evita race condition onde currentUser ainda não foi carregado
+    if (!session?.user?.id || !isAuthenticated) {
       reset();
       return;
     }
@@ -256,15 +257,16 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       clear();
       inFlightAbortRef.current = null;
     }
-  }, [applyResult, currentUser?.id, isAuthenticated, reset]);
+  }, [applyResult, session?.user?.id, isAuthenticated, reset]);
 
   // React to auth resolution
   useEffect(() => {
     // Wait auth to finish
     if (authLoading) return;
 
+    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
     // Not authenticated => reset identity safely
-    if (!isAuthenticated || !currentUser?.id) {
+    if (!isAuthenticated || !session?.user?.id) {
       reset();
       return;
     }
@@ -279,14 +281,15 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         inFlightAbortRef.current = null;
       }
     };
-  }, [authLoading, isAuthenticated, currentUser?.id, checkIdentity, reset]);
+  }, [authLoading, isAuthenticated, session?.user?.id, checkIdentity, reset]);
 
   const refreshIdentity = async () => {
     await checkIdentity();
   };
 
   const completeWizard = async (payload: CompleteWizardPayload): Promise<CompleteWizardResult> => {
-    if (!currentUser?.id) {
+    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
+    if (!session?.user?.id) {
       return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
     }
 
