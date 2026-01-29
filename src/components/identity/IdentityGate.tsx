@@ -11,6 +11,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/contexts/I18nContext";
@@ -82,6 +83,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   const { t } = useI18n();
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState, redirectPath, error, refreshIdentity } = useIdentity();
+  const { isImpersonating, session: impersonationSession } = useImpersonation();
 
   // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
   if (isPublicPath(pathname)) {
@@ -124,9 +126,20 @@ export function IdentityGate({ children }: IdentityGateProps) {
     return <Navigate to="/identity/wizard" replace />;
   }
 
-  // ===== R5: Superadmin → /admin =====
+  // ===== R5: Superadmin → /admin (ou tenant se impersonating) =====
   if (identityState === "superadmin") {
+    // Permitir acesso às rotas do tenant impersonado
+    if (isImpersonating && impersonationSession?.targetTenantSlug) {
+      const tenantPrefix = `/${impersonationSession.targetTenantSlug}`;
+      if (pathname === tenantPrefix || pathname.startsWith(`${tenantPrefix}/`)) {
+        return <>{children}</>;
+      }
+    }
+    
+    // Permitir acesso normal às rotas /admin
     if (pathname.startsWith("/admin")) return <>{children}</>;
+    
+    // Qualquer outra rota → redirecionar para /admin
     return <Navigate to="/admin" replace />;
   }
 
