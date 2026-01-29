@@ -1,392 +1,135 @@
 
 
-# Plano Ajustado: Growth Trial + Auto-Cleanup
+# Plano Revisado: Growth Trial + Estabilidade Operacional
 
-## Ajustes Obrigatórios Incorporados
+## Decisão Estratégica Registrada
 
-### A1. Decisão Explícita: Criação de Novos Tenants
-
-**Decisão Registrada:** Enquanto `COMPLETE_WIZARD` estiver desabilitado, a criação de novos tenants será **exclusivamente via Superadmin** através do `CreateTenantDialog` existente.
-
-**Impacto no PI:**
-- O trial de 7 dias aplica-se apenas a tenants criados pelo Superadmin
-- Não há fluxo de self-service até habilitação do wizard
-- O campo `trial_started_at` será preenchido automaticamente no momento da criação do tenant
-
-### A2. Salvaguarda no Cleanup (Soft Guard de Pagamento)
-
-O job `cleanup-expired-tenants` incluirá verificações adicionais **antes** de qualquer deleção:
-
-```typescript
-// Verificações obrigatórias antes de deletar
-async function canSafelyDelete(tenantId: string): Promise<{ safe: boolean; reason?: string }> {
-  // 1. Verificar se não há pagamento recente (últimos 30 dias)
-  const { data: recentPayment } = await supabase
-    .from('webhook_events')
-    .select('id')
-    .eq('event_type', 'invoice.payment_succeeded')
-    .gt('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-    .limit(1);
-  
-  if (recentPayment?.length) {
-    return { safe: false, reason: 'RECENT_PAYMENT_FOUND' };
-  }
-  
-  // 2. Verificar status atual (double-check)
-  const { data: billing } = await supabase
-    .from('tenant_billing')
-    .select('status, is_manual_override')
-    .eq('tenant_id', tenantId)
-    .single();
-  
-  if (billing?.is_manual_override) {
-    return { safe: false, reason: 'MANUAL_OVERRIDE_ACTIVE' };
-  }
-  
-  if (billing?.status !== 'PENDING_DELETE') {
-    return { safe: false, reason: 'STATUS_CHANGED' };
-  }
-  
-  // 3. Verificar se não há atletas ativos (proteção adicional)
-  const { count: activeAthletes } = await supabase
-    .from('athletes')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true);
-  
-  if ((activeAthletes || 0) > 50) {
-    return { safe: false, reason: 'TOO_MANY_ACTIVE_ATHLETES' };
-  }
-  
-  return { safe: true };
-}
-```
-
-**Comportamento quando guard falha:**
-- Tenant **não é deletado**
-- Status permanece `PENDING_DELETE`
-- Log de auditoria registra `CLEANUP_SKIPPED` com razão
-- Alerta enviado para Superadmin revisar manualmente
-
-### A3. Impersonation Respeitando Bloqueios de Trial
-
-**Regra:** Durante impersonation de tenant em `TRIAL_EXPIRED`, o Superadmin:
-- ✅ PODE acessar o tenant (para suporte e diagnóstico)
-- ✅ PODE visualizar dados, dashboards, logs
-- ❌ NÃO PODE executar ações sensíveis bloqueadas
-
-**Implementação:** O hook `useTrialRestrictions` será consultado mesmo durante impersonation:
-
-```typescript
-export function useTrialRestrictions() {
-  const { billingState } = useTenantStatus();
-  const { isImpersonating } = useImpersonation();
-  
-  // Superadmin impersonando TAMBÉM respeita restrições de trial
-  // Pode VER tudo, mas NÃO PODE EXECUTAR ações bloqueadas
-  const isTrialRestricted = billingState?.status === 'TRIAL_EXPIRED';
-  
-  return {
-    canApproveMemberships: !isTrialRestricted,
-    canCreateEvents: !isTrialRestricted,
-    canIssueDiplomas: !isTrialRestricted,
-    // ... outras ações
-    isRestricted: isTrialRestricted,
-    // Flag para UI mostrar mensagem específica quando impersonando
-    isImpersonatingRestricted: isImpersonating && isTrialRestricted,
-  };
-}
-```
-
-**Banner especial para Superadmin impersonando tenant bloqueado:**
-> "Você está visualizando um tenant com trial expirado. Ações administrativas estão bloqueadas. Para desbloquear, ative a assinatura via Control Tower."
+**Identity Wizard (COMPLETE_WIZARD):** Permanecerá **DESABILITADO** intencionalmente. A criação de novos tenants continua sendo uma decisão estratégica controlada exclusivamente via Superadmin através do `CreateTenantDialog`. Esta decisão será reavaliada em fase futura de produto.
 
 ---
 
-## Implementação Fase a Fase
+## Visão Geral do Plano
 
-### Fase 1: Database Schema
-
-**Migration SQL:**
-
-```sql
--- 1. Adicionar novos valores ao enum billing_status
-ALTER TYPE billing_status ADD VALUE IF NOT EXISTS 'TRIAL_EXPIRED';
-ALTER TYPE billing_status ADD VALUE IF NOT EXISTS 'PENDING_DELETE';
-
--- 2. Adicionar colunas de controle de trial em tenant_billing
-ALTER TABLE tenant_billing 
-ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS grace_period_ends_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS scheduled_delete_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS deletion_reason TEXT;
-
--- 3. Tabela para auditoria LGPD de tenants deletados
-CREATE TABLE IF NOT EXISTS deleted_tenants (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  original_tenant_id UUID NOT NULL,
-  tenant_slug TEXT NOT NULL,
-  tenant_name TEXT NOT NULL,
-  creator_email TEXT,
-  billing_email TEXT,
-  trial_started_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ DEFAULT NOW(),
-  deletion_reason TEXT,
-  metadata JSONB,
-  -- Campos para auditoria
-  athletes_count INTEGER,
-  memberships_count INTEGER,
-  events_count INTEGER
-);
-
--- 4. RLS para deleted_tenants (somente leitura para superadmin)
-ALTER TABLE deleted_tenants ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Superadmins can read deleted_tenants"
-ON deleted_tenants FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM user_roles
-    WHERE user_id = auth.uid()
-    AND role = 'SUPERADMIN_GLOBAL'
-    AND tenant_id IS NULL
-  )
-);
-
--- 5. Atualizar tenants existentes em TRIALING com datas de trial
-UPDATE tenant_billing tb
-SET 
-  trial_started_at = COALESCE(tb.created_at, NOW()),
-  trial_expires_at = COALESCE(tb.current_period_end, NOW() + INTERVAL '7 days')
-WHERE tb.status = 'TRIALING'
-AND tb.trial_started_at IS NULL;
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PRIORIZAÇÃO REVISADA                              │
+├─────────────────────────────────────────────────────────────────────┤
+│  FASE 1: Correções Críticas (Pré-requisitos)                        │
+│    └─ Consolidação de Rotas                                         │
+│    └─ Correção stripe-webhook (statusMap)                           │
+│                                                                      │
+│  FASE 2: Growth Trial Lifecycle (Core do PI)                        │
+│    └─ i18n de Billing/Trial                                         │
+│    └─ TenantBlockedScreen (PENDING_DELETE)                          │
+│    └─ Integração TenantOnboardingGate                               │
+│    └─ Deploy Edge Functions (expire-trials, mark-pending-delete,    │
+│       cleanup-expired-tenants)                                       │
+│                                                                      │
+│  FASE 3: Estabilidade Operacional                                   │
+│    └─ Documentação de Fluxos (BUSINESS-FLOWS.md)                    │
+│    └─ Testes E2E do Trial Lifecycle                                 │
+│    └─ Configuração pg_cron dos Jobs                                 │
+│                                                                      │
+│  FASE 4: Refinamentos UX (Opcional/Futuro)                          │
+│    └─ Empty States padronizados                                     │
+│    └─ Error Boundaries globais                                      │
+│    └─ Rankings (validação de dados)                                 │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Fase 2: Billing Resolver Atualizado
+## FASE 1: Correções Críticas (Pré-requisitos)
 
-**Arquivo:** `src/lib/billing/resolveTenantBillingState.ts`
+### 1.1 Consolidação de Rotas
 
-**Mudanças:**
-- Adicionar `TRIAL_EXPIRED` e `PENDING_DELETE` ao tipo `BillingStatus`
-- Adicionar novas flags:
-  - `isTrialActive: boolean`
-  - `isTrialExpired: boolean`
-  - `isPendingDelete: boolean`
-  - `canPerformSensitiveActions: boolean`
-  - `daysUntilExpiration: number | null`
-  - `daysUntilDeletion: number | null`
+**Problema:** Existem duas estruturas de rotas divergentes (`App.tsx` e `routes.tsx`), gerando risco de manutenção e inconsistências.
 
-**Lógica atualizada:**
-```typescript
-const isTrialActive = status === 'TRIALING';
-const isTrialExpired = status === 'TRIAL_EXPIRED';
-const isPendingDelete = status === 'PENDING_DELETE';
-const canPerformSensitiveActions = ['ACTIVE', 'TRIALING'].includes(status);
-const isBlocked = isPendingDelete || status === 'CANCELED';
-const isReadOnly = ['PAST_DUE', 'UNPAID', 'INCOMPLETE', 'TRIAL_EXPIRED'].includes(status);
+**Solução:** Unificar em `App.tsx` como fonte única, removendo `routes.tsx`.
+
+| Arquivo | Ação |
+|---------|------|
+| `src/App.tsx` | Manter e expandir como fonte única |
+| `src/routes.tsx` | Remover (código órfão) |
+
+**Estrutura Consolidada:**
+
+```text
+App.tsx (IdentityGate no topo)
+├── Públicas: /, /login, /help, /forgot-password, /reset-password, /auth/callback
+├── Verificação: /verify/*, /c/:code
+├── Identity: /identity/wizard
+├── Portal: /portal/* (PortalRouter)
+├── Admin: /admin, /admin/tenants/:tenantId/control
+├── Tenant: /:tenantSlug (TenantLayout)
+│   ├── index → TenantLanding
+│   └── /app/* → TenantDashboard (com TenantOnboardingGate)
+└── Fallback: * → NotFound
 ```
+
+**Impacto:** Zero quebra de funcionalidade, apenas limpeza estrutural.
 
 ---
 
-### Fase 3: Hook de Restrições
+### 1.2 Correção stripe-webhook (statusMap)
 
-**Novo arquivo:** `src/hooks/useTrialRestrictions.ts`
+**Problema:** A remoção acidental do `statusMap` no último diff quebrou a lógica de mapeamento de status Stripe → billing_status.
+
+**Solução:** Restaurar o bloco removido antes do upsert.
+
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/stripe-webhook/index.ts` | Restaurar `statusMap` e `billingStatus` (linhas ~506-520) |
+
+**Código a restaurar:**
 
 ```typescript
-import { useTenantStatus } from './useTenantStatus';
-import { useImpersonation } from '@/contexts/ImpersonationContext';
+// Map Stripe status to our enum
+const statusMap: Record<string, string> = {
+  active: "ACTIVE",
+  past_due: "PAST_DUE",
+  canceled: "CANCELED",
+  incomplete: "INCOMPLETE",
+  trialing: "TRIALING",
+  unpaid: "UNPAID",
+  incomplete_expired: "CANCELED",
+  paused: "PAST_DUE",
+};
 
-export function useTrialRestrictions() {
-  const { billingState } = useTenantStatus();
-  const { isImpersonating } = useImpersonation();
-  
-  const isTrialRestricted = billingState?.status === 'TRIAL_EXPIRED';
-  const isPendingDelete = billingState?.status === 'PENDING_DELETE';
-  
-  return {
-    // Ações bloqueadas durante trial expirado
-    canApproveMemberships: !isTrialRestricted && !isPendingDelete,
-    canRejectMemberships: !isTrialRestricted && !isPendingDelete,
-    canCreateEvents: !isTrialRestricted && !isPendingDelete,
-    canIssueDiplomas: !isTrialRestricted && !isPendingDelete,
-    canAddAthletes: !isTrialRestricted && !isPendingDelete,
-    canRegisterGradings: !isTrialRestricted && !isPendingDelete,
-    
-    // Flags de estado
-    isRestricted: isTrialRestricted,
-    isPendingDelete,
-    isImpersonatingRestricted: isImpersonating && isTrialRestricted,
-    
-    // Mensagem para UI
-    restrictionReason: isPendingDelete 
-      ? 'pending_delete' 
-      : isTrialRestricted 
-        ? 'trial_expired' 
-        : null,
-  };
-}
+const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
 ```
+
+**Impacto:** Crítico - sem isso, webhooks Stripe falharão ao atualizar billing.
 
 ---
 
-### Fase 4: Componentes de UI
+## FASE 2: Growth Trial Lifecycle (Core do PI)
 
-#### 4.1 TrialStatusBanner
+### 2.1 i18n de Billing/Trial
 
-**Novo arquivo:** `src/components/billing/TrialStatusBanner.tsx`
+**Arquivos a modificar:**
 
-| Estado | Dias | Variante | Mensagem |
-|--------|------|----------|----------|
-| TRIALING | >= 4 | default | "Período de avaliação - X dias restantes" |
-| TRIALING | <= 3 | warning | "⚠️ Seu trial expira em X dias!" |
-| TRIAL_EXPIRED | - | destructive | "🚨 Trial expirado. Ações limitadas." |
+| Arquivo | Novas Chaves |
+|---------|--------------|
+| `src/locales/pt-BR.ts` | `trial.*`, `billing.pendingDelete.*` |
+| `src/locales/en.ts` | `trial.*`, `billing.pendingDelete.*` |
+| `src/locales/es.ts` | `trial.*`, `billing.pendingDelete.*` |
 
-#### 4.2 ActionBlockedTooltip
-
-**Novo arquivo:** `src/components/billing/ActionBlockedTooltip.tsx`
-
-Tooltip que aparece sobre botões desabilitados:
-> "Esta ação está indisponível. Ative sua assinatura para continuar."
-
-#### 4.3 TenantBlockedScreen Atualizado
-
-Adicionar tratamento para `PENDING_DELETE`:
-- Mostrar contagem regressiva até deleção
-- CTA de última chance para ativar
-- Aviso de perda permanente de dados
-
----
-
-### Fase 5: Edge Functions
-
-#### 5.1 expire-trials/index.ts (NOVO)
-
-**Executa:** Diariamente às 00:05 UTC
-
-```typescript
-// Fluxo:
-// 1. Buscar tenants com status='TRIALING' e trial_expires_at < NOW()
-// 2. Atualizar status para 'TRIAL_EXPIRED'
-// 3. Definir grace_period_ends_at = NOW() + 8 dias
-// 4. Manter tenant.is_active = true (acesso parcial permitido)
-// 5. Enviar email "TRIAL_EXPIRED"
-// 6. Registrar em audit_logs
-```
-
-#### 5.2 mark-pending-delete/index.ts (NOVO)
-
-**Executa:** Diariamente às 00:10 UTC
-
-```typescript
-// Fluxo:
-// 1. Buscar tenants com status='TRIAL_EXPIRED' e grace_period_ends_at < NOW()
-// 2. Atualizar status para 'PENDING_DELETE'
-// 3. Definir scheduled_delete_at = NOW() + 7 dias (buffer de segurança)
-// 4. Desativar tenant (is_active = false)
-// 5. Enviar email "PENDING_DELETE_WARNING"
-// 6. Registrar em audit_logs
-```
-
-#### 5.3 cleanup-expired-tenants/index.ts (NOVO)
-
-**Executa:** Diariamente às 03:00 UTC
-
-```typescript
-// Fluxo com salvaguardas:
-// 1. Buscar tenants com status='PENDING_DELETE' e scheduled_delete_at < NOW()
-// 2. Para cada tenant:
-//    a. Executar canSafelyDelete() - SE FALHAR, PULAR
-//    b. Salvar dados mínimos em deleted_tenants (LGPD)
-//    c. Deletar em cascade (ordem específica para evitar FK errors)
-//    d. Deletar tenant e tenant_billing
-// 3. Enviar email final "TENANT_DELETED"
-// 4. Alertar superadmin sobre tenants pulados (se houver)
-```
-
-**Ordem de deleção cascade:**
-1. digital_cards
-2. diplomas
-3. athlete_gradings
-4. event_registrations
-5. events
-6. memberships
-7. athletes
-8. academy_coaches
-9. coaches
-10. academies
-11. grading_levels
-12. grading_schemes
-13. user_roles (do tenant)
-14. tenant_invoices
-15. tenant_billing
-16. tenants
-
-#### 5.4 Atualizar create-tenant-subscription/index.ts
-
-- Mudar `TRIAL_PERIOD_DAYS` de 14 para **7**
-- Adicionar:
-  ```typescript
-  trial_started_at: new Date().toISOString(),
-  trial_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-  ```
-
-#### 5.5 Atualizar stripe-webhook/index.ts
-
-Adicionar lógica de reativação:
-```typescript
-// Em handleSubscriptionChange ou handleInvoicePaymentSucceeded:
-if (previousStatus === 'TRIAL_EXPIRED' || previousStatus === 'PENDING_DELETE') {
-  // Limpar campos de deleção
-  await supabase.from('tenant_billing').update({
-    status: 'ACTIVE',
-    grace_period_ends_at: null,
-    scheduled_delete_at: null,
-    deletion_reason: null,
-  }).eq('tenant_id', tenantId);
-  
-  // Reativar tenant
-  await supabase.from('tenants').update({ is_active: true }).eq('id', tenantId);
-  
-  // Log de reativação
-  await createAuditLog(supabase, {
-    event_type: 'TENANT_REACTIVATED',
-    tenant_id: tenantId,
-    metadata: {
-      previous_status: previousStatus,
-      reactivation_source: 'stripe_payment',
-      stripe_invoice_id: invoice?.id,
-    },
-  });
-  
-  // Email de reativação
-  sendBillingEmail(supabaseUrl, supabaseServiceKey, 'SUBSCRIPTION_REACTIVATED', tenantId);
-}
-```
-
----
-
-### Fase 6: i18n Strings
-
-**Novas chaves para `src/locales/*.ts`:**
+**Chaves Necessárias:**
 
 ```typescript
 // Trial Status
 'trial.daysRemaining': 'Período de avaliação - {days} dias restantes',
-'trial.expiringSoon': '⚠️ Seu trial expira em {days} dias!',
+'trial.expiringSoon': 'Seu trial expira em {days} dias!',
 'trial.expired': 'Período de avaliação encerrado',
 'trial.expiredDesc': 'Ações administrativas estão limitadas. Ative sua assinatura para continuar.',
 'trial.activateNow': 'Ativar Assinatura',
-'trial.activateNowDesc': 'Mantenha acesso total ao sistema',
 
 // Pending Delete
-'trial.pendingDelete': 'Organização será removida em {days} dias',
-'trial.pendingDeleteDesc': 'Sem ativação, todos os dados serão permanentemente removidos.',
-'trial.lastChance': 'Última chance para ativar',
-'trial.dataWillBeLost': 'Todos os atletas, eventos e documentos serão perdidos',
+'billing.pendingDelete.title': 'Organização será removida em {days} dias',
+'billing.pendingDelete.description': 'Sem ativação, todos os dados serão permanentemente removidos.',
+'billing.pendingDelete.lastChance': 'Última chance para ativar',
+'billing.pendingDelete.dataWarning': 'Todos os atletas, eventos e documentos serão perdidos',
 
 // Action Restrictions
 'trial.actionBlocked': 'Ação indisponível',
@@ -394,100 +137,269 @@ if (previousStatus === 'TRIAL_EXPIRED' || previousStatus === 'PENDING_DELETE') {
 'trial.impersonatingRestricted': 'Visualizando tenant com trial expirado. Ações bloqueadas.',
 
 // Reactivation
-'trial.reactivated': 'Assinatura ativada com sucesso!',
-'trial.reactivatedDesc': 'Todas as funcionalidades foram restauradas.',
+'billing.reactivated': 'Assinatura ativada com sucesso!',
+'billing.reactivatedDesc': 'Todas as funcionalidades foram restauradas.',
+
+// Tenant Status Banner
+'tenantStatus.onTrial': 'Período de avaliação até {date}',
+'tenantStatus.trialEndingSoon': 'Seu trial expira em {days} dias!',
+'tenantStatus.trialExpired': 'Trial expirado. Ative sua assinatura para restaurar acesso.',
+'tenantStatus.blocked': 'Organização bloqueada. Regularize sua situação.',
+'tenantStatus.billingIssue': 'Problema com pagamento. Verifique sua assinatura.',
+'tenantStatus.manageBilling': 'Gerenciar Assinatura',
+'tenantStatus.viewDetails': 'Ver Detalhes',
 ```
 
 ---
 
-## Arquivos a Criar/Modificar
+### 2.2 TenantBlockedScreen (Estado PENDING_DELETE)
 
-### Criar:
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/expire-trials/index.ts` | Job de expiração |
-| `supabase/functions/mark-pending-delete/index.ts` | Job de marcação |
-| `supabase/functions/cleanup-expired-tenants/index.ts` | Job de cleanup com salvaguardas |
-| `src/hooks/useTrialRestrictions.ts` | Hook de bloqueio |
-| `src/components/billing/TrialStatusBanner.tsx` | Banner progressivo |
-| `src/components/billing/ActionBlockedTooltip.tsx` | Tooltip de bloqueio |
+**Arquivo:** `src/components/billing/TenantBlockedScreen.tsx`
 
-### Modificar:
-| Arquivo | Mudança |
-|---------|---------|
-| `src/lib/billing/resolveTenantBillingState.ts` | Novos status e flags |
-| `src/hooks/useTenantStatus.ts` | Suporte a novas flags |
-| `src/components/billing/TenantBlockedScreen.tsx` | Estado PENDING_DELETE |
-| `src/components/billing/BillingStatusBanner.tsx` | TRIAL_EXPIRED config |
-| `supabase/functions/create-tenant-subscription/index.ts` | Trial 7 dias |
-| `supabase/functions/stripe-webhook/index.ts` | Reativação tardia |
-| `supabase/functions/send-billing-email/index.ts` | Novos templates |
-| `supabase/config.toml` | Novas functions |
-| `src/locales/pt-BR.ts` | Novas strings |
-| `src/locales/en.ts` | Novas strings |
-| `src/locales/es.ts` | Novas strings |
+**Modificações:**
 
----
+1. Adicionar prop `billingStatus` para diferenciar estados
+2. Renderização condicional para `PENDING_DELETE`:
+   - Título: "Organização será removida em X dias"
+   - Contagem regressiva visual
+   - Aviso de perda permanente de dados
+   - CTA de última chance ("Ativar Agora")
 
-## Matriz de Decisão Final
+**Novo fluxo de decisão:**
 
-| Operação | TRIALING | TRIAL_EXPIRED | PENDING_DELETE | ACTIVE |
-|----------|----------|---------------|----------------|--------|
-| Login | ✅ | ✅ | ✅ | ✅ |
-| Ver dashboard | ✅ | ✅ | ❌ | ✅ |
-| Ver atletas | ✅ | ✅ | ❌ | ✅ |
-| Aprovar filiação | ✅ | ❌ | ❌ | ✅ |
-| Criar evento | ✅ | ❌ | ❌ | ✅ |
-| Emitir diploma | ✅ | ❌ | ❌ | ✅ |
-| Adicionar atleta | ✅ | ❌ | ❌ | ✅ |
-| Ver billing | ✅ | ✅ | ❌ | ✅ |
-| Ativar assinatura | ✅ | ✅ | ✅ | N/A |
-| **Impersonation (visualizar)** | ✅ | ✅ | ✅ | ✅ |
-| **Impersonation (ações)** | ✅ | ❌ | ❌ | ✅ |
+```text
+billingStatus === 'PENDING_DELETE'
+  → Mostrar contagem regressiva (scheduledDeleteAt - now)
+  → Ícone de alerta crítico
+  → Mensagem de urgência
+  → Botão "Ativar Assinatura" (destaque máximo)
+
+billingStatus === 'CANCELED' || !isActive
+  → Comportamento atual (bloqueio padrão)
+```
 
 ---
 
-## Ordem de Implementação
+### 2.3 Integração TenantOnboardingGate
 
-1. **Database Migration** — Enums e colunas
-2. **Billing Resolver** — Novos status
-3. **useTenantStatus** — Suporte a flags
-4. **useTrialRestrictions** — Hook de bloqueio
-5. **TrialStatusBanner** — UI de avisos
-6. **TenantBlockedScreen** — PENDING_DELETE
-7. **expire-trials** — Edge Function
-8. **mark-pending-delete** — Edge Function
-9. **cleanup-expired-tenants** — Edge Function com salvaguardas
-10. **create-tenant-subscription** — Trial 7 dias
-11. **stripe-webhook** — Reativação
-12. **send-billing-email** — Templates
-13. **i18n** — Strings
-14. **config.toml** — Registro das functions
+**Problema:** O `TenantOnboardingGate` existe mas não está integrado ao `TenantLayout`.
+
+**Arquivo a modificar:** `src/layouts/TenantLayout.tsx`
+
+**Modificação:**
+
+```typescript
+// Antes do <Outlet />, envolver com:
+<TenantOnboardingGate>
+  <Outlet />
+</TenantOnboardingGate>
+```
+
+**Lógica já existente no Gate:**
+- Se `onboarding_completed === false` → Redireciona para `/:slug/app/onboarding`
+- Rotas permitidas durante onboarding: `/app/onboarding`, `/app/academies`, `/app/coaches`, `/app/grading-schemes`, `/app/settings`
 
 ---
 
-## Checklist de Testes
+### 2.4 Verificação Edge Functions
 
-### Happy Path
-- [ ] Superadmin cria tenant → status = TRIALING, trial_expires_at = D+7
-- [ ] Banner mostra "7 dias restantes"
-- [ ] D-3: Banner warning, email de aviso
-- [ ] D+8: Status = TRIAL_EXPIRED, ações bloqueadas
-- [ ] Pagamento → Status = ACTIVE, tudo desbloqueado
+**Status atual das Edge Functions:**
 
-### Expiração Completa
-- [ ] D+15: Status = PENDING_DELETE, tenant bloqueado
-- [ ] D+22: Cleanup executa com salvaguardas
-- [ ] Tenant deletado → registro em deleted_tenants
-- [ ] Email final enviado
+| Function | Status | Ação |
+|----------|--------|------|
+| `expire-trials` | ✅ Criada | Verificar deploy |
+| `mark-pending-delete` | ✅ Criada | Verificar deploy |
+| `cleanup-expired-tenants` | ✅ Criada | Verificar deploy |
+| `create-tenant-subscription` | ✅ Atualizada (7 dias) | Verificar deploy |
+| `stripe-webhook` | ⚠️ Quebrada | Corrigir statusMap |
+| `send-billing-email` | ✅ Atualizada | Verificar templates |
 
-### Impersonation
-- [ ] Superadmin pode visualizar tenant TRIAL_EXPIRED
-- [ ] Ações sensíveis bloqueadas mesmo durante impersonation
-- [ ] Banner especial visível
+**Verificação de config.toml:**
 
-### Salvaguardas
-- [ ] Tenant com pagamento recente NÃO é deletado
-- [ ] Tenant com override manual NÃO é deletado
-- [ ] Log de CLEANUP_SKIPPED registrado
+Confirmar que todas as functions estão registradas:
+
+```toml
+[functions.expire-trials]
+verify_jwt = false
+
+[functions.mark-pending-delete]
+verify_jwt = false
+
+[functions.cleanup-expired-tenants]
+verify_jwt = false
+```
+
+---
+
+## FASE 3: Estabilidade Operacional
+
+### 3.1 Documentação de Fluxos
+
+**Novo arquivo:** `docs/BUSINESS-FLOWS.md`
+
+**Conteúdo:**
+
+1. **Fluxo de Criação de Tenant (via Superadmin)**
+   - CreateTenantDialog → create-tenant-subscription → tenant + tenant_billing
+   - Status inicial: TRIALING, trial_expires_at = D+7
+
+2. **Ciclo de Vida do Trial**
+   - D+0: TRIALING (acesso total)
+   - D+7: expire-trials → TRIAL_EXPIRED (acesso parcial)
+   - D+15: mark-pending-delete → PENDING_DELETE (bloqueio total)
+   - D+22: cleanup-expired-tenants → Deleção com salvaguardas
+
+3. **Fluxo de Reativação**
+   - Pagamento Stripe → stripe-webhook → ACTIVE
+   - Limpeza de campos de deleção
+   - Reativação de tenant.is_active
+
+4. **Matriz de Ações por Status**
+   - Tabela completa de permissões
+
+---
+
+### 3.2 Testes E2E do Trial Lifecycle
+
+**Novo arquivo:** `e2e/billing/trial-lifecycle.spec.ts`
+
+**Cenários a testar:**
+
+```typescript
+describe('Trial Lifecycle', () => {
+  test('Tenant starts with TRIALING status and 7-day expiration');
+  test('TrialStatusBanner shows correct days remaining');
+  test('Sensitive actions blocked in TRIAL_EXPIRED state');
+  test('TenantBlockedScreen shows for PENDING_DELETE');
+  test('Impersonation respects trial restrictions');
+  test('Payment reactivates tenant from TRIAL_EXPIRED');
+  test('Payment reactivates tenant from PENDING_DELETE');
+});
+```
+
+---
+
+### 3.3 Configuração pg_cron
+
+**Documentar em `docs/operacao-configuracoes.md`:**
+
+```sql
+-- Agendar expire-trials (diário 00:05 UTC)
+SELECT cron.schedule(
+  'expire-trials-daily',
+  '5 0 * * *',
+  $$SELECT net.http_post(
+    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-trials',
+    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
+  )$$
+);
+
+-- Agendar mark-pending-delete (diário 00:10 UTC)
+SELECT cron.schedule(
+  'mark-pending-delete-daily',
+  '10 0 * * *',
+  $$SELECT net.http_post(
+    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/mark-pending-delete',
+    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
+  )$$
+);
+
+-- Agendar cleanup-expired-tenants (diário 03:00 UTC)
+SELECT cron.schedule(
+  'cleanup-expired-tenants-daily',
+  '0 3 * * *',
+  $$SELECT net.http_post(
+    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-expired-tenants',
+    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
+  )$$
+);
+```
+
+---
+
+## FASE 4: Refinamentos UX (Opcional/Futuro)
+
+**Prioridade:** Baixa - pode ser executado após launch inicial.
+
+| Item | Descrição | Arquivos |
+|------|-----------|----------|
+| Empty States | Componente reutilizável para listas vazias | `src/components/ui/empty-state.tsx` |
+| Error Boundaries | Wrapper global para erros de renderização | `src/components/ErrorBoundary.tsx` (já existe, revisar) |
+| Rankings | Validar conexão com dados reais | `src/pages/InternalRankings.tsx`, `src/pages/PublicRankings.tsx` |
+
+---
+
+## Ordem de Execução
+
+```text
+SEQUÊNCIA DE IMPLEMENTAÇÃO
+══════════════════════════
+
+1. [CRÍTICO] Restaurar statusMap no stripe-webhook
+   └─ Impacto: Webhooks Stripe voltam a funcionar
+
+2. [CRÍTICO] Consolidar rotas (remover routes.tsx)
+   └─ Impacto: Estrutura limpa, sem código órfão
+
+3. [CORE] Adicionar i18n keys de trial/billing
+   └─ Dependência: Necessário para UI de trial
+
+4. [CORE] Atualizar TenantBlockedScreen
+   └─ Dependência: i18n keys, billingState
+
+5. [CORE] Integrar TenantOnboardingGate
+   └─ Impacto: Onboarding obrigatório ativado
+
+6. [VERIFICAÇÃO] Deploy e teste das Edge Functions
+   └─ Dependência: stripe-webhook corrigido
+
+7. [DOCS] Criar BUSINESS-FLOWS.md
+   └─ Impacto: Documentação operacional
+
+8. [TESTES] E2E trial-lifecycle.spec.ts
+   └─ Dependência: Tudo acima funcionando
+
+9. [OPS] Agendar cron jobs
+   └─ Dependência: Functions deployadas e testadas
+```
+
+---
+
+## Checklist de Validação Final
+
+### Pré-Launch
+
+- [ ] stripe-webhook processa webhooks corretamente
+- [ ] Novas routes não quebram navegação existente
+- [ ] Trial de 7 dias aparece para novos tenants
+- [ ] TrialStatusBanner mostra contagem regressiva
+- [ ] Ações sensíveis bloqueadas em TRIAL_EXPIRED
+- [ ] TenantBlockedScreen funciona para PENDING_DELETE
+- [ ] Impersonation respeita restrições de trial
+- [ ] TenantOnboardingGate redireciona corretamente
+
+### Pós-Launch
+
+- [ ] Cron jobs agendados e executando
+- [ ] Logs de auditoria registrando transições
+- [ ] Emails de billing sendo enviados
+- [ ] Cleanup com salvaguardas funcionando
+
+---
+
+## Arquivos Modificados (Resumo)
+
+| Arquivo | Fase | Tipo |
+|---------|------|------|
+| `supabase/functions/stripe-webhook/index.ts` | 1 | Correção |
+| `src/App.tsx` | 1 | Consolidação |
+| `src/routes.tsx` | 1 | Remoção |
+| `src/locales/pt-BR.ts` | 2 | Adição i18n |
+| `src/locales/en.ts` | 2 | Adição i18n |
+| `src/locales/es.ts` | 2 | Adição i18n |
+| `src/components/billing/TenantBlockedScreen.tsx` | 2 | Modificação |
+| `src/layouts/TenantLayout.tsx` | 2 | Modificação |
+| `docs/BUSINESS-FLOWS.md` | 3 | Criação |
+| `docs/operacao-configuracoes.md` | 3 | Adição |
+| `e2e/billing/trial-lifecycle.spec.ts` | 3 | Criação |
 
