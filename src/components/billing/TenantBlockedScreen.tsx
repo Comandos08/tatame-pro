@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CreditCard, ExternalLink, Loader2, Mail, Clock } from 'lucide-react';
+import { AlertTriangle, CreditCard, ExternalLink, Loader2, Mail, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -12,9 +12,17 @@ interface TenantBlockedScreenProps {
   tenantName: string;
   tenantId: string;
   hasStripeCustomer: boolean;
+  billingStatus?: string;
+  scheduledDeleteAt?: string;
 }
 
-export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }: TenantBlockedScreenProps) {
+export function TenantBlockedScreen({ 
+  tenantName, 
+  tenantId, 
+  hasStripeCustomer,
+  billingStatus,
+  scheduledDeleteAt,
+}: TenantBlockedScreenProps) {
   const { hasRole, currentUser } = useCurrentUser();
   const { t } = useI18n();
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
@@ -25,6 +33,13 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
     hasRole('STAFF_ORGANIZACAO', tenantId) ||
     hasRole('SUPERADMIN_GLOBAL')
   );
+
+  // Calculate days until deletion
+  const daysUntilDeletion = scheduledDeleteAt 
+    ? Math.max(0, Math.ceil((new Date(scheduledDeleteAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+  const isPendingDelete = billingStatus === 'PENDING_DELETE';
 
   const handleOpenCustomerPortal = async () => {
     setIsOpeningPortal(true);
@@ -46,6 +61,96 @@ export function TenantBlockedScreen({ tenantName, tenantId, hasStripeCustomer }:
       setIsOpeningPortal(false);
     }
   };
+
+  // PENDING_DELETE view - urgent countdown
+  if (isPendingDelete && isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/5 to-destructive/10 p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="w-full max-w-lg"
+        >
+          <Card className="border-destructive shadow-2xl shadow-destructive/20">
+            <CardHeader className="text-center pb-4">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="mx-auto mb-4 h-20 w-20 rounded-full bg-destructive/20 flex items-center justify-center"
+              >
+                <Trash2 className="h-10 w-10 text-destructive" />
+              </motion.div>
+              <CardTitle className="text-2xl font-display text-destructive">
+                {t('billing.pendingDelete.title').replace('{days}', String(daysUntilDeletion ?? 0))}
+              </CardTitle>
+              <CardDescription className="text-base mt-2 font-semibold">
+                {tenantName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-destructive/10 rounded-lg p-4 border border-destructive/30">
+                <p className="text-center text-destructive font-medium">
+                  ⚠️ {t('billing.pendingDelete.lastChance')}
+                </p>
+                <p className="text-center text-sm text-muted-foreground mt-2">
+                  {t('billing.pendingDelete.dataWarning')}
+                </p>
+              </div>
+
+              <div className="text-center text-muted-foreground text-sm">
+                <p>{t('billing.pendingDelete.description')}</p>
+              </div>
+
+              {/* Countdown display */}
+              {daysUntilDeletion !== null && (
+                <div className="flex justify-center">
+                  <div className="text-center bg-muted rounded-lg p-4">
+                    <div className="text-4xl font-bold text-destructive">
+                      {daysUntilDeletion}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {daysUntilDeletion === 1 ? 'dia restante' : 'dias restantes'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {hasStripeCustomer && (
+                  <Button
+                    className="w-full bg-destructive hover:bg-destructive/90"
+                    size="lg"
+                    onClick={handleOpenCustomerPortal}
+                    disabled={isOpeningPortal}
+                  >
+                    {isOpeningPortal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    {t('billing.pendingDelete.urgentCta')}
+                  </Button>
+                )}
+                
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  asChild
+                >
+                  <a href="mailto:suporte@tatamepro.com.br">
+                    <Mail className="h-4 w-4 mr-2" />
+                    {t('blocked.contactSupportBtn')}
+                  </a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Admin view - shows management options
   if (isAdmin) {

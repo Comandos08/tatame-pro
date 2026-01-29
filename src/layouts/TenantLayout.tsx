@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
+import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { hexToHsl } from '@/lib/colorUtils';
@@ -68,8 +69,19 @@ function TenantContent() {
       <TenantBlockedScreen
         tenantName={tenant.name}
         tenantId={tenant.id}
+        billingStatus={billingInfo?.status || undefined}
+        scheduledDeleteAt={billingInfo?.scheduled_delete_at || undefined}
         hasStripeCustomer={!!billingInfo?.stripe_customer_id}
       />
+    );
+  }
+
+  // Wrap protected routes with onboarding gate
+  if (isProtectedRoute) {
+    return (
+      <TenantOnboardingGate>
+        <Outlet />
+      </TenantOnboardingGate>
     );
   }
 

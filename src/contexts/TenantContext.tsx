@@ -10,6 +10,7 @@ interface ExtendedTenantContext extends TenantContextType {
 interface TenantBillingInfo {
   status: string;
   stripe_customer_id: string | null;
+  scheduled_delete_at: string | null;
 }
 
 const TenantContext = createContext<ExtendedTenantContext | undefined>(undefined);
@@ -109,7 +110,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
             
             const { data: billing } = await supabase
               .from('tenant_billing')
-              .select('status, stripe_customer_id')
+              .select('status, stripe_customer_id, scheduled_delete_at')
               .eq('tenant_id', data.id)
               .maybeSingle();
             
