@@ -1555,6 +1555,7 @@ export const es: Record<string, string> = {
   'identity.unknownError': 'Error desconocido al verificar identidad',
   'identity.noContext': 'Contexto no encontrado',
   'identity.noContextDesc': 'No se pudo determinar tu organización. Por favor, intenta de nuevo o cierra sesión.',
+  'identity.superadminTenantAccessHint': 'Para acceder a "{tenant}", inicia una sesión de impersonación desde el panel de administración.',
   'common.retry': 'Intentar de Nuevo',
 
   // Trial Status (Growth Trial PI)

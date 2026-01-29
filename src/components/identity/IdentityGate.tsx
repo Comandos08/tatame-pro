@@ -7,7 +7,7 @@
  */
 
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
@@ -18,6 +18,56 @@ import { useI18n } from "@/contexts/I18nContext";
 
 interface IdentityGateProps {
   children: React.ReactNode;
+}
+
+/**
+ * Rotas globais reservadas (não são slugs de tenant).
+ * Baseado na estrutura de rotas definida em App.tsx.
+ */
+const RESERVED_ROUTE_SEGMENTS = new Set([
+  "admin",
+  "portal",
+  "login",
+  "auth",
+  "identity",
+  "help",
+  "forgot-password",
+  "reset-password",
+]);
+
+/**
+ * Detecta estruturalmente se uma rota é de tenant (/:tenantSlug/*).
+ *
+ * Uma rota é de tenant se:
+ * 1. Começa com / seguido de um segmento
+ * 2. O primeiro segmento NÃO é uma rota global reservada
+ * 3. O primeiro segmento NÃO é vazio
+ *
+ * Exemplos:
+ * - /federacao-demo → true (tenant slug)
+ * - /federacao-demo/portal → true (tenant portal)
+ * - /admin → false (reservado)
+ * - /login → false (reservado)
+ * - / → false (root)
+ */
+function isTenantRoute(pathname: string): { isTenant: boolean; tenantSlug: string | null } {
+  // Remove trailing slash e split
+  const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
+
+  // Precisa ter pelo menos 1 segmento
+  if (segments.length === 0) {
+    return { isTenant: false, tenantSlug: null };
+  }
+
+  const firstSegment = segments[0].toLowerCase();
+
+  // Se o primeiro segmento é reservado, não é rota de tenant
+  if (RESERVED_ROUTE_SEGMENTS.has(firstSegment)) {
+    return { isTenant: false, tenantSlug: null };
+  }
+
+  // É rota de tenant
+  return { isTenant: true, tenantSlug: segments[0] };
 }
 
 /**
@@ -77,6 +127,7 @@ function isPublicPath(pathname: string) {
  */
 export function IdentityGate({ children }: IdentityGateProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = location.pathname;
 
   // ✅ ALL HOOKS MUST BE CALLED UNCONDITIONALLY (React rules)
@@ -135,11 +186,41 @@ export function IdentityGate({ children }: IdentityGateProps) {
         return <>{children}</>;
       }
     }
-    
+
     // Permitir acesso normal às rotas /admin
     if (pathname.startsWith("/admin")) return <>{children}</>;
-    
-    // Qualquer outra rota → redirecionar para /admin
+
+    // ✅ AJUSTE 2: Detecção estrutural de rota de tenant
+    const { isTenant, tenantSlug } = isTenantRoute(pathname);
+
+    if (isTenant && tenantSlug) {
+      // Superadmin tentando acessar rota de tenant SEM impersonation ativa
+      // Mostrar UI explicativa em vez de redirect silencioso
+      const hintText = t("identity.superadminTenantAccessHint").replace("{tenant}", tenantSlug);
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <AlertCircle className="h-8 w-8 text-warning mx-auto mb-2" />
+              <CardTitle className="text-center">{t("impersonation.accessDenied")}</CardTitle>
+              <CardDescription className="text-center">
+                {t("impersonation.superadminMustImpersonate")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground text-center">
+                {hintText}
+              </p>
+              <Button onClick={() => navigate("/admin")} className="w-full">
+                {t("impersonation.goToAdmin")}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Qualquer outra rota global não /admin → redirecionar para /admin
     return <Navigate to="/admin" replace />;
   }
 

@@ -1539,6 +1539,7 @@ export const ptBR = {
   'identity.unknownError': 'Erro desconhecido ao verificar identidade',
   'identity.noContext': 'Contexto não encontrado',
   'identity.noContextDesc': 'Não foi possível determinar sua organização. Por favor, tente novamente ou faça logout.',
+  'identity.superadminTenantAccessHint': 'Para acessar "{tenant}", inicie uma sessão de impersonation pelo painel de administração.',
   'common.retry': 'Tentar Novamente',
 
   // Trial Status (Growth Trial PI)
