@@ -16,6 +16,10 @@ interface BillingEmailRequest {
   event_type: 
     | "TRIAL_STARTED" 
     | "TRIAL_ENDING_SOON"
+    | "TRIAL_EXPIRED"
+    | "PENDING_DELETE_WARNING"
+    | "TENANT_DELETED"
+    | "SUBSCRIPTION_REACTIVATED"
     | "INVOICE_PAYMENT_SUCCEEDED" 
     | "PAYMENT_FAILED" 
     | "TENANT_WILL_BE_BLOCKED"
@@ -23,6 +27,8 @@ interface BillingEmailRequest {
   tenant_id: string;
   data?: {
     trial_end_date?: string;
+    grace_period_end?: string;
+    delete_date?: string;
     invoice_amount?: number;
     invoice_currency?: string;
     invoice_url?: string;
@@ -251,6 +257,173 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
           <a href="mailto:suporte@tatamepro.com.br" 
              style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
             Contatar suporte
+          </a>
+        </div>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  // Growth Trial: TRIAL_EXPIRED email
+  TRIAL_EXPIRED: {
+    subject: "🚨 Período de teste expirado - Ações limitadas - TATAME",
+    getHtml: (tenantName, data) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
+        </div>
+        
+        <h2 style="color: #ef4444;">🚨 Período de teste expirado</h2>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, seu período de teste gratuito terminou.
+        </p>
+        
+        <div style="background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #991b1b; font-weight: 600;">
+            Ações administrativas estão temporariamente bloqueadas, incluindo:
+          </p>
+          <ul style="color: #991b1b; margin: 10px 0 0 0;">
+            <li>Aprovação de novas filiações</li>
+            <li>Criação de eventos</li>
+            <li>Emissão de diplomas</li>
+            <li>Cadastro de atletas</li>
+          </ul>
+        </div>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Você tem até <strong>${data?.grace_period_end || "8 dias"}</strong> para ativar sua assinatura.
+          Após esse período, sua organização será marcada para remoção.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://tatame-pro.lovable.app" 
+             style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Ativar Assinatura Agora
+          </a>
+        </div>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  // Growth Trial: PENDING_DELETE_WARNING email
+  PENDING_DELETE_WARNING: {
+    subject: "⚠️ URGENTE: Sua organização será removida - TATAME",
+    getHtml: (tenantName, data) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
+        </div>
+        
+        <h2 style="color: #ef4444;">⚠️ ÚLTIMA CHANCE - Remoção Iminente</h2>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, sua organização está marcada para remoção permanente.
+        </p>
+        
+        <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #991b1b; font-weight: 700; font-size: 16px;">
+            📅 Data de remoção: ${data?.delete_date || "em 7 dias"}
+          </p>
+          <p style="margin: 10px 0 0 0; color: #991b1b;">
+            Todos os dados serão permanentemente apagados: atletas, filiações, eventos, diplomas e documentos.
+          </p>
+        </div>
+        
+        <p style="color: #555; line-height: 1.6;">
+          <strong>Esta é sua última chance de preservar seus dados.</strong> Ative sua assinatura agora
+          para restaurar o acesso completo e cancelar a remoção.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://tatame-pro.lovable.app" 
+             style="background: #dc2626; color: white; padding: 16px 40px; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 16px;">
+            ATIVAR AGORA E PRESERVAR DADOS
+          </a>
+        </div>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  // Growth Trial: TENANT_DELETED email
+  TENANT_DELETED: {
+    subject: "Organização removida - TATAME",
+    getHtml: (tenantName) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
+        </div>
+        
+        <h2 style="color: #333;">Organização Removida</h2>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Olá, a organização <strong>${tenantName}</strong> foi removida do sistema TATAME
+          conforme previsto após o término do período de teste sem ativação de assinatura.
+        </p>
+        
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #555;">
+            Se você deseja retornar à plataforma no futuro, será necessário criar uma nova organização.
+            Entre em contato conosco se precisar de assistência.
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="mailto:suporte@tatamepro.com.br" 
+             style="background: #6b7280; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Falar com Suporte
+          </a>
+        </div>
+        
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  // Growth Trial: SUBSCRIPTION_REACTIVATED email
+  SUBSCRIPTION_REACTIVATED: {
+    subject: "🎉 Assinatura ativada - Bem-vindo de volta! - TATAME",
+    getHtml: (tenantName) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc2626; margin: 0;">TATAME</h1>
+        </div>
+        
+        <h2 style="color: #22c55e;">🎉 Assinatura Ativada com Sucesso!</h2>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, sua assinatura foi ativada e todos os recursos estão novamente disponíveis!
+        </p>
+        
+        <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0; color: #166534; font-weight: 600;">
+            ✅ Acesso total restaurado
+          </p>
+          <ul style="color: #166534; margin: 10px 0 0 0;">
+            <li>Aprovação de filiações</li>
+            <li>Criação de eventos</li>
+            <li>Emissão de diplomas</li>
+            <li>Todas as funcionalidades administrativas</li>
+          </ul>
+        </div>
+        
+        <p style="color: #555; line-height: 1.6;">
+          Obrigado por confiar na plataforma TATAME. Estamos aqui para ajudar sua federação a crescer!
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://tatame-pro.lovable.app" 
+             style="background: #22c55e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Acessar Minha Organização
           </a>
         </div>
         

@@ -1,0 +1,161 @@
+/**
+ * TrialStatusBanner - Progressive warning banner for trial tenants
+ * 
+ * Shows different banners based on trial status:
+ * - TRIALING (D >= 4): Neutral info banner
+ * - TRIALING (D <= 3): Warning banner with urgency
+ * - TRIAL_EXPIRED: Destructive banner with strong CTA
+ */
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, AlertTriangle, XCircle, CreditCard, X, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export function TrialStatusBanner() {
+  const status = useTenantStatus();
+  const { tenant } = useTenant();
+  const { t } = useI18n();
+  const { isImpersonating } = useImpersonation();
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  const handleOpenPortal = async () => {
+    if (!tenant?.id) return;
+
+    setIsOpeningPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
+        body: { tenant_id: tenant.id },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error('Portal URL not returned');
+      }
+    } catch (err) {
+      console.error('Error opening portal:', err);
+      toast.error(t('billing.openPortalError'));
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
+
+  // Don't show if dismissed, loading, or user can't see
+  if (dismissed || status.isLoading || !status.canSeeBanner) return null;
+
+  const billingStatus = status.billingState?.status;
+  const daysRemaining = status.daysToTrialEnd;
+
+  // Determine what to show based on billing status
+  let variant: 'default' | 'destructive' = 'default';
+  let icon: React.ElementType = Clock;
+  let message = '';
+  let showCTA = false;
+  let canDismiss = true;
+  let isUrgent = false;
+
+  if (billingStatus === 'TRIAL_EXPIRED') {
+    // Grace period - actions blocked
+    variant = 'destructive';
+    icon = XCircle;
+    message = t('trial.expired');
+    showCTA = true;
+    canDismiss = false;
+    isUrgent = true;
+  } else if (billingStatus === 'TRIALING') {
+    if (daysRemaining !== null && daysRemaining <= 3 && daysRemaining > 0) {
+      // Urgent - trial ending soon
+      variant = 'destructive';
+      icon = AlertTriangle;
+      message = t('trial.expiringSoon').replace('{days}', String(daysRemaining));
+      showCTA = true;
+      canDismiss = true;
+      isUrgent = true;
+    } else if (daysRemaining !== null && daysRemaining > 3) {
+      // Normal trial info
+      variant = 'default';
+      icon = Clock;
+      message = t('trial.daysRemaining').replace('{days}', String(daysRemaining));
+      showCTA = false;
+      canDismiss = true;
+    } else {
+      // No banner needed for trial with unknown days
+      return null;
+    }
+  } else {
+    // No trial-related banner for other statuses
+    return null;
+  }
+
+  // Special message for superadmin impersonating restricted tenant
+  if (isImpersonating && billingStatus === 'TRIAL_EXPIRED') {
+    message = t('trial.impersonatingRestricted');
+  }
+
+  const Icon = icon;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="mb-4"
+      >
+        <Alert variant={variant} className="relative">
+          <div className="flex items-start gap-3">
+            <Icon className={`h-5 w-5 shrink-0 mt-0.5 ${isUrgent ? 'animate-pulse' : ''}`} />
+            <div className="flex-1 min-w-0">
+              <AlertDescription className="text-sm font-medium">
+                {message}
+              </AlertDescription>
+              {billingStatus === 'TRIAL_EXPIRED' && (
+                <p className="text-sm mt-1 opacity-90">
+                  {t('trial.expiredDesc')}
+                </p>
+              )}
+              {showCTA && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Button
+                    variant={variant === 'destructive' ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={handleOpenPortal}
+                    disabled={isOpeningPortal}
+                    className={variant === 'destructive' ? 'border-destructive-foreground/30 hover:bg-destructive-foreground/10' : ''}
+                  >
+                    {isOpeningPortal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    {t('trial.activateNow')}
+                  </Button>
+                </div>
+              )}
+            </div>
+            {canDismiss && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => setDismissed(true)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </Alert>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

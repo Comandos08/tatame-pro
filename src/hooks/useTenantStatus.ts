@@ -27,6 +27,9 @@ interface TenantBillingData {
   is_manual_override: boolean | null;
   override_reason: string | null;
   override_at: string | null;
+  trial_expires_at: string | null;
+  grace_period_ends_at: string | null;
+  scheduled_delete_at: string | null;
 }
 
 const TRIAL_WARNING_DAYS = 7;
@@ -51,7 +54,7 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
 
       const { data, error } = await supabase
         .from('tenant_billing')
-        .select('status, plan_name, current_period_end, stripe_customer_id, trial_end_notification_sent, is_manual_override, override_reason, override_at')
+        .select('status, plan_name, current_period_end, stripe_customer_id, trial_end_notification_sent, is_manual_override, override_reason, override_at, trial_expires_at, grace_period_ends_at, scheduled_delete_at')
         .eq('tenant_id', tenant.id)
         .maybeSingle();
 
@@ -62,13 +65,16 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     staleTime: 60000, // Cache for 1 minute
   });
 
-  // Use resolver for billing state
+  // Use resolver for billing state with trial data
   const billingState = resolveTenantBillingState(
     billing ? {
       status: billing.status,
       is_manual_override: billing.is_manual_override ?? false,
       override_reason: billing.override_reason,
       override_at: billing.override_at,
+      trial_expires_at: billing.trial_expires_at,
+      grace_period_ends_at: billing.grace_period_ends_at,
+      scheduled_delete_at: billing.scheduled_delete_at,
     } : null,
     tenant ? { is_active: tenant.isActive } : null
   );

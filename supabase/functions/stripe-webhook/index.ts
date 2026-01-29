@@ -497,20 +497,35 @@ async function handleSubscriptionChange(
 
   const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
 
-  // Check previous status for email triggers
+  // Check previous status for email triggers and reactivation
   const { data: existingBilling } = await supabase
     .from("tenant_billing")
-    .select("id, status")
+    .select("id, status, grace_period_ends_at, scheduled_delete_at")
     .eq("tenant_id", actualTenantId)
     .maybeSingle();
 
   const previousStatus = existingBilling?.status;
 
+  // Map Stripe status to our enum
+  const statusMap: Record<string, string> = {
+    active: "ACTIVE",
+    past_due: "PAST_DUE",
+    canceled: "CANCELED",
+    incomplete: "INCOMPLETE",
+    trialing: "TRIALING",
+    unpaid: "UNPAID",
+    incomplete_expired: "CANCELED",
+    paused: "PAST_DUE",
+  };
+
+  const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
+
   // Upsert billing record
   const planType = subscription.metadata?.plan_type || 'annual';
   const planName = planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
   
-  const billingData = {
+  // Base billing data
+  const billingData: Record<string, unknown> = {
     tenant_id: actualTenantId,
     stripe_customer_id: customerId,
     stripe_subscription_id: subscription.id,
@@ -521,10 +536,44 @@ async function handleSubscriptionChange(
     canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
   };
 
+  // REACTIVATION LOGIC: Clear trial/deletion fields when payment reactivates tenant
+  const wasTrialExpiredOrPendingDelete = 
+    previousStatus === "TRIAL_EXPIRED" || previousStatus === "PENDING_DELETE";
+  
+  if (wasTrialExpiredOrPendingDelete && billingStatus === "ACTIVE") {
+    logStep("Reactivating tenant from trial expiration", { 
+      tenantId: actualTenantId, 
+      previousStatus,
+      newStatus: billingStatus 
+    });
+    
+    // Clear trial/deletion tracking fields
+    billingData.grace_period_ends_at = null;
+    billingData.scheduled_delete_at = null;
+    billingData.deletion_reason = null;
+    
+    // Log reactivation to audit
+    await createAuditLog(supabase, {
+      event_type: "TENANT_REACTIVATED",
+      tenant_id: actualTenantId,
+      metadata: {
+        previous_status: previousStatus,
+        new_status: billingStatus,
+        reactivation_source: "stripe_payment",
+        stripe_subscription_id: subscription.id,
+        automatic: true,
+        source: "stripe_webhook",
+      }
+    });
+    
+    // Send reactivation email
+    sendBillingEmail(supabaseUrl, supabaseServiceKey, "SUBSCRIPTION_REACTIVATED", actualTenantId);
+  }
+
   if (existingBilling) {
     await supabase
       .from("tenant_billing")
-      .update(billingData as Record<string, unknown>)
+      .update(billingData)
       .eq("id", existingBilling.id);
   } else {
     // Get price ID from subscription items
@@ -536,7 +585,7 @@ async function handleSubscriptionChange(
     } as Record<string, unknown>);
   }
 
-  // Update tenant isActive
+  // Update tenant isActive - also reactivate if coming from TRIAL_EXPIRED/PENDING_DELETE
   const isActive = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
   await supabase
     .from("tenants")
