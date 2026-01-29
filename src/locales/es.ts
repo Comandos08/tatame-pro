@@ -649,13 +649,14 @@ export const es: Record<string, string> = {
   'health.allSystemsOperational': 'Sistemas operativos',
   
   // Tenant Status Banners
-  'tenantStatus.blocked': 'Su organización está bloqueada. Contacte al soporte o regularice el pago para continuar.',
-  'tenantStatus.billingIssue': 'Hay un problema con su pago. Actualice sus datos de facturación para evitar interrupción del servicio.',
-  'tenantStatus.trialExpired': 'Su período de prueba ha expirado. Active su suscripción para continuar usando la plataforma.',
-  'tenantStatus.trialEndingSoon': 'Su período de prueba expira en {days} días. Configure su pago para continuar después del trial.',
-  'tenantStatus.onTrial': 'Está en período de prueba hasta {date}.',
-  'tenantStatus.manageBilling': 'Gestionar Facturación',
+  'tenantStatus.blocked': 'Organización bloqueada. Por favor, resuelve tu situación.',
+  'tenantStatus.billingIssue': 'Problema con el pago. Verifica tu suscripción.',
+  'tenantStatus.trialExpired': 'Prueba expirada. Activa tu suscripción para restaurar el acceso.',
+  'tenantStatus.trialEndingSoon': '¡Tu prueba expira en {days} días!',
+  'tenantStatus.onTrial': 'Período de prueba hasta {date}',
+  'tenantStatus.manageBilling': 'Gestionar Suscripción',
   'tenantStatus.viewDetails': 'Ver Detalles',
+  'tenantStatus.pendingDelete': '¡La organización será eliminada en {days} días. Activa ahora!',
   
   // Export CSV
   'export.exportCsv': 'Exportar CSV',
@@ -1555,4 +1556,26 @@ export const es: Record<string, string> = {
   'identity.noContext': 'Contexto no encontrado',
   'identity.noContextDesc': 'No se pudo determinar tu organización. Por favor, intenta de nuevo o cierra sesión.',
   'common.retry': 'Intentar de Nuevo',
+
+  // Trial Status (Growth Trial PI)
+  'trial.daysRemaining': 'Período de prueba - {days} días restantes',
+  'trial.expiringSoon': '¡Tu prueba expira en {days} días!',
+  'trial.expired': 'Período de prueba terminado',
+  'trial.expiredDesc': 'Las acciones administrativas están limitadas. Activa tu suscripción para continuar.',
+  'trial.activateNow': 'Activar Suscripción',
+  'trial.actionBlocked': 'Acción no disponible',
+  'trial.actionBlockedDesc': 'Activa tu suscripción para realizar esta acción.',
+  'trial.impersonatingRestricted': 'Viendo tenant con prueba expirada. Acciones bloqueadas.',
+
+  // Pending Delete (Growth Trial PI)
+  'billing.pendingDelete.title': 'La organización será eliminada en {days} días',
+  'billing.pendingDelete.description': 'Sin activación, todos los datos serán eliminados permanentemente.',
+  'billing.pendingDelete.lastChance': 'Última oportunidad para activar',
+  'billing.pendingDelete.dataWarning': 'Todos los atletas, eventos y documentos se perderán',
+  'billing.pendingDelete.urgentCta': 'Activar Ahora - Guardar Datos',
+
+  // Reactivation
+  'billing.reactivated': '¡Suscripción activada con éxito!',
+  'billing.reactivatedDesc': 'Todas las funcionalidades han sido restauradas.',
+
 };

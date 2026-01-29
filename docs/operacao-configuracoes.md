@@ -138,8 +138,11 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 
 | Job | Função | Horário (UTC) | Criticidade |
 |-----|--------|---------------|-------------|
+| `expire-trials-daily` | Transiciona TRIALING → TRIAL_EXPIRED | 00:05 | 🔴 Alta |
+| `mark-pending-delete-daily` | Transiciona TRIAL_EXPIRED → PENDING_DELETE | 00:10 | 🔴 Alta |
 | `pre-expiration-scheduler-daily` | Envia alertas pré-expiração (30, 15, 7, 3, 1 dias) | 02:30 | 🔴 Alta |
 | `expire-memberships-daily` | Marca filiações vencidas como EXPIRED | 03:00 | 🔴 Alta |
+| `cleanup-expired-tenants-daily` | Remove tenants PENDING_DELETE após 7 dias | 03:00 | 🔴 Alta |
 | `cleanup-tmp-documents-daily` | Remove arquivos tmp/ > 7 dias | 03:30 | 🟡 Média |
 | `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
 | `check-membership-renewal-daily` | Envia lembretes de renovação | 09:00 | 🟡 Média |

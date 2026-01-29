@@ -647,13 +647,14 @@ export const ptBR = {
   'health.allSystemsOperational': 'Sistemas operacionais',
   
   // Tenant Status Banners
-  'tenantStatus.blocked': 'Sua organização está bloqueada. Entre em contato com o suporte ou regularize o pagamento para continuar.',
-  'tenantStatus.billingIssue': 'Há um problema com seu pagamento. Atualize seus dados de cobrança para evitar interrupção do serviço.',
-  'tenantStatus.trialExpired': 'Seu período de teste expirou. Ative sua assinatura para continuar usando a plataforma.',
-  'tenantStatus.trialEndingSoon': 'Seu período de teste expira em {days} dias. Configure seu pagamento para continuar usando após o trial.',
-  'tenantStatus.onTrial': 'Você está em período de teste até {date}.',
-  'tenantStatus.manageBilling': 'Gerenciar Cobrança',
+  'tenantStatus.blocked': 'Organização bloqueada. Regularize sua situação.',
+  'tenantStatus.billingIssue': 'Problema com pagamento. Verifique sua assinatura.',
+  'tenantStatus.trialExpired': 'Trial expirado. Ative sua assinatura para restaurar acesso.',
+  'tenantStatus.trialEndingSoon': 'Seu trial expira em {days} dias!',
+  'tenantStatus.onTrial': 'Período de avaliação até {date}',
+  'tenantStatus.manageBilling': 'Gerenciar Assinatura',
   'tenantStatus.viewDetails': 'Ver Detalhes',
+  'tenantStatus.pendingDelete': 'Organização será removida em {days} dias. Ative agora!',
   
   // Export CSV
   'export.exportCsv': 'Exportar CSV',
@@ -1539,6 +1540,28 @@ export const ptBR = {
   'identity.noContext': 'Contexto não encontrado',
   'identity.noContextDesc': 'Não foi possível determinar sua organização. Por favor, tente novamente ou faça logout.',
   'common.retry': 'Tentar Novamente',
+
+  // Trial Status (Growth Trial PI)
+  'trial.daysRemaining': 'Período de avaliação - {days} dias restantes',
+  'trial.expiringSoon': 'Seu trial expira em {days} dias!',
+  'trial.expired': 'Período de avaliação encerrado',
+  'trial.expiredDesc': 'Ações administrativas estão limitadas. Ative sua assinatura para continuar.',
+  'trial.activateNow': 'Ativar Assinatura',
+  'trial.actionBlocked': 'Ação indisponível',
+  'trial.actionBlockedDesc': 'Ative sua assinatura para executar esta ação.',
+  'trial.impersonatingRestricted': 'Visualizando tenant com trial expirado. Ações bloqueadas.',
+
+  // Pending Delete (Growth Trial PI)
+  'billing.pendingDelete.title': 'Organização será removida em {days} dias',
+  'billing.pendingDelete.description': 'Sem ativação, todos os dados serão permanentemente removidos.',
+  'billing.pendingDelete.lastChance': 'Última chance para ativar',
+  'billing.pendingDelete.dataWarning': 'Todos os atletas, eventos e documentos serão perdidos',
+  'billing.pendingDelete.urgentCta': 'Ativar Agora - Salvar Dados',
+
+  // Reactivation
+  'billing.reactivated': 'Assinatura ativada com sucesso!',
+  'billing.reactivatedDesc': 'Todas as funcionalidades foram restauradas.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
