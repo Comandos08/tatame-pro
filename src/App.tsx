@@ -25,6 +25,11 @@ import { TenantLayout } from "@/layouts/TenantLayout";
 import TenantLanding from "@/pages/TenantLanding";
 import TenantDashboard from "@/pages/TenantDashboard";
 
+// Athlete Portal
+import AthletePortal from "@/pages/AthletePortal";
+import PortalCard from "@/pages/PortalCard";
+import PortalEvents from "@/pages/PortalEvents";
+
 export default function App() {
   return (
     <IdentityGate>
@@ -51,6 +56,11 @@ export default function App() {
         <Route path="/:tenantSlug" element={<TenantLayout />}>
           <Route index element={<TenantLanding />} />
           <Route path="app" element={<TenantDashboard />} />
+          
+          {/* Portal do Atleta */}
+          <Route path="portal" element={<AthletePortal />} />
+          <Route path="portal/card" element={<PortalCard />} />
+          <Route path="portal/events" element={<PortalEvents />} />
         </Route>
 
         {/* Fallback */}

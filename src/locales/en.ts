@@ -1555,6 +1555,7 @@ export const en: Record<string, string> = {
   'identity.unknownError': 'Unknown error verifying identity',
   'identity.noContext': 'Context not found',
   'identity.noContextDesc': 'Could not determine your organization. Please try again or log out.',
+  'identity.superadminTenantAccessHint': 'To access "{tenant}", start an impersonation session from the admin panel.',
   'common.retry': 'Try Again',
 
   // Trial Status (Growth Trial PI)
