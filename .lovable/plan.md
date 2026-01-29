@@ -1,405 +1,403 @@
 
+# Plano Ajustado: Corrigir Acesso ao Portal do Atleta
 
-# Plano Revisado: Growth Trial + Estabilidade Operacional
+## Resumo Executivo
 
-## Decisão Estratégica Registrada
+Este plano implementa as correções para o acesso ao Portal do Atleta (`/:tenantSlug/portal`), incorporando os **dois ajustes obrigatórios** solicitados:
 
-**Identity Wizard (COMPLETE_WIZARD):** Permanecerá **DESABILITADO** intencionalmente. A criação de novos tenants continua sendo uma decisão estratégica controlada exclusivamente via Superadmin através do `CreateTenantDialog`. Esta decisão será reavaliada em fase futura de produto.
+1. **Ajuste 1**: IdentityGate deve bloquear decisões de rota enquanto identidade estiver em resolução
+2. **Ajuste 2**: Detecção de rota de tenant deve ser estrutural, não heurística
 
 ---
 
-## Visão Geral do Plano
+## Diagnóstico Revisado
+
+### Estado Atual do IdentityGate
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    PRIORIZAÇÃO REVISADA                              │
-├─────────────────────────────────────────────────────────────────────┤
-│  FASE 1: Correções Críticas (Pré-requisitos)                        │
-│    └─ Consolidação de Rotas                                         │
-│    └─ Correção stripe-webhook (statusMap)                           │
-│                                                                      │
-│  FASE 2: Growth Trial Lifecycle (Core do PI)                        │
-│    └─ i18n de Billing/Trial                                         │
-│    └─ TenantBlockedScreen (PENDING_DELETE)                          │
-│    └─ Integração TenantOnboardingGate                               │
-│    └─ Deploy Edge Functions (expire-trials, mark-pending-delete,    │
-│       cleanup-expired-tenants)                                       │
-│                                                                      │
-│  FASE 3: Estabilidade Operacional                                   │
-│    └─ Documentação de Fluxos (BUSINESS-FLOWS.md)                    │
-│    └─ Testes E2E do Trial Lifecycle                                 │
-│    └─ Configuração pg_cron dos Jobs                                 │
-│                                                                      │
-│  FASE 4: Refinamentos UX (Opcional/Futuro)                          │
-│    └─ Empty States padronizados                                     │
-│    └─ Error Boundaries globais                                      │
-│    └─ Rankings (validação de dados)                                 │
-└─────────────────────────────────────────────────────────────────────┘
+FLUXO ATUAL (linhas 89-144):
+┌─────────────────────────────────────────────────────────────────┐
+│  1. isPublicPath(pathname) → bypass (children)        ← OK     │
+│  2. authLoading → loader                              ← OK     │
+│  3. !isAuthenticated → /login                         ← OK     │
+│  4. identityState === "loading" → loader              ← OK     │
+│  5. identityState === "superadmin" → decisão          ← PROBLEMA│
+│     └─ Redireciona para /admin sem feedback           ← ❌     │
+│  6. identityState === "resolved" → children           ← OK     │
+│  7. identityState === "error" → error UI              ← OK     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
----
+**Problema específico na R5:**
+- Superadmin tentando acessar `/federacao-demo/portal` sem impersonation
+- IdentityGate redireciona silenciosamente para `/admin`
+- Isso pode causar abort da Edge Function em andamento → timeout falso
 
-## FASE 1: Correções Críticas (Pré-requisitos)
-
-### 1.1 Consolidação de Rotas
-
-**Problema:** Existem duas estruturas de rotas divergentes (`App.tsx` e `routes.tsx`), gerando risco de manutenção e inconsistências.
-
-**Solução:** Unificar em `App.tsx` como fonte única, removendo `routes.tsx`.
-
-| Arquivo | Ação |
-|---------|------|
-| `src/App.tsx` | Manter e expandir como fonte única |
-| `src/routes.tsx` | Remover (código órfão) |
-
-**Estrutura Consolidada:**
-
-```text
-App.tsx (IdentityGate no topo)
-├── Públicas: /, /login, /help, /forgot-password, /reset-password, /auth/callback
-├── Verificação: /verify/*, /c/:code
-├── Identity: /identity/wizard
-├── Portal: /portal/* (PortalRouter)
-├── Admin: /admin, /admin/tenants/:tenantId/control
-├── Tenant: /:tenantSlug (TenantLayout)
-│   ├── index → TenantLanding
-│   └── /app/* → TenantDashboard (com TenantOnboardingGate)
-└── Fallback: * → NotFound
-```
-
-**Impacto:** Zero quebra de funcionalidade, apenas limpeza estrutural.
-
----
-
-### 1.2 Correção stripe-webhook (statusMap)
-
-**Problema:** A remoção acidental do `statusMap` no último diff quebrou a lógica de mapeamento de status Stripe → billing_status.
-
-**Solução:** Restaurar o bloco removido antes do upsert.
-
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/stripe-webhook/index.ts` | Restaurar `statusMap` e `billingStatus` (linhas ~506-520) |
-
-**Código a restaurar:**
+### Estado Atual das Rotas
 
 ```typescript
-// Map Stripe status to our enum
-const statusMap: Record<string, string> = {
-  active: "ACTIVE",
-  past_due: "PAST_DUE",
-  canceled: "CANCELED",
-  incomplete: "INCOMPLETE",
-  trialing: "TRIALING",
-  unpaid: "UNPAID",
-  incomplete_expired: "CANCELED",
-  paused: "PAST_DUE",
-};
-
-const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
+// App.tsx - linhas 51-54
+<Route path="/:tenantSlug" element={<TenantLayout />}>
+  <Route index element={<TenantLanding />} />
+  <Route path="app" element={<TenantDashboard />} />
+  // ❌ FALTAM: portal, portal/card, portal/events
+</Route>
 ```
-
-**Impacto:** Crítico - sem isso, webhooks Stripe falharão ao atualizar billing.
 
 ---
 
-## FASE 2: Growth Trial Lifecycle (Core do PI)
+## Arquivos Afetados
 
-### 2.1 i18n de Billing/Trial
+| Arquivo | Ação | Prioridade |
+|---------|------|------------|
+| `src/App.tsx` | Modificar | Alta |
+| `src/components/identity/IdentityGate.tsx` | Modificar | Alta |
+| `src/locales/pt-BR.ts` | Modificar | Média |
+| `src/locales/en.ts` | Modificar | Média |
+| `src/locales/es.ts` | Modificar | Média |
 
-**Arquivos a modificar:**
+---
 
-| Arquivo | Novas Chaves |
-|---------|--------------|
-| `src/locales/pt-BR.ts` | `trial.*`, `billing.pendingDelete.*` |
-| `src/locales/en.ts` | `trial.*`, `billing.pendingDelete.*` |
-| `src/locales/es.ts` | `trial.*`, `billing.pendingDelete.*` |
+## Fase 1: Adicionar Rotas de Portal
 
-**Chaves Necessárias:**
+**Arquivo:** `src/App.tsx`
+
+**Mudança:**
+Adicionar rotas para `portal`, `portal/card`, `portal/events` dentro do `TenantLayout`.
 
 ```typescript
-// Trial Status
-'trial.daysRemaining': 'Período de avaliação - {days} dias restantes',
-'trial.expiringSoon': 'Seu trial expira em {days} dias!',
-'trial.expired': 'Período de avaliação encerrado',
-'trial.expiredDesc': 'Ações administrativas estão limitadas. Ative sua assinatura para continuar.',
-'trial.activateNow': 'Ativar Assinatura',
+// ANTES (linhas 51-54):
+<Route path="/:tenantSlug" element={<TenantLayout />}>
+  <Route index element={<TenantLanding />} />
+  <Route path="app" element={<TenantDashboard />} />
+</Route>
 
-// Pending Delete
-'billing.pendingDelete.title': 'Organização será removida em {days} dias',
-'billing.pendingDelete.description': 'Sem ativação, todos os dados serão permanentemente removidos.',
-'billing.pendingDelete.lastChance': 'Última chance para ativar',
-'billing.pendingDelete.dataWarning': 'Todos os atletas, eventos e documentos serão perdidos',
+// DEPOIS:
+<Route path="/:tenantSlug" element={<TenantLayout />}>
+  <Route index element={<TenantLanding />} />
+  <Route path="app" element={<TenantDashboard />} />
+  
+  {/* Portal do Atleta */}
+  <Route path="portal" element={<AthletePortal />} />
+  <Route path="portal/card" element={<PortalCard />} />
+  <Route path="portal/events" element={<PortalEvents />} />
+</Route>
+```
 
-// Action Restrictions
-'trial.actionBlocked': 'Ação indisponível',
-'trial.actionBlockedDesc': 'Ative sua assinatura para executar esta ação.',
-'trial.impersonatingRestricted': 'Visualizando tenant com trial expirado. Ações bloqueadas.',
-
-// Reactivation
-'billing.reactivated': 'Assinatura ativada com sucesso!',
-'billing.reactivatedDesc': 'Todas as funcionalidades foram restauradas.',
-
-// Tenant Status Banner
-'tenantStatus.onTrial': 'Período de avaliação até {date}',
-'tenantStatus.trialEndingSoon': 'Seu trial expira em {days} dias!',
-'tenantStatus.trialExpired': 'Trial expirado. Ative sua assinatura para restaurar acesso.',
-'tenantStatus.blocked': 'Organização bloqueada. Regularize sua situação.',
-'tenantStatus.billingIssue': 'Problema com pagamento. Verifique sua assinatura.',
-'tenantStatus.manageBilling': 'Gerenciar Assinatura',
-'tenantStatus.viewDetails': 'Ver Detalhes',
+**Imports a adicionar:**
+```typescript
+import AthletePortal from "@/pages/AthletePortal";
+import PortalCard from "@/pages/PortalCard";
+import PortalEvents from "@/pages/PortalEvents";
 ```
 
 ---
 
-### 2.2 TenantBlockedScreen (Estado PENDING_DELETE)
+## Fase 2: Ajuste do IdentityGate (Ajustes Obrigatórios)
 
-**Arquivo:** `src/components/billing/TenantBlockedScreen.tsx`
+**Arquivo:** `src/components/identity/IdentityGate.tsx`
 
-**Modificações:**
+### 2.1 Criar Helper Estrutural para Detecção de Rota de Tenant
 
-1. Adicionar prop `billingStatus` para diferenciar estados
-2. Renderização condicional para `PENDING_DELETE`:
-   - Título: "Organização será removida em X dias"
-   - Contagem regressiva visual
-   - Aviso de perda permanente de dados
-   - CTA de última chance ("Ativar Agora")
-
-**Novo fluxo de decisão:**
-
-```text
-billingStatus === 'PENDING_DELETE'
-  → Mostrar contagem regressiva (scheduledDeleteAt - now)
-  → Ícone de alerta crítico
-  → Mensagem de urgência
-  → Botão "Ativar Assinatura" (destaque máximo)
-
-billingStatus === 'CANCELED' || !isActive
-  → Comportamento atual (bloqueio padrão)
-```
-
----
-
-### 2.3 Integração TenantOnboardingGate
-
-**Problema:** O `TenantOnboardingGate` existe mas não está integrado ao `TenantLayout`.
-
-**Arquivo a modificar:** `src/layouts/TenantLayout.tsx`
-
-**Modificação:**
+**Adicionar função ANTES de `IdentityGate`:**
 
 ```typescript
-// Antes do <Outlet />, envolver com:
-<TenantOnboardingGate>
-  <Outlet />
-</TenantOnboardingGate>
+/**
+ * Rotas globais reservadas (não são slugs de tenant).
+ * Baseado na estrutura de rotas definida em App.tsx.
+ */
+const RESERVED_ROUTE_SEGMENTS = new Set([
+  "admin",
+  "portal",
+  "login", 
+  "auth",
+  "identity",
+  "help",
+  "forgot-password",
+  "reset-password",
+]);
+
+/**
+ * Detecta estruturalmente se uma rota é de tenant (/:tenantSlug/*).
+ * 
+ * Uma rota é de tenant se:
+ * 1. Começa com / seguido de um segmento
+ * 2. O primeiro segmento NÃO é uma rota global reservada
+ * 3. O primeiro segmento NÃO é vazio
+ * 
+ * Exemplos:
+ * - /federacao-demo → true (tenant slug)
+ * - /federacao-demo/portal → true (tenant portal)
+ * - /admin → false (reservado)
+ * - /login → false (reservado)
+ * - / → false (root)
+ */
+function isTenantRoute(pathname: string): { isTenant: boolean; tenantSlug: string | null } {
+  // Remove trailing slash e split
+  const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
+  
+  // Precisa ter pelo menos 1 segmento
+  if (segments.length === 0) {
+    return { isTenant: false, tenantSlug: null };
+  }
+  
+  const firstSegment = segments[0].toLowerCase();
+  
+  // Se o primeiro segmento é reservado, não é rota de tenant
+  if (RESERVED_ROUTE_SEGMENTS.has(firstSegment)) {
+    return { isTenant: false, tenantSlug: null };
+  }
+  
+  // É rota de tenant
+  return { isTenant: true, tenantSlug: segments[0] };
+}
 ```
 
-**Lógica já existente no Gate:**
-- Se `onboarding_completed === false` → Redireciona para `/:slug/app/onboarding`
-- Rotas permitidas durante onboarding: `/app/onboarding`, `/app/academies`, `/app/coaches`, `/app/grading-schemes`, `/app/settings`
+### 2.2 Modificar Regra R5 (Superadmin)
 
----
-
-### 2.4 Verificação Edge Functions
-
-**Status atual das Edge Functions:**
-
-| Function | Status | Ação |
-|----------|--------|------|
-| `expire-trials` | ✅ Criada | Verificar deploy |
-| `mark-pending-delete` | ✅ Criada | Verificar deploy |
-| `cleanup-expired-tenants` | ✅ Criada | Verificar deploy |
-| `create-tenant-subscription` | ✅ Atualizada (7 dias) | Verificar deploy |
-| `stripe-webhook` | ⚠️ Quebrada | Corrigir statusMap |
-| `send-billing-email` | ✅ Atualizada | Verificar templates |
-
-**Verificação de config.toml:**
-
-Confirmar que todas as functions estão registradas:
-
-```toml
-[functions.expire-trials]
-verify_jwt = false
-
-[functions.mark-pending-delete]
-verify_jwt = false
-
-[functions.cleanup-expired-tenants]
-verify_jwt = false
-```
-
----
-
-## FASE 3: Estabilidade Operacional
-
-### 3.1 Documentação de Fluxos
-
-**Novo arquivo:** `docs/BUSINESS-FLOWS.md`
-
-**Conteúdo:**
-
-1. **Fluxo de Criação de Tenant (via Superadmin)**
-   - CreateTenantDialog → create-tenant-subscription → tenant + tenant_billing
-   - Status inicial: TRIALING, trial_expires_at = D+7
-
-2. **Ciclo de Vida do Trial**
-   - D+0: TRIALING (acesso total)
-   - D+7: expire-trials → TRIAL_EXPIRED (acesso parcial)
-   - D+15: mark-pending-delete → PENDING_DELETE (bloqueio total)
-   - D+22: cleanup-expired-tenants → Deleção com salvaguardas
-
-3. **Fluxo de Reativação**
-   - Pagamento Stripe → stripe-webhook → ACTIVE
-   - Limpeza de campos de deleção
-   - Reativação de tenant.is_active
-
-4. **Matriz de Ações por Status**
-   - Tabela completa de permissões
-
----
-
-### 3.2 Testes E2E do Trial Lifecycle
-
-**Novo arquivo:** `e2e/billing/trial-lifecycle.spec.ts`
-
-**Cenários a testar:**
+**Substituir bloco R5 (linhas 129-144) por:**
 
 ```typescript
-describe('Trial Lifecycle', () => {
-  test('Tenant starts with TRIALING status and 7-day expiration');
-  test('TrialStatusBanner shows correct days remaining');
-  test('Sensitive actions blocked in TRIAL_EXPIRED state');
-  test('TenantBlockedScreen shows for PENDING_DELETE');
-  test('Impersonation respects trial restrictions');
-  test('Payment reactivates tenant from TRIAL_EXPIRED');
-  test('Payment reactivates tenant from PENDING_DELETE');
-});
+// ===== R5: Superadmin → /admin (ou tenant se impersonating) =====
+if (identityState === "superadmin") {
+  // Permitir acesso às rotas do tenant impersonado
+  if (isImpersonating && impersonationSession?.targetTenantSlug) {
+    const tenantPrefix = `/${impersonationSession.targetTenantSlug}`;
+    if (pathname === tenantPrefix || pathname.startsWith(`${tenantPrefix}/`)) {
+      return <>{children}</>;
+    }
+  }
+  
+  // Permitir acesso normal às rotas /admin
+  if (pathname.startsWith("/admin")) return <>{children}</>;
+  
+  // ✅ AJUSTE 2: Detecção estrutural de rota de tenant
+  const { isTenant, tenantSlug } = isTenantRoute(pathname);
+  
+  if (isTenant && tenantSlug) {
+    // Superadmin tentando acessar rota de tenant SEM impersonation ativa
+    // Mostrar UI explicativa em vez de redirect silencioso
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+            <CardTitle className="text-center">{t("impersonation.accessDenied")}</CardTitle>
+            <CardDescription className="text-center">
+              {t("impersonation.superadminMustImpersonate")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground text-center">
+              {t("identity.superadminTenantAccessHint", { tenant: tenantSlug })}
+            </p>
+            <Button onClick={() => navigate("/admin")} className="w-full">
+              {t("impersonation.goToAdmin")}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Qualquer outra rota global não /admin → redirecionar para /admin
+  return <Navigate to="/admin" replace />;
+}
+```
+
+### 2.3 Adicionar Import de `useNavigate`
+
+```typescript
+// Linha 10 - modificar import existente:
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+```
+
+### 2.4 Adicionar Hook `useNavigate` no Componente
+
+```typescript
+// Dentro de IdentityGate, após linha 79:
+const navigate = useNavigate();
 ```
 
 ---
 
-### 3.3 Configuração pg_cron
+## Fase 3: Adicionar Chaves i18n
 
-**Documentar em `docs/operacao-configuracoes.md`:**
+### pt-BR.ts
+
+```typescript
+// Adicionar após 'identity.noContextDesc':
+'identity.superadminTenantAccessHint': 'Para acessar "{tenant}", inicie uma sessão de impersonation pelo painel de administração.',
+```
+
+### en.ts
+
+```typescript
+'identity.superadminTenantAccessHint': 'To access "{tenant}", start an impersonation session from the admin panel.',
+```
+
+### es.ts
+
+```typescript
+'identity.superadminTenantAccessHint': 'Para acceder a "{tenant}", inicie una sesión de impersonación desde el panel de administración.',
+```
+
+---
+
+## Fase 4: Garantir Billing para Tenant (SQL Manual)
+
+**Executar via Cloud View > Run SQL:**
 
 ```sql
--- Agendar expire-trials (diário 00:05 UTC)
-SELECT cron.schedule(
-  'expire-trials-daily',
-  '5 0 * * *',
-  $$SELECT net.http_post(
-    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-trials',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
-  )$$
-);
-
--- Agendar mark-pending-delete (diário 00:10 UTC)
-SELECT cron.schedule(
-  'mark-pending-delete-daily',
-  '10 0 * * *',
-  $$SELECT net.http_post(
-    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/mark-pending-delete',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
-  )$$
-);
-
--- Agendar cleanup-expired-tenants (diário 03:00 UTC)
-SELECT cron.schedule(
-  'cleanup-expired-tenants-daily',
-  '0 3 * * *',
-  $$SELECT net.http_post(
-    url := 'https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-expired-tenants',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
-  )$$
+INSERT INTO tenant_billing (tenant_id, status, trial_expires_at)
+SELECT id, 'TRIALING', NOW() + INTERVAL '14 days'
+FROM tenants
+WHERE slug = 'federacao-demo'
+AND NOT EXISTS (
+  SELECT 1 FROM tenant_billing WHERE tenant_id = tenants.id
 );
 ```
-
----
-
-## FASE 4: Refinamentos UX (Opcional/Futuro)
-
-**Prioridade:** Baixa - pode ser executado após launch inicial.
-
-| Item | Descrição | Arquivos |
-|------|-----------|----------|
-| Empty States | Componente reutilizável para listas vazias | `src/components/ui/empty-state.tsx` |
-| Error Boundaries | Wrapper global para erros de renderização | `src/components/ErrorBoundary.tsx` (já existe, revisar) |
-| Rankings | Validar conexão com dados reais | `src/pages/InternalRankings.tsx`, `src/pages/PublicRankings.tsx` |
 
 ---
 
 ## Ordem de Execução
 
 ```text
-SEQUÊNCIA DE IMPLEMENTAÇÃO
-══════════════════════════
+1. [ROTAS] Adicionar rotas de portal ao App.tsx
+   └─ Impacto: Portal do atleta passa a existir como rota válida
+   └─ Tempo: 10 min
 
-1. [CRÍTICO] Restaurar statusMap no stripe-webhook
-   └─ Impacto: Webhooks Stripe voltam a funcionar
+2. [IDENTITY GATE] Implementar ajustes obrigatórios
+   ├─ 2.1 Criar helper isTenantRoute() para detecção estrutural
+   ├─ 2.2 Modificar regra R5 com UI explicativa
+   ├─ 2.3 Adicionar useNavigate
+   └─ Tempo: 20 min
 
-2. [CRÍTICO] Consolidar rotas (remover routes.tsx)
-   └─ Impacto: Estrutura limpa, sem código órfão
+3. [I18N] Adicionar chave de tradução
+   └─ Impacto: Mensagem disponível em pt-BR, en, es
+   └─ Tempo: 5 min
 
-3. [CORE] Adicionar i18n keys de trial/billing
-   └─ Dependência: Necessário para UI de trial
+4. [DATA] Criar billing para tenant federacao-demo
+   └─ Impacto: Tenant tem estado de billing válido
+   └─ Tempo: 2 min
 
-4. [CORE] Atualizar TenantBlockedScreen
-   └─ Dependência: i18n keys, billingState
-
-5. [CORE] Integrar TenantOnboardingGate
-   └─ Impacto: Onboarding obrigatório ativado
-
-6. [VERIFICAÇÃO] Deploy e teste das Edge Functions
-   └─ Dependência: stripe-webhook corrigido
-
-7. [DOCS] Criar BUSINESS-FLOWS.md
-   └─ Impacto: Documentação operacional
-
-8. [TESTES] E2E trial-lifecycle.spec.ts
-   └─ Dependência: Tudo acima funcionando
-
-9. [OPS] Agendar cron jobs
-   └─ Dependência: Functions deployadas e testadas
+TEMPO TOTAL: ~40 min
 ```
 
 ---
 
-## Checklist de Validação Final
+## Validação de Conformidade
 
-### Pré-Launch
+### Ajuste 1: Loading State Respeitado ✅
 
-- [ ] stripe-webhook processa webhooks corretamente
-- [ ] Novas routes não quebram navegação existente
-- [ ] Trial de 7 dias aparece para novos tenants
-- [ ] TrialStatusBanner mostra contagem regressiva
-- [ ] Ações sensíveis bloqueadas em TRIAL_EXPIRED
-- [ ] TenantBlockedScreen funciona para PENDING_DELETE
-- [ ] Impersonation respeita restrições de trial
-- [ ] TenantOnboardingGate redireciona corretamente
+O fluxo atual **já respeita** o loading state corretamente:
 
-### Pós-Launch
+```text
+R1: authLoading → loader (bloqueia decisões)
+R3: identityState === "loading" → loader (bloqueia decisões)
+R5: identityState === "superadmin" → só executa APÓS loading resolvido
+```
 
-- [ ] Cron jobs agendados e executando
-- [ ] Logs de auditoria registrando transições
-- [ ] Emails de billing sendo enviados
-- [ ] Cleanup com salvaguardas funcionando
+**Não há redirect durante loading.** O problema era que o redirect para `/admin` acontecia sem feedback visual, não durante loading.
+
+### Ajuste 2: Detecção Estrutural ✅
+
+A função `isTenantRoute()` proposta:
+- Usa conjunto fixo de rotas reservadas (baseado em App.tsx)
+- Detecta tenant pelo padrão estrutural (primeiro segmento não-reservado)
+- Escalável: novas rotas globais só precisam ser adicionadas a `RESERVED_ROUTE_SEGMENTS`
+- Sem heurísticas frágeis
 
 ---
 
-## Arquivos Modificados (Resumo)
+## Checklist de Validação
 
-| Arquivo | Fase | Tipo |
-|---------|------|------|
-| `supabase/functions/stripe-webhook/index.ts` | 1 | Correção |
-| `src/App.tsx` | 1 | Consolidação |
-| `src/routes.tsx` | 1 | Remoção |
-| `src/locales/pt-BR.ts` | 2 | Adição i18n |
-| `src/locales/en.ts` | 2 | Adição i18n |
-| `src/locales/es.ts` | 2 | Adição i18n |
-| `src/components/billing/TenantBlockedScreen.tsx` | 2 | Modificação |
-| `src/layouts/TenantLayout.tsx` | 2 | Modificação |
-| `docs/BUSINESS-FLOWS.md` | 3 | Criação |
-| `docs/operacao-configuracoes.md` | 3 | Adição |
-| `e2e/billing/trial-lifecycle.spec.ts` | 3 | Criação |
+- [ ] Acessar `/:tenantSlug/portal` como atleta com membership → portal renderiza
+- [ ] Acessar `/:tenantSlug/portal/card` como atleta → card renderiza
+- [ ] Acessar `/:tenantSlug/portal/events` como atleta → eventos renderizam
+- [ ] Acessar `/:tenantSlug/portal` como Superadmin SEM impersonation → mensagem explicativa
+- [ ] Acessar `/:tenantSlug/portal` como Superadmin COM impersonation → portal renderiza
+- [ ] Verificar que tenant `federacao-demo` tem registro em `tenant_billing`
+- [ ] Nenhum redirect ocorre durante `identityState === "loading"`
 
+---
+
+## Diagrama de Fluxo Corrigido
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                     IDENTITY GATE (Corrigido)                       │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  [Entrada: pathname, auth, identity]                               │
+│                    │                                                │
+│                    ▼                                                │
+│           ┌───────────────────┐                                    │
+│           │  isPublicPath()   │──yes──▶ render children            │
+│           └───────┬───────────┘                                    │
+│                   │ no                                              │
+│                   ▼                                                 │
+│           ┌───────────────────┐                                    │
+│           │   authLoading?    │──yes──▶ show loader (BLOQUEIA)     │
+│           └───────┬───────────┘                                    │
+│                   │ no                                              │
+│                   ▼                                                 │
+│           ┌───────────────────┐                                    │
+│           │  !isAuthenticated │──yes──▶ Navigate /login            │
+│           └───────┬───────────┘                                    │
+│                   │ no                                              │
+│                   ▼                                                 │
+│           ┌───────────────────┐                                    │
+│           │ identity loading? │──yes──▶ show loader (BLOQUEIA)     │
+│           └───────┬───────────┘                                    │
+│                   │ no                                              │
+│                   ▼                                                 │
+│           ┌───────────────────┐                                    │
+│           │ wizard_required?  │──yes──▶ Navigate /identity/wizard  │
+│           └───────┬───────────┘                                    │
+│                   │ no                                              │
+│                   ▼                                                 │
+│           ┌───────────────────┐                                    │
+│           │   superadmin?     │                                    │
+│           └───────┬───────────┘                                    │
+│                   │ yes                                             │
+│                   ▼                                                 │
+│    ┌──────────────────────────────┐                                │
+│    │ isImpersonating + slug match?│──yes──▶ render children        │
+│    └──────────┬───────────────────┘                                │
+│               │ no                                                  │
+│               ▼                                                     │
+│    ┌──────────────────────────────┐                                │
+│    │ pathname starts /admin?      │──yes──▶ render children        │
+│    └──────────┬───────────────────┘                                │
+│               │ no                                                  │
+│               ▼                                                     │
+│    ┌──────────────────────────────┐                                │
+│    │ isTenantRoute(pathname)?     │ ◀── DETECÇÃO ESTRUTURAL        │
+│    └──────────┬───────────────────┘                                │
+│               │ yes                                                 │
+│               ▼                                                     │
+│    ┌──────────────────────────────┐                                │
+│    │ MOSTRAR UI EXPLICATIVA       │ ◀── NÃO É REDIRECT SILENCIOSO  │
+│    │ "Inicie impersonation"       │                                │
+│    │ [Voltar ao Admin]            │                                │
+│    └──────────────────────────────┘                                │
+│               │ no (rota global desconhecida)                      │
+│               ▼                                                     │
+│    Navigate /admin (fallback seguro)                               │
+│                                                                     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Resultado Esperado
+
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Atleta acessa `/tenant/portal` | Carregamento infinito | Portal renderiza |
+| Superadmin acessa sem impersonation | Timeout / redirect silencioso | UI explicativa com CTA |
+| Novas rotas globais adicionadas | Falso positivo possível | Adicionar a RESERVED_ROUTE_SEGMENTS |
+| Decisão durante loading | Possível race condition | Bloqueado por R1/R3 |
+
+**Veredito:** Após implementação, o sistema estará estável, determinístico e escalável.
