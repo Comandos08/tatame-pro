@@ -31,8 +31,8 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     if (isLoading || !tenant) return;
 
     // Check if onboarding is complete
-    // Type assertion needed since we just added these columns
-    const isComplete = (tenant as unknown as { onboarding_completed?: boolean }).onboarding_completed;
+    // ✅ P0.1 — Clean contract, no type assertions
+    const isComplete = tenant?.onboardingCompleted === true;
     
     if (isComplete) return; // Onboarding done, allow access
 
@@ -69,9 +69,8 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
 export function useOnboardingStatus() {
   const { tenant, isLoading } = useTenant();
   
-  const isComplete = tenant 
-    ? (tenant as unknown as { onboarding_completed?: boolean }).onboarding_completed ?? false
-    : false;
+  // ✅ P0.1 — Clean contract, no type assertions
+  const isComplete = tenant?.onboardingCompleted === true;
 
   return {
     isComplete,
