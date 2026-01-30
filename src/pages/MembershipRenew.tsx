@@ -59,7 +59,7 @@ export default function MembershipRenew() {
         const athleteResult = await (supabase.from('athletes') as any)
           .select('id, full_name')
           .eq('tenant_id', tenant.id)
-          .eq('user_id', currentUser.id)
+          .eq('profile_id', currentUser.id)
           .maybeSingle();
         
         const athleteData = athleteResult?.data as { id: string; full_name: string } | null;
