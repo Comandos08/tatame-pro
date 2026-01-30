@@ -75,6 +75,8 @@ export const ptBR = {
   'membership.proceed': 'Continuar',
   'membership.payment': 'Pagamento',
   'membership.success': 'Filiação Realizada!',
+  'membership.type.first': 'Primeira Filiação',
+  'membership.type.renewal': 'Renovação',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Filiação de Atleta Adulto',
