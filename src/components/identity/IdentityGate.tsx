@@ -100,10 +100,8 @@ function isPublicPath(pathname: string) {
     /^\/[^/]+\/?$/,
     /^\/[^/]+\/login\/?$/,
 
-    // Verify routes
-    /^\/[^/]+\/verify\/card\/[^/]+\/?$/,
-    /^\/[^/]+\/verify\/diploma\/[^/]+\/?$/,
-    /^\/[^/]+\/verify\/membership\/[^/]+\/?$/,
+    // IMPORTANT: ALL verify/* routes must bypass auth (public verification)
+    /^\/[^/]+\/verify\/?.*$/,
 
     // Public lists
     /^\/[^/]+\/academies\/?$/,
@@ -111,11 +109,9 @@ function isPublicPath(pathname: string) {
     /^\/[^/]+\/events\/?$/,
     /^\/[^/]+\/events\/[^/]+\/?$/,
 
-    // Public membership purchase flow
-    /^\/[^/]+\/membership\/new\/?$/,
-    /^\/[^/]+\/membership\/adult\/?$/,
-    /^\/[^/]+\/membership\/youth\/?$/,
-    /^\/[^/]+\/membership\/success\/?$/,
+    // IMPORTANT: ALL membership/* routes must bypass auth
+    // This includes renew flow for expired users (revenue-critical)
+    /^\/[^/]+\/membership\/?.*$/,
   ];
 
   return tenantPublicPatterns.some((re) => re.test(pathname));

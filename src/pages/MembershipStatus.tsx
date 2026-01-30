@@ -171,9 +171,9 @@ export default function MembershipStatus() {
     return null;
   }
 
-  // No membership found - redirect to join
+  // No membership found - redirect to membership flow
   if (!membership) {
-    navigate('/join', { replace: true });
+    navigate(`/${tenantSlug}/membership/new`, { replace: true });
     return null;
   }
 
