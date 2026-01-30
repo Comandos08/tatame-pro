@@ -1,9 +1,8 @@
 /**
- * 🔐 Identity Components — Barrel Export
+ * 🔐 Identity Components — Single Gate Architecture
  * 
- * F0.2.2: IdentityGate is the SINGLE canonical gate.
- * IdentityGuard is kept only for backward compatibility (re-export).
+ * P2: IdentityGate is the ONLY canonical gate.
+ * All identity decisions go through src/lib/identity module.
  */
 export { IdentityGate } from './IdentityGate';
-export { IdentityGuard } from './IdentityGuard';
 export { IdentityErrorScreen, IdentityErrorPage } from './IdentityErrorScreen';

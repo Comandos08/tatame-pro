@@ -1,21 +1,19 @@
-# 🔐 IDENTITY CONTRACT — Backend-Driven Wizard Flow
+# 🔐 IDENTITY CONTRACT — Single Source of Truth
 
-**Version:** 2.0.0  
-**Last Updated:** 2026-01-27  
-**Status:** ✅ IMPLEMENTED (F0.1 Refactored)
+**Version:** 3.0.0  
+**Last Updated:** 2026-01-30  
+**Status:** ✅ LOCKED (P2 Hardened)
 
-## Purpose
+## REGRA ABSOLUTA
 
-This document defines the **Identity Contract** that ensures every authenticated user has a resolved tenant before accessing any protected area of the system. **All sensitive operations happen exclusively on the backend.**
+❌ **É PROIBIDO decidir estado de identidade fora do módulo `src/lib/identity`.**
 
-## Core Principles (Non-Negotiable)
-
-1. **Authenticated user without tenant = INVALID STATE**
-2. **No protected route accessible without resolved tenant**
-3. **All identity flows end in: explicit success OR explicit error (blocking)**
-4. **No silent redirects**
-5. **Client NEVER writes to: user_roles, tenant_billing, identity decisions**
-6. **Single source of truth: Edge Function**
+Isso inclui:
+- Redirects
+- Avaliação de wizard
+- Avaliação de superadmin
+- Avaliação de tenant
+- Fallbacks
 
 ---
 
@@ -27,24 +25,96 @@ This document defines the **Identity Contract** that ensures every authenticated
 |-----------|---------|
 | `resolve-identity-wizard` | Edge Function - ALL identity resolution & writes |
 | `IdentityContext` | Consumes state ONLY (no direct queries) |
-| `IdentityGuard` | Global enforcement, redirects to wizard |
+| `IdentityGate` | **SINGLE canonical gate** - delegates to state machine |
 | `IdentityWizard` | UI for onboarding, calls Edge Function |
-| `IdentityErrorScreen` | Explicit error display |
+| `IdentityErrorScreen` | Explicit error display with escape hatch |
 
-### Identity States
+### Identity State Machine (P2)
 
 ```typescript
-type IdentityState = 
-  | 'loading'           // Checking identity status
-  | 'wizard_required'   // Must complete wizard (BLOCKING)
-  | 'resolved'          // Tenant resolved, access granted
-  | 'superadmin'        // Global superadmin, no tenant required
-  | 'error';            // Error state (with explicit message)
+// src/lib/identity/identity-state-machine.ts
+type IdentityState =
+  | 'UNAUTHENTICATED'
+  | 'LOADING'
+  | 'WIZARD_REQUIRED'
+  | 'SUPERADMIN'
+  | 'RESOLVED'
+  | 'ERROR';
+
+// SINGLE POINT OF DECISION
+function resolveIdentityState(input: IdentityResolutionInput): IdentityState
+function resolveIdentityRedirect(state: IdentityState, context: RedirectContext): RedirectDecision
+function resolveErrorEscapeHatch(error: IdentityError | null): ErrorEscapeOptions
 ```
 
-### Edge Function API
+---
 
-#### CHECK Action (Read-Only)
+## ÚNICO FLUXO VÁLIDO
+
+1. **Hooks** → coletam dados brutos
+2. **`resolveIdentityState()`** → resolve estado determinístico
+3. **`resolveIdentityRedirect()`** → decide navegação
+4. **Componentes** → APENAS renderizam
+
+```typescript
+// ✅ CORRETO — IdentityGate.tsx
+const input: IdentityResolutionInput = {
+  isAuthenticated,
+  isAuthLoading: authLoading,
+  backendStatus,
+  hasError: !!error,
+};
+
+const resolvedState = resolveIdentityState(input);
+const redirectDecision = resolveIdentityRedirect(resolvedState, context);
+
+switch (resolvedState) {
+  case 'UNAUTHENTICATED':
+    return <Navigate to={redirectDecision.destination!} replace />;
+  // ...
+}
+```
+
+---
+
+## O QUE NÃO FAZER (ANTI-PATTERNS)
+
+```typescript
+// ❌ PROIBIDO — decisão distribuída
+if (identityState === 'wizard_required') { 
+  navigate('/identity/wizard');
+}
+
+// ❌ PROIBIDO — fallback implícito
+if (!wizardCompleted) {
+  navigate('/identity/wizard');
+}
+
+// ❌ PROIBIDO — heurística de superadmin
+if (isSuperadmin) {
+  navigate('/admin');
+}
+
+// ❌ PROIBIDO — redirect fora do map
+navigate('/some-path'); // sem passar pelo resolveIdentityRedirect
+```
+
+---
+
+## Core Principles (Non-Negotiable)
+
+1. **Authenticated user without tenant = INVALID STATE**
+2. **No protected route accessible without resolved tenant**
+3. **All identity flows end in: explicit success OR explicit error (blocking)**
+4. **No silent redirects**
+5. **Client NEVER writes to: user_roles, tenant_billing, identity decisions**
+6. **Single source of truth: Edge Function + State Machine**
+
+---
+
+## Edge Function API
+
+### CHECK Action (Read-Only)
 
 ```typescript
 // Request
@@ -60,7 +130,7 @@ type IdentityState =
 }
 ```
 
-#### COMPLETE_WIZARD Action (Write)
+### COMPLETE_WIZARD Action (Write)
 
 ```typescript
 // Request
@@ -68,34 +138,27 @@ type IdentityState =
   action: "COMPLETE_WIZARD",
   payload: {
     joinMode: "existing" | "new",
-    inviteCode?: string,      // Required if joinMode = "existing"
-    newOrgName?: string,      // Required if joinMode = "new"
+    inviteCode?: string,
+    newOrgName?: string,
     profileType: "admin" | "athlete"
   }
 }
-
-// Response - same as CHECK
 ```
 
-### Backend Responsibilities (Edge Function ONLY)
+---
 
-- ✅ Validate JWT
-- ✅ Resolve identity from profiles/roles/athletes
-- ✅ Create tenant (if new)
-- ✅ Create billing record (trial)
-- ✅ Create user_roles
-- ✅ Mark wizard_completed = true
-- ✅ Return deterministic state
+## Error Escape Hatch (P2)
 
-### Client Responsibilities (IdentityContext)
+Todos os erros têm escape explícito via `resolveErrorEscapeHatch()`:
 
-- ✅ Call Edge Function for CHECK
-- ✅ Store: identityState, tenant, role, redirectPath
-- ✅ Call Edge Function for COMPLETE_WIZARD
-- ❌ NO direct queries to profiles/roles/athletes for identity
-- ❌ NO writes to sensitive tables
-- ❌ NO auto-healing logic
-- ❌ NO tenant enumeration (search)
+| Error Code | Can Retry | Can Logout | Action |
+|------------|-----------|------------|--------|
+| `PERMISSION_DENIED` | ❌ | ✅ | Login com outra conta |
+| `TENANT_NOT_FOUND` | ✅ | ✅ | Tentar novamente |
+| `IMPERSONATION_INVALID` | ✅ | ✅ | Sessão expirada |
+| `UNKNOWN` | ✅ | ✅ | Fallback seguro |
+
+**GARANTIA:** Usuário NUNCA fica preso em tela de erro sem ação.
 
 ---
 
@@ -110,101 +173,33 @@ type IdentityState =
 | Open search on `tenants` (ilike) | Tenant enumeration attack |
 | Auto-complete wizard | Silent state changes |
 | Direct identity logic in client | Scattered, inconsistent |
-
-### Allowed Client Operations
-
-| ✅ Allowed |
-|------------|
-| Call Edge Function with JWT |
-| Read-only display of returned state |
-| Navigate based on redirectPath |
+| Decision outside state machine | Non-deterministic behavior |
 
 ---
 
-## Mandatory Flows
+## ALTERAÇÕES FUTURAS
 
-### 1️⃣ CHECK (Login / Refresh)
+Qualquer mudança neste fluxo exige:
 
-```
-Edge Function:
-├── Verify JWT
-├── Check superadmin role → RESOLVED (superadmin)
-├── Check wizard_completed
-│   ├── FALSE → Check existing context
-│   │   ├── Has context → Auto-complete, RESOLVED
-│   │   └── No context → WIZARD_REQUIRED
-│   └── TRUE → Resolve tenant → RESOLVED
-└── Return deterministic state
-```
-
-### 2️⃣ COMPLETE_WIZARD
-
-```
-Edge Function:
-├── Validate payload
-├── If joinMode = "new":
-│   ├── Generate slug
-│   ├── Check availability (exact match)
-│   ├── Create tenant
-│   ├── Create billing (TRIALING)
-│   └── Create role (ADMIN_TENANT)
-├── If joinMode = "existing":
-│   ├── Validate invite code (exact match, no enumeration)
-│   └── Create role (if admin)
-├── Update profile: wizard_completed = true, tenant_id
-└── Return RESOLVED + redirectPath
-```
+1. Atualização do módulo `src/lib/identity`
+2. Testes unitários novos
+3. E2E verde (`npx playwright test p0-regression`)
+4. Atualização deste documento
+5. Revisão formal
 
 ---
 
-## Blocking Errors (With Message)
+## Files Locked (P2)
 
-All errors display on `IdentityErrorScreen`:
-
-| Error Code | Title | Description |
-|------------|-------|-------------|
-| `TENANT_NOT_FOUND` | Organization not found | Tenant doesn't exist or was deactivated |
-| `INVITE_INVALID` | Invalid invite | Code expired, invalid, or not found |
-| `PERMISSION_DENIED` | Access denied | User lacks required permissions |
-| `SLUG_TAKEN` | Name already in use | Organization name is taken |
-| `VALIDATION_ERROR` | Invalid data | Missing or malformed fields |
-| `UNKNOWN` | Identity error | Generic fallback with retry |
-
-⚠️ **No silent errors. No console-only logging.**
-
----
-
-## Acceptance Criteria (QA)
-
-- [ ] No logged-in user outside of tenant
-- [ ] No "lost" athlete
-- [ ] Signup never leads to limbo
-- [ ] Refresh doesn't break the wizard
-- [ ] Deep link without tenant redirects correctly
-- [ ] **No client writes to user_roles**
-- [ ] **No client writes to tenant_billing**
-- [ ] **No tenant enumeration via search**
-
----
-
-## What Cannot Change
-
-- ❌ Signup model
-- ❌ Blocking rules
-- ❌ Valid/invalid states
-- ❌ No "temporary" shortcuts
-- ❌ Backend as single source of truth
-
----
-
-## Expected Result
-
-✅ **Limbo eliminated**  
-✅ **Predictable flow**  
-✅ **Real security (backend-enforced)**  
-✅ **Clean architecture**  
-✅ **Solid base for F0.2, billing, permissions, scale**
+| File | Status |
+|------|--------|
+| `src/lib/identity/identity-state-machine.ts` | 🔒 LOCKED |
+| `src/lib/identity/identity-redirect-map.ts` | 🔒 LOCKED |
+| `src/lib/identity/identity-error-escape.ts` | 🔒 LOCKED |
+| `src/components/identity/IdentityGate.tsx` | 🔒 LOCKED |
+| `src/pages/PortalRouter.tsx` | 🔒 LOCKED |
 
 ---
 
 *This document is part of the TATAME PRO security and identity baseline.*
+*P2 Hardened — 2026-01-30*
