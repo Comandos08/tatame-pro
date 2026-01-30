@@ -194,7 +194,7 @@ export default function TenantDashboard() {
     { 
       label: t('dashboard.approveMembers') || 'Aprovar Filiações', 
       description: (t('dashboard.pendingCount') || '{count} pendentes').replace('{count}', String(stats?.pendingMemberships || 0)),
-      href: `/${tenantSlug}/aprovacoes`, 
+      href: `/${tenantSlug}/app/approvals`, 
       icon: CheckCircle,
       variant: stats?.pendingMemberships ? 'default' : 'outline' as const,
       highlight: (stats?.pendingMemberships || 0) > 0,
@@ -202,7 +202,7 @@ export default function TenantDashboard() {
     { 
       label: t('dashboard.expiringMemberships') || 'Filiações Expirando', 
       description: (t('dashboard.expiringCount') || '{count} em 30 dias').replace('{count}', String(stats?.expiringMemberships || 0)),
-      href: `/${tenantSlug}/atletas`, 
+      href: `/${tenantSlug}/app/athletes`, 
       icon: Calendar,
       variant: stats?.expiringMemberships ? 'warning' : 'outline' as const,
       highlight: (stats?.expiringMemberships || 0) > 0,
@@ -210,7 +210,7 @@ export default function TenantDashboard() {
     { 
       label: t('dashboard.issueDiploma') || 'Emitir Diploma', 
       description: t('dashboard.newGrading') || 'Nova graduação',
-      href: `/${tenantSlug}/graduacoes`, 
+      href: `/${tenantSlug}/app/grading-schemes`, 
       icon: Award,
       variant: 'outline' as const,
       highlight: false,
@@ -218,7 +218,7 @@ export default function TenantDashboard() {
     { 
       label: t('dashboard.registerAcademy') || 'Cadastrar Academia', 
       description: t('dashboard.newAcademy') || 'Nova academia',
-      href: `/${tenantSlug}/academias`, 
+      href: `/${tenantSlug}/app/academies`, 
       icon: Building2,
       variant: 'outline' as const,
       highlight: false,
@@ -356,7 +356,7 @@ export default function TenantDashboard() {
                         );
                       })}
                       <Link 
-                        to={`/${tenantSlug}/audit-log`}
+                        to={`/${tenantSlug}/app/audit-log`}
                         className="block text-center text-sm text-primary hover:underline pt-2"
                       >
                         {t('dashboard.viewFullHistory') || 'Ver todo o histórico'} →

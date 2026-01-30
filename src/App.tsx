@@ -23,12 +23,23 @@ import TenantControl from "@/pages/TenantControl";
 // Tenant
 import { TenantLayout } from "@/layouts/TenantLayout";
 import TenantLanding from "@/pages/TenantLanding";
-import TenantDashboard from "@/pages/TenantDashboard";
+import AthleteLogin from "@/pages/AthleteLogin";
+
+// Tenant Domain Routers
+import MembershipRouter from "@/routes/MembershipRouter";
+import VerifyRouter from "@/routes/VerifyRouter";
+import AppRouter from "@/routes/AppRouter";
 
 // Athlete Portal
 import AthletePortal from "@/pages/AthletePortal";
 import PortalCard from "@/pages/PortalCard";
 import PortalEvents from "@/pages/PortalEvents";
+
+// Public Tenant Pages
+import PublicAcademies from "@/pages/PublicAcademies";
+import PublicRankings from "@/pages/PublicRankings";
+import PublicEventsList from "@/pages/PublicEventsList";
+import PublicEventDetails from "@/pages/PublicEventDetails";
 
 export default function App() {
   return (
@@ -55,12 +66,23 @@ export default function App() {
         {/* Tenant routes */}
         <Route path="/:tenantSlug" element={<TenantLayout />}>
           <Route index element={<TenantLanding />} />
-          <Route path="app" element={<TenantDashboard />} />
+          <Route path="login" element={<AthleteLogin />} />
           
-          {/* Portal do Atleta */}
+          {/* Domain Routers (modular) */}
+          <Route path="membership/*" element={<MembershipRouter />} />
+          <Route path="verify/*" element={<VerifyRouter />} />
+          <Route path="app/*" element={<AppRouter />} />
+          
+          {/* Athlete Portal */}
           <Route path="portal" element={<AthletePortal />} />
           <Route path="portal/card" element={<PortalCard />} />
           <Route path="portal/events" element={<PortalEvents />} />
+          
+          {/* Public Tenant Pages */}
+          <Route path="academies" element={<PublicAcademies />} />
+          <Route path="rankings" element={<PublicRankings />} />
+          <Route path="events" element={<PublicEventsList />} />
+          <Route path="events/:eventId" element={<PublicEventDetails />} />
         </Route>
 
         {/* Fallback */}
