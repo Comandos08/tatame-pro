@@ -90,13 +90,14 @@ export function MembershipTypeSelector() {
       icon: User,
       path: `/${tenantSlug}/membership/adult`,
     },
-    {
-      id: 'youth',
-      title: 'Atleta Menor de Idade',
-      description: 'Para atletas menores de 18 anos. A filiação será feita por um responsável legal.',
-      icon: Users,
-      path: `/${tenantSlug}/membership/youth`,
-    },
+    // ⚠️ P3/4 — Youth membership hidden (pending E2E validation)
+    // {
+    //   id: 'youth',
+    //   title: 'Atleta Menor de Idade',
+    //   description: 'Para atletas menores de 18 anos. A filiação será feita por um responsável legal.',
+    //   icon: Users,
+    //   path: `/${tenantSlug}/membership/youth`,
+    // },
   ];
 
   const handleOptionClick = (path: string) => {
