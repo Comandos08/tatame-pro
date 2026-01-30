@@ -23,6 +23,10 @@ export interface IdentityError {
     | "IMPERSONATION_INVALID"
     | "SLUG_TAKEN"
     | "VALIDATION_ERROR"
+    | "PROFILE_NOT_FOUND"      // Auth success but no profile row
+    | "NO_ROLES_ASSIGNED"      // Profile exists, wizard done, no roles
+    | "BILLING_BLOCKED"        // Tenant inactive due to billing
+    | "IDENTITY_TIMEOUT"       // Distinct timeout error (12s hard timeout)
     | "UNKNOWN";
   message: string;
 }
@@ -205,12 +209,12 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         signal,
       });
 
-      // Timeout/abort
+      // Timeout/abort — use distinct IDENTITY_TIMEOUT code
       if (signal.aborted) {
         if (!isMountedRef.current) return;
         setIdentityState("error");
         setError({
-          code: "UNKNOWN",
+          code: "IDENTITY_TIMEOUT",
           message: "Identity service timeout (Edge Function não respondeu).",
         });
         return;
@@ -241,7 +245,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       if (err?.name === "AbortError") {
         setIdentityState("error");
         setError({
-          code: "UNKNOWN",
+          code: "IDENTITY_TIMEOUT",
           message: "Identity service timeout (request abortada).",
         });
         return;

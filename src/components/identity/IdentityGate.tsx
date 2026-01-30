@@ -7,17 +7,23 @@
  * 2. Calls resolveIdentityState() ONCE
  * 3. Calls resolveIdentityRedirect() for navigation
  * 4. Renders UI based on state
+ *
+ * P0 PRODUCT SAFETY:
+ * - Uses IdentityLoadingScreen for UX-only timeout feedback (8s)
+ * - Actual hard timeout (12s) is in IdentityContext
+ * - All error states have explicit escape hatch via resolveErrorEscapeHatch
  */
 
 import React, { useRef, useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/contexts/I18nContext";
+import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import {
   resolveIdentityState,
   IdentityResolutionInput,
@@ -229,13 +235,12 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // ===== RENDER BY STATE =====
   switch (resolvedState) {
     case 'LOADING':
+      // Use dedicated IdentityLoadingScreen with UX-only timeout warning
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">{t("common.loading")}</p>
-          </div>
-        </div>
+        <IdentityLoadingScreen 
+          onRetry={refreshIdentity} 
+          onLogout={() => signOut()} 
+        />
       );
 
     case 'UNAUTHENTICATED':
@@ -307,8 +312,15 @@ export function IdentityGate({ children }: IdentityGateProps) {
       return <>{children}</>;
 
     case 'ERROR': {
-      // Use explicit escape hatch
+      // Use explicit escape hatch with KEY-BASED i18n
       const escapeOptions = resolveErrorEscapeHatch(error);
+      
+      // Translate keys to strings (translation happens HERE, not in escape hatch)
+      const userMessage = t(escapeOptions.userMessageKey) || escapeOptions.fallbackMessage || t('identity.error');
+      const suggestion = t(escapeOptions.suggestionKey);
+      const retryLabel = escapeOptions.canRetry ? t(escapeOptions.retryLabelKey) : '';
+      const logoutLabel = t(escapeOptions.logoutLabelKey);
+      
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
           <Card className="max-w-md w-full">
@@ -316,22 +328,22 @@ export function IdentityGate({ children }: IdentityGateProps) {
               <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
               <CardTitle className="text-center">{t("identity.error")}</CardTitle>
               <CardDescription className="text-center">
-                {escapeOptions.userMessage}
+                {userMessage}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground text-center">
-                {escapeOptions.suggestion}
+                {suggestion}
               </p>
               {escapeOptions.canRetry && (
                 <Button onClick={refreshIdentity} className="w-full">
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  {escapeOptions.retryLabel}
+                  {retryLabel}
                 </Button>
               )}
               {escapeOptions.canLogout && (
                 <Button variant="outline" onClick={() => signOut()} className="w-full">
-                  {escapeOptions.logoutLabel}
+                  {logoutLabel}
                 </Button>
               )}
             </CardContent>

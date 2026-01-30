@@ -20,6 +20,7 @@ import TenantBilling from '@/pages/TenantBilling';
 import TenantSettings from '@/pages/TenantSettings';
 import TenantOnboarding from '@/pages/TenantOnboarding';
 import TenantHelp from '@/pages/TenantHelp';
+import TenantDiagnostics from '@/pages/TenantDiagnostics';
 import NotFound from '@/pages/NotFound';
 
 export default function AppRouter() {
@@ -45,6 +46,7 @@ export default function AppRouter() {
       <Route path="billing" element={<TenantBilling />} />
       <Route path="settings" element={<TenantSettings />} />
       <Route path="onboarding" element={<TenantOnboarding />} />
+      <Route path="diagnostics" element={<TenantDiagnostics />} />
       <Route path="help" element={<TenantHelp />} />
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
       <Route path="*" element={<NotFound />} />
