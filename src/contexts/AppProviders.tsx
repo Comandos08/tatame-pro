@@ -34,8 +34,8 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
-            <IdentityProvider>
-              <ImpersonationProvider>
+            <ImpersonationProvider>
+              <IdentityProvider>
                 <JoinProvider>
                   <TooltipProvider>
                     <Toaster />
@@ -45,8 +45,8 @@ export function AppProviders({ children }: AppProvidersProps) {
                     {children}
                   </TooltipProvider>
                 </JoinProvider>
-              </ImpersonationProvider>
-            </IdentityProvider>
+              </IdentityProvider>
+            </ImpersonationProvider>
           </AuthProvider>
         </I18nProvider>
       </ThemeProvider>
