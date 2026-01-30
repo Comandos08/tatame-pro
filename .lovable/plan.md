@@ -1,312 +1,340 @@
 
-# PROMPT UX/02 — Impersonação + Onboarding (Step 5)
+
+# PROMPT UX/03 — Impersonation Awareness + Context Clarity
 
 ## RESUMO
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos a MODIFICAR | 3 |
+| Arquivos a MODIFICAR | 6 |
 | Arquivos a CRIAR | 0 |
-| Risco de regressão | Baixo |
+| Risco de regressão | Baixíssimo |
 | Schema alterado | ZERO |
+| Lógica de negócio | ZERO |
 
 ---
 
-## DIAGNÓSTICO TÉCNICO CONFIRMADO
+## DIAGNÓSTICO TÉCNICO
 
-### Problema #1 — Invalidação de Cache Ineficaz
+### Contexto Já Disponível
 
-**Código atual (`TenantOnboarding.tsx`, linha 100):**
+| Dado | Fonte | Disponível |
+|------|-------|-----------|
+| `isImpersonating` | `useImpersonation()` | ✅ |
+| `session.targetTenantName` | `useImpersonation()` | ✅ |
+| `tenant.name` | `useTenant()` | ✅ |
+| Rota atual | `useLocation()` | ✅ |
+
+### i18n Keys Existentes
+
 ```typescript
-onSuccess: () => {
-  toast.success(t('onboarding.completedSuccess'));
-  queryClient.invalidateQueries({ queryKey: ['tenant'] }); // ❌ INÚTIL
-  navigate(`/${tenant?.slug}/app`, { replace: true });
-},
+'impersonation.activeBanner': 'Modo Impersonation'
+'impersonation.expiresIn': 'Expira em'
+'impersonation.endSession': 'Encerrar Impersonation'
 ```
 
-**Por que não funciona:**
-- `TenantContext.tsx` NÃO usa React Query
-- Usa `useState` + `useEffect` com chamada direta ao Supabase
-- `invalidateQueries(['tenant'])` não afeta o estado do `TenantContext`
-- Após navegação, o Gate ainda lê `onboardingCompleted: false` do estado stale
+### Novas Keys Necessárias
 
-### Problema #2 — TenantContext sem mecanismo de refetch
-
-O `TenantContext` não expõe um método `refetch()`. O único trigger é mudança de `tenantSlug` no `useParams`.
-
----
-
-## SOLUÇÃO TÉCNICA
-
-### Estratégia: Adicionar `refetch` ao TenantContext
-
-Expor uma função `refetchTenant()` que força reload dos dados. Chamar essa função após completar onboarding.
+```typescript
+// pt-BR
+'impersonation.operatingAs': 'Operando como'
+'impersonation.tenant': 'Tenant'
+'impersonation.mode': 'Modo'
+'impersonation.modeAdmin': 'Admin'
+'impersonation.modePortal': 'Portal'
+'impersonation.modeOnboarding': 'Onboarding'
+'impersonation.modePublic': 'Público'
+'impersonation.supportMode': 'modo suporte'
+'impersonation.badge': 'Impersonation'
+```
 
 ---
 
 ## ALTERAÇÕES EXATAS
 
-### 1. MODIFICAR: `src/contexts/TenantContext.tsx`
+### 1. MODIFICAR: `src/locales/pt-BR.ts`
 
-**Objetivo:** Expor função `refetchTenant` no contexto
+**Objetivo:** Adicionar novas keys de impersonation
 
-**Linhas afetadas:** 6-8, 149-151, 156-162
+**Linhas a adicionar após linha ~1435:**
 
-**Alteração no tipo de contexto:**
 ```typescript
-interface ExtendedTenantContext extends TenantContextType {
-  billingInfo: TenantBillingInfo | null;
-  refetchTenant: () => void; // ← ADICIONAR
-}
-```
-
-**Alteração na implementação:**
-```typescript
-// Adicionar state para trigger de refetch
-const [refetchTrigger, setRefetchTrigger] = useState(0);
-
-// Modificar useEffect para depender do trigger
-useEffect(() => {
-  // ... existing code ...
-}, [tenantSlug, refetchTrigger]); // ← ADICIONAR refetchTrigger
-
-// Adicionar função de refetch
-const refetchTenant = useCallback(() => {
-  setRefetchTrigger(prev => prev + 1);
-}, []);
-
-// Expor no Provider
-return (
-  <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo, refetchTenant }}>
-    {children}
-  </TenantContext.Provider>
-);
+'impersonation.operatingAs': 'Operando como',
+'impersonation.tenant': 'Tenant',
+'impersonation.mode': 'Modo',
+'impersonation.modeAdmin': 'Admin',
+'impersonation.modePortal': 'Portal',
+'impersonation.modeOnboarding': 'Onboarding',
+'impersonation.modePublic': 'Público',
+'impersonation.supportMode': 'modo suporte',
+'impersonation.badge': 'Impersonation',
 ```
 
 ---
 
-### 2. MODIFICAR: `src/pages/TenantOnboarding.tsx`
+### 2. MODIFICAR: `src/locales/en.ts`
 
-**Objetivo:** Chamar `refetchTenant()` após conclusão do onboarding
+**Objetivo:** Adicionar novas keys em inglês
 
-**Linhas afetadas:** 23, 98-101
-
-**Antes:**
+**Keys:**
 ```typescript
-const { tenant } = useTenant();
-// ...
-onSuccess: () => {
-  toast.success(t('onboarding.completedSuccess'));
-  queryClient.invalidateQueries({ queryKey: ['tenant'] });
-  navigate(`/${tenant?.slug}/app`, { replace: true });
-},
-```
-
-**Depois:**
-```typescript
-const { tenant, refetchTenant } = useTenant();
-// ...
-onSuccess: () => {
-  toast.success(t('onboarding.completedSuccess'));
-  
-  // ✅ Force TenantContext to reload data
-  refetchTenant();
-  
-  // Invalidate React Query caches (for other components using queries)
-  queryClient.invalidateQueries({ queryKey: ['onboarding-status', tenant?.id] });
-  
-  // Navigate with replace to prevent back-button loop
-  navigate(`/${tenant?.slug}/app`, { replace: true });
-},
+'impersonation.operatingAs': 'Operating as',
+'impersonation.tenant': 'Tenant',
+'impersonation.mode': 'Mode',
+'impersonation.modeAdmin': 'Admin',
+'impersonation.modePortal': 'Portal',
+'impersonation.modeOnboarding': 'Onboarding',
+'impersonation.modePublic': 'Public',
+'impersonation.supportMode': 'support mode',
+'impersonation.badge': 'Impersonation',
 ```
 
 ---
 
-### 3. MODIFICAR: `src/components/onboarding/TenantOnboardingGate.tsx`
+### 3. MODIFICAR: `src/locales/es.ts`
 
-**Objetivo:** Adicionar bypass para impersonação com tenant já configurado
+**Objetivo:** Adicionar novas keys em espanhol
 
-**Linhas afetadas:** 7, 26-27, 30-52
+**Keys:**
+```typescript
+'impersonation.operatingAs': 'Operando como',
+'impersonation.tenant': 'Tenant',
+'impersonation.mode': 'Modo',
+'impersonation.modeAdmin': 'Admin',
+'impersonation.modePortal': 'Portal',
+'impersonation.modeOnboarding': 'Onboarding',
+'impersonation.modePublic': 'Público',
+'impersonation.supportMode': 'modo soporte',
+'impersonation.badge': 'Impersonation',
+```
 
-**Adicionar import:**
+---
+
+### 4. MODIFICAR: `src/components/impersonation/ImpersonationBanner.tsx`
+
+**Objetivo:** Adicionar contexto de navegação (modo) e tenant explícito
+
+**Alterações:**
+
+1. Adicionar import de `useLocation`:
+```typescript
+import { useLocation } from 'react-router-dom';
+```
+
+2. Adicionar derivação do modo de navegação:
+```typescript
+const location = useLocation();
+
+const navigationMode = useMemo(() => {
+  const path = location.pathname;
+  if (path.includes('/app/onboarding')) return t('impersonation.modeOnboarding');
+  if (path.includes('/app')) return t('impersonation.modeAdmin');
+  if (path.includes('/portal')) return t('impersonation.modePortal');
+  return t('impersonation.modePublic');
+}, [location.pathname, t]);
+```
+
+3. Adicionar exibição expandida no banner:
+```tsx
+{/* Left: Icon + Message + Context */}
+<div className="flex items-center gap-3 flex-wrap">
+  <div className="flex items-center gap-2">
+    {isExpiringSoon ? (
+      <AlertTriangle className="h-5 w-5 animate-pulse" />
+    ) : (
+      <Shield className="h-5 w-5" />
+    )}
+    <span className="font-semibold text-sm md:text-base">
+      {t('impersonation.activeBanner')}
+    </span>
+  </div>
+  <span className="hidden sm:inline text-sm opacity-90">—</span>
+  <div className="hidden sm:flex items-center gap-2 text-sm">
+    <span className="opacity-80">{t('impersonation.tenant')}:</span>
+    <span className="font-medium">{session.targetTenantName}</span>
+    <span className="opacity-50">•</span>
+    <span className="opacity-80">{t('impersonation.mode')}:</span>
+    <span className="font-medium">{navigationMode}</span>
+  </div>
+</div>
+```
+
+---
+
+### 5. MODIFICAR: `src/components/auth/AuthenticatedHeader.tsx`
+
+**Objetivo:** Adicionar badge discreto quando impersonando
+
+**Alterações:**
+
+1. Adicionar import:
 ```typescript
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 ```
 
-**Adicionar check defensivo com dados reais:**
+2. Dentro do componente, obter estado:
 ```typescript
-export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
-  const { tenant, isLoading, refetchTenant } = useTenant();
-  const { isImpersonating } = useImpersonation();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  // Refetch tenant data when impersonation changes
-  useEffect(() => {
-    if (isImpersonating && !isLoading) {
-      refetchTenant();
-    }
-  }, [isImpersonating, isLoading, refetchTenant]);
-
-  useEffect(() => {
-    if (isLoading || !tenant) return;
-
-    // Check if onboarding is complete via flag
-    const isComplete = tenant?.onboardingCompleted === true;
-    
-    if (isComplete) return; // Onboarding done, allow access
-
-    // DEFENSIVE: Check if tenant has actual configured data
-    // (handles case where flag is false but tenant already has data)
-    // This prevents loops when DB flag wasn't properly updated
-    const hasRealConfiguration = Boolean(
-      tenant?.isActive &&
-      tenant?.sportTypes?.length > 0
-    );
-    
-    // If impersonating and tenant has real data, skip onboarding redirect
-    if (isImpersonating && hasRealConfiguration) {
-      console.log('[ONBOARDING-GATE] Skipping for impersonation with configured tenant');
-      return;
-    }
-
-    // Check if current route is allowed during onboarding
-    const currentPath = location.pathname;
-    const tenantPrefix = `/${tenant.slug}`;
-    const relativePath = currentPath.replace(tenantPrefix, '');
-    
-    const isAllowed = ALLOWED_ROUTES.some(route => 
-      relativePath === route || relativePath.startsWith(route + '/')
-    );
-
-    if (!isAllowed) {
-      navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
-    }
-  }, [tenant, isLoading, location.pathname, navigate, isImpersonating]);
-
-  // ... rest unchanged
-}
+const { isImpersonating } = useImpersonation();
 ```
 
-**Atualizar hook `useOnboardingStatus`:**
-```typescript
-export function useOnboardingStatus() {
-  const { tenant, isLoading, refetchTenant } = useTenant();
+3. Adicionar badge no header, ao lado do user dropdown:
+```tsx
+{/* Actions */}
+<div className="flex items-center gap-2">
+  {/* Impersonation badge */}
+  {isImpersonating && (
+    <span className="rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200 text-xs px-2 py-0.5 font-medium">
+      {t('impersonation.badge')}
+    </span>
+  )}
   
-  // ✅ Check both flag AND real tenant configuration
-  const isComplete = tenant?.onboardingCompleted === true;
-  
-  // Defensive: also consider tenant "complete" if it has real data
-  const hasRealConfiguration = Boolean(
-    tenant?.isActive &&
-    tenant?.sportTypes?.length > 0
-  );
-
-  return {
-    isComplete: isComplete || hasRealConfiguration,
-    isLoading,
-    tenant,
-    refetchTenant,
-  };
-}
+  {/* Theme toggle */}
+  ...
+</div>
 ```
 
 ---
 
-## FLUXO CORRIGIDO
+### 6. MODIFICAR: `src/layouts/AppShell.tsx`
+
+**Objetivo:** Mostrar "Operando como: [Tenant]" no topo da sidebar
+
+**Alterações:**
+
+1. Adicionar import:
+```typescript
+import { useImpersonation } from '@/contexts/ImpersonationContext';
+```
+
+2. Dentro do componente:
+```typescript
+const { isImpersonating, session } = useImpersonation();
+```
+
+3. Após o logo na sidebar (após o botão X de fechar), adicionar:
+```tsx
+{/* Impersonation context indicator */}
+{isImpersonating && session && (
+  <div className="mx-4 mb-2 rounded-md bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 text-xs">
+    <span className="text-yellow-800 dark:text-yellow-200 opacity-80">
+      {t('impersonation.operatingAs')}:
+    </span>
+    <strong className="block truncate text-yellow-900 dark:text-yellow-100">
+      {session.targetTenantName}
+    </strong>
+  </div>
+)}
+```
+
+---
+
+### 7. MODIFICAR: `src/layouts/PortalLayout.tsx`
+
+**Objetivo:** Mostrar "(modo suporte)" discretamente no header
+
+**Alterações:**
+
+1. Adicionar import:
+```typescript
+import { useImpersonation } from '@/contexts/ImpersonationContext';
+```
+
+2. Dentro do componente:
+```typescript
+const { isImpersonating } = useImpersonation();
+```
+
+3. Após o nome do tenant no header, adicionar:
+```tsx
+<span className="font-display font-semibold text-foreground hidden sm:inline">
+  {tenantName}
+</span>
+{isImpersonating && (
+  <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+    ({t('impersonation.supportMode')})
+  </span>
+)}
+```
+
+---
+
+## FLUXO VISUAL RESULTANTE
 
 ```text
-ANTES (bug):
-┌──────────────────────────────────────────────────────────┐
-│ Step 5 → completeMutation.onSuccess                      │
-│   ↓                                                      │
-│ invalidateQueries(['tenant']) ← NÃO AFETA TenantContext │
-│   ↓                                                      │
-│ navigate('/app')                                         │
-│   ↓                                                      │
-│ TenantOnboardingGate lê onboardingCompleted: false       │
-│   ↓                                                      │
-│ Redirect para /onboarding ← LOOP ❌                      │
-└──────────────────────────────────────────────────────────┘
-
-DEPOIS (correto):
-┌──────────────────────────────────────────────────────────┐
-│ Step 5 → completeMutation.onSuccess                      │
-│   ↓                                                      │
-│ refetchTenant() ← FORÇA TenantContext a recarregar       │
-│   ↓                                                      │
-│ navigate('/app')                                         │
-│   ↓                                                      │
-│ TenantOnboardingGate lê onboardingCompleted: true        │
-│   ↓                                                      │
-│ Permite acesso ao /app ✅                                │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ⚠️ MODO IMPERSONATION — Tenant: Acme Corp • Modo: Admin     [60m] [X]  │  ← Banner Global
+├─────────────────────────────────────────────────────────────────────────┤
+│ [Logo] Acme Corp                    [Impersonation] [☀️] [User ▾]      │  ← Header/AppShell
+├────────────────┬────────────────────────────────────────────────────────┤
+│ Operando como: │                                                        │
+│ Acme Corp      │                                                        │  ← Sidebar
+│ ────────────── │              Page Content                              │
+│ Dashboard      │                                                        │
+│ Athletes       │                                                        │
+│ ...            │                                                        │
+└────────────────┴────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## VALIDAÇÃO
 
-| Cenário | Esperado |
-|---------|----------|
-| Admin completa onboarding | Navega para `/app`, não volta para wizard |
-| Superadmin impersona e completa onboarding | Navega para `/app`, não volta para wizard |
-| Tenant já configurado (flag true) | Acessa `/app` direto |
-| Tenant novo (flag false) | Redireciona para `/app/onboarding` |
-| Back-button após onboarding | Permanece no `/app` (replace: true) |
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Admin normal | Nenhum indicador | Nenhum indicador ✅ |
+| Impersonando `/app` | Banner apenas | Banner + Badge + Sidebar + Modo "Admin" ✅ |
+| Impersonando `/portal` | Banner apenas | Banner + Badge + "(modo suporte)" ✅ |
+| Impersonando `/onboarding` | Banner apenas | Banner + Badge + Modo "Onboarding" ✅ |
+| Exit impersonation | Banner some | Todos indicadores somem ✅ |
 
 ---
 
 ## GARANTIAS
 
-- **ZERO alteração de schema** — Usa flag existente `onboarding_completed`
-- **ZERO breaking change** — Apenas adiciona `refetchTenant` ao contexto
-- **ZERO impacto para tenants novos** — Lógica de redirect permanece
-- **ZERO impacto para não-admins** — Gate só afeta rotas `/app/*`
-- **Totalmente reversível** — Pode remover `refetchTenant` se necessário
+- **ZERO alteração de lógica de autenticação**
+- **ZERO alteração de guards**
+- **ZERO alteração de permissões**
+- **ZERO schema alterado**
+- **100% aditivo** — apenas leitura de estado existente
+- **Totalmente reversível** — pode remover sem impacto
 
 ---
 
 ## SEÇÃO TÉCNICA
 
-### Por que não usar React Query no TenantContext?
+### Derivação de Modo (Navigation Mode)
 
-O `TenantContext` foi projetado para ser o "provider canônico" de tenant data em toda a aplicação. Migrar para React Query seria um refactor maior que:
-1. Afetaria todos os consumidores do hook `useTenant()`
-2. Introduziria complexidade desnecessária
-3. Poderia gerar race conditions com outros caches
+A lógica de derivação de modo é puramente baseada na rota:
 
-A solução de adicionar `refetchTrigger` é mínima e cirúrgica.
-
-### Impersonation + Onboarding Interaction
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ ImpersonationContext                                        │
-│   isImpersonating: true                                     │
-│   targetTenantId: "abc-123"                                 │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ triggers useEffect
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│ TenantOnboardingGate                                        │
-│   1. Detect impersonation change                            │
-│   2. Call refetchTenant()                                   │
-│   3. Re-evaluate onboardingCompleted                        │
-│   4. If complete → allow access                             │
-└─────────────────────────────────────────────────────────────┘
+```typescript
+const navigationMode = useMemo(() => {
+  const path = location.pathname;
+  // Onboarding primeiro (mais específico)
+  if (path.includes('/app/onboarding')) return 'Onboarding';
+  // Admin routes
+  if (path.includes('/app')) return 'Admin';
+  // Portal routes
+  if (path.includes('/portal')) return 'Portal';
+  // Fallback
+  return 'Public';
+}, [location.pathname]);
 ```
 
-### Defensive hasRealConfiguration Check
+### Cores do Badge/Indicadores
 
-O check defensivo `hasRealConfiguration` previne loops mesmo se:
-- A flag `onboarding_completed` não foi atualizada corretamente
-- Houve falha no edge function
-- O cache ficou stale por outro motivo
+Usando cores amarelas (warning) para indicar estado especial:
+- Light: `bg-yellow-100 text-yellow-800`
+- Dark: `bg-yellow-900/50 text-yellow-200`
 
-Critérios usados (já existentes no tenant):
-- `tenant.isActive === true`
-- `tenant.sportTypes.length > 0`
+Estas cores são consistentes com o `ImpersonationBanner` existente que usa `bg-warning`.
 
-**Nota:** Não checamos `academies` aqui pois isso exigiria uma query adicional. Os critérios acima são suficientes para um bypass defensivo.
+### Z-Index e Posicionamento
+
+| Componente | Z-Index | Comportamento |
+|------------|---------|---------------|
+| ImpersonationBanner | 100 (fixed) | Sempre no topo |
+| AuthenticatedHeader | 40 (sticky) | Abaixo do banner |
+| AppShell sidebar | 50 | Lateral, abaixo do banner |
+
+Os novos indicadores são **inline** e não afetam z-index.
+
