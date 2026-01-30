@@ -1,323 +1,175 @@
 
-
-# PRODUCT SCOPE — TATAME PRO
+# RELEASE READINESS P0 — TATAME PRO
 
 > **Version:** 1.0.0  
-> **Status:** CANONICAL  
-> **Last Updated:** 2026-01-30  
-> **Authority:** This document governs all product decisions.
+> **Status:** DECISION SUPPORT  
+> **Date:** 2026-01-30  
+> **Authority:** Gate document for READY/NOT READY declaration
 
 ---
 
-## 1. Purpose of This Document
+## 1. Release Goal
 
-This document defines, with zero ambiguity, what Tatame Pro IS and what it IS NOT.
+This release prepares Tatame Pro for **controlled onboarding of real sports organizations** (federations, leagues, governing bodies). The goal is to validate that all CORE capabilities defined in PRODUCT-MATURITY-MAP.md are functional, stable, and free of blocking issues.
 
-It exists to:
+**READY** means:
+- A new organization can complete onboarding without manual intervention
+- Athletes can be registered and approved through the standard workflow
+- Official documents (cards, diplomas) can be issued and publicly verified
+- Billing enforcement works correctly
+- No blocking bugs exist in critical paths
 
-- **Prevent scope creep** by establishing clear boundaries
-- **Guide development priorities** by defining what matters
-- **Align stakeholders** around a shared understanding of product value
-- **Enable confident "no" decisions** when requests fall outside scope
-- **Protect product integrity** during growth and evolution
-
-All feature requests, roadmap discussions, and partnership evaluations MUST be validated against this document. Any change to this document requires explicit governance review.
-
----
-
-## 2. Product Definition
-
-**Tatame Pro is a certification and governance platform for sports organizations that need to maintain official, auditable, long-term athlete history.**
-
-It provides formal sports entities with the institutional infrastructure to register athletes, certify progressions, issue official documents, and maintain a verified historical record that preserves organizational credibility and regulatory compliance.
+This is NOT a feature-complete release. This is a stability and governance release.
 
 ---
 
-## 3. Target Customer (In Scope)
+## 2. P0 — Blocking Issues (MANDATORY)
 
-Tatame Pro is built exclusively for:
+These items MUST be resolved before any sales or onboarding activity.
 
-**Organizações esportivas formais (federações, ligas e entidades gestoras)**
+| ID | Item | Status | Action | Acceptance Criteria |
+|----|------|--------|--------|---------------------|
+| **P0-001** | Tenant stuck on onboarding Step 5 | NOT CONFIRMED | Manual validation required: Create new tenant, complete onboarding wizard, verify `onboarding_completed` flag is set to `true` in database | Tenant navigates to `/{slug}/app` after clicking "Complete Setup" without loop or error |
+| **P0-002** | `refetchTenant()` after onboarding completion | CODE REVIEWED | Verify `TenantContext.refetchTrigger` updates and `TenantOnboardingGate` allows navigation | `onboardingCompleted === true` reflected in context within 2 seconds of edge function success |
 
-Specifically:
+**Current Assessment:**
 
-- **Sports Federations** — National, regional, or state-level governing bodies
-- **Leagues** — Organized competitive circuits with formal athlete registration
-- **Governing Bodies** — Entities responsible for athlete certification, ranking, or credentialing
-- **Associations** — Formal member organizations that issue official athlete documentation
+Code review shows:
+- `TenantOnboarding.tsx` calls `refetchTenant()` on mutation success (line 102)
+- `TenantContext.tsx` has `refetchTrigger` dependency in useEffect (line 156)
+- `TenantOnboardingGate.tsx` has defensive bypass for configured tenants (lines 53-58)
+- `complete-tenant-onboarding` edge function updates `onboarding_completed` flag (lines 215-223)
 
-These organizations share common characteristics:
-
-- They issue official credentials (cards, diplomas, certifications)
-- They maintain long-term athlete records
-- They require audit-ready documentation
-- They face institutional risk if records are lost or compromised
-- They need to verify athlete status publicly
+**Risk:** Medium. Code appears correct but requires manual end-to-end validation.
 
 ---
 
-## 4. Target Customer (Explicitly Out of Scope)
+## 3. P1 — Required Fixes (Before Sales)
 
-The following are NOT target customers, even if they could technically use the platform:
+Functional issues that do not block operation but affect professional perception.
 
-| Excluded Segment | Reason |
-|------------------|--------|
-| Individual athletes | Product is organization-mediated, not self-service |
-| Independent gyms/academies | Unless operating under a formal federation structure |
-| Personal trainers | No institutional certification authority |
-| Fitness clubs | No grading/progression system requiring certification |
-| Event organizers (standalone) | Unless part of a governing body structure |
-| Recreational sports groups | No formal credentialing requirements |
-| Schools with physical education programs | Unless formally affiliated with a sports federation |
-
-**Rule:** If an entity does not issue official certifications or maintain long-term athlete records with institutional authority, they are out of scope.
+| ID | Item | Status | Action | Acceptance Criteria |
+|----|------|--------|--------|---------------------|
+| **P1-001** | Athlete filter by grading level | NOT IMPLEMENTED | Add dropdown filter to `AthletesList.tsx` using `athlete_current_grading` view | Admin can filter athletes by belt/rank |
+| **P1-002** | Event filter by date range | NOT IMPLEMENTED | Add date picker filter to `EventsList.tsx` | Admin can filter events by start/end date |
+| **P1-003** | Impersonation i18n label shifts | NOT CONFIRMED | Reproduce and document scenario. If confirmed, fix context isolation | Labels remain stable during impersonation session |
+| **P1-004** | Form focus loss after impersonation | NOT CONFIRMED | Reproduce and document scenario. If confirmed, investigate re-render cascade | Form inputs retain focus when user is impersonating |
 
 ---
 
-## 5. Core Problems We Solve
+## 4. P2 — Perception & Polish
 
-Tatame Pro exists to address critical **INSTITUTIONAL RISKS** faced by sports organizations:
+Cosmetic issues that affect first impression but not functionality.
 
-### Risk of Losing Control
-- Athlete data scattered across spreadsheets, paper records, or personal devices
-- Dependency on individuals (founders, secretaries) for critical information
-- No centralized system of record
-
-### Risk of Losing Traceability
-- Inability to verify when an athlete was promoted or registered
-- Missing historical records for graduations and certifications
-- No audit trail for institutional decisions
-
-### Risk of Losing Institutional Credibility
-- Fraudulent certifications circulating without verification
-- Inability to prove legitimacy of issued documents
-- Disputes about athlete status with no authoritative source
-- Regulatory non-compliance due to poor record-keeping
-
-### Risk of Operational Fragility
-- Key person dependency for all administrative processes
-- Manual processes prone to error and inconsistency
-- No disaster recovery for historical records
+| ID | Item | Status | Action | Acceptance Criteria |
+|----|------|--------|--------|---------------------|
+| **P2-001** | Partner logos carousel | NOT IMPLEMENTED | Decide if needed for MVP; if yes, implement using existing `Carousel` component | Landing page displays partner logos OR decision documented as "deferred" |
+| **P2-002** | Dynamic hero banner management | NOT IMPLEMENTED | Defer; current static hero is sufficient for MVP | No action required |
+| **P2-003** | Login page logo distortion | NOT CONFIRMED | Validate visually; `Login.tsx` uses `object-contain` which should prevent distortion | Logo displays correctly on all screen sizes |
+| **P2-004** | Language menu color | NOT CONFIRMED | Validate visually in both light/dark themes | Language selector matches design system |
 
 ---
 
-## 6. Core Value Proposition
+## 5. Explicitly Deferred Items
 
-**Tatame Pro delivers certified, auditable, long-term athlete history that protects institutional credibility.**
+These items will NOT be addressed in this release. This is intentional.
 
-For sports organizations, this means:
-
-| Value | Description |
-|-------|-------------|
-| **Certification Authority** | Issue official documents (cards, diplomas) that can be publicly verified |
-| **Historical Integrity** | Maintain complete, tamper-evident records of athlete progression |
-| **Institutional Independence** | Operate without dependency on individuals or external systems |
-| **Public Verification** | Allow third parties to verify authenticity of any issued document |
-| **Regulatory Readiness** | Provide audit-ready documentation at any time |
-
-The unique differentiator is not convenience — it is **institutional legitimacy through verifiable records**.
+| Item | Reason | Reference |
+|------|--------|-----------|
+| Event registration with payment | Out of scope per PRODUCT-SCOPE.md §9 | PRODUCT-MATURITY-MAP §4.10: "Event payments NOT PLANNED" |
+| Competition brackets/chaves | Out of scope per PRODUCT-SCOPE.md §9 | PRODUCT-MATURITY-MAP §4.10: "Competition brackets NOT PLANNED" |
+| Event ranking/classification | Competition management is excluded | PRODUCT-SCOPE.md §9 |
+| Event delete button | Intentional design decision; events are archived, not deleted | Governance integrity |
+| Diploma search by athlete name | Privacy/LGPD concern; verification by ID is sufficient | PRODUCT-MATURITY-MAP §4.5 |
+| Bulk athlete import | Out of scope | PRODUCT-MATURITY-MAP §4.2: "Bulk athlete import NOT PLANNED" |
+| Athlete self-registration | Violates organization-mediated principle | PRODUCT-SCOPE.md §13 |
 
 ---
 
-## 7. Critical Value Flow (Canonical)
+## 6. Go / No-Go Checklist
 
-The canonical value flow that every feature must support:
+Binary validation for release decision.
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                                                                         │
-│  1. ORGANIZATION SETUP                                                  │
-│     └─ Entity registers on platform                                     │
-│     └─ Configures academies, staff, grading system                      │
-│                                                                         │
-│  2. ATHLETE REGISTRATION                                                │
-│     └─ Athlete applies for membership (adult or minor)                  │
-│     └─ Documents submitted and verified                                 │
-│     └─ Organization approves registration                               │
-│                                                                         │
-│  3. CERTIFICATION OF PROGRESSIONS                                       │
-│     └─ Gradings recorded with date, evaluator, location                 │
-│     └─ Belt/rank progressions tracked with full history                 │
-│     └─ Each progression creates immutable audit record                  │
-│                                                                         │
-│  4. OFFICIAL DOCUMENT ISSUANCE                                          │
-│     └─ Digital membership card generated                                │
-│     └─ Graduation diplomas issued                                       │
-│     └─ Documents contain verification QR code                           │
-│                                                                         │
-│  5. LONG-TERM AUDIT-READY HISTORY                                       │
-│     └─ Complete athlete history preserved                               │
-│     └─ Public verification available to third parties                   │
-│     └─ Institutional credibility maintained over time                   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Tenant can complete onboarding without loop | ⏳ PENDING | Requires P0-001 manual validation |
+| 2 | Academy can be created during onboarding | ✅ YES | Verified in code |
+| 3 | Grading scheme can be created during onboarding | ✅ YES | Verified in code |
+| 4 | Athlete membership can be submitted | ✅ YES | Adult and youth flows exist |
+| 5 | Membership can be approved by admin | ✅ YES | `approve-membership` edge function exists |
+| 6 | Digital card is generated on approval | ✅ YES | `generate-digital-card` edge function exists |
+| 7 | Card verification page works publicly | ✅ YES | `VerifyCard.tsx` verified |
+| 8 | Diploma verification page works publicly | ✅ YES | `VerifyDiploma.tsx` verified |
+| 9 | Billing blocks sensitive actions when expired | ✅ YES | `requireBillingStatus` middleware exists |
+| 10 | Logout is accessible on all authenticated pages | ✅ YES | Present in `AppShell.tsx` and `PortalLayout.tsx` |
+| 11 | Impersonation banner displays correctly | ✅ YES | `ImpersonationBanner.tsx` exists |
+| 12 | Audit logs are created for administrative actions | ✅ YES | Verified in edge functions |
 
-**Every feature must demonstrably contribute to this flow. Features that do not support this flow are out of scope.**
+**Blocking Items:** 1 (P0-001 validation pending)
 
 ---
 
-## 8. What Tatame Pro IS
+## 7. Release Declaration
 
-Tatame Pro IS:
+### Current Status
 
-- ✅ A **certification platform** for athlete registration and progression
-- ✅ A **document issuance system** for official cards and diplomas
-- ✅ A **verification infrastructure** for public credential validation
-- ✅ A **historical record system** for long-term athlete data
-- ✅ An **organizational governance tool** for managing staff, academies, and athletes
-- ✅ A **membership management system** for athlete affiliation lifecycle
-- ✅ A **multi-tenant platform** where each organization operates independently
-- ✅ A **billing-integrated solution** for organization subscriptions
-- ✅ An **audit-ready system** with decision logging and traceability
+**⏳ CONDITIONAL READY**
 
----
+The system is architecturally ready. All CORE capabilities are implemented. No blocking bugs have been confirmed.
 
-## 9. What Tatame Pro IS NOT
+### Conditions for READY Declaration
 
-Tatame Pro IS NOT:
+1. **P0-001 validated:** Manual test confirms tenant completes onboarding successfully
+2. **P0-002 validated:** TenantContext reflects updated `onboardingCompleted` flag
 
-| Exclusion | Rationale |
-|-----------|-----------|
-| ❌ A training management platform | We do not track workouts, sessions, or training plans |
-| ❌ A performance analytics system | We do not measure athlete performance metrics |
-| ❌ A financial/accounting system | We handle subscription billing only, not organizational finances |
-| ❌ A generic CRM | We are purpose-built for certification, not general customer management |
-| ❌ A scheduling/class management tool | We do not manage academy calendars or class bookings |
-| ❌ A social network for athletes | We do not facilitate social interaction or community features |
-| ❌ An e-commerce platform | We do not sell merchandise or process arbitrary transactions |
-| ❌ An athlete self-service platform | Athletes access via organization mediation, not independently |
-| ❌ A competition management system | We do not manage brackets, scoring, or event logistics |
-| ❌ A video platform | We do not host or stream training content |
-| ❌ A communication tool | We do not provide messaging, forums, or notifications beyond transactional |
+### Upgrade Path
 
-**Rule:** If a feature primarily serves individual athlete convenience rather than institutional governance, it is likely out of scope.
+Upon successful validation of P0 items:
+
+**✅ READY FOR CONTROLLED ONBOARDING**
+
+- Limited pilot with 1-3 organizations
+- Monitoring for edge cases
+- P1 items addressed during pilot phase
 
 ---
 
-## 10. Product Success Metrics
+## 8. Validation Protocol
 
-### North Star Metric
+To clear P0 blockers:
 
-**Number of active organizations with certified athletes per month**
+### Test Script for P0-001 / P0-002
 
-An "active organization" is defined as:
-- Has at least one approved athlete membership in the current period
-- OR has issued at least one official document (card/diploma) in the current period
+1. Create new tenant via Superadmin `CreateTenantDialog`
+2. Login as tenant admin
+3. Complete onboarding wizard:
+   - Step 1: Welcome → Next
+   - Step 2: Create 1 academy → Next
+   - Step 3: Skip coaches (optional) → Next
+   - Step 4: Create 1 grading scheme → Next
+   - Step 5: Review → Click "Complete Setup"
+4. **Expected:** Redirect to `/{slug}/app` (dashboard)
+5. **Verify:** Database `tenants.onboarding_completed = true`
+6. **Verify:** Browser refresh still shows dashboard, not onboarding
 
-### Supporting Metrics (Maximum 3)
+### Failure Indicators
 
-| Metric | Definition | Why It Matters |
-|--------|------------|----------------|
-| **Document Verification Rate** | % of issued documents that are verified publicly | Indicates trust and adoption of verification system |
-| **Athlete Retention Rate** | % of athletes who renew membership | Indicates value delivered to organizations |
-| **Organization Onboarding Completion** | % of new organizations that complete setup | Indicates product-market fit and usability |
-
----
-
-## 11. Design & Product Principles
-
-These principles guide all product decisions:
-
-### 1. Institutional Credibility Over Convenience
-When forced to choose between making something easier and maintaining institutional authority, we choose authority. Official documents must be official.
-
-### 2. Auditability Over Flexibility
-Every significant action must be traceable. We prefer structured workflows over freeform flexibility because certification requires accountability.
-
-### 3. Governance Before Scale
-We will not compromise governance features to grow faster. An organization with 10 athletes and perfect records is more valuable than one with 10,000 athletes and questionable data.
-
-### 4. Organization-Mediated Experience
-Athletes interact with the system through their organization. We do not build direct athlete self-service that bypasses organizational authority.
-
-### 5. Explicit Over Implicit
-No silent failures, no hidden states, no assumed permissions. Every decision and state must be observable and diagnosable.
-
-### 6. Long-Term Preservation Over Short-Term Convenience
-We optimize for records that remain valid and verifiable in 10+ years, not just for today's workflow efficiency.
-
-### 7. Verification as First-Class Feature
-The ability to verify any issued document is not an afterthought — it is core to product value.
+- User remains on onboarding page after clicking "Complete Setup"
+- Toast error appears
+- Browser console shows error
+- Database flag not updated
 
 ---
 
-## 12. Scope Governance Rules
-
-### How New Features Are Evaluated
-
-Every proposed feature must pass these gates:
-
-1. **Canonical Flow Test:** Does it directly support the Critical Value Flow (Section 7)?
-2. **Customer Fit Test:** Does it serve the Target Customer (Section 3), not excluded segments?
-3. **Problem Fit Test:** Does it address a Core Problem (Section 5)?
-4. **Exclusion Check:** Does it conflict with "What Tatame Pro IS NOT" (Section 9)?
-5. **Principle Alignment:** Does it align with Design Principles (Section 11)?
-
-**If any gate fails, the feature is rejected or deferred.**
-
-### What Automatically Disqualifies a Feature
-
-- Primarily serves individual athletes without organizational mediation
-- Requires building generic functionality unrelated to certification
-- Compromises auditability for convenience
-- Introduces scope outside sports governance domain
-- Requires significant infrastructure for non-core capability
-
-### Authority to Change This Document
-
-Changes to this document require:
-
-1. Written proposal with justification
-2. Review by product leadership
-3. Impact assessment on existing features and roadmap
-4. Explicit version increment and changelog entry
-
-Minor clarifications may be made without full review. Substantive scope changes require governance approval.
-
----
-
-## 13. Non-Negotiables
-
-These rules will NEVER be violated:
-
-| Rule | Description |
-|------|-------------|
-| **No Silent States** | Every blocked or loading state must have explicit user feedback |
-| **No Unverifiable Documents** | Every issued document must have a verification mechanism |
-| **No Data Without Attribution** | Every record must have timestamp, actor, and context |
-| **No Athlete Self-Registration** | Athletes register through organizations, never independently |
-| **No Billing Bypass** | Organizations must have valid billing status to perform sensitive actions |
-| **No Retroactive Tampering** | Historical records cannot be silently modified |
-| **No Implicit Permissions** | Every action requires explicit role-based authorization |
-
----
-
-## 14. Relationship With Other Documents
-
-This document is the **primary authority** for product scope decisions.
+## 9. Document Relationships
 
 | Document | Relationship |
 |----------|--------------|
-| `docs/PRODUCT-SAFETY.md` | Defines safety invariants that protect user experience within this scope |
-| `docs/IDENTITY-CONTRACT.md` | Defines identity resolution rules that implement organizational governance |
-| `docs/SECURITY-AUTH-CONTRACT.md` | Defines security boundaries that protect institutional data |
-| `docs/BUSINESS-FLOWS.md` | Documents operational flows that implement this scope |
-| `docs/SSF-CONSTITUTION.md` | Defines technical governance that ensures scope is implemented correctly |
-
-### Hierarchy
-
-```text
-PRODUCT-SCOPE.md (What we build)
-       │
-       ├── PRODUCT-SAFETY.md (How we protect users)
-       │
-       ├── IDENTITY-CONTRACT.md (How we manage access)
-       │
-       └── SSF-CONSTITUTION.md (How we build it)
-```
-
-When documents conflict, this scope document takes precedence for product decisions. Technical implementation documents take precedence for how those decisions are executed.
+| `PRODUCT-SCOPE.md` | Defines what is in/out of scope for this release |
+| `PRODUCT-MATURITY-MAP.md` | Defines maturity levels referenced in deferred items |
+| `PRODUCT-SAFETY.md` | Defines invariants that must be preserved |
+| `PRICING-PACKAGING-STRATEGY.md` | Governs commercial decisions post-release |
+| `SALES-NARRATIVE.md` | Governs how product is positioned post-release |
 
 ---
 
@@ -325,11 +177,11 @@ When documents conflict, this scope document takes precedence for product decisi
 
 | Version | Date | Change |
 |---------|------|--------|
-| 1.0.0 | 2026-01-30 | Initial canonical scope definition |
+| 1.0.0 | 2026-01-30 | Initial release readiness assessment |
 
 ---
 
-*This document governs all product decisions for Tatame Pro. Deviations require explicit governance approval.*
+*This document is a gate for release decisions. It does not promise features. It validates readiness.*
 
 ---
 
@@ -337,15 +189,4 @@ When documents conflict, this scope document takes precedence for product decisi
 
 | File | Action |
 |------|--------|
-| `docs/PRODUCT-SCOPE.md` | CREATE with content above |
-
-## Confirmations
-
-- ✅ Target Customer explicitly defined as "Organizações esportivas formais (federações, ligas e entidades gestoras)"
-- ✅ Core Problems framed as INSTITUTIONAL RISKS
-- ✅ No technical jargon or implementation details
-- ✅ No future promises unless marked
-- ✅ Strict exclusions defined
-- ✅ North Star Metric established
-- ✅ Governance rules for scope changes defined
-
+| `docs/RELEASE-READINESS-P0.md` | CREATE with content above |
