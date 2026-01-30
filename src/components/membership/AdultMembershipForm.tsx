@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, AlertCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -26,6 +26,49 @@ import {
   MEMBERSHIP_PRICE_CENTS,
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
+
+// ✅ P1/4 — Draft persistence for multi-step form
+const STORAGE_KEY = 'tatame.membership.adult.draft';
+
+interface MembershipDraft {
+  step: number;
+  athleteData: AthleteFormData | null;
+  documentsMeta: {
+    idDocumentName?: string;
+    medicalCertificateName?: string;
+  };
+  tenantSlug: string;
+  savedAt: string;
+}
+
+function saveDraft(draft: MembershipDraft): void {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Silent fail — storage not available
+  }
+}
+
+function loadDraft(tenantSlug: string): MembershipDraft | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as MembershipDraft;
+    // Validate same tenant
+    if (draft.tenantSlug !== tenantSlug) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Silent fail
+  }
+}
 
 export function AdultMembershipForm() {
   const navigate = useNavigate();
@@ -88,6 +131,47 @@ export function AdultMembershipForm() {
       country: 'BR',
     },
   });
+
+  // ✅ P1/4 — Restore draft from sessionStorage on mount
+  useEffect(() => {
+    if (!tenantSlug) return;
+    
+    const draft = loadDraft(tenantSlug);
+    if (!draft) return;
+
+    // Restore step
+    if (draft.step > 1) {
+      setStep(draft.step);
+    }
+
+    // Restore athleteData
+    if (draft.athleteData) {
+      setAthleteData(draft.athleteData);
+      // Also populate the form for step 1
+      form.reset(draft.athleteData);
+    }
+
+    // Note: File objects cannot be restored
+    // User will see the correct step but must re-upload documents
+  }, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ✅ P1/4 — Persist draft on step/data changes
+  useEffect(() => {
+    if (!tenantSlug) return;
+    // Only persist if past step 1
+    if (step === 1 && !athleteData) return;
+
+    saveDraft({
+      step,
+      athleteData,
+      documentsMeta: {
+        idDocumentName: documents.idDocument?.name,
+        medicalCertificateName: documents.medicalCertificate?.name,
+      },
+      tenantSlug,
+      savedAt: new Date().toISOString(),
+    });
+  }, [step, athleteData, documents, tenantSlug]);
 
   const handleStepOneSubmit = async (data: z.infer<typeof stepOneSchema>) => {
     // Check if adult (18+)
@@ -248,6 +332,7 @@ export function AdultMembershipForm() {
       }
 
       if (checkoutData?.url) {
+        clearDraft(); // ✅ P1/4 — Clear draft before redirect
         window.location.href = checkoutData.url;
       } else {
         throw new Error(t('membership.errorPaymentSession'));
