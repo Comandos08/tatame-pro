@@ -1,144 +1,195 @@
 
-# P0.1 — TENANT ONBOARDING FLAG CONTRACT FIX
+
+# PROMPT 1/4 — Persistência de Estado no Formulário de Filiação Adulto
 
 ## RESUMO
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos a MODIFICAR | 3 |
-| Linhas alteradas | ~5 |
-| Alterações em P0/P2/P3/P4 | ZERO |
-| Novos redirects | ZERO |
-| Novo comportamento | ZERO |
+| Arquivo a MODIFICAR | 1 (`AdultMembershipForm.tsx`) |
+| Linhas adicionadas | ~50 |
+| Layout/UX alterados | ZERO |
+| Novos componentes | ZERO |
+| Risco de regressão | Baixo |
 
 ---
 
-## DIAGNÓSTICO CONFIRMADO
+## DIAGNÓSTICO
 
-O bug é estrutural:
+**Estado atual:**
+- Linhas 39-44: Estado gerenciado via `useState` (volátil)
+- Linha 134-137: Existe persistência parcial APENAS para redirect de login
+- **Não existe restauração de estado no mount**
 
-1. **Flag existe no banco**: `tenants.onboarding_completed` ✅
-2. **Edge Function escreve corretamente**: `complete-tenant-onboarding` ✅
-3. **Tipo TypeScript não declara a propriedade**: ❌
-4. **TenantContext não carrega a flag**: ❌
-5. **TenantOnboardingGate usa type assertion para ler undefined**: ❌
+**Resultado:** Refresh em step 2 ou 3 reinicia o formulário.
 
-**Resultado**: Gate sempre redireciona para `/app/onboarding` porque `undefined !== true`.
+---
+
+## SOLUÇÃO TÉCNICA
+
+### Estratégia
+1. Persistir estado em `sessionStorage` a cada mudança de step
+2. Restaurar estado no mount do componente
+3. Limpar storage após submissão bem-sucedida
+
+### Chave de Storage
+```
+tatame.membership.adult.draft
+```
+
+### Dados Persistidos
+```typescript
+interface MembershipDraft {
+  step: number;
+  athleteData: AthleteFormData | null;
+  documentsMeta: {
+    idDocumentName?: string;
+    medicalCertificateName?: string;
+  };
+  tenantSlug: string;
+  savedAt: string;
+}
+```
+
+> **Nota:** Arquivos (`File`) não podem ser serializados em JSON. Apenas metadados (nomes) serão persistidos. Os uploads precisarão ser refeitos, mas o usuário permanece no step correto.
 
 ---
 
 ## ALTERAÇÕES EXATAS
 
-### 1. `src/types/tenant.ts` (Linha 14)
-
-**Ação**: Adicionar propriedade `onboardingCompleted` ao tipo `Tenant`.
+### 1. Adicionar constante de storage key (após linha 29)
 
 ```typescript
-// ANTES (linha 14):
-  updatedAt: string;
+const STORAGE_KEY = 'tatame.membership.adult.draft';
+```
+
+### 2. Adicionar interface de draft (após linha 29)
+
+```typescript
+interface MembershipDraft {
+  step: number;
+  athleteData: AthleteFormData | null;
+  documentsMeta: {
+    idDocumentName?: string;
+    medicalCertificateName?: string;
+  };
+  tenantSlug: string;
+  savedAt: string;
+}
+```
+
+### 3. Adicionar função de persistência (após STORAGE_KEY)
+
+```typescript
+function saveDraft(draft: MembershipDraft): void {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Silent fail — storage não disponível
+  }
 }
 
-// DEPOIS:
-  updatedAt: string;
+function loadDraft(tenantSlug: string): MembershipDraft | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as MembershipDraft;
+    // Validar que é do mesmo tenant
+    if (draft.tenantSlug !== tenantSlug) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
 
-  // ✅ P0.1 — Tenant onboarding contract
-  onboardingCompleted?: boolean;
+function clearDraft(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Silent fail
+  }
 }
 ```
 
-**Justificativa**: 
-- Propriedade opcional (`?`) para compatibilidade retroativa
-- CamelCase segue convenção do tipo existente
+### 4. Adicionar useEffect de restauração (após linha 45, antes do stepOneSchema)
+
+```typescript
+// ✅ P1/4 — Restaurar draft do sessionStorage no mount
+useEffect(() => {
+  if (!tenantSlug) return;
+  
+  const draft = loadDraft(tenantSlug);
+  if (!draft) return;
+
+  // Restaurar step
+  if (draft.step > 1) {
+    setStep(draft.step);
+  }
+
+  // Restaurar athleteData
+  if (draft.athleteData) {
+    setAthleteData(draft.athleteData);
+    // Também popular o form para step 1
+    form.reset(draft.athleteData);
+  }
+
+  // Nota: Arquivos (File) não podem ser restaurados
+  // Usuário verá o step correto, mas precisará re-uploadar documentos
+}, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
+```
+
+### 5. Adicionar useEffect de persistência (após o useEffect de restauração)
+
+```typescript
+// ✅ P1/4 — Persistir draft a cada mudança de step ou dados
+useEffect(() => {
+  if (!tenantSlug) return;
+  // Só persistir se já passou do step 1
+  if (step === 1 && !athleteData) return;
+
+  saveDraft({
+    step,
+    athleteData,
+    documentsMeta: {
+      idDocumentName: documents.idDocument?.name,
+      medicalCertificateName: documents.medicalCertificate?.name,
+    },
+    tenantSlug,
+    savedAt: new Date().toISOString(),
+  });
+}, [step, athleteData, documents, tenantSlug]);
+```
+
+### 6. Limpar draft após sucesso do pagamento (linha 250, após redirect)
+
+```typescript
+if (checkoutData?.url) {
+  clearDraft(); // ✅ P1/4 — Limpar draft antes de redirect
+  window.location.href = checkoutData.url;
+}
+```
 
 ---
 
-### 2. `src/contexts/TenantContext.tsx` (Linhas 92-104)
+## COMPORTAMENTO ESPERADO
 
-**Ação**: Mapear `data.onboarding_completed` para `onboardingCompleted`.
-
-```typescript
-// ANTES (linhas 92-104):
-const tenantData: Tenant = {
-  id: data.id,
-  slug: data.slug,
-  name: data.name,
-  description: data.description,
-  logoUrl: data.logo_url,
-  primaryColor: data.primary_color || '#dc2626',
-  sportTypes: (data.sport_types || ['BJJ']) as Tenant['sportTypes'],
-  stripeCustomerId: data.stripe_customer_id,
-  isActive: data.is_active,
-  createdAt: data.created_at,
-  updatedAt: data.updated_at,
-};
-
-// DEPOIS:
-const tenantData: Tenant = {
-  id: data.id,
-  slug: data.slug,
-  name: data.name,
-  description: data.description,
-  logoUrl: data.logo_url,
-  primaryColor: data.primary_color || '#dc2626',
-  sportTypes: (data.sport_types || ['BJJ']) as Tenant['sportTypes'],
-  stripeCustomerId: data.stripe_customer_id,
-  isActive: data.is_active,
-  createdAt: data.created_at,
-  updatedAt: data.updated_at,
-  // ✅ P0.1 — load onboarding flag from database
-  onboardingCompleted: data.onboarding_completed,
-};
-```
-
-**Justificativa**:
-- Mapeamento direto snake_case → camelCase
-- Sem fallback, sem inferência — valor real do banco
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Step 1 → Step 2 → Refresh | Volta para Step 1 | Continua no Step 2 |
+| Step 2 → Step 3 → Refresh | Volta para Step 1 | Continua no Step 3 |
+| Submissão com sucesso | — | Draft limpo |
+| Novo fluxo após submissão | — | Começa limpo |
+| Trocar de tenant | — | Draft ignorado (validação de tenantSlug) |
 
 ---
 
-### 3. `src/components/onboarding/TenantOnboardingGate.tsx`
+## LIMITAÇÕES CONHECIDAS
 
-**Ação 1**: Remover type assertion na função `TenantOnboardingGate` (linha 35).
+1. **Arquivos não são restaurados**: `File` objects não podem ser serializados em JSON
+   - Usuário verá o step correto, mas campos de upload estarão vazios
+   - Validação no step 2 exigirá re-upload do documento de identidade
 
-```typescript
-// ANTES (linha 35):
-const isComplete = (tenant as unknown as { onboarding_completed?: boolean }).onboarding_completed;
-
-// DEPOIS:
-const isComplete = tenant?.onboardingCompleted === true;
-```
-
-**Ação 2**: Remover type assertion no hook `useOnboardingStatus` (linhas 72-73).
-
-```typescript
-// ANTES (linhas 72-73):
-const isComplete = tenant 
-  ? (tenant as unknown as { onboarding_completed?: boolean }).onboarding_completed ?? false
-  : false;
-
-// DEPOIS:
-const isComplete = tenant?.onboardingCompleted === true;
-```
-
-**Justificativa**:
-- Contrato limpo sem casts
-- Comparação estrita `=== true` previne `undefined` ou `null`
-
----
-
-## FLUXO CORRIGIDO
-
-```text
-[Banco] tenants.onboarding_completed = true
-           ↓
-[TenantContext] carrega data.onboarding_completed
-           ↓
-[Tenant.onboardingCompleted] = true
-           ↓
-[TenantOnboardingGate] tenant?.onboardingCompleted === true
-           ↓
-✅ Acesso liberado às rotas /app/*
-```
+2. **sessionStorage por aba**: Se usuário abrir nova aba, não verá o draft
 
 ---
 
@@ -146,16 +197,21 @@ const isComplete = tenant?.onboardingCompleted === true;
 
 ```bash
 npm run typecheck
-npm run identity:check
-npx playwright test p0-regression --project=chromium
 ```
+
+**Testes manuais:**
+1. Step 1 → Step 2 → F5 → Verifica se continua no Step 2
+2. Step 2 → Step 3 → F5 → Verifica se continua no Step 3
+3. Submissão final → Verifica se storage foi limpo
+4. Novo fluxo → Verifica se começa do Step 1
 
 ---
 
 ## GARANTIAS
 
-- **ZERO alterações de fluxo** — Apenas contrato de dados
-- **ZERO alterações em P2/P3/P4** — Identity não tocada
-- **ZERO novos redirects** — Lógica de gate inalterada
-- **ZERO Edge Functions modificadas** — Backend intocado
-- **Compatibilidade retroativa** — Propriedade opcional
+- **ZERO alterações de layout**
+- **ZERO alterações de UX visual**
+- **ZERO novos componentes**
+- **ZERO alterações no fluxo de pagamento**
+- **ZERO alterações em validações**
+
