@@ -102,14 +102,19 @@ export default function MembershipRenew() {
     fetchMembership();
   }, [tenant?.id, currentUser?.id, isAuthenticated]);
 
-  // Redirect se status não for EXPIRED
+  // Redirect se NÃO estiver efetivamente expirada
   useEffect(() => {
     if (isLoadingMembership || !tenantSlug) return;
 
     const status = membership?.status?.toUpperCase() as MembershipStatus;
     
-    // Se não for EXPIRED, redirecionar para o destino correto
-    if (status !== 'EXPIRED') {
+    // ✅ P2/4 — Verificar expiração por STATUS ou por DATA
+    const isEffectivelyExpired = status === 'EXPIRED' || (
+      membership?.end_date && new Date(membership.end_date) < new Date()
+    );
+    
+    // Se NÃO estiver efetivamente expirada, redirecionar para o destino correto
+    if (!isEffectivelyExpired) {
       const redirectPath = resolveAthletePostLoginRedirect({
         tenantSlug,
         membershipStatus: status || null,
