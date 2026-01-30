@@ -1,5 +1,9 @@
 /**
- * 🔐 ERROR ESCAPE HATCH — Ações explícitas para sair do estado ERROR
+ * 🔐 ERROR ESCAPE HATCH — i18n KEY-BASED (Pure Function)
+ *
+ * Returns i18n KEYS, not translated strings.
+ * Translation happens ONLY in UI components.
+ * This keeps the function PURE and TESTABLE.
  *
  * Garante que o usuário NUNCA fica preso em estado de erro.
  */
@@ -9,22 +13,26 @@ import type { IdentityError } from '@/contexts/IdentityContext';
 export interface ErrorEscapeOptions {
   /** Ação primária: tentar novamente */
   canRetry: boolean;
-  retryLabel: string;
+  retryLabelKey: string;
 
   /** Ação secundária: logout */
   canLogout: boolean;
-  logoutLabel: string;
+  logoutLabelKey: string;
 
-  /** Mensagem para o usuário */
-  userMessage: string;
+  /** i18n key for user message */
+  userMessageKey: string;
 
-  /** Sugestão de ação */
-  suggestion: string;
+  /** i18n key for suggestion */
+  suggestionKey: string;
+  
+  /** Fallback message if key not found (for error.message passthrough) */
+  fallbackMessage?: string;
 }
 
 /**
  * Resolve as opções de escape para um dado erro.
  * FUNÇÃO PURA — determinística e testável.
+ * Returns i18n KEYS — translation happens in UI components.
  */
 export function resolveErrorEscapeHatch(error: IdentityError | null): ErrorEscapeOptions {
   const code = error?.code ?? 'UNKNOWN';
@@ -33,42 +41,123 @@ export function resolveErrorEscapeHatch(error: IdentityError | null): ErrorEscap
     case 'PERMISSION_DENIED':
       return {
         canRetry: false,
-        retryLabel: '',
+        retryLabelKey: '',
         canLogout: true,
-        logoutLabel: 'Fazer login com outra conta',
-        userMessage: error?.message || 'Você não tem permissão para acessar este recurso.',
-        suggestion: 'Tente fazer login com uma conta diferente.',
+        logoutLabelKey: 'identityError.permissionDenied.logout',
+        userMessageKey: 'identityError.permissionDenied.message',
+        suggestionKey: 'identityError.permissionDenied.suggestion',
+        fallbackMessage: error?.message,
       };
 
     case 'TENANT_NOT_FOUND':
       return {
         canRetry: true,
-        retryLabel: 'Tentar novamente',
+        retryLabelKey: 'identityError.tenantNotFound.retry',
         canLogout: true,
-        logoutLabel: 'Sair',
-        userMessage: error?.message || 'Organização não encontrada.',
-        suggestion: 'Verifique se o link está correto ou entre em contato com o administrador.',
+        logoutLabelKey: 'identityError.tenantNotFound.logout',
+        userMessageKey: 'identityError.tenantNotFound.message',
+        suggestionKey: 'identityError.tenantNotFound.suggestion',
+        fallbackMessage: error?.message,
       };
 
     case 'IMPERSONATION_INVALID':
       return {
         canRetry: true,
-        retryLabel: 'Tentar novamente',
+        retryLabelKey: 'identityError.impersonationInvalid.retry',
         canLogout: true,
-        logoutLabel: 'Encerrar sessão',
-        userMessage: error?.message || 'Sessão de impersonation inválida.',
-        suggestion: 'Sua sessão de administrador pode ter expirado.',
+        logoutLabelKey: 'identityError.impersonationInvalid.logout',
+        userMessageKey: 'identityError.impersonationInvalid.message',
+        suggestionKey: 'identityError.impersonationInvalid.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'PROFILE_NOT_FOUND':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.profileNotFound.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.profileNotFound.logout',
+        userMessageKey: 'identityError.profileNotFound.message',
+        suggestionKey: 'identityError.profileNotFound.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'NO_ROLES_ASSIGNED':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.noRolesAssigned.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.noRolesAssigned.logout',
+        userMessageKey: 'identityError.noRolesAssigned.message',
+        suggestionKey: 'identityError.noRolesAssigned.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'BILLING_BLOCKED':
+      return {
+        canRetry: false,
+        retryLabelKey: '',
+        canLogout: true,
+        logoutLabelKey: 'identityError.billingBlocked.logout',
+        userMessageKey: 'identityError.billingBlocked.message',
+        suggestionKey: 'identityError.billingBlocked.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'IDENTITY_TIMEOUT':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.timeout.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.timeout.logout',
+        userMessageKey: 'identityError.timeout.message',
+        suggestionKey: 'identityError.timeout.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'INVITE_INVALID':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.inviteInvalid.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.inviteInvalid.logout',
+        userMessageKey: 'identityError.inviteInvalid.message',
+        suggestionKey: 'identityError.inviteInvalid.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'SLUG_TAKEN':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.slugTaken.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.slugTaken.logout',
+        userMessageKey: 'identityError.slugTaken.message',
+        suggestionKey: 'identityError.slugTaken.suggestion',
+        fallbackMessage: error?.message,
+      };
+
+    case 'VALIDATION_ERROR':
+      return {
+        canRetry: true,
+        retryLabelKey: 'identityError.validationError.retry',
+        canLogout: true,
+        logoutLabelKey: 'identityError.validationError.logout',
+        userMessageKey: 'identityError.validationError.message',
+        suggestionKey: 'identityError.validationError.suggestion',
+        fallbackMessage: error?.message,
       };
 
     case 'UNKNOWN':
     default:
       return {
         canRetry: true,
-        retryLabel: 'Tentar novamente',
+        retryLabelKey: 'identityError.unknown.retry',
         canLogout: true,
-        logoutLabel: 'Sair',
-        userMessage: error?.message || 'Ocorreu um erro inesperado.',
-        suggestion: 'Se o problema persistir, tente sair e entrar novamente.',
+        logoutLabelKey: 'identityError.unknown.logout',
+        userMessageKey: 'identityError.unknown.message',
+        suggestionKey: 'identityError.unknown.suggestion',
+        fallbackMessage: error?.message,
       };
   }
 }

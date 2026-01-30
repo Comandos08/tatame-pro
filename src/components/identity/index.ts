@@ -6,3 +6,4 @@
  */
 export { IdentityGate } from './IdentityGate';
 export { IdentityErrorScreen, IdentityErrorPage } from './IdentityErrorScreen';
+export { IdentityLoadingScreen } from './IdentityLoadingScreen';
