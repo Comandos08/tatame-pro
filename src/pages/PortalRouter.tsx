@@ -1,20 +1,29 @@
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-
 import { useCurrentUser } from "@/contexts/AuthContext";
-import { useIdentity } from "@/contexts/IdentityContext";
 
+/**
+ * 🔐 PORTAL ROUTER — Passthrough Puro
+ *
+ * REGRA ABSOLUTA (P2):
+ * - NÃO resolve estado de identidade
+ * - NÃO decide destino
+ * - NÃO tem fallback para wizard
+ *
+ * Responsabilidade ÚNICA:
+ * - Aguardar auth loading
+ * - Redirecionar para /login se não autenticado
+ * - Delegar todo o resto para IdentityGate (que envolve este componente)
+ *
+ * O IdentityGate é o ÚNICO responsável por:
+ * - Resolver estado de identidade
+ * - Decidir redirects (wizard, admin, tenant)
+ * - Renderizar erros
+ */
 export default function PortalRouter() {
-  const { isAuthenticated, isLoading, isGlobalSuperadmin } = useCurrentUser();
-  const { identityState, wizardCompleted, redirectPath } = useIdentity();
+  const { isAuthenticated, isLoading } = useCurrentUser();
 
-  /**
-   * 🔐 REGRA ABSOLUTA
-   * PortalRouter só bloqueia por AUTH.
-   * Identity nunca deve travar render aqui.
-   */
-
-  // 1️⃣ Auth ainda carregando (ÚNICO loading permitido aqui)
+  // ÚNICO loading permitido: auth
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -23,26 +32,14 @@ export default function PortalRouter() {
     );
   }
 
-  // 2️⃣ Não autenticado → login
+  // NÃO autenticado → login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3️⃣ Wizard obrigatório
-  if (identityState === "wizard_required" || (!wizardCompleted && identityState !== "superadmin")) {
-    return <Navigate to="/identity/wizard" replace />;
-  }
-
-  // 4️⃣ Superadmin global
-  if (identityState === "superadmin" || isGlobalSuperadmin) {
-    return <Navigate to="/admin" replace />;
-  }
-
-  // 5️⃣ Redirect resolvido pelo backend
-  if (identityState === "resolved" && redirectPath) {
-    return <Navigate to={redirectPath} replace />;
-  }
-
-  // 6️⃣ Fallback seguro (nunca spinner infinito)
-  return <Navigate to="/identity/wizard" replace />;
+  // AUTENTICADO:
+  // O IdentityGate (wrapper) decide o que fazer.
+  // Este componente retorna null — a rota /portal é resolvida pelo IdentityGate
+  // que irá redirecionar para o redirectPath apropriado ou mostrar erro.
+  return null;
 }
