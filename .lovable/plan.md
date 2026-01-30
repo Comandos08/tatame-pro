@@ -1,173 +1,366 @@
 
-# Plano: Correcao do Redirect /login → /identity/wizard
+# P0.1 REVISADO — Agendamento de CRON JOBS com x-cron-secret
 
-## Diagnostico Confirmado
+## Resumo das Ressalvas Aplicadas
 
-### Dados do Usuario Testado
-
-| Campo | Valor |
-|-------|-------|
-| Email | `luizfelipevillar@gmail.com` |
-| `wizard_completed` | `true` |
-| Role | `ATLETA` (tenant: `federacao-demo`) |
-| Tenant ativo | `true` |
-
-**Conclusao**: Os dados estao corretos no banco. O problema NAO e de dados.
+| Ressalva | Acao |
+|----------|------|
+| Substituir ANON_KEY por x-cron-secret | Modificar 8 Edge Functions + SQL |
+| Usar current_setting('app.cron_secret') | Atualizado no SQL |
+| Ajustar horario cleanup-expired-tenants | Movido de 03:00 para 03:15 UTC |
 
 ---
 
-## Causa Raiz: Race Condition no Fluxo de Navegacao
+## 1. DIAGNOSTICO ATUAL
 
-### Fluxo Atual (Problema)
+### Edge Functions que PRECISAM de modificacao
 
-```text
-1. Usuario clica "Entrar" (ja autenticado)
-         |
-         v
-2. Login.tsx renderiza
-         |
-         v
-3. useEffect detecta isAuthenticated = true
-         |
-         v
-4. navigate("/portal") IMEDIATAMENTE
-         |
-         v
-5. /portal monta IdentityGate
-         |
-         v
-6. IdentityContext.identityState = ???
-         |
-         +-- Se "loading" → mostra loader (OK)
-         +-- Se "wizard_required" → redirect para /identity/wizard (PROBLEMA)
-```
+| Function | Tem x-cron-secret hoje | Acao |
+|----------|------------------------|------|
+| cleanup-tmp-documents | SIM | Nenhuma (ja implementado) |
+| expire-trials | NAO | Adicionar validacao |
+| mark-pending-delete | NAO | Adicionar validacao |
+| pre-expiration-scheduler | NAO | Adicionar validacao |
+| expire-memberships | NAO | Adicionar validacao |
+| cleanup-expired-tenants | NAO | Adicionar validacao |
+| cleanup-abandoned-memberships | NAO | Adicionar validacao |
+| check-membership-renewal | NAO | Adicionar validacao |
+| check-trial-ending | NAO | Adicionar validacao |
 
-### Problema Especifico
+**Total**: 8 Edge Functions precisam ser modificadas.
 
-O `Login.tsx` navega para `/portal` baseado APENAS em `isAuthenticated`, **sem aguardar** a resolucao de identidade:
+---
+
+## 2. PADRAO DE MODIFICACAO (IDENTICO PARA TODAS)
+
+### 2.1 Alterar corsHeaders
 
 ```typescript
-// Login.tsx - Linha 29-33
-useEffect(() => {
-  if (isAuthenticated) {
-    navigate("/portal", { replace: true });  // ← NAO espera identityState
-  }
-}, [isAuthenticated, navigate]);
+// DE:
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// PARA:
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+};
 ```
 
-Quando o usuario **ja esta autenticado** e acessa `/login`:
-1. `isAuthenticated` ja e `true`
-2. O `useEffect` dispara imediatamente
-3. O `IdentityContext` pode ainda estar em `"loading"` OU ter um estado stale
-
-Se o `IdentityContext` foi resetado por algum motivo (ex: recarregamento da pagina, mudanca de sessao), ele comeca em `"loading"` e pode transitar para `"wizard_required"` temporariamente.
-
----
-
-## Solucao Proposta
-
-### Parte 1: Login.tsx - Aguardar Resolucao de Identidade
-
-Modificar o `Login.tsx` para aguardar a resolucao de identidade antes de navegar:
-
-**Arquivo:** `src/pages/Login.tsx`
+### 2.2 Adicionar validacao no inicio do handler
 
 ```typescript
-// ADICIONAR import
-import { useIdentity } from "@/contexts/IdentityContext";
-
-// DENTRO DO COMPONENTE
-const { identityState, redirectPath } = useIdentity();
-
-// SUBSTITUIR useEffect (linhas 29-33)
-useEffect(() => {
-  // Aguardar auth E identity estarem resolvidos
-  if (isAuthenticated && identityState !== "loading") {
-    // Se wizard required, deixar o IdentityGate lidar
-    if (identityState === "wizard_required") {
-      navigate("/identity/wizard", { replace: true });
-      return;
-    }
-    
-    // Usar redirectPath do backend (mais preciso que /portal hardcoded)
-    const destination = redirectPath || "/portal";
-    navigate(destination, { replace: true });
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
   }
-}, [isAuthenticated, identityState, redirectPath, navigate]);
-```
 
-### Parte 2: Validacao de Seguranca
+  // ========================================
+  // CRON_SECRET VALIDATION (ADICIONAR)
+  // ========================================
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
 
-Esta mudanca:
-- NAO altera nenhuma logica de backend
-- NAO modifica tabelas ou RLS
-- NAO afeta usuarios nao autenticados
-- Respeita o contrato existente do IdentityContext
+  if (!cronSecret) {
+    console.error("[JOB-NAME] CRON_SECRET not configured");
+    return new Response(
+      JSON.stringify({ error: "Server configuration error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
----
-
-## Arquivos a Modificar
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/pages/Login.tsx` | Adicionar import `useIdentity`, modificar useEffect para aguardar `identityState !== "loading"` |
-
-**Total: 1 arquivo, ~10 linhas alteradas**
-
----
-
-## Fluxo Apos Correcao
-
-```text
-1. Usuario clica "Entrar" (ja autenticado)
-         |
-         v
-2. Login.tsx renderiza
-         |
-         v
-3. useEffect verifica:
-   - isAuthenticated = true ✓
-   - identityState === "loading" → AGUARDA
-         |
-         v
-4. IdentityContext resolve (Edge Function)
-         |
-         v
-5. identityState = "resolved" (com redirectPath = "/federacao-demo/portal")
-         |
-         v
-6. useEffect detecta identityState !== "loading"
-         |
-         v
-7. navigate(redirectPath) → /federacao-demo/portal
-         |
-         v
-8. Renderiza portal do atleta corretamente ✓
+  if (requestSecret !== cronSecret) {
+    console.error("[JOB-NAME] Invalid or missing x-cron-secret");
+    return new Response(
+      JSON.stringify({ error: "Forbidden" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  // ========================================
+  
+  // ... resto do codigo existente
+});
 ```
 
 ---
 
-## Validacao
+## 3. ARQUIVOS A MODIFICAR
 
-### Testes Manuais
-
-1. Fazer logout
-2. Fazer login com `luizfelipevillar@gmail.com`
-3. Verificar que redireciona para `/federacao-demo/portal`
-4. Fazer logout
-5. Enquanto logado, acessar `/login` diretamente
-6. Verificar que redireciona para `/federacao-demo/portal` (nao para wizard)
-
-### Testes E2E Existentes
-
-- `e2e/security/auth-guards.spec.ts` - Verificar que guards funcionam
-- `e2e/security/redirect-contract.spec.ts` - Verificar contratos de redirect
+| # | Arquivo | Linhas Afetadas |
+|---|---------|-----------------|
+| 1 | supabase/functions/expire-trials/index.ts | 18-21 (corsHeaders) + 53-56 (apos OPTIONS) |
+| 2 | supabase/functions/mark-pending-delete/index.ts | corsHeaders + apos OPTIONS |
+| 3 | supabase/functions/pre-expiration-scheduler/index.ts | 29-32 (corsHeaders) + apos OPTIONS |
+| 4 | supabase/functions/expire-memberships/index.ts | 8-11 (corsHeaders) + apos OPTIONS (linha 52) |
+| 5 | supabase/functions/cleanup-expired-tenants/index.ts | 27-30 (corsHeaders) + apos OPTIONS (linha 265) |
+| 6 | supabase/functions/cleanup-abandoned-memberships/index.ts | 5-8 (corsHeaders) + apos OPTIONS (linha 30) |
+| 7 | supabase/functions/check-membership-renewal/index.ts | 18-21 (corsHeaders) + apos OPTIONS (linha 28) |
+| 8 | supabase/functions/check-trial-ending/index.ts | 18-21 (corsHeaders) + apos OPTIONS (linha 30) |
 
 ---
 
-## Impacto
+## 4. SQL FINAL PARA PRODUCAO
 
-- Zero regressao funcional
-- Corrige o loop de redirect para usuarios autenticados
-- Respeita o `redirectPath` do backend
-- Nenhuma alteracao em Edge Functions ou banco de dados
+### 4.1 Pre-requisito: Configurar app.cron_secret
+
+```sql
+-- EXECUTAR PRIMEIRO: Definir o secret no banco
+-- Substitua 'SEU_CRON_SECRET_AQUI' pelo valor real do secret CRON_SECRET
+ALTER DATABASE postgres SET app.cron_secret = 'SEU_CRON_SECRET_AQUI';
+```
+
+### 4.2 Habilitar extensoes (se necessario)
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+```
+
+### 4.3 Agendar Jobs (SEM hardcode de secrets)
+
+```sql
+-- ============================================================
+-- TATAME PRO - AGENDAMENTO DE CRON JOBS (SEGURO)
+-- Usando x-cron-secret via current_setting
+-- ============================================================
+
+-- JOB 1: expire-trials-daily (00:05 UTC)
+SELECT cron.schedule(
+  'expire-trials-daily',
+  '5 0 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-trials',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 2: mark-pending-delete-daily (00:10 UTC)
+SELECT cron.schedule(
+  'mark-pending-delete-daily',
+  '10 0 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/mark-pending-delete',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 3: pre-expiration-scheduler-daily (02:30 UTC)
+SELECT cron.schedule(
+  'pre-expiration-scheduler-daily',
+  '30 2 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/pre-expiration-scheduler',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 4: expire-memberships-daily (03:00 UTC)
+SELECT cron.schedule(
+  'expire-memberships-daily',
+  '0 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-memberships',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 5: cleanup-expired-tenants-daily (03:15 UTC) ← AJUSTADO
+SELECT cron.schedule(
+  'cleanup-expired-tenants-daily',
+  '15 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-expired-tenants',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 6: cleanup-tmp-documents-daily (03:30 UTC)
+SELECT cron.schedule(
+  'cleanup-tmp-documents-daily',
+  '30 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-tmp-documents',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 7: cleanup-abandoned-memberships-daily (04:00 UTC)
+SELECT cron.schedule(
+  'cleanup-abandoned-memberships-daily',
+  '0 4 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-abandoned-memberships',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 8: check-membership-renewal-daily (09:00 UTC)
+SELECT cron.schedule(
+  'check-membership-renewal-daily',
+  '0 9 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/check-membership-renewal',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- JOB 9: check-trial-ending-daily (10:00 UTC)
+SELECT cron.schedule(
+  'check-trial-ending-daily',
+  '0 10 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/check-trial-ending',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', current_setting('app.cron_secret')
+    ),
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- ============================================================
+-- FIM DO AGENDAMENTO
+-- ============================================================
+```
+
+---
+
+## 5. CRONOGRAMA DE EXECUCAO
+
+| Fase | Acao | Responsavel |
+|------|------|-------------|
+| 1 | Modificar 8 Edge Functions (adicionar x-cron-secret) | Lovable |
+| 2 | Deploy automatico das Edge Functions | Lovable (automatico) |
+| 3 | Configurar app.cron_secret no banco | Usuario (SQL Editor) |
+| 4 | Habilitar extensoes pg_cron e pg_net | Usuario (SQL Editor) |
+| 5 | Agendar os 9 jobs | Usuario (SQL Editor) |
+| 6 | Validar execucao apos 24-48h | Usuario |
+
+---
+
+## 6. HORARIOS FINAIS (UTC)
+
+| Horario | Job | Justificativa |
+|---------|-----|---------------|
+| 00:05 | expire-trials-daily | Primeiro do dia, marca trials expirados |
+| 00:10 | mark-pending-delete-daily | Sequencia apos expire-trials |
+| 02:30 | pre-expiration-scheduler-daily | Bem antes de expire-memberships |
+| 03:00 | expire-memberships-daily | Expira filiacoes vencidas |
+| 03:15 | cleanup-expired-tenants-daily | **AJUSTADO** - 15min apos expire-memberships |
+| 03:30 | cleanup-tmp-documents-daily | Limpeza de arquivos |
+| 04:00 | cleanup-abandoned-memberships-daily | Limpeza de drafts |
+| 09:00 | check-membership-renewal-daily | Lembretes de renovacao |
+| 10:00 | check-trial-ending-daily | Alertas de fim de trial |
+
+---
+
+## 7. CHECKLIST DE VALIDACAO
+
+### Apos modificar Edge Functions
+
+```bash
+# Testar chamada SEM x-cron-secret (deve retornar 403)
+curl -X POST https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-trials \
+  -H "Content-Type: application/json" \
+  -d '{"scheduled": true}'
+# Esperado: {"error":"Forbidden"}
+
+# Testar chamada COM x-cron-secret (deve funcionar)
+curl -X POST https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/expire-trials \
+  -H "Content-Type: application/json" \
+  -H "x-cron-secret: SEU_CRON_SECRET" \
+  -d '{"scheduled": true}'
+# Esperado: {"success":true,...}
+```
+
+### Apos agendar jobs
+
+```sql
+-- Verificar jobs agendados
+SELECT jobid, jobname, schedule, active 
+FROM cron.job 
+ORDER BY jobname;
+-- Esperado: 9 jobs com active = true
+
+-- Verificar execucoes (apos 24-48h)
+SELECT j.jobname, d.status, d.start_time, d.return_message
+FROM cron.job j
+LEFT JOIN cron.job_run_details d ON j.jobid = d.jobid
+ORDER BY d.start_time DESC
+LIMIT 20;
+```
+
+---
+
+## 8. CRITERIO DE CONCLUSAO
+
+Este P0 sera considerado DONE quando:
+
+- [ ] 8 Edge Functions modificadas com x-cron-secret
+- [ ] Deploy automatico concluido
+- [ ] app.cron_secret configurado no banco
+- [ ] 9 jobs agendados e visiveis em cron.job
+- [ ] Primeira execucao com status "succeeded" em cron.job_run_details
+- [ ] Nenhum hardcode de secret no SQL
+
+---
+
+## 9. PROXIMOS PASSOS
+
+**Aguardando aprovacao para:**
+1. Modificar as 8 Edge Functions (adicionar validacao x-cron-secret)
+2. Fornecer SQL final para usuario executar manualmente
+
+**Deseja que eu prossiga com a implementacao das modificacoes nas Edge Functions?**
