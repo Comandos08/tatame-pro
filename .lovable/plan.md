@@ -1,163 +1,130 @@
 
-# P0.2 — Correcao Critica de Renovacao de Membership
+# P2 — Correção de Chaves i18n para Tipo de Filiação
 
 ## Resumo do Bug
 
 | Campo | Valor |
 |-------|-------|
-| Arquivo | `src/pages/MembershipRenew.tsx` |
-| Linha | 62 |
-| Codigo Atual | `.eq('user_id', currentUser.id)` |
-| Codigo Correto | `.eq('profile_id', currentUser.id)` |
-| Impacto | Renovacao de filiacoes 100% quebrada |
+| Arquivo de UI | `src/components/portal/MembershipStatusCard.tsx` |
+| Arquivos de Locale | `src/locales/pt-BR.ts`, `en.ts`, `es.ts` |
+| Problema | Chaves `membership.type.first` e `membership.type.renewal` não existem |
+| Resultado | UI exibe chave literal em vez do texto traduzido |
+| Criticidade | **P2 (Cosmético)** — Zero impacto funcional |
 
 ---
 
-## Diagnostico Tecnico
+## Diagnóstico Técnico
 
-### Modelo de Dados Confirmado
-
-```text
-profiles (id: UUID)
-    ↑
-    │ profile_id
-    │
-athletes (profile_id: UUID)
-```
-
-A tabela `athletes` usa `profile_id` como foreign key para `profiles`. A coluna `user_id` **NAO EXISTE**.
-
-### AuthContext Confirmado
+### Código Atual (MembershipStatusCard.tsx, linhas 57-66)
 
 ```typescript
-// AuthContext.tsx linha 68
-return {
-  id: profile.id,  // ← currentUser.id = profile.id
-  ...
+const getMembershipTypeLabel = () => {
+  switch (type) {
+    case "FIRST_MEMBERSHIP":
+      return t("membership.type.first");   // ❌ CHAVE NÃO EXISTE
+    case "RENEWAL":
+      return t("membership.type.renewal"); // ❌ CHAVE NÃO EXISTE
+    default:
+      return type;
+  }
 };
 ```
 
-O `currentUser.id` do AuthContext corresponde exatamente ao `profile.id`, que e a chave correta para `athletes.profile_id`.
+### Chaves Ausentes
+
+Verificação nos 3 arquivos de locale:
+
+| Chave | pt-BR.ts | en.ts | es.ts |
+|-------|----------|-------|-------|
+| `membership.type.first` | NAO EXISTE | NAO EXISTE | NAO EXISTE |
+| `membership.type.renewal` | NAO EXISTE | NAO EXISTE | NAO EXISTE |
 
 ---
 
-## Alteracao Necessaria (UNICA)
+## Escopo EXATO (Zero Regressão)
 
-### Arquivo: `src/pages/MembershipRenew.tsx`
+### Arquivos a MODIFICAR
 
-**Linhas 59-63 — Estado Atual (ERRADO):**
+| # | Arquivo | Alteração |
+|---|---------|-----------|
+| 1 | `src/locales/pt-BR.ts` | Adicionar 2 chaves |
+| 2 | `src/locales/en.ts` | Adicionar 2 chaves |
+| 3 | `src/locales/es.ts` | Adicionar 2 chaves |
+
+### Arquivos NÃO ALTERADOS
+
+- `src/components/portal/MembershipStatusCard.tsx` — Código já está correto, apenas faltam as chaves
+
+---
+
+## Alterações Propostas
+
+### 1. pt-BR.ts (após linha 77)
 
 ```typescript
-const athleteResult = await (supabase.from('athletes') as any)
-  .select('id, full_name')
-  .eq('tenant_id', tenant.id)
-  .eq('user_id', currentUser.id)  // ❌ COLUNA NAO EXISTE
-  .maybeSingle();
+// Membership Types (ADICIONAR)
+'membership.type.first': 'Primeira Filiação',
+'membership.type.renewal': 'Renovação',
 ```
 
-**Linhas 59-63 — Estado Correto (CORRECAO):**
+### 2. en.ts (após linha 77)
 
 ```typescript
-const athleteResult = await (supabase.from('athletes') as any)
-  .select('id, full_name')
-  .eq('tenant_id', tenant.id)
-  .eq('profile_id', currentUser.id)  // ✅ COLUNA CORRETA
-  .maybeSingle();
+// Membership Types (ADICIONAR)
+'membership.type.first': 'First Membership',
+'membership.type.renewal': 'Renewal',
 ```
 
----
-
-## Guard de Null Safety (ja implementado)
-
-O codigo ja possui guard adequado nas linhas 50-54:
+### 3. es.ts (após linha 77)
 
 ```typescript
-if (!tenant?.id || !currentUser?.id || !isAuthenticated) {
-  setIsLoadingMembership(false);
-  return;
-}
+// Membership Types (ADICIONAR)
+'membership.type.first': 'Primera Afiliación',
+'membership.type.renewal': 'Renovación',
 ```
 
-**Nenhuma alteracao adicional necessaria** — o guard existente ja cobre o cenario de `currentUser.id` nulo.
+---
+
+## Zero Regressão Garantida
+
+| Aspecto | Garantia |
+|---------|----------|
+| Código existente | NÃO ALTERADO |
+| Componentes | NÃO ALTERADOS |
+| Lógica de negócio | NÃO ALTERADA |
+| RLS | NÃO ALTERADA |
+| Edge Functions | NÃO ALTERADAS |
+| Outras chaves i18n | NÃO AFETADAS (apenas adição) |
+
+A correção consiste **APENAS** em adicionar 2 chaves em cada arquivo de locale. Nenhum código existente será modificado.
 
 ---
 
-## Validacao do Fluxo E2E
+## Resultado Esperado
 
-Apos a correcao:
-
-1. Usuario com membership EXPIRED acessa `/:tenantSlug/membership/renew`
-2. Query busca athlete com `profile_id = currentUser.id`
-3. Athlete encontrado corretamente
-4. Membership mais recente carregada
-5. Checkout de renovacao iniciado via Stripe
-6. Fluxo completa sem erros silenciosos
+| Antes | Depois |
+|-------|--------|
+| `membership.type.first` | `Primeira Filiação` |
+| `membership.type.renewal` | `Renovação` |
 
 ---
 
-## Impacto da Correcao
+## Validação
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Query athlete | FALHA (coluna inexistente) | SUCESSO |
-| Renovacao | BLOQUEADA | FUNCIONAL |
-| Erros | Silenciosos (query retorna null) | Nenhum |
-| Receita | PERDIDA | RECUPERADA |
+Após a correção:
 
----
-
-## Arquivos Alterados
-
-| Arquivo | Alteracao | Linhas |
-|---------|-----------|--------|
-| `src/pages/MembershipRenew.tsx` | `user_id` → `profile_id` | 62 |
-
-**Total**: 1 arquivo, 1 linha alterada.
+1. Acessar portal do atleta
+2. Verificar card "Status da Filiação"
+3. Campo "Tipo" deve exibir "Primeira Filiação" ou "Renovação"
+4. Testar nos 3 idiomas (pt-BR, en, es)
 
 ---
 
-## Edge Cases
+## Critérios de Aceite
 
-| Cenario | Tratamento |
-|---------|------------|
-| `currentUser.id` nulo | Guard existente (linha 51) |
-| Athlete nao encontrado | Guard existente (linha 67-70) |
-| Membership nao encontrada | UI trata (linhas 273-278) |
-| Tenant inativo | RLS impede acesso |
+- [ ] Chaves adicionadas nos 3 arquivos de locale
+- [ ] UI exibe texto traduzido em vez da chave literal
+- [ ] Build passa sem erros
+- [ ] Nenhum componente alterado
+- [ ] Zero regressão
 
-**Nenhum edge case remanescente** — todos os cenarios ja estao tratados pelo codigo existente.
-
----
-
-## Criterios de Aceite
-
-### Funcional
-
-- [x] Correcao da query de `user_id` para `profile_id`
-- [x] Guard de null safety mantido
-- [x] Fluxo E2E documentado
-
-### Tecnico
-
-- [x] Nenhuma referencia a `athletes.user_id` permanece
-- [x] Build sem warnings novos
-- [x] Nenhuma dependencia nova
-
-### Seguranca
-
-- [x] Nenhuma alteracao em RLS
-- [x] Nenhum bypass de autenticacao
-- [x] Nenhum acesso cross-tenant
-
----
-
-## Execucao
-
-A correcao consiste em alterar **1 palavra** na linha 62:
-
-```diff
-- .eq('user_id', currentUser.id)
-+ .eq('profile_id', currentUser.id)
-```
-
-Nenhuma outra alteracao sera feita.
