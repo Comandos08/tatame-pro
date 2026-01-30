@@ -12,6 +12,9 @@ export interface Tenant {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+
+  // ✅ P0.1 — Tenant onboarding contract
+  onboardingCompleted?: boolean;
 }
 
 export interface TenantContext {
