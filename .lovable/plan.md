@@ -1,346 +1,336 @@
 
-# PROMPT 4/4 — Padronização i18n (Admin)
+# PROMPT UX/01 — Logout + Header (Consistência Global)
 
-## RESUMO
+## RESUMO DO DIAGNÓSTICO
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos a MODIFICAR | 5 |
-| Keys i18n a criar | 72 |
-| Layout/UX alterados | ZERO |
-| Lógica de negócio alterada | ZERO |
-| Risco de regressão | Baixíssimo |
+| Arquivos a CRIAR | 1 |
+| Arquivos a MODIFICAR | 6 |
+| Layouts afetados | AppShell ✅, PortalLayout ✅ |
+| Risco de regressão | Baixo |
 
 ---
 
-## STRINGS HARDCODED IDENTIFICADAS
+## DIAGNÓSTICO CONFIRMADO
 
-### 1. AthletesList.tsx
+### Arquitetura Atual de Layouts
 
-| Linha | String Hardcoded | Nova Key |
-|-------|------------------|----------|
-| 163 | `'pt-BR'` (locale formatDate) | — (mantido, padrão) |
-| 168 | `'Nome'` | `admin.athletes.csv.name` |
-| 169 | `'E-mail'` | `admin.athletes.csv.email` |
-| 170 | `'Data de Nascimento'` | `admin.athletes.csv.birthDate` |
-| 171 | `'Academia'` | `admin.athletes.csv.academy` |
-| 174 | `'Status Filiação'` | `admin.athletes.csv.membershipStatus` |
-| 176 | `'Sem filiação'` | `admin.athletes.noMembership` |
-| 180 | `'Início Filiação'` | `admin.athletes.csv.membershipStart` |
-| 185 | `'Fim Filiação'` | `admin.athletes.csv.membershipEnd` |
-| 198 | `'Atletas'` | `admin.athletes.title` |
-| 201 | `'Gerencie os atletas cadastrados na organização'` | `admin.athletes.description` |
-| 219 | `'Buscar por nome...'` | `admin.athletes.searchPlaceholder` |
-| 228 | `'Academia'` (placeholder) | `admin.athletes.filterAcademy` |
-| 231 | `'Todas academias'` | `admin.athletes.allAcademies` |
-| 242 | `'Status'` (placeholder) | `admin.athletes.filterStatus` |
-| 245 | `'Todos status'` | `admin.athletes.allStatus` |
-| 246 | `'Ativa'` | — (usar `status.active`) |
-| 247 | `'Aguardando Aprovação'` | — (usar `status.pending_review`) |
-| 248 | `'Aguardando Pagamento'` | — (usar `status.pending_payment`) |
-| 249 | `'Expirada'` | — (usar `status.expired`) |
-| 266 | `'Nenhum atleta encontrado com os filtros selecionados.'` | `admin.athletes.emptyFiltered` |
-| 276 | `'Atleta'` | `admin.athletes.tableAthlete` |
-| 277 | `'Academia'` | `admin.athletes.tableAcademy` |
-| 278 | `'Status Filiação'` | `admin.athletes.tableMembershipStatus` |
-| 279 | `'Período'` | `admin.athletes.tablePeriod` |
-| 280 | `'Ações'` | — (usar `common.actions`) |
-| 315 | `'Sem filiação'` | `admin.athletes.noMembership` (reusar) |
-| 335 | `'Graduações'` | `admin.athletes.gradings` |
+O sistema utiliza 3 padrões de layout:
 
-### 2. AcademiesList.tsx
+| Layout | Uso | Logout |
+|--------|-----|--------|
+| `AppShell` | Rotas `/app/*` (admin) | ✅ Presente (sidebar) |
+| `PortalLayout` | Portal do atleta | ✅ Presente (header dropdown) |
+| `PublicHeader` | Landing pages | ❌ Correto (não autenticado) |
+| *(nenhum)* | Membership flows, Wizards | ❌ **PROBLEMA** |
 
-| Linha | String Hardcoded | Nova Key |
-|-------|------------------|----------|
-| 89 | `'Academia criada com sucesso'` | `admin.academies.createSuccess` |
-| 92 | `'Erro ao criar academia'` | `admin.academies.createError` |
-| 118 | `'Academia atualizada com sucesso'` | `admin.academies.updateSuccess` |
-| 121 | `'Erro ao atualizar academia'` | `admin.academies.updateError` |
-| 137 | `'Status atualizado'` | `admin.academies.statusUpdated` |
-| 140 | `'Erro ao atualizar status'` | `admin.academies.statusError` |
-| 172 | `'Nome é obrigatório'` | `admin.academies.nameRequired` |
-| 189 | `'Nome *'` | `admin.academies.formName` |
-| 194 | `'Nome da academia'` | `admin.academies.formNamePlaceholder` |
-| 198 | `'Slug'` | `admin.academies.formSlug` |
-| 203 | `'slug-da-academia'` | `admin.academies.formSlugPlaceholder` |
-| 209 | `'Modalidade'` | `admin.academies.formSport` |
-| 214 | `'Ex: BJJ'` | `admin.academies.formSportPlaceholder` |
-| 218 | `'Cidade'` | `admin.academies.formCity` |
-| 223 | `'Cidade'` | `admin.academies.formCityPlaceholder` |
-| 229 | `'Estado'` | `admin.academies.formState` |
-| 234 | `'UF'` | `admin.academies.formStatePlaceholder` |
-| 238 | `'Telefone'` | `admin.academies.formPhone` |
-| 243 | `'(11) 99999-9999'` | `admin.academies.formPhonePlaceholder` |
-| 248 | `'E-mail'` | `admin.academies.formEmail` |
-| 254 | `'academia@email.com'` | `admin.academies.formEmailPlaceholder` |
-| 269 | `'Academias'` | `admin.academies.title` |
-| 271 | `'Gerencie as academias vinculadas à'` | `admin.academies.description` |
-| 279 | `'Nova Academia'` | `admin.academies.newAcademy` |
-| 284 | `'Criar Academia'` | `admin.academies.createTitle` |
-| 286 | `'Adicione uma nova academia à organização'` | `admin.academies.createDesc` |
-| 291 | `'Cancelar'` | — (usar `common.cancel`) |
-| 296 | `'Criar'` | `admin.academies.create` |
-| 312 | `'Erro ao carregar academias'` | `admin.academies.loadError` |
-| 334 | `'Todas modalidades'` | `admin.academies.allSports` |
-| 369 | `'Ativa'` | — (usar `status.active`) |
-| 369 | `'Inativa'` | `admin.academies.inactive` |
-| 378 | `'Editar'` | — (usar `common.edit`) |
-| 383 | `'Editar Academia'` | `admin.academies.editTitle` |
-| 385 | `'Atualize as informações da academia'` | `admin.academies.editDesc` |
-| 390 | `'Cancelar'` | — (usar `common.cancel`) |
-| 395 | `'Salvar'` | — (usar `common.save`) |
-| 413 | `'Nenhuma academia cadastrada'` | `admin.academies.emptyTitle` |
-| 415 | `'Comece cadastrando as academias vinculadas à sua organização.'` | `admin.academies.emptyDesc` |
-| 420 | `'Criar primeira academia'` | `admin.academies.createFirst` |
+### Páginas SEM Header Consistente (autenticadas)
 
-### 3. CoachesList.tsx
+| Página | Rota | Problema |
+|--------|------|----------|
+| `MembershipStatus.tsx` | `/:tenant/membership/status` | Sem header |
+| `MembershipRenew.tsx` | `/:tenant/membership/renew` | Sem header |
+| `MembershipSuccess.tsx` | `/:tenant/membership/success` | Sem header |
+| `AdultMembershipForm.tsx` | `/:tenant/membership/adult` | Sem header |
+| `IdentityWizard.tsx` | `/identity/wizard` | Logout inline, sem header |
 
-| Linha | String Hardcoded | Nova Key |
-|-------|------------------|----------|
-| 141 | `'Coach cadastrado com sucesso'` | `admin.coaches.createSuccess` |
-| 144 | `'Erro ao criar coach'` | `admin.coaches.createError` |
-| 166 | `'Coach atualizado com sucesso'` | `admin.coaches.updateSuccess` |
-| 169 | `'Erro ao atualizar coach'` | `admin.coaches.updateError` |
-| 185 | `'Status atualizado'` | `admin.coaches.statusUpdated` |
-| 188 | `'Erro ao atualizar status'` | `admin.coaches.statusError` |
-| 212 | `'Coach vinculado à academia'` | `admin.coaches.linkSuccess` |
-| 216 | `'Coach já está vinculado a esta academia'` | `admin.coaches.alreadyLinked` |
-| 218 | `'Erro ao vincular coach'` | `admin.coaches.linkError` |
-| 251 | `'Nome é obrigatório'` | `admin.coaches.nameRequired` |
-| 264 | `'Selecione uma academia'` | `admin.coaches.selectAcademy` |
-| 280 | `'Nome Completo *'` | `admin.coaches.formName` |
-| 285 | `'Nome do coach'` | `admin.coaches.formNamePlaceholder` |
-| 290 | `'Modalidade Principal'` | `admin.coaches.formSport` |
-| 295 | `'Ex: BJJ'` | `admin.coaches.formSportPlaceholder` |
-| 299 | `'Graduação'` | `admin.coaches.formRank` |
-| 304 | `'Ex: Faixa Preta 3° grau'` | `admin.coaches.formRankPlaceholder` |
-| 310 | `'E-mail do Perfil (opcional)'` | `admin.coaches.formEmail` |
-| 315 | `'coach@email.com'` | `admin.coaches.formEmailPlaceholder` |
-| 319 | `'Se o coach já possui conta, informe o e-mail para vincular'` | `admin.coaches.formEmailHint` |
-| 335 | `'Coaches'` | `admin.coaches.title` |
-| 337 | `'Gerencie os professores e instrutores da'` | `admin.coaches.description` |
-| 345 | `'Novo Coach'` | `admin.coaches.newCoach` |
-| 350 | `'Cadastrar Coach'` | `admin.coaches.createTitle` |
-| 352 | `'Adicione um novo coach à organização'` | `admin.coaches.createDesc` |
-| 357 | `'Cancelar'` | — (usar `common.cancel`) |
-| 362 | `'Criar'` | `admin.coaches.create` |
-| 374 | `'Vincular à Academia'` | `admin.coaches.linkTitle` |
-| 376 | `'Vincule ... a uma academia'` | `admin.coaches.linkDesc` |
-| 381 | `'Academia'` | `admin.coaches.academyLabel` |
-| 384 | `'Selecione a academia'` | `admin.coaches.selectAcademyPlaceholder` |
-| 396 | `'Função'` | `admin.coaches.roleLabel` |
-| 412 | `'Cancelar'` | — (usar `common.cancel`) |
-| 417 | `'Vincular'` | `admin.coaches.link` |
-| 431 | `'Erro ao carregar coaches'` | `admin.coaches.loadError` |
-| 453 | `'Todas modalidades'` | `admin.coaches.allSports` |
-| 477 | `'Academias:'` | `admin.coaches.academiesLabel` |
-| 489 | `'Ativo'` | — (usar `status.active`) |
-| 490 | `'Inativo'` | `admin.coaches.inactive` |
-| 500 | `'Editar'` | — (usar `common.edit`) |
-| ~505 | `'Editar Coach'` | `admin.coaches.editTitle` |
-| ~507 | `'Atualize as informações do coach'` | `admin.coaches.editDesc` |
-| ~512 | `'Cancelar'` | — (usar `common.cancel`) |
-| ~517 | `'Salvar'` | — (usar `common.save`) |
-| ~533 | `'Nenhum coach cadastrado'` | `admin.coaches.emptyTitle` |
-| ~535 | `'Comece cadastrando os coaches da organização.'` | `admin.coaches.emptyDesc` |
-| ~540 | `'Cadastrar primeiro coach'` | `admin.coaches.createFirst` |
-| ~545 | `'Vincular'` | `admin.coaches.linkAcademy` |
+### Páginas de Join (fluxo público-híbrido)
+
+| Página | Rota | Situação |
+|--------|------|----------|
+| `JoinOrg.tsx` | `/join/org` | Logo TATAME (público) |
+| `JoinAccount.tsx` | `/join/account` | Logo TATAME (público) |
+| `JoinConfirm.tsx` | `/join/confirm` | **Requer login** — sem logout |
 
 ---
 
-## NOVAS KEYS I18N
+## ESTRATÉGIA TÉCNICA
 
-### pt-BR.ts (72 novas keys)
+### Abordagem: Criar `AuthenticatedHeader` Leve
 
-```typescript
-// Admin Athletes
-'admin.athletes.title': 'Atletas',
-'admin.athletes.description': 'Gerencie os atletas cadastrados na organização',
-'admin.athletes.searchPlaceholder': 'Buscar por nome...',
-'admin.athletes.filterAcademy': 'Academia',
-'admin.athletes.allAcademies': 'Todas academias',
-'admin.athletes.filterStatus': 'Status',
-'admin.athletes.allStatus': 'Todos status',
-'admin.athletes.emptyFiltered': 'Nenhum atleta encontrado com os filtros selecionados.',
-'admin.athletes.tableAthlete': 'Atleta',
-'admin.athletes.tableAcademy': 'Academia',
-'admin.athletes.tableMembershipStatus': 'Status Filiação',
-'admin.athletes.tablePeriod': 'Período',
-'admin.athletes.noMembership': 'Sem filiação',
-'admin.athletes.gradings': 'Graduações',
-'admin.athletes.csv.name': 'Nome',
-'admin.athletes.csv.email': 'E-mail',
-'admin.athletes.csv.birthDate': 'Data de Nascimento',
-'admin.athletes.csv.academy': 'Academia',
-'admin.athletes.csv.membershipStatus': 'Status Filiação',
-'admin.athletes.csv.membershipStart': 'Início Filiação',
-'admin.athletes.csv.membershipEnd': 'Fim Filiação',
+Criar um componente minimalista de header para páginas autenticadas que não usam `AppShell` ou `PortalLayout`.
 
-// Admin Academies
-'admin.academies.title': 'Academias',
-'admin.academies.description': 'Gerencie as academias vinculadas à',
-'admin.academies.newAcademy': 'Nova Academia',
-'admin.academies.createTitle': 'Criar Academia',
-'admin.academies.createDesc': 'Adicione uma nova academia à organização',
-'admin.academies.create': 'Criar',
-'admin.academies.createSuccess': 'Academia criada com sucesso',
-'admin.academies.createError': 'Erro ao criar academia',
-'admin.academies.editTitle': 'Editar Academia',
-'admin.academies.editDesc': 'Atualize as informações da academia',
-'admin.academies.updateSuccess': 'Academia atualizada com sucesso',
-'admin.academies.updateError': 'Erro ao atualizar academia',
-'admin.academies.statusUpdated': 'Status atualizado',
-'admin.academies.statusError': 'Erro ao atualizar status',
-'admin.academies.loadError': 'Erro ao carregar academias',
-'admin.academies.nameRequired': 'Nome é obrigatório',
-'admin.academies.formName': 'Nome *',
-'admin.academies.formNamePlaceholder': 'Nome da academia',
-'admin.academies.formSlug': 'Slug',
-'admin.academies.formSlugPlaceholder': 'slug-da-academia',
-'admin.academies.formSport': 'Modalidade',
-'admin.academies.formSportPlaceholder': 'Ex: Jiu-Jitsu',
-'admin.academies.formCity': 'Cidade',
-'admin.academies.formCityPlaceholder': 'Cidade',
-'admin.academies.formState': 'Estado',
-'admin.academies.formStatePlaceholder': 'UF',
-'admin.academies.formPhone': 'Telefone',
-'admin.academies.formPhonePlaceholder': '(11) 99999-9999',
-'admin.academies.formEmail': 'E-mail',
-'admin.academies.formEmailPlaceholder': 'academia@email.com',
-'admin.academies.allSports': 'Todas modalidades',
-'admin.academies.inactive': 'Inativa',
-'admin.academies.emptyTitle': 'Nenhuma academia cadastrada',
-'admin.academies.emptyDesc': 'Comece cadastrando as academias vinculadas à sua organização.',
-'admin.academies.createFirst': 'Criar primeira academia',
+**Características:**
+- Altura mínima (48px)
+- Logo ou nome do tenant (se disponível)
+- Botão de Logout sempre visível
+- Sem navegação lateral
+- Compatível com pages full-screen (wizards, forms)
 
-// Admin Coaches
-'admin.coaches.title': 'Coaches',
-'admin.coaches.description': 'Gerencie os professores e instrutores da',
-'admin.coaches.newCoach': 'Novo Coach',
-'admin.coaches.createTitle': 'Cadastrar Coach',
-'admin.coaches.createDesc': 'Adicione um novo coach à organização',
-'admin.coaches.create': 'Criar',
-'admin.coaches.createSuccess': 'Coach cadastrado com sucesso',
-'admin.coaches.createError': 'Erro ao criar coach',
-'admin.coaches.editTitle': 'Editar Coach',
-'admin.coaches.editDesc': 'Atualize as informações do coach',
-'admin.coaches.updateSuccess': 'Coach atualizado com sucesso',
-'admin.coaches.updateError': 'Erro ao atualizar coach',
-'admin.coaches.statusUpdated': 'Status atualizado',
-'admin.coaches.statusError': 'Erro ao atualizar status',
-'admin.coaches.loadError': 'Erro ao carregar coaches',
-'admin.coaches.nameRequired': 'Nome é obrigatório',
-'admin.coaches.selectAcademy': 'Selecione uma academia',
-'admin.coaches.formName': 'Nome Completo *',
-'admin.coaches.formNamePlaceholder': 'Nome do coach',
-'admin.coaches.formSport': 'Modalidade Principal',
-'admin.coaches.formSportPlaceholder': 'Ex: Jiu-Jitsu',
-'admin.coaches.formRank': 'Graduação',
-'admin.coaches.formRankPlaceholder': 'Ex: Faixa Preta 3° grau',
-'admin.coaches.formEmail': 'E-mail do Perfil (opcional)',
-'admin.coaches.formEmailPlaceholder': 'coach@email.com',
-'admin.coaches.formEmailHint': 'Se o coach já possui conta, informe o e-mail para vincular',
-'admin.coaches.linkTitle': 'Vincular à Academia',
-'admin.coaches.linkDesc': 'Vincule {name} a uma academia',
-'admin.coaches.academyLabel': 'Academia',
-'admin.coaches.selectAcademyPlaceholder': 'Selecione a academia',
-'admin.coaches.roleLabel': 'Função',
-'admin.coaches.link': 'Vincular',
-'admin.coaches.linkSuccess': 'Coach vinculado à academia',
-'admin.coaches.alreadyLinked': 'Coach já está vinculado a esta academia',
-'admin.coaches.linkError': 'Erro ao vincular coach',
-'admin.coaches.allSports': 'Todas modalidades',
-'admin.coaches.academiesLabel': 'Academias:',
-'admin.coaches.inactive': 'Inativo',
-'admin.coaches.emptyTitle': 'Nenhum coach cadastrado',
-'admin.coaches.emptyDesc': 'Comece cadastrando os coaches da organização.',
-'admin.coaches.createFirst': 'Cadastrar primeiro coach',
-'admin.coaches.linkAcademy': 'Vincular',
+---
+
+## ALTERAÇÕES EXATAS
+
+### 1. CRIAR: `src/components/auth/AuthenticatedHeader.tsx`
+
+Componente leve que renderiza:
+- Logo (tenant ou TATAME)
+- User dropdown com Logout
+- Theme toggle (opcional)
+- Language selector (opcional)
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  [Logo]                         [🌐] [☀️] [User ▾]     │
+│                                          └─ Logout     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Props:**
+- `tenantName?: string`
+- `tenantLogo?: string`
+- `showBackButton?: boolean`
+- `backTo?: string`
+
+**Comportamento:**
+- Se `isAuthenticated === true` → exibe header com logout
+- Se `isAuthenticated === false` → não renderiza (página pública)
+
+---
+
+### 2. MODIFICAR: `src/pages/MembershipStatus.tsx`
+
+**Local:** Container principal
+
+**Antes:**
+```tsx
+<div className="min-h-screen bg-background">
+  <div className="container max-w-2xl mx-auto px-4 py-8">
+    ...
+  </div>
+</div>
+```
+
+**Depois:**
+```tsx
+<div className="min-h-screen bg-background">
+  <AuthenticatedHeader 
+    tenantName={tenant?.name}
+    tenantLogo={tenant?.logoUrl}
+  />
+  <div className="container max-w-2xl mx-auto px-4 py-8">
+    ...
+  </div>
+</div>
 ```
 
 ---
 
-## ALTERAÇÕES POR ARQUIVO
+### 3. MODIFICAR: `src/pages/MembershipRenew.tsx`
 
-### 1. `src/locales/pt-BR.ts`
-- Adicionar 72 novas keys no namespace `admin.*`
+**Local:** Container principal (linha ~223)
 
-### 2. `src/locales/en.ts`
-- Adicionar 72 novas keys correspondentes em inglês
+**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
 
-### 3. `src/locales/es.ts`
-- Adicionar 72 novas keys correspondentes em espanhol
+---
 
-### 4. `src/pages/AthletesList.tsx`
-- Substituir todas as strings hardcoded por `t('admin.athletes.*')`
-- Reutilizar keys existentes (`common.actions`, `status.*`)
+### 4. MODIFICAR: `src/components/membership/MembershipSuccess.tsx`
 
-### 5. `src/pages/AcademiesList.tsx`
-- Substituir todas as strings hardcoded por `t('admin.academies.*')`
-- Reutilizar keys existentes (`common.cancel`, `common.save`, `common.edit`, `status.active`)
+**Local:** Container principal (linha ~56)
 
-### 6. `src/pages/CoachesList.tsx`
-- Substituir todas as strings hardcoded por `t('admin.coaches.*')`
-- Reutilizar keys existentes
+**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
+
+---
+
+### 5. MODIFICAR: `src/components/membership/AdultMembershipForm.tsx`
+
+**Local:** Container principal do formulário
+
+**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
+
+---
+
+### 6. MODIFICAR: `src/pages/IdentityWizard.tsx`
+
+**Local:** Container principal (linha ~220)
+
+**Comportamento especial:**
+- Já possui botão de logout inline
+- Adicionar header para consistência visual
+- Manter logout inline como fallback
+
+---
+
+### 7. MODIFICAR: `src/pages/JoinConfirm.tsx`
+
+**Local:** Container principal
+
+**Comportamento:** Adicionar header se usuário autenticado (etapa após login)
+
+---
+
+## IMPLEMENTAÇÃO DO COMPONENTE
+
+```tsx
+// src/components/auth/AuthenticatedHeader.tsx
+
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { LogOut, Globe, Sun, Moon, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useI18n } from '@/contexts/I18nContext';
+import iconLogo from '@/assets/iconLogo.png';
+
+interface AuthenticatedHeaderProps {
+  tenantName?: string;
+  tenantLogo?: string | null;
+  tenantSlug?: string;
+}
+
+export function AuthenticatedHeader({ 
+  tenantName, 
+  tenantLogo,
+  tenantSlug 
+}: AuthenticatedHeaderProps) {
+  const { currentUser, isAuthenticated, signOut } = useCurrentUser();
+  const { resolvedTheme, setTheme } = useTheme();
+  const { t } = useI18n();
+  const navigate = useNavigate();
+
+  // Não renderiza se não autenticado
+  if (!isAuthenticated) return null;
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate(tenantSlug ? `/${tenantSlug}` : '/login');
+  };
+
+  return (
+    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+      <div className="container max-w-4xl mx-auto flex h-14 items-center justify-between px-4">
+        {/* Logo */}
+        <Link to={tenantSlug ? `/${tenantSlug}` : '/'} className="flex items-center gap-2">
+          {tenantLogo ? (
+            <img src={tenantLogo} alt={tenantName || ''} className="h-8 w-8 rounded object-cover" />
+          ) : (
+            <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded object-contain" />
+          )}
+          {tenantName && (
+            <span className="font-semibold text-sm hidden sm:inline">{tenantName}</span>
+          )}
+        </Link>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* Theme toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+          >
+            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+
+          {/* User menu with logout */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline text-sm max-w-[100px] truncate">
+                  {currentUser?.name || currentUser?.email?.split('@')[0]}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                {t('nav.logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+---
+
+## FLUXO CORRIGIDO
+
+```text
+ANTES:
+┌───────────────────────────────────┐
+│ MembershipStatus.tsx              │
+│                                   │
+│  [Back button]                    │
+│                                   │
+│  ┌─────────────────────────────┐  │
+│  │      Status Card            │  │
+│  │      (sem logout!)          │  │
+│  └─────────────────────────────┘  │
+└───────────────────────────────────┘
+
+DEPOIS:
+┌───────────────────────────────────┐
+│ [Logo]           [☀️] [User ▾]   │ ← AuthenticatedHeader
+│                        └─ Logout │
+├───────────────────────────────────┤
+│                                   │
+│  ┌─────────────────────────────┐  │
+│  │      Status Card            │  │
+│  └─────────────────────────────┘  │
+└───────────────────────────────────┘
+```
 
 ---
 
 ## VALIDAÇÃO
 
-1. **Compilação**: `npm run typecheck` passa sem erros
-2. **PT-BR**: Textos exibidos são idênticos aos atuais
-3. **EN/ES**: Troca de idioma exibe traduções corretas
-4. **Layout**: Nenhuma alteração visual
-5. **Fluxos**: Nenhuma lógica de negócio alterada
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| `/membership/status` | ❌ Sem logout | ✅ Header com logout |
+| `/membership/renew` | ❌ Sem logout | ✅ Header com logout |
+| `/membership/success` | ❌ Sem logout | ✅ Header com logout |
+| `/membership/adult` | ❌ Sem logout | ✅ Header com logout |
+| `/identity/wizard` | ⚠️ Inline only | ✅ Header + inline |
+| `/:tenant/app/*` | ✅ AppShell | ✅ Mantido |
+| `/:tenant/portal` | ✅ PortalLayout | ✅ Mantido |
+| Páginas públicas | ✅ PublicHeader | ✅ Mantido |
 
 ---
 
 ## GARANTIAS
 
-- **ZERO alterações de layout**
-- **ZERO alterações de lógica de negócio**
-- **ZERO alterações de guards/hooks/schemas**
-- **ZERO alterações de UX visual**
-- **ZERO alterações de comportamento condicional**
-- **Apenas substituição de strings por `t()`**
+- **ZERO alteração de lógica de autenticação**
+- **ZERO alteração de guards**
+- **ZERO alteração de fluxos existentes**
+- **ZERO impacto em impersonação** (ImpersonationBanner permanece)
+- **ZERO alteração de layout de AppShell/PortalLayout**
+- **Componente aditivo, não substitutivo**
 
 ---
 
 ## SEÇÃO TÉCNICA
 
-### Padrão de Implementação
+### Integração com ImpersonationBanner
 
-```typescript
-// ANTES
-<h1>Atletas</h1>
+O `ImpersonationBanner` é renderizado em `AppProviders.tsx`, portanto aparece em TODAS as páginas. A adição de `AuthenticatedHeader` não interfere:
 
-// DEPOIS
-const { t } = useI18n();
-...
-<h1>{t('admin.athletes.title')}</h1>
+```text
+AppProviders.tsx:
+  └─ ImpersonationBanner (global, z-50)
+  └─ ImpersonationBannerSpacer (padding top)
+  └─ children
+       └─ AuthenticatedHeader (sticky top-0, z-40)
+       └─ Page content
 ```
 
-### Keys com Interpolação
+### Prioridade de Z-Index
 
-```typescript
-// Para descrições com nome do tenant
-<p>{t('admin.academies.description')} {tenant.name}</p>
+| Componente | Z-Index | Posição |
+|------------|---------|---------|
+| ImpersonationBanner | 50 | Topo absoluto |
+| AuthenticatedHeader | 40 | Abaixo do banner |
+| AppShell sidebar | 50 | Lateral |
+| Modal/Dialog | 50+ | Overlay |
 
-// Para linkDesc com nome do coach
-<DialogDescription>
-  {t('admin.coaches.linkDesc').replace('{name}', linkingCoach?.full_name || '')}
-</DialogDescription>
-```
+### Responsividade
 
-### Reutilização de Keys Existentes
-
-| String | Key Existente |
-|--------|---------------|
-| Cancelar | `common.cancel` |
-| Salvar | `common.save` |
-| Editar | `common.edit` |
-| Ações | `common.actions` |
-| Ativa | `status.active` |
-| Aguardando Aprovação | `status.pending_review` |
-| Aguardando Pagamento | `status.pending_payment` |
-| Expirada | `status.expired` |
+- Mobile: Logo apenas, nome do usuário abreviado
+- Desktop: Logo + tenant name, nome completo do usuário
