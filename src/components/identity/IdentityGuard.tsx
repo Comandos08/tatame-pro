@@ -113,8 +113,30 @@ export function IdentityGuard({ children }: IdentityGuardProps) {
    * ✅ ABSOLUTE RULE:
    * Public routes MUST render immediately.
    */
+  /**
+   * ✅ ABSOLUTE RULE:
+   * Public routes MUST render immediately.
+   */
   if (shouldBypass) {
     return <>{children}</>;
+  }
+
+  // ===== DEV GUARDRAIL: OBSERVABILITY ONLY =====
+  // 🚨 WARNING: This block is for DIAGNOSTICS ONLY.
+  // DO NOT add navigation logic, redirects, or any behavior changes here.
+  // Its sole purpose is to detect and log improper wizard redirects during development.
+  // Any modification to this block that affects runtime behavior is STRICTLY PROHIBITED.
+  // See: docs/routing-lock.md
+  if (import.meta.env.DEV) {
+    if (!isAuthenticated && pathname === '/identity/wizard') {
+      console.warn('[IdentityGuard] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
+        pathname,
+        isAuthenticated,
+        referrer: document.referrer,
+        timestamp: new Date().toISOString(),
+        hint: 'This should NEVER happen. Check BYPASS_ROUTES and PUBLIC_TENANT_PATTERNS.',
+      });
+    }
   }
 
   /**
