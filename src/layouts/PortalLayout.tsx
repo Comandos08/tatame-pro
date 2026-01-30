@@ -13,6 +13,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 
 interface PortalLayoutProps {
   children: ReactNode;
@@ -30,8 +31,9 @@ export function PortalLayout({
   tenantSlug,
 }: PortalLayoutProps) {
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const { signOut } = useCurrentUser();
+  const { isImpersonating } = useImpersonation();
   const navigate = useNavigate();
 
   const getInitials = (name: string) => {
@@ -72,6 +74,11 @@ export function PortalLayout({
               <span className="font-display font-semibold text-foreground hidden sm:inline">
                 {tenantName}
               </span>
+              {isImpersonating && (
+                <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                  ({t('impersonation.supportMode')})
+                </span>
+              )}
             </Link>
 
             {/* Right: User menu + controls */}

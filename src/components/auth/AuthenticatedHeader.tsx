@@ -23,6 +23,7 @@ import {
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import iconLogo from '@/assets/iconLogo.png';
 
 interface AuthenticatedHeaderProps {
@@ -39,6 +40,7 @@ export function AuthenticatedHeader({
   const { currentUser, isAuthenticated, signOut } = useCurrentUser();
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useI18n();
+  const { isImpersonating } = useImpersonation();
   const navigate = useNavigate();
   const { tenantSlug: paramTenantSlug } = useParams();
 
@@ -83,6 +85,13 @@ export function AuthenticatedHeader({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* Impersonation badge */}
+          {isImpersonating && (
+            <span className="rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200 text-xs px-2 py-0.5 font-medium">
+              {t('impersonation.badge')}
+            </span>
+          )}
+
           {/* Theme toggle */}
           <Button
             variant="ghost"

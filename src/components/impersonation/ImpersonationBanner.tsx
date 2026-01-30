@@ -11,7 +11,8 @@
  * Cannot be hidden or dismissed while session is active.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Clock, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,20 @@ import { useI18n } from '@/contexts/I18nContext';
 export function ImpersonationBanner() {
   const { isImpersonating, session, remainingMinutes, endImpersonation } = useImpersonation();
   const { t } = useI18n();
+  const location = useLocation();
+
+  // Derive navigation mode from current route
+  const navigationMode = useMemo(() => {
+    const path = location.pathname;
+    // Onboarding first (more specific)
+    if (path.includes('/app/onboarding')) return t('impersonation.modeOnboarding');
+    // Admin routes
+    if (path.includes('/app')) return t('impersonation.modeAdmin');
+    // Portal routes
+    if (path.includes('/portal')) return t('impersonation.modePortal');
+    // Fallback
+    return t('impersonation.modePublic');
+  }, [location.pathname, t]);
 
   if (!isImpersonating || !session) {
     return null;
@@ -55,8 +70,8 @@ export function ImpersonationBanner() {
         `}
       >
         <div className="container mx-auto flex items-center justify-between gap-4">
-          {/* Left: Icon + Message */}
-          <div className="flex items-center gap-3">
+          {/* Left: Icon + Message + Context */}
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               {isExpiringSoon ? (
                 <AlertTriangle className="h-5 w-5 animate-pulse" />
@@ -68,9 +83,13 @@ export function ImpersonationBanner() {
               </span>
             </div>
             <span className="hidden sm:inline text-sm opacity-90">—</span>
-            <span className="hidden sm:inline font-medium text-sm">
-              {session.targetTenantName}
-            </span>
+            <div className="hidden sm:flex items-center gap-2 text-sm">
+              <span className="opacity-80">{t('impersonation.tenant')}:</span>
+              <span className="font-medium">{session.targetTenantName}</span>
+              <span className="opacity-50">•</span>
+              <span className="opacity-80">{t('impersonation.mode')}:</span>
+              <span className="font-medium">{navigationMode}</span>
+            </div>
           </div>
 
           {/* Center: Timer */}
