@@ -1,212 +1,157 @@
 
-# PROMPT 2/4 — Renovação de Filiação: Status ACTIVE vs end_date
+# PROMPT 3/4 — Filiação de Menor (Youth): OPÇÃO B — OCULTAR COM SEGURANÇA
 
-## RESUMO
+## DECISÃO
 
-| Métrica | Valor |
-|---------|-------|
-| Arquivos a MODIFICAR | 2 |
-| Linhas alteradas | ~10 |
-| Layout/UX alterados | ZERO |
-| Fluxo de pagamento alterado | ZERO |
-| Novos status criados | ZERO |
-| Risco de regressão | Baixo |
+**OPÇÃO SELECIONADA: B — OCULTAR COM SEGURANÇA**
 
 ---
 
-## DIAGNÓSTICO CONFIRMADO
+## JUSTIFICATIVA (Fatores Técnicos Objetivos)
 
-### Pontos de Decisão Afetados
+| Fator | Status | Impacto |
+|-------|--------|---------|
+| Testes E2E existentes | ❌ Zero | Não validável |
+| Dados de seed | ❌ Zero guardians no banco | Não testável |
+| Consistência arquitetural | ❌ CRÍTICO | Youth cria athlete diretamente; Adult usa `applicant_data` |
+| Fluxo de aprovação | ❌ Incompatível | `approve-membership` espera `applicant_data`, Youth não usa |
+| RLS policies | ✅ Existem | — |
+| Tabelas | ✅ Existem | — |
 
-| Arquivo | Lógica Atual | Problema |
-|---------|--------------|----------|
-| `MembershipRenew.tsx` (linha 112) | `status !== 'EXPIRED'` → redirect | Ignora `end_date` no passado |
-| `PortalAccessGate.tsx` (linha 66) | `status === 'EXPIRED'` → gate | Ignora `end_date` no passado |
+### Inconsistência Arquitetural Crítica
 
-### Componentes que já estão CORRETOS
-
-| Arquivo | Lógica | Status |
-|---------|--------|--------|
-| `RenewalBanner.tsx` (linha 28) | `status === 'EXPIRED' OR daysUntilExpiry < 0` | ✅ CORRETO |
-| `InAppNotice.tsx` | Exibe aviso baseado em status | ⚠️ Baixa prioridade (visual) |
-
----
-
-## REGRA DE NEGÓCIO CANÔNICA
-
-```text
-Uma membership está EFETIVAMENTE EXPIRADA quando:
-
-  status === 'EXPIRED'
-  OU
-  (end_date !== null E end_date < now)
-
-Neste caso, a renovação DEVE ser permitida.
+**AdultMembershipForm** (correto):
 ```
+Step 1-3 → Dados em memória → Edge Function cria membership com applicant_data
+         → Admin aprova → Athlete criado a partir de applicant_data
+```
+
+**YouthMembershipForm** (problemático):
+```
+Step 1-4 → Cria guardian DIRETAMENTE (linha 167-178)
+         → Cria athlete DIRETAMENTE (linha 182-200)
+         → Cria membership SEM applicant_data
+         → Admin aprova → ??? (athlete já existe)
+```
+
+Esta inconsistência gera:
+- Atleta órfão se pagamento falhar
+- Dados duplicados se usuário refizer
+- Incompatibilidade com o fluxo de aprovação existente
 
 ---
 
 ## ALTERAÇÕES EXATAS
 
-### 1. `src/pages/MembershipRenew.tsx`
+### 1. `src/components/membership/MembershipTypeSelector.tsx`
 
-**Local:** Linhas 105-119 (useEffect de redirect)
+**Ação:** Remover opção "Youth" do array de opções visíveis
 
-**ANTES:**
+**Local:** Linhas 85-99
+
 ```typescript
-// Redirect se status não for EXPIRED
-useEffect(() => {
-  if (isLoadingMembership || !tenantSlug) return;
+// ANTES:
+const options = [
+  {
+    id: 'adult',
+    title: 'Atleta Adulto',
+    description: 'Para atletas com 18 anos ou mais...',
+    icon: User,
+    path: `/${tenantSlug}/membership/adult`,
+  },
+  {
+    id: 'youth',
+    title: 'Atleta Menor de Idade',
+    description: 'Para atletas menores de 18 anos...',
+    icon: Users,
+    path: `/${tenantSlug}/membership/youth`,
+  },
+];
 
-  const status = membership?.status?.toUpperCase() as MembershipStatus;
-  
-  // Se não for EXPIRED, redirecionar para o destino correto
-  if (status !== 'EXPIRED') {
-    const redirectPath = resolveAthletePostLoginRedirect({
-      tenantSlug,
-      membershipStatus: status || null,
-    });
-    navigate(redirectPath, { replace: true });
-  }
-}, [membership, isLoadingMembership, tenantSlug, navigate]);
+// DEPOIS:
+const options = [
+  {
+    id: 'adult',
+    title: 'Atleta Adulto',
+    description: 'Para atletas com 18 anos ou mais...',
+    icon: User,
+    path: `/${tenantSlug}/membership/adult`,
+  },
+  // ⚠️ P3/4 — Youth membership hidden (pending E2E validation)
+  // {
+  //   id: 'youth',
+  //   title: 'Atleta Menor de Idade',
+  //   description: 'Para atletas menores de 18 anos...',
+  //   icon: Users,
+  //   path: `/${tenantSlug}/membership/youth`,
+  // },
+];
 ```
-
-**DEPOIS:**
-```typescript
-// Redirect se NÃO estiver efetivamente expirada
-useEffect(() => {
-  if (isLoadingMembership || !tenantSlug) return;
-
-  const status = membership?.status?.toUpperCase() as MembershipStatus;
-  
-  // ✅ P2/4 — Verificar expiração por STATUS ou por DATA
-  const isEffectivelyExpired = status === 'EXPIRED' || (
-    membership?.end_date && new Date(membership.end_date) < new Date()
-  );
-  
-  // Se NÃO estiver efetivamente expirada, redirecionar para o destino correto
-  if (!isEffectivelyExpired) {
-    const redirectPath = resolveAthletePostLoginRedirect({
-      tenantSlug,
-      membershipStatus: status || null,
-    });
-    navigate(redirectPath, { replace: true });
-  }
-}, [membership, isLoadingMembership, tenantSlug, navigate]);
-```
-
-**Justificativa:**
-- Membership com `status=ACTIVE` mas `end_date` no passado → permite renovação
-- Membership com `status=EXPIRED` → permite renovação (comportamento existente)
-- Membership com `status=ACTIVE` e `end_date` no futuro → redireciona para portal
 
 ---
 
-### 2. `src/components/portal/PortalAccessGate.tsx`
+### 2. `src/routes/MembershipRouter.tsx`
 
-**Local:** Linhas 56-73 (função `getGateState`)
+**Ação:** Redirecionar rota `/youth` para `/new` (proteção de acesso direto)
 
-**ANTES:**
+**Local:** Linha 7
+
 ```typescript
-const getGateState = (): GateState => {
-  if (isLoading) return 'loading';
-  if (error) return 'error';
-  if (!athlete) return 'noAthlete';
-  
-  if (!membership) return 'noAthlete';
-  
-  const status = membership.status?.toUpperCase();
-  
-  if (status === 'PENDING_REVIEW') return 'pendingReview';
-  if (status === 'EXPIRED') return 'expired';
-  if (status === 'CANCELLED') return 'cancelled';
-  if (status === 'REJECTED') return 'rejected';
-  if (status === 'APPROVED' || status === 'ACTIVE') return 'allowed';
-  
-  // Unknown status - show neutral message
-  return 'unknown';
-};
-```
+// ANTES:
+import MembershipYouth from '@/pages/MembershipYouth';
 
-**DEPOIS:**
-```typescript
-const getGateState = (): GateState => {
-  if (isLoading) return 'loading';
-  if (error) return 'error';
-  if (!athlete) return 'noAthlete';
-  
-  if (!membership) return 'noAthlete';
-  
-  const status = membership.status?.toUpperCase();
-  
-  // ✅ P2/4 — Verificar expiração por STATUS ou por DATA
-  const isEffectivelyExpired = status === 'EXPIRED' || (
-    membership.end_date && new Date(membership.end_date) < new Date()
-  );
-  
-  if (status === 'PENDING_REVIEW') return 'pendingReview';
-  if (isEffectivelyExpired) return 'expired';
-  if (status === 'CANCELLED') return 'cancelled';
-  if (status === 'REJECTED') return 'rejected';
-  if (status === 'APPROVED' || status === 'ACTIVE') return 'allowed';
-  
-  // Unknown status - show neutral message
-  return 'unknown';
-};
-```
+// Linha 13:
+<Route path="youth" element={<MembershipYouth />} />
 
-**Justificativa:**
-- Membership com `end_date` no passado é tratada como `expired`, mesmo com `status=ACTIVE`
-- Permite que o CTA de renovação seja exibido corretamente
+// DEPOIS:
+import { Navigate } from 'react-router-dom';
+
+// Linha 13 (redirecionar silenciosamente):
+{/* ⚠️ P3/4 — Youth membership hidden (pending E2E validation) */}
+<Route path="youth" element={<Navigate to="../new" replace />} />
+```
 
 ---
 
-## FLUXO CORRIGIDO
+## O QUE É PRESERVADO
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Membership com status=ACTIVE e end_date=2024-12-01         │
-│ (data atual: 2025-01-30)                                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ isEffectivelyExpired = true (end_date < now)               │
-└─────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┴───────────────────┐
-          ▼                                       ▼
-┌──────────────────────┐              ┌──────────────────────┐
-│ MembershipRenew.tsx  │              │ PortalAccessGate.tsx │
-│ → NÃO redireciona    │              │ → Estado: 'expired'  │
-│ → Permite renovação  │              │ → Mostra CTA renovar │
-└──────────────────────┘              └──────────────────────┘
-```
+| Item | Status |
+|------|--------|
+| `YouthMembershipForm.tsx` | ✅ Intacto |
+| `MembershipYouth.tsx` | ✅ Intacto |
+| Tabelas `guardians` e `guardian_links` | ✅ Intactas |
+| RLS policies | ✅ Intactas |
+| Edge functions | ✅ Intactas |
+| Import de `Users` icon | ✅ Pode ser removido (opcional, não impacta) |
+
+---
+
+## PONTOS DE ENTRADA BLOQUEADOS
+
+| Ponto | Antes | Depois |
+|-------|-------|--------|
+| Seletor de tipo | Visível | ❌ Oculto |
+| URL direta `/membership/youth` | Renderiza form | ⮕ Redirect para `/membership/new` |
+| Deep link externo | Acessível | ⮕ Redirect para `/membership/new` |
 
 ---
 
 ## VALIDAÇÃO
 
-**Cenários de teste:**
-
-| Cenário | Status | end_date | Esperado |
-|---------|--------|----------|----------|
-| 1 | ACTIVE | 2024-12-01 (passado) | Renovação permitida |
-| 2 | ACTIVE | 2025-06-01 (futuro) | Portal normal |
-| 3 | EXPIRED | 2024-12-01 (passado) | Renovação permitida |
-| 4 | EXPIRED | null | Renovação permitida |
-| 5 | PENDING_REVIEW | qualquer | Tela de status |
-| 6 | APPROVED | 2025-06-01 (futuro) | Portal normal |
+1. ✅ Página `/[tenant]/membership/new` exibe apenas "Atleta Adulto"
+2. ✅ Acesso direto a `/[tenant]/membership/youth` redireciona para `/new`
+3. ✅ Nenhum erro 404
+4. ✅ Fluxo de filiação adulta continua funcionando
+5. ✅ Nenhum componente deletado
 
 ---
 
 ## GARANTIAS
 
-- **ZERO alterações de layout**
-- **ZERO alterações de textos**
-- **ZERO alterações de UX visual**
-- **ZERO alterações no fluxo de pagamento**
-- **ZERO alterações em schemas de banco**
-- **ZERO novos status criados**
-- **ZERO alterações no formulário de filiação (P1/4)**
-- **Lógica centralizada nos pontos de decisão existentes**
+- **ZERO componentes deletados**
+- **ZERO refactoring**
+- **ZERO alteração de schema**
+- **ZERO alteração de UX visual restante**
+- **ZERO impacto em filiação adulta**
+- **Feature invisível, não quebrada**
+- **Código preservado para futura validação E2E**
