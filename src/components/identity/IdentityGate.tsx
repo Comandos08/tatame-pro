@@ -25,6 +25,7 @@ import {
   resolveErrorEscapeHatch,
   observeIdentityTransition,
   devLogIdentityObservation,
+  emitIdentityTelemetry,
   type IdentityState,
 } from "@/lib/identity";
 
@@ -150,6 +151,62 @@ export function IdentityGate({ children }: IdentityGateProps) {
     devLogIdentityObservation({ event, violations });
     prevStateRef.current = resolvedState;
   }, [resolvedState, pathname, isPublic]);
+
+  // ===== P4: PRODUCTION TELEMETRY (fire-and-forget) =====
+  useEffect(() => {
+    // Skip for public paths (no identity resolution needed)
+    if (isPublic) return;
+    
+    // Skip LOADING state (transitional, not actionable)
+    if (resolvedState === 'LOADING') return;
+
+    // Base event: state resolved
+    emitIdentityTelemetry({
+      event: 'identity.state_resolved',
+      state: resolvedState,
+      pathname,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Specific events by state
+    if (resolvedState === 'WIZARD_REQUIRED') {
+      emitIdentityTelemetry({
+        event: 'identity.wizard_required',
+        state: resolvedState,
+        pathname,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (resolvedState === 'SUPERADMIN') {
+      emitIdentityTelemetry({
+        event: 'identity.superadmin_access',
+        state: resolvedState,
+        pathname,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (resolvedState === 'ERROR') {
+      emitIdentityTelemetry({
+        event: 'identity.error_state',
+        state: resolvedState,
+        pathname,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Redirect decision event
+    if (redirectDecision?.shouldRedirect) {
+      emitIdentityTelemetry({
+        event: 'identity.redirect_decision',
+        state: resolvedState,
+        pathname,
+        redirectDestination: redirectDecision.destination,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [resolvedState, pathname, isPublic, redirectDecision?.shouldRedirect, redirectDecision?.destination]);
 
   // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
   if (isPublic) {
