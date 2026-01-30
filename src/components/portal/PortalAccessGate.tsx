@@ -62,8 +62,13 @@ export function PortalAccessGate({
     
     const status = membership.status?.toUpperCase();
     
+    // ✅ P2/4 — Verificar expiração por STATUS ou por DATA
+    const isEffectivelyExpired = status === 'EXPIRED' || (
+      membership.end_date && new Date(membership.end_date) < new Date()
+    );
+    
     if (status === 'PENDING_REVIEW') return 'pendingReview';
-    if (status === 'EXPIRED') return 'expired';
+    if (isEffectivelyExpired) return 'expired';
     if (status === 'CANCELLED') return 'cancelled';
     if (status === 'REJECTED') return 'rejected';
     if (status === 'APPROVED' || status === 'ACTIVE') return 'allowed';
