@@ -1763,6 +1763,41 @@ export const ptBR = {
   'diagnostics.platformDecisions': 'Decisões da Plataforma',
   'diagnostics.dataFetchedAt': 'Dados obtidos em',
 
+  // Access Denied Context P1
+  'accessDenied.title': 'Acesso Negado',
+  'accessDenied.adminArea': 'Esta área é exclusiva para administradores.',
+  'accessDenied.adminSuggestion': 'Se você deveria ter acesso, entre em contato com um administrador.',
+  'accessDenied.portalArea': 'Você precisa de uma filiação ativa para acessar esta área.',
+  'accessDenied.portalSuggestion': 'Complete seu cadastro ou renove sua filiação.',
+  'accessDenied.superadminArea': 'Esta área é restrita a superadministradores.',
+  'accessDenied.superadminSuggestion': 'Entre em contato com a equipe da plataforma se você deveria ter acesso.',
+  'accessDenied.tenantArea': 'Você não tem permissão para acessar esta organização.',
+  'accessDenied.tenantSuggestion': 'Verifique se está na organização correta ou entre em contato com o administrador.',
+  'accessDenied.default': 'Você não tem permissão para acessar esta página.',
+  'accessDenied.defaultSuggestion': 'Entre em contato com o suporte se acredita que isso é um erro.',
+  'accessDenied.contactAdmin': 'Contatar Administrador',
+
+  // Recovery Guide P1
+  'recovery.pending.title': 'Aguardando Aprovação',
+  'recovery.pending.description': 'Sua solicitação está em análise.',
+  'recovery.pending.suggestion': 'Você será notificado quando houver atualização.',
+  'recovery.blocked.title': 'Temporariamente Bloqueado',
+  'recovery.blocked.description': 'O acesso a esta área está temporariamente indisponível.',
+  'recovery.blocked.suggestion': 'Tente novamente mais tarde ou entre em contato com o suporte.',
+  'recovery.incomplete.title': 'Cadastro Incompleto',
+  'recovery.incomplete.description': 'Complete seu cadastro para continuar.',
+  'recovery.incomplete.suggestion': 'Preencha todas as informações obrigatórias.',
+  'recovery.expired.title': 'Sessão Expirada',
+  'recovery.expired.description': 'Sua sessão expirou.',
+  'recovery.expired.suggestion': 'Faça login novamente para continuar.',
+  'recovery.error.title': 'Algo Deu Errado',
+  'recovery.error.description': 'Ocorreu um erro inesperado.',
+  'recovery.error.suggestion': 'Tente novamente ou entre em contato com o suporte.',
+  'recovery.action.retry': 'Tentar Novamente',
+  'recovery.action.login': 'Fazer Login',
+  'recovery.action.home': 'Ir para Início',
+  'recovery.action.support': 'Contatar Suporte',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
