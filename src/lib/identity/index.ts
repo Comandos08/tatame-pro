@@ -30,3 +30,9 @@ export {
   observeIdentityTransition,
   devLogIdentityObservation,
 } from './identity-observability';
+
+export {
+  type IdentityTelemetryEvent,
+  type IdentityTelemetryPayload,
+  emitIdentityTelemetry,
+} from './identity-telemetry';
