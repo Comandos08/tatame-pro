@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Edit, Loader2, AlertCircle, MapPin, Phone, Mail, Power } from 'lucide-react';
+import { Building2, Plus, Edit, Loader2, AlertCircle, MapPin, Phone, Mail } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ interface Academy {
 export default function AcademiesList() {
   const { tenant } = useTenant();
   const { hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAcademy, setEditingAcademy] = useState<Academy | null>(null);
@@ -86,10 +88,10 @@ export default function AcademiesList() {
       queryClient.invalidateQueries({ queryKey: ['academies'] });
       setIsCreateOpen(false);
       resetForm();
-      toast.success('Academia criada com sucesso');
+      toast.success(t('admin.academies.createSuccess'));
     },
     onError: (error) => {
-      toast.error('Erro ao criar academia');
+      toast.error(t('admin.academies.createError'));
       console.error(error);
     },
   });
@@ -115,10 +117,10 @@ export default function AcademiesList() {
       queryClient.invalidateQueries({ queryKey: ['academies'] });
       setEditingAcademy(null);
       resetForm();
-      toast.success('Academia atualizada com sucesso');
+      toast.success(t('admin.academies.updateSuccess'));
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar academia');
+      toast.error(t('admin.academies.updateError'));
       console.error(error);
     },
   });
@@ -134,10 +136,10 @@ export default function AcademiesList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academies'] });
-      toast.success('Status atualizado');
+      toast.success(t('admin.academies.statusUpdated'));
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar status');
+      toast.error(t('admin.academies.statusError'));
       console.error(error);
     },
   });
@@ -169,7 +171,7 @@ export default function AcademiesList() {
 
   const handleSubmit = () => {
     if (!formData.name) {
-      toast.error('Nome é obrigatório');
+      toast.error(t('admin.academies.nameRequired'));
       return;
     }
     
@@ -186,72 +188,72 @@ export default function AcademiesList() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Nome *</Label>
+          <Label htmlFor="name">{t('admin.academies.formName')}</Label>
           <Input
             id="name"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Nome da academia"
+            placeholder={t('admin.academies.formNamePlaceholder')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="slug">Slug</Label>
+          <Label htmlFor="slug">{t('admin.academies.formSlug')}</Label>
           <Input
             id="slug"
             value={formData.slug}
             onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-            placeholder="slug-da-academia"
+            placeholder={t('admin.academies.formSlugPlaceholder')}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="sport_type">Modalidade</Label>
+          <Label htmlFor="sport_type">{t('admin.academies.formSport')}</Label>
           <Input
             id="sport_type"
             value={formData.sport_type}
             onChange={(e) => setFormData({ ...formData, sport_type: e.target.value })}
-            placeholder="Ex: BJJ"
+            placeholder={t('admin.academies.formSportPlaceholder')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="city">Cidade</Label>
+          <Label htmlFor="city">{t('admin.academies.formCity')}</Label>
           <Input
             id="city"
             value={formData.city}
             onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-            placeholder="Cidade"
+            placeholder={t('admin.academies.formCityPlaceholder')}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="state">Estado</Label>
+          <Label htmlFor="state">{t('admin.academies.formState')}</Label>
           <Input
             id="state"
             value={formData.state}
             onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-            placeholder="UF"
+            placeholder={t('admin.academies.formStatePlaceholder')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phone">Telefone</Label>
+          <Label htmlFor="phone">{t('admin.academies.formPhone')}</Label>
           <Input
             id="phone"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            placeholder="(11) 99999-9999"
+            placeholder={t('admin.academies.formPhonePlaceholder')}
           />
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="email">E-mail</Label>
+        <Label htmlFor="email">{t('admin.academies.formEmail')}</Label>
         <Input
           id="email"
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          placeholder="academia@email.com"
+          placeholder={t('admin.academies.formEmailPlaceholder')}
         />
       </div>
     </div>
@@ -266,9 +268,9 @@ export default function AcademiesList() {
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
-            <h1 className="font-display text-2xl md:text-3xl font-bold">Academias</h1>
+            <h1 className="font-display text-2xl md:text-3xl font-bold">{t('admin.academies.title')}</h1>
             <p className="text-muted-foreground">
-              Gerencie as academias vinculadas à {tenant.name}
+              {t('admin.academies.description')} {tenant.name}
             </p>
           </div>
           {canManage && (
@@ -276,24 +278,24 @@ export default function AcademiesList() {
               <DialogTrigger asChild>
                 <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Nova Academia
+                  {t('admin.academies.newAcademy')}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Criar Academia</DialogTitle>
+                  <DialogTitle>{t('admin.academies.createTitle')}</DialogTitle>
                   <DialogDescription>
-                    Adicione uma nova academia à organização
+                    {t('admin.academies.createDesc')}
                   </DialogDescription>
                 </DialogHeader>
                 <AcademyForm />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                    Cancelar
+                    {t('common.cancel')}
                   </Button>
                   <Button onClick={handleSubmit} disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Criar
+                    {t('admin.academies.create')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -309,7 +311,7 @@ export default function AcademiesList() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Erro ao carregar academias</p>
+              <p className="text-muted-foreground">{t('admin.academies.loadError')}</p>
             </CardContent>
           </Card>
         ) : academies && academies.length > 0 ? (
@@ -331,7 +333,7 @@ export default function AcademiesList() {
                         <div>
                           <CardTitle className="text-base">{academy.name}</CardTitle>
                           <CardDescription className="text-xs">
-                            {academy.sport_type || 'Todas modalidades'}
+                            {academy.sport_type || t('admin.academies.allSports')}
                           </CardDescription>
                         </div>
                       </div>
@@ -366,7 +368,7 @@ export default function AcademiesList() {
                     )}
                     <div className="pt-2">
                       <Badge variant={academy.is_active ? 'default' : 'secondary'}>
-                        {academy.is_active ? 'Ativa' : 'Inativa'}
+                        {academy.is_active ? t('status.active') : t('admin.academies.inactive')}
                       </Badge>
                     </div>
                     {canManage && (
@@ -375,24 +377,24 @@ export default function AcademiesList() {
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" onClick={() => openEditDialog(academy)}>
                               <Edit className="h-3 w-3 mr-2" />
-                              Editar
+                              {t('common.edit')}
                             </Button>
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
-                              <DialogTitle>Editar Academia</DialogTitle>
+                              <DialogTitle>{t('admin.academies.editTitle')}</DialogTitle>
                               <DialogDescription>
-                                Atualize as informações da academia
+                                {t('admin.academies.editDesc')}
                               </DialogDescription>
                             </DialogHeader>
                             <AcademyForm />
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setEditingAcademy(null)}>
-                                Cancelar
+                                {t('common.cancel')}
                               </Button>
                               <Button onClick={handleSubmit} disabled={updateMutation.isPending}>
                                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Salvar
+                                {t('common.save')}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -410,14 +412,14 @@ export default function AcademiesList() {
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <Building2 className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="font-display font-bold text-xl mb-2">Nenhuma academia cadastrada</h3>
+              <h3 className="font-display font-bold text-xl mb-2">{t('admin.academies.emptyTitle')}</h3>
               <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                Comece cadastrando as academias vinculadas à sua organização.
+                {t('admin.academies.emptyDesc')}
               </p>
               {canManage && (
                 <Button onClick={() => setIsCreateOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Criar primeira academia
+                  {t('admin.academies.createFirst')}
                 </Button>
               )}
             </CardContent>

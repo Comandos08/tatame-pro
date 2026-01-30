@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ interface Academy {
 export default function CoachesList() {
   const { tenant } = useTenant();
   const { hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isLinkOpen, setIsLinkOpen] = useState(false);
@@ -138,10 +140,10 @@ export default function CoachesList() {
       queryClient.invalidateQueries({ queryKey: ['coaches'] });
       setIsCreateOpen(false);
       resetForm();
-      toast.success('Coach cadastrado com sucesso');
+      toast.success(t('admin.coaches.createSuccess'));
     },
     onError: (error) => {
-      toast.error('Erro ao criar coach');
+      toast.error(t('admin.coaches.createError'));
       console.error(error);
     },
   });
@@ -163,10 +165,10 @@ export default function CoachesList() {
       queryClient.invalidateQueries({ queryKey: ['coaches'] });
       setEditingCoach(null);
       resetForm();
-      toast.success('Coach atualizado com sucesso');
+      toast.success(t('admin.coaches.updateSuccess'));
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar coach');
+      toast.error(t('admin.coaches.updateError'));
       console.error(error);
     },
   });
@@ -182,10 +184,10 @@ export default function CoachesList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coaches'] });
-      toast.success('Status atualizado');
+      toast.success(t('admin.coaches.statusUpdated'));
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar status');
+      toast.error(t('admin.coaches.statusError'));
       console.error(error);
     },
   });
@@ -209,13 +211,13 @@ export default function CoachesList() {
       queryClient.invalidateQueries({ queryKey: ['coaches'] });
       setIsLinkOpen(false);
       setLinkingCoach(null);
-      toast.success('Coach vinculado à academia');
+      toast.success(t('admin.coaches.linkSuccess'));
     },
     onError: (error: any) => {
       if (error.code === '23505') {
-        toast.error('Coach já está vinculado a esta academia');
+        toast.error(t('admin.coaches.alreadyLinked'));
       } else {
-        toast.error('Erro ao vincular coach');
+        toast.error(t('admin.coaches.linkError'));
       }
       console.error(error);
     },
@@ -248,7 +250,7 @@ export default function CoachesList() {
 
   const handleSubmit = () => {
     if (!formData.full_name) {
-      toast.error('Nome é obrigatório');
+      toast.error(t('admin.coaches.nameRequired'));
       return;
     }
     
@@ -261,7 +263,7 @@ export default function CoachesList() {
 
   const handleLink = () => {
     if (!linkingCoach || !linkData.academy_id) {
-      toast.error('Selecione uma academia');
+      toast.error(t('admin.coaches.selectAcademy'));
       return;
     }
     
@@ -277,46 +279,46 @@ export default function CoachesList() {
   const CoachForm = () => (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="full_name">Nome Completo *</Label>
+        <Label htmlFor="full_name">{t('admin.coaches.formName')}</Label>
         <Input
           id="full_name"
           value={formData.full_name}
           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-          placeholder="Nome do coach"
+          placeholder={t('admin.coaches.formNamePlaceholder')}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="main_sport">Modalidade Principal</Label>
+          <Label htmlFor="main_sport">{t('admin.coaches.formSport')}</Label>
           <Input
             id="main_sport"
             value={formData.main_sport}
             onChange={(e) => setFormData({ ...formData, main_sport: e.target.value })}
-            placeholder="Ex: BJJ"
+            placeholder={t('admin.coaches.formSportPlaceholder')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="rank">Graduação</Label>
+          <Label htmlFor="rank">{t('admin.coaches.formRank')}</Label>
           <Input
             id="rank"
             value={formData.rank}
             onChange={(e) => setFormData({ ...formData, rank: e.target.value })}
-            placeholder="Ex: Faixa Preta 3° grau"
+            placeholder={t('admin.coaches.formRankPlaceholder')}
           />
         </div>
       </div>
       {!editingCoach && (
         <div className="space-y-2">
-          <Label htmlFor="profile_email">E-mail do Perfil (opcional)</Label>
+          <Label htmlFor="profile_email">{t('admin.coaches.formEmail')}</Label>
           <Input
             id="profile_email"
             type="email"
             value={formData.profile_email}
             onChange={(e) => setFormData({ ...formData, profile_email: e.target.value })}
-            placeholder="coach@email.com"
+            placeholder={t('admin.coaches.formEmailPlaceholder')}
           />
           <p className="text-xs text-muted-foreground">
-            Se o coach já possui conta, informe o e-mail para vincular
+            {t('admin.coaches.formEmailHint')}
           </p>
         </div>
       )}
@@ -332,9 +334,9 @@ export default function CoachesList() {
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
-            <h1 className="font-display text-2xl md:text-3xl font-bold">Coaches</h1>
+            <h1 className="font-display text-2xl md:text-3xl font-bold">{t('admin.coaches.title')}</h1>
             <p className="text-muted-foreground">
-              Gerencie os professores e instrutores da {tenant.name}
+              {t('admin.coaches.description')} {tenant.name}
             </p>
           </div>
           {canManage && (
@@ -342,24 +344,24 @@ export default function CoachesList() {
               <DialogTrigger asChild>
                 <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Novo Coach
+                  {t('admin.coaches.newCoach')}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Cadastrar Coach</DialogTitle>
+                  <DialogTitle>{t('admin.coaches.createTitle')}</DialogTitle>
                   <DialogDescription>
-                    Adicione um novo coach à organização
+                    {t('admin.coaches.createDesc')}
                   </DialogDescription>
                 </DialogHeader>
                 <CoachForm />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                    Cancelar
+                    {t('common.cancel')}
                   </Button>
                   <Button onClick={handleSubmit} disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Criar
+                    {t('admin.coaches.create')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -371,17 +373,17 @@ export default function CoachesList() {
         <Dialog open={isLinkOpen} onOpenChange={setIsLinkOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Vincular à Academia</DialogTitle>
+              <DialogTitle>{t('admin.coaches.linkTitle')}</DialogTitle>
               <DialogDescription>
-                Vincule {linkingCoach?.full_name} a uma academia
+                {t('admin.coaches.linkDesc').replace('{name}', linkingCoach?.full_name || '')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Academia</Label>
+                <Label>{t('admin.coaches.academyLabel')}</Label>
                 <Select value={linkData.academy_id} onValueChange={(v) => setLinkData({ ...linkData, academy_id: v })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a academia" />
+                    <SelectValue placeholder={t('admin.coaches.selectAcademyPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {academies?.map((academy) => (
@@ -393,7 +395,7 @@ export default function CoachesList() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Função</Label>
+                <Label>{t('admin.coaches.roleLabel')}</Label>
                 <Select value={linkData.role} onValueChange={(v) => setLinkData({ ...linkData, role: v as AcademyCoachRole })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -410,11 +412,11 @@ export default function CoachesList() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsLinkOpen(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleLink} disabled={linkAcademyMutation.isPending}>
                 {linkAcademyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Vincular
+                {t('admin.coaches.link')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -428,7 +430,7 @@ export default function CoachesList() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Erro ao carregar coaches</p>
+              <p className="text-muted-foreground">{t('admin.coaches.loadError')}</p>
             </CardContent>
           </Card>
         ) : coaches && coaches.length > 0 ? (
@@ -450,7 +452,7 @@ export default function CoachesList() {
                         <div>
                           <CardTitle className="text-base">{coach.full_name}</CardTitle>
                           <CardDescription className="text-xs">
-                            {coach.main_sport || 'Todas modalidades'}
+                            {coach.main_sport || t('admin.coaches.allSports')}
                           </CardDescription>
                         </div>
                       </div>
@@ -474,7 +476,7 @@ export default function CoachesList() {
                     
                     {coach.academy_coaches && coach.academy_coaches.length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Academias:</p>
+                        <p className="text-xs text-muted-foreground">{t('admin.coaches.academiesLabel')}</p>
                         <div className="flex flex-wrap gap-1">
                           {coach.academy_coaches.map((ac) => (
                             <Badge key={ac.id} variant="outline" className="text-xs">
@@ -487,7 +489,7 @@ export default function CoachesList() {
                     
                     <div className="pt-2 flex gap-2">
                       <Badge variant={coach.is_active ? 'default' : 'secondary'}>
-                        {coach.is_active ? 'Ativo' : 'Inativo'}
+                        {coach.is_active ? t('status.active') : t('admin.coaches.inactive')}
                       </Badge>
                     </div>
                     
@@ -497,31 +499,31 @@ export default function CoachesList() {
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" onClick={() => openEditDialog(coach)}>
                               <Edit className="h-3 w-3 mr-2" />
-                              Editar
+                              {t('common.edit')}
                             </Button>
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
-                              <DialogTitle>Editar Coach</DialogTitle>
+                              <DialogTitle>{t('admin.coaches.editTitle')}</DialogTitle>
                               <DialogDescription>
-                                Atualize as informações do coach
+                                {t('admin.coaches.editDesc')}
                               </DialogDescription>
                             </DialogHeader>
                             <CoachForm />
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setEditingCoach(null)}>
-                                Cancelar
+                                {t('common.cancel')}
                               </Button>
                               <Button onClick={handleSubmit} disabled={updateMutation.isPending}>
                                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Salvar
+                                {t('common.save')}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
                         <Button variant="outline" size="sm" onClick={() => openLinkDialog(coach)}>
                           <LinkIcon className="h-3 w-3 mr-2" />
-                          Academia
+                          {t('admin.coaches.linkAcademy')}
                         </Button>
                       </div>
                     )}
@@ -536,14 +538,14 @@ export default function CoachesList() {
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <UserCog className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="font-display font-bold text-xl mb-2">Nenhum coach cadastrado</h3>
+              <h3 className="font-display font-bold text-xl mb-2">{t('admin.coaches.emptyTitle')}</h3>
               <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                Comece cadastrando os professores e instrutores da sua organização.
+                {t('admin.coaches.emptyDesc')}
               </p>
               {canManage && (
                 <Button onClick={() => setIsCreateOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Cadastrar primeiro coach
+                  {t('admin.coaches.createFirst')}
                 </Button>
               )}
             </CardContent>

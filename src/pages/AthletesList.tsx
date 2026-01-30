@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
-import { formatDateForCsv, CsvColumn } from '@/lib/exportCsv';
+import { formatDateForCsv } from '@/lib/exportCsv';
 import { MEMBERSHIP_STATUS_LABELS, type MembershipStatus } from '@/types/membership';
 
 interface AthleteWithMembership {
@@ -165,29 +165,29 @@ export default function AthletesList() {
 
   // CSV Export columns
   const csvColumns = useMemo(() => [
-    { key: 'full_name', label: 'Nome' },
-    { key: 'email', label: 'E-mail' },
-    { key: 'birth_date', label: 'Data de Nascimento', format: (v: string | null) => formatDateForCsv(v) },
-    { key: 'academy_name', label: 'Academia', format: (v: string | null) => v || '-' },
+    { key: 'full_name', label: t('admin.athletes.csv.name') },
+    { key: 'email', label: t('admin.athletes.csv.email') },
+    { key: 'birth_date', label: t('admin.athletes.csv.birthDate'), format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'academy_name', label: t('admin.athletes.csv.academy'), format: (v: string | null) => v || '-' },
     { 
       key: 'membershipStatus', 
-      label: 'Status Filiação', 
+      label: t('admin.athletes.csv.membershipStatus'), 
       format: (_: unknown, row: AthleteWithMembership) => 
-        row.latest_membership?.status ? MEMBERSHIP_STATUS_LABELS[row.latest_membership.status] : 'Sem filiação'
+        row.latest_membership?.status ? MEMBERSHIP_STATUS_LABELS[row.latest_membership.status] : t('admin.athletes.noMembership')
     },
     { 
       key: 'membershipStart', 
-      label: 'Início Filiação', 
+      label: t('admin.athletes.csv.membershipStart'), 
       format: (_: unknown, row: AthleteWithMembership) => 
         row.latest_membership?.start_date ? formatDateForCsv(row.latest_membership.start_date) : '-'
     },
     { 
       key: 'membershipEnd', 
-      label: 'Fim Filiação', 
+      label: t('admin.athletes.csv.membershipEnd'), 
       format: (_: unknown, row: AthleteWithMembership) => 
         row.latest_membership?.end_date ? formatDateForCsv(row.latest_membership.end_date) : '-'
     },
-  ], []);
+  ], [t]);
 
   return (
     <AppShell>
@@ -195,10 +195,10 @@ export default function AthletesList() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold text-foreground">
-              Atletas
+              {t('admin.athletes.title')}
             </h1>
             <p className="text-muted-foreground">
-              Gerencie os atletas cadastrados na organização
+              {t('admin.athletes.description')}
             </p>
           </div>
           <ExportCsvButton
@@ -216,7 +216,7 @@ export default function AthletesList() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nome..."
+                  placeholder={t('admin.athletes.searchPlaceholder')}
                   value={searchName}
                   onChange={(e) => setSearchName(e.target.value)}
                   className="pl-10"
@@ -225,10 +225,10 @@ export default function AthletesList() {
               <Select value={filterAcademy} onValueChange={setFilterAcademy}>
                 <SelectTrigger className="w-full md:w-[200px]">
                   <Building2 className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Academia" />
+                  <SelectValue placeholder={t('admin.athletes.filterAcademy')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas academias</SelectItem>
+                  <SelectItem value="all">{t('admin.athletes.allAcademies')}</SelectItem>
                   {academies?.map((academy) => (
                     <SelectItem key={academy.id} value={academy.id}>
                       {academy.name}
@@ -239,14 +239,14 @@ export default function AthletesList() {
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full md:w-[200px]">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder={t('admin.athletes.filterStatus')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos status</SelectItem>
-                  <SelectItem value="ACTIVE">Ativa</SelectItem>
-                  <SelectItem value="PENDING_REVIEW">Aguardando Aprovação</SelectItem>
-                  <SelectItem value="PENDING_PAYMENT">Aguardando Pagamento</SelectItem>
-                  <SelectItem value="EXPIRED">Expirada</SelectItem>
+                  <SelectItem value="all">{t('admin.athletes.allStatus')}</SelectItem>
+                  <SelectItem value="ACTIVE">{t('status.active')}</SelectItem>
+                  <SelectItem value="PENDING_REVIEW">{t('status.pending_review')}</SelectItem>
+                  <SelectItem value="PENDING_PAYMENT">{t('status.pending_payment')}</SelectItem>
+                  <SelectItem value="EXPIRED">{t('status.expired')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -263,7 +263,7 @@ export default function AthletesList() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Users className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhum atleta encontrado com os filtros selecionados.
+                {t('admin.athletes.emptyFiltered')}
               </p>
             </CardContent>
           </Card>
@@ -273,11 +273,11 @@ export default function AthletesList() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Atleta</TableHead>
-                    <TableHead>Academia</TableHead>
-                    <TableHead>Status Filiação</TableHead>
-                    <TableHead>Período</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead>{t('admin.athletes.tableAthlete')}</TableHead>
+                    <TableHead>{t('admin.athletes.tableAcademy')}</TableHead>
+                    <TableHead>{t('admin.athletes.tableMembershipStatus')}</TableHead>
+                    <TableHead>{t('admin.athletes.tablePeriod')}</TableHead>
+                    <TableHead className="text-right">{t('common.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -312,7 +312,7 @@ export default function AthletesList() {
                             label={MEMBERSHIP_STATUS_LABELS[athlete.latest_membership.status]}
                           />
                         ) : (
-                          <Badge variant="outline">Sem filiação</Badge>
+                          <Badge variant="outline">{t('admin.athletes.noMembership')}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -332,7 +332,7 @@ export default function AthletesList() {
                             onClick={() => navigate(`/${tenant?.slug}/app/athletes/${athlete.id}/gradings`)}
                           >
                             <Award className="h-4 w-4 mr-1" />
-                            Graduações
+                            {t('admin.athletes.gradings')}
                           </Button>
                           <Button
                             variant="ghost"
