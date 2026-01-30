@@ -17,7 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const DELETE_BUFFER_DAYS = 7;
@@ -54,6 +54,29 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // ========================================
+  // CRON_SECRET VALIDATION
+  // ========================================
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
+
+  if (!cronSecret) {
+    console.error("[MARK-PENDING-DELETE] CRON_SECRET not configured");
+    return new Response(
+      JSON.stringify({ error: "Server configuration error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  if (requestSecret !== cronSecret) {
+    console.error("[MARK-PENDING-DELETE] Invalid or missing x-cron-secret");
+    return new Response(
+      JSON.stringify({ error: "Forbidden" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  // ========================================
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
