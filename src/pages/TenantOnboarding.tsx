@@ -42,7 +42,7 @@ const STEPS: Step[] = ['welcome', 'academies', 'coaches', 'grading', 'review'];
 export default function TenantOnboarding() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { tenant } = useTenant();
+  const { tenant, refetchTenant } = useTenant();
   const { session } = useImpersonation();
   const impersonationId = session?.impersonationId;
   const queryClient = useQueryClient();
@@ -97,7 +97,14 @@ export default function TenantOnboarding() {
     },
     onSuccess: () => {
       toast.success(t('onboarding.completedSuccess'));
-      queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      
+      // ✅ UX/02 — Force TenantContext to reload data
+      refetchTenant();
+      
+      // Invalidate React Query caches (for other components using queries)
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status', tenant?.id] });
+      
+      // Navigate with replace to prevent back-button loop
       navigate(`/${tenant?.slug}/app`, { replace: true });
     },
     onError: (error) => {
