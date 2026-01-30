@@ -1,8 +1,8 @@
 # 🔐 IDENTITY CONTRACT — Single Source of Truth
 
-**Version:** 3.0.0  
+**Version:** 3.1.0  
 **Last Updated:** 2026-01-30  
-**Status:** ✅ LOCKED (P2 Hardened)
+**Status:** ✅ LOCKED (P3 Enforcement)
 
 ## REGRA ABSOLUTA
 
@@ -201,5 +201,54 @@ Qualquer mudança neste fluxo exige:
 
 ---
 
+## Enforcement (P3)
+
+### Contract Check Script
+
+O sistema inclui um script de CI que bloqueia regressões humanas:
+
+```bash
+npm run identity:check
+```
+
+**Padrões proibidos detectados:**
+- `IdentityGuard` (componente removido)
+- `navigate('/identity/wizard')` fora do IdentityGate
+- `<Navigate to="/identity/wizard">` fora do IdentityGate
+- `wizardCompleted` usado como heurística de redirect
+
+**Arquivos permitidos:**
+- `src/lib/identity/*`
+- `src/components/identity/IdentityGate.tsx`
+- `src/pages/IdentityWizard.tsx`
+
+### Observability (DEV-only)
+
+Transições de estado são logadas automaticamente em DEV:
+
+```
+[IdentityObs] ∅ → LOADING @ /portal
+[IdentityObs] LOADING → RESOLVED @ /portal
+```
+
+**Desativar:** `VITE_IDENTITY_OBSERVABILITY=false`
+
+**Invariantes validadas:**
+- Transição de estado é válida (per `VALID_IDENTITY_TRANSITIONS`)
+- Redirect contract: `shouldRedirect=true` implica `destination !== null`
+
+### CI Pipeline
+
+```bash
+npm run ci:identity
+```
+
+Executa:
+1. `npm run identity:check` — Contract enforcement
+2. `npm run test` — Unit tests
+3. `npx playwright test p0-regression` — E2E regression
+
+---
+
 *This document is part of the TATAME PRO security and identity baseline.*
-*P2 Hardened — 2026-01-30*
+*P3 Enforcement — 2026-01-30*

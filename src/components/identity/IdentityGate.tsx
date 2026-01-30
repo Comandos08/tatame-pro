@@ -9,7 +9,7 @@
  * 4. Renders UI based on state
  */
 
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
@@ -23,6 +23,9 @@ import {
   IdentityResolutionInput,
   resolveIdentityRedirect,
   resolveErrorEscapeHatch,
+  observeIdentityTransition,
+  devLogIdentityObservation,
+  type IdentityState,
 } from "@/lib/identity";
 
 interface IdentityGateProps {
@@ -107,25 +110,11 @@ export function IdentityGate({ children }: IdentityGateProps) {
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
   const { isImpersonating, session: impersonationSession } = useImpersonation();
 
-  // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
-  if (isPublicPath(pathname)) {
-    return <>{children}</>;
-  }
+  // ===== P3: DEV-ONLY OBSERVABILITY (hooks must be unconditional) =====
+  const prevStateRef = useRef<IdentityState | null>(null);
+  const isPublic = isPublicPath(pathname);
 
-  // ===== DEV GUARDRAIL: OBSERVABILITY ONLY =====
-  if (import.meta.env.DEV) {
-    if (!isAuthenticated && pathname === '/identity/wizard') {
-      console.warn('[IdentityGate] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
-        pathname,
-        isAuthenticated,
-        referrer: document.referrer,
-        timestamp: new Date().toISOString(),
-        hint: 'This should NEVER happen. Check isPublicPath() rules.',
-      });
-    }
-  }
-
-  // ===== SINGLE POINT OF DECISION =====
+  // Compute state even for public paths (needed for observability hook)
   const input: IdentityResolutionInput = {
     isAuthenticated,
     isAuthLoading: authLoading,
@@ -141,6 +130,44 @@ export function IdentityGate({ children }: IdentityGateProps) {
     isImpersonating,
     impersonationTenantSlug: impersonationSession?.targetTenantSlug,
   });
+
+  useEffect(() => {
+    // Skip observability for public paths
+    if (isPublic) return;
+
+    const { event, violations } = observeIdentityTransition({
+      from: prevStateRef.current,
+      to: resolvedState,
+      pathname,
+      decision: redirectDecision,
+      context: {
+        redirectPath,
+        isImpersonating,
+        impersonationTenantSlug: impersonationSession?.targetTenantSlug,
+      },
+    });
+
+    devLogIdentityObservation({ event, violations });
+    prevStateRef.current = resolvedState;
+  }, [resolvedState, pathname, isPublic]);
+
+  // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
+  if (isPublic) {
+    return <>{children}</>;
+  }
+
+  // ===== DEV GUARDRAIL: OBSERVABILITY ONLY =====
+  if (import.meta.env.DEV) {
+    if (!isAuthenticated && pathname === '/identity/wizard') {
+      console.warn('[IdentityGate] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
+        pathname,
+        isAuthenticated,
+        referrer: document.referrer,
+        timestamp: new Date().toISOString(),
+        hint: 'This should NEVER happen. Check isPublicPath() rules.',
+      });
+    }
+  }
 
   // ===== RENDER BY STATE =====
   switch (resolvedState) {

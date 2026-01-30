@@ -22,3 +22,11 @@ export {
   resolveErrorEscapeHatch,
   assertErrorHasEscape,
 } from './identity-error-escape';
+
+export {
+  type IdentityInvariantViolation,
+  type IdentityObservationEvent,
+  IDENTITY_OBS_ENV_KEY,
+  observeIdentityTransition,
+  devLogIdentityObservation,
+} from './identity-observability';
