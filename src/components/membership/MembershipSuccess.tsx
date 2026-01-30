@@ -4,6 +4,7 @@ import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,7 +55,13 @@ export function MembershipSuccess() {
   }, [membershipId, sessionId, t]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <AuthenticatedHeader
+        tenantName={tenant?.name}
+        tenantLogo={tenant?.logoUrl}
+        tenantSlug={tenantSlug}
+      />
+      <div className="flex-1 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -139,6 +146,7 @@ export function MembershipSuccess() {
           </CardContent>
         </Card>
       </motion.div>
+      </div>
     </div>
   );
 }

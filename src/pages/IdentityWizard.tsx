@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
+import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useToast } from '@/hooks/use-toast';
 import { useIdentity, CompleteWizardPayload } from '@/contexts/IdentityContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -218,7 +219,9 @@ export default function IdentityWizard() {
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      <AuthenticatedHeader />
+      <div className="flex-1 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center pb-4">
           <CardTitle className="text-2xl">Configuração de Conta</CardTitle>
@@ -499,6 +502,7 @@ export default function IdentityWizard() {
           </div>
         </CardFooter>
       </Card>
+      </div>
     </div>
   );
 }
