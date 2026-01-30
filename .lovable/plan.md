@@ -1,251 +1,214 @@
 
-# PROMPT UX/01 — Logout + Header (Consistência Global)
+# PROMPT UX/02 — Impersonação + Onboarding (Step 5)
 
-## RESUMO DO DIAGNÓSTICO
+## RESUMO
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos a CRIAR | 1 |
-| Arquivos a MODIFICAR | 6 |
-| Layouts afetados | AppShell ✅, PortalLayout ✅ |
+| Arquivos a MODIFICAR | 3 |
+| Arquivos a CRIAR | 0 |
 | Risco de regressão | Baixo |
+| Schema alterado | ZERO |
 
 ---
 
-## DIAGNÓSTICO CONFIRMADO
+## DIAGNÓSTICO TÉCNICO CONFIRMADO
 
-### Arquitetura Atual de Layouts
+### Problema #1 — Invalidação de Cache Ineficaz
 
-O sistema utiliza 3 padrões de layout:
+**Código atual (`TenantOnboarding.tsx`, linha 100):**
+```typescript
+onSuccess: () => {
+  toast.success(t('onboarding.completedSuccess'));
+  queryClient.invalidateQueries({ queryKey: ['tenant'] }); // ❌ INÚTIL
+  navigate(`/${tenant?.slug}/app`, { replace: true });
+},
+```
 
-| Layout | Uso | Logout |
-|--------|-----|--------|
-| `AppShell` | Rotas `/app/*` (admin) | ✅ Presente (sidebar) |
-| `PortalLayout` | Portal do atleta | ✅ Presente (header dropdown) |
-| `PublicHeader` | Landing pages | ❌ Correto (não autenticado) |
-| *(nenhum)* | Membership flows, Wizards | ❌ **PROBLEMA** |
+**Por que não funciona:**
+- `TenantContext.tsx` NÃO usa React Query
+- Usa `useState` + `useEffect` com chamada direta ao Supabase
+- `invalidateQueries(['tenant'])` não afeta o estado do `TenantContext`
+- Após navegação, o Gate ainda lê `onboardingCompleted: false` do estado stale
 
-### Páginas SEM Header Consistente (autenticadas)
+### Problema #2 — TenantContext sem mecanismo de refetch
 
-| Página | Rota | Problema |
-|--------|------|----------|
-| `MembershipStatus.tsx` | `/:tenant/membership/status` | Sem header |
-| `MembershipRenew.tsx` | `/:tenant/membership/renew` | Sem header |
-| `MembershipSuccess.tsx` | `/:tenant/membership/success` | Sem header |
-| `AdultMembershipForm.tsx` | `/:tenant/membership/adult` | Sem header |
-| `IdentityWizard.tsx` | `/identity/wizard` | Logout inline, sem header |
-
-### Páginas de Join (fluxo público-híbrido)
-
-| Página | Rota | Situação |
-|--------|------|----------|
-| `JoinOrg.tsx` | `/join/org` | Logo TATAME (público) |
-| `JoinAccount.tsx` | `/join/account` | Logo TATAME (público) |
-| `JoinConfirm.tsx` | `/join/confirm` | **Requer login** — sem logout |
+O `TenantContext` não expõe um método `refetch()`. O único trigger é mudança de `tenantSlug` no `useParams`.
 
 ---
 
-## ESTRATÉGIA TÉCNICA
+## SOLUÇÃO TÉCNICA
 
-### Abordagem: Criar `AuthenticatedHeader` Leve
+### Estratégia: Adicionar `refetch` ao TenantContext
 
-Criar um componente minimalista de header para páginas autenticadas que não usam `AppShell` ou `PortalLayout`.
-
-**Características:**
-- Altura mínima (48px)
-- Logo ou nome do tenant (se disponível)
-- Botão de Logout sempre visível
-- Sem navegação lateral
-- Compatível com pages full-screen (wizards, forms)
+Expor uma função `refetchTenant()` que força reload dos dados. Chamar essa função após completar onboarding.
 
 ---
 
 ## ALTERAÇÕES EXATAS
 
-### 1. CRIAR: `src/components/auth/AuthenticatedHeader.tsx`
+### 1. MODIFICAR: `src/contexts/TenantContext.tsx`
 
-Componente leve que renderiza:
-- Logo (tenant ou TATAME)
-- User dropdown com Logout
-- Theme toggle (opcional)
-- Language selector (opcional)
+**Objetivo:** Expor função `refetchTenant` no contexto
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│  [Logo]                         [🌐] [☀️] [User ▾]     │
-│                                          └─ Logout     │
-└─────────────────────────────────────────────────────────┘
+**Linhas afetadas:** 6-8, 149-151, 156-162
+
+**Alteração no tipo de contexto:**
+```typescript
+interface ExtendedTenantContext extends TenantContextType {
+  billingInfo: TenantBillingInfo | null;
+  refetchTenant: () => void; // ← ADICIONAR
+}
 ```
 
-**Props:**
-- `tenantName?: string`
-- `tenantLogo?: string`
-- `showBackButton?: boolean`
-- `backTo?: string`
+**Alteração na implementação:**
+```typescript
+// Adicionar state para trigger de refetch
+const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-**Comportamento:**
-- Se `isAuthenticated === true` → exibe header com logout
-- Se `isAuthenticated === false` → não renderiza (página pública)
+// Modificar useEffect para depender do trigger
+useEffect(() => {
+  // ... existing code ...
+}, [tenantSlug, refetchTrigger]); // ← ADICIONAR refetchTrigger
+
+// Adicionar função de refetch
+const refetchTenant = useCallback(() => {
+  setRefetchTrigger(prev => prev + 1);
+}, []);
+
+// Expor no Provider
+return (
+  <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo, refetchTenant }}>
+    {children}
+  </TenantContext.Provider>
+);
+```
 
 ---
 
-### 2. MODIFICAR: `src/pages/MembershipStatus.tsx`
+### 2. MODIFICAR: `src/pages/TenantOnboarding.tsx`
 
-**Local:** Container principal
+**Objetivo:** Chamar `refetchTenant()` após conclusão do onboarding
+
+**Linhas afetadas:** 23, 98-101
 
 **Antes:**
-```tsx
-<div className="min-h-screen bg-background">
-  <div className="container max-w-2xl mx-auto px-4 py-8">
-    ...
-  </div>
-</div>
+```typescript
+const { tenant } = useTenant();
+// ...
+onSuccess: () => {
+  toast.success(t('onboarding.completedSuccess'));
+  queryClient.invalidateQueries({ queryKey: ['tenant'] });
+  navigate(`/${tenant?.slug}/app`, { replace: true });
+},
 ```
 
 **Depois:**
-```tsx
-<div className="min-h-screen bg-background">
-  <AuthenticatedHeader 
-    tenantName={tenant?.name}
-    tenantLogo={tenant?.logoUrl}
-  />
-  <div className="container max-w-2xl mx-auto px-4 py-8">
-    ...
-  </div>
-</div>
+```typescript
+const { tenant, refetchTenant } = useTenant();
+// ...
+onSuccess: () => {
+  toast.success(t('onboarding.completedSuccess'));
+  
+  // ✅ Force TenantContext to reload data
+  refetchTenant();
+  
+  // Invalidate React Query caches (for other components using queries)
+  queryClient.invalidateQueries({ queryKey: ['onboarding-status', tenant?.id] });
+  
+  // Navigate with replace to prevent back-button loop
+  navigate(`/${tenant?.slug}/app`, { replace: true });
+},
 ```
 
 ---
 
-### 3. MODIFICAR: `src/pages/MembershipRenew.tsx`
+### 3. MODIFICAR: `src/components/onboarding/TenantOnboardingGate.tsx`
 
-**Local:** Container principal (linha ~223)
+**Objetivo:** Adicionar bypass para impersonação com tenant já configurado
 
-**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
+**Linhas afetadas:** 7, 26-27, 30-52
 
----
+**Adicionar import:**
+```typescript
+import { useImpersonation } from '@/contexts/ImpersonationContext';
+```
 
-### 4. MODIFICAR: `src/components/membership/MembershipSuccess.tsx`
-
-**Local:** Container principal (linha ~56)
-
-**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
-
----
-
-### 5. MODIFICAR: `src/components/membership/AdultMembershipForm.tsx`
-
-**Local:** Container principal do formulário
-
-**Mesma abordagem:** Adicionar `<AuthenticatedHeader />` no topo.
-
----
-
-### 6. MODIFICAR: `src/pages/IdentityWizard.tsx`
-
-**Local:** Container principal (linha ~220)
-
-**Comportamento especial:**
-- Já possui botão de logout inline
-- Adicionar header para consistência visual
-- Manter logout inline como fallback
-
----
-
-### 7. MODIFICAR: `src/pages/JoinConfirm.tsx`
-
-**Local:** Container principal
-
-**Comportamento:** Adicionar header se usuário autenticado (etapa após login)
-
----
-
-## IMPLEMENTAÇÃO DO COMPONENTE
-
-```tsx
-// src/components/auth/AuthenticatedHeader.tsx
-
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Globe, Sun, Moon, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useCurrentUser } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n } from '@/contexts/I18nContext';
-import iconLogo from '@/assets/iconLogo.png';
-
-interface AuthenticatedHeaderProps {
-  tenantName?: string;
-  tenantLogo?: string | null;
-  tenantSlug?: string;
-}
-
-export function AuthenticatedHeader({ 
-  tenantName, 
-  tenantLogo,
-  tenantSlug 
-}: AuthenticatedHeaderProps) {
-  const { currentUser, isAuthenticated, signOut } = useCurrentUser();
-  const { resolvedTheme, setTheme } = useTheme();
-  const { t } = useI18n();
+**Adicionar check defensivo com dados reais:**
+```typescript
+export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
+  const { tenant, isLoading, refetchTenant } = useTenant();
+  const { isImpersonating } = useImpersonation();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Não renderiza se não autenticado
-  if (!isAuthenticated) return null;
+  // Refetch tenant data when impersonation changes
+  useEffect(() => {
+    if (isImpersonating && !isLoading) {
+      refetchTenant();
+    }
+  }, [isImpersonating, isLoading, refetchTenant]);
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate(tenantSlug ? `/${tenantSlug}` : '/login');
-  };
+  useEffect(() => {
+    if (isLoading || !tenant) return;
 
-  return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="container max-w-4xl mx-auto flex h-14 items-center justify-between px-4">
-        {/* Logo */}
-        <Link to={tenantSlug ? `/${tenantSlug}` : '/'} className="flex items-center gap-2">
-          {tenantLogo ? (
-            <img src={tenantLogo} alt={tenantName || ''} className="h-8 w-8 rounded object-cover" />
-          ) : (
-            <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded object-contain" />
-          )}
-          {tenantName && (
-            <span className="font-semibold text-sm hidden sm:inline">{tenantName}</span>
-          )}
-        </Link>
+    // Check if onboarding is complete via flag
+    const isComplete = tenant?.onboardingCompleted === true;
+    
+    if (isComplete) return; // Onboarding done, allow access
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* Theme toggle */}
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-          >
-            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+    // DEFENSIVE: Check if tenant has actual configured data
+    // (handles case where flag is false but tenant already has data)
+    // This prevents loops when DB flag wasn't properly updated
+    const hasRealConfiguration = Boolean(
+      tenant?.isActive &&
+      tenant?.sportTypes?.length > 0
+    );
+    
+    // If impersonating and tenant has real data, skip onboarding redirect
+    if (isImpersonating && hasRealConfiguration) {
+      console.log('[ONBOARDING-GATE] Skipping for impersonation with configured tenant');
+      return;
+    }
 
-          {/* User menu with logout */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline text-sm max-w-[100px] truncate">
-                  {currentUser?.name || currentUser?.email?.split('@')[0]}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />
-                {t('nav.logout')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </header>
+    // Check if current route is allowed during onboarding
+    const currentPath = location.pathname;
+    const tenantPrefix = `/${tenant.slug}`;
+    const relativePath = currentPath.replace(tenantPrefix, '');
+    
+    const isAllowed = ALLOWED_ROUTES.some(route => 
+      relativePath === route || relativePath.startsWith(route + '/')
+    );
+
+    if (!isAllowed) {
+      navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
+    }
+  }, [tenant, isLoading, location.pathname, navigate, isImpersonating]);
+
+  // ... rest unchanged
+}
+```
+
+**Atualizar hook `useOnboardingStatus`:**
+```typescript
+export function useOnboardingStatus() {
+  const { tenant, isLoading, refetchTenant } = useTenant();
+  
+  // ✅ Check both flag AND real tenant configuration
+  const isComplete = tenant?.onboardingCompleted === true;
+  
+  // Defensive: also consider tenant "complete" if it has real data
+  const hasRealConfiguration = Boolean(
+    tenant?.isActive &&
+    tenant?.sportTypes?.length > 0
   );
+
+  return {
+    isComplete: isComplete || hasRealConfiguration,
+    isLoading,
+    tenant,
+    refetchTenant,
+  };
 }
 ```
 
@@ -254,83 +217,96 @@ export function AuthenticatedHeader({
 ## FLUXO CORRIGIDO
 
 ```text
-ANTES:
-┌───────────────────────────────────┐
-│ MembershipStatus.tsx              │
-│                                   │
-│  [Back button]                    │
-│                                   │
-│  ┌─────────────────────────────┐  │
-│  │      Status Card            │  │
-│  │      (sem logout!)          │  │
-│  └─────────────────────────────┘  │
-└───────────────────────────────────┘
+ANTES (bug):
+┌──────────────────────────────────────────────────────────┐
+│ Step 5 → completeMutation.onSuccess                      │
+│   ↓                                                      │
+│ invalidateQueries(['tenant']) ← NÃO AFETA TenantContext │
+│   ↓                                                      │
+│ navigate('/app')                                         │
+│   ↓                                                      │
+│ TenantOnboardingGate lê onboardingCompleted: false       │
+│   ↓                                                      │
+│ Redirect para /onboarding ← LOOP ❌                      │
+└──────────────────────────────────────────────────────────┘
 
-DEPOIS:
-┌───────────────────────────────────┐
-│ [Logo]           [☀️] [User ▾]   │ ← AuthenticatedHeader
-│                        └─ Logout │
-├───────────────────────────────────┤
-│                                   │
-│  ┌─────────────────────────────┐  │
-│  │      Status Card            │  │
-│  └─────────────────────────────┘  │
-└───────────────────────────────────┘
+DEPOIS (correto):
+┌──────────────────────────────────────────────────────────┐
+│ Step 5 → completeMutation.onSuccess                      │
+│   ↓                                                      │
+│ refetchTenant() ← FORÇA TenantContext a recarregar       │
+│   ↓                                                      │
+│ navigate('/app')                                         │
+│   ↓                                                      │
+│ TenantOnboardingGate lê onboardingCompleted: true        │
+│   ↓                                                      │
+│ Permite acesso ao /app ✅                                │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## VALIDAÇÃO
 
-| Cenário | Antes | Depois |
-|---------|-------|--------|
-| `/membership/status` | ❌ Sem logout | ✅ Header com logout |
-| `/membership/renew` | ❌ Sem logout | ✅ Header com logout |
-| `/membership/success` | ❌ Sem logout | ✅ Header com logout |
-| `/membership/adult` | ❌ Sem logout | ✅ Header com logout |
-| `/identity/wizard` | ⚠️ Inline only | ✅ Header + inline |
-| `/:tenant/app/*` | ✅ AppShell | ✅ Mantido |
-| `/:tenant/portal` | ✅ PortalLayout | ✅ Mantido |
-| Páginas públicas | ✅ PublicHeader | ✅ Mantido |
+| Cenário | Esperado |
+|---------|----------|
+| Admin completa onboarding | Navega para `/app`, não volta para wizard |
+| Superadmin impersona e completa onboarding | Navega para `/app`, não volta para wizard |
+| Tenant já configurado (flag true) | Acessa `/app` direto |
+| Tenant novo (flag false) | Redireciona para `/app/onboarding` |
+| Back-button após onboarding | Permanece no `/app` (replace: true) |
 
 ---
 
 ## GARANTIAS
 
-- **ZERO alteração de lógica de autenticação**
-- **ZERO alteração de guards**
-- **ZERO alteração de fluxos existentes**
-- **ZERO impacto em impersonação** (ImpersonationBanner permanece)
-- **ZERO alteração de layout de AppShell/PortalLayout**
-- **Componente aditivo, não substitutivo**
+- **ZERO alteração de schema** — Usa flag existente `onboarding_completed`
+- **ZERO breaking change** — Apenas adiciona `refetchTenant` ao contexto
+- **ZERO impacto para tenants novos** — Lógica de redirect permanece
+- **ZERO impacto para não-admins** — Gate só afeta rotas `/app/*`
+- **Totalmente reversível** — Pode remover `refetchTenant` se necessário
 
 ---
 
 ## SEÇÃO TÉCNICA
 
-### Integração com ImpersonationBanner
+### Por que não usar React Query no TenantContext?
 
-O `ImpersonationBanner` é renderizado em `AppProviders.tsx`, portanto aparece em TODAS as páginas. A adição de `AuthenticatedHeader` não interfere:
+O `TenantContext` foi projetado para ser o "provider canônico" de tenant data em toda a aplicação. Migrar para React Query seria um refactor maior que:
+1. Afetaria todos os consumidores do hook `useTenant()`
+2. Introduziria complexidade desnecessária
+3. Poderia gerar race conditions com outros caches
+
+A solução de adicionar `refetchTrigger` é mínima e cirúrgica.
+
+### Impersonation + Onboarding Interaction
 
 ```text
-AppProviders.tsx:
-  └─ ImpersonationBanner (global, z-50)
-  └─ ImpersonationBannerSpacer (padding top)
-  └─ children
-       └─ AuthenticatedHeader (sticky top-0, z-40)
-       └─ Page content
+┌─────────────────────────────────────────────────────────────┐
+│ ImpersonationContext                                        │
+│   isImpersonating: true                                     │
+│   targetTenantId: "abc-123"                                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ triggers useEffect
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ TenantOnboardingGate                                        │
+│   1. Detect impersonation change                            │
+│   2. Call refetchTenant()                                   │
+│   3. Re-evaluate onboardingCompleted                        │
+│   4. If complete → allow access                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Prioridade de Z-Index
+### Defensive hasRealConfiguration Check
 
-| Componente | Z-Index | Posição |
-|------------|---------|---------|
-| ImpersonationBanner | 50 | Topo absoluto |
-| AuthenticatedHeader | 40 | Abaixo do banner |
-| AppShell sidebar | 50 | Lateral |
-| Modal/Dialog | 50+ | Overlay |
+O check defensivo `hasRealConfiguration` previne loops mesmo se:
+- A flag `onboarding_completed` não foi atualizada corretamente
+- Houve falha no edge function
+- O cache ficou stale por outro motivo
 
-### Responsividade
+Critérios usados (já existentes no tenant):
+- `tenant.isActive === true`
+- `tenant.sportTypes.length > 0`
 
-- Mobile: Logo apenas, nome do usuário abreviado
-- Desktop: Logo + tenant name, nome completo do usuário
+**Nota:** Não checamos `academies` aqui pois isso exigiria uma query adicional. Os critérios acima são suficientes para um bypass defensivo.
