@@ -26,7 +26,7 @@ type SupabaseClientAny = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -266,6 +266,29 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // ========================================
+  // CRON_SECRET VALIDATION
+  // ========================================
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
+
+  if (!cronSecret) {
+    console.error("[CLEANUP-EXPIRED-TENANTS] CRON_SECRET not configured");
+    return new Response(
+      JSON.stringify({ error: "Server configuration error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  if (requestSecret !== cronSecret) {
+    console.error("[CLEANUP-EXPIRED-TENANTS] Invalid or missing x-cron-secret");
+    return new Response(
+      JSON.stringify({ error: "Forbidden" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  // ========================================
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
