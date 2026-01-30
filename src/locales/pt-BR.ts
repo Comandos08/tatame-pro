@@ -1433,6 +1433,15 @@ export const ptBR = {
   'impersonation.accessDenied': 'Acesso negado',
   'impersonation.superadminMustImpersonate': 'Como Superadmin, você precisa iniciar uma sessão de impersonation para acessar recursos de tenant.',
   'impersonation.goToAdmin': 'Voltar ao Admin',
+  'impersonation.operatingAs': 'Operando como',
+  'impersonation.tenant': 'Tenant',
+  'impersonation.mode': 'Modo',
+  'impersonation.modeAdmin': 'Admin',
+  'impersonation.modePortal': 'Portal',
+  'impersonation.modeOnboarding': 'Onboarding',
+  'impersonation.modePublic': 'Público',
+  'impersonation.supportMode': 'modo suporte',
+  'impersonation.badge': 'Impersonation',
   
   // Onboarding Wizard
   'onboarding.title': 'Configuração Inicial',

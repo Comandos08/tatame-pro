@@ -1435,6 +1435,15 @@ export const es: Record<string, string> = {
   'impersonation.accessDenied': 'Acceso denegado',
   'impersonation.superadminMustImpersonate': 'Como Superadmin, necesitas iniciar una sesión de impersonation para acceder a recursos del tenant.',
   'impersonation.goToAdmin': 'Volver al Admin',
+  'impersonation.operatingAs': 'Operando como',
+  'impersonation.tenant': 'Tenant',
+  'impersonation.mode': 'Modo',
+  'impersonation.modeAdmin': 'Admin',
+  'impersonation.modePortal': 'Portal',
+  'impersonation.modeOnboarding': 'Onboarding',
+  'impersonation.modePublic': 'Público',
+  'impersonation.supportMode': 'modo soporte',
+  'impersonation.badge': 'Impersonation',
   
   // Onboarding Wizard
   'onboarding.title': 'Configuración Inicial',

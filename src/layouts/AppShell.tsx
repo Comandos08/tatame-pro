@@ -33,6 +33,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -65,6 +66,7 @@ export function AppShell({ children }: AppShellProps) {
   const { tenant } = useTenant();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
+  const { isImpersonating, session: impersonationSession } = useImpersonation();
   const { can, isLoading: permissionsLoading } = usePermissions();
   const navigate = useNavigate();
 
@@ -156,6 +158,18 @@ export function AppShell({ children }: AppShellProps) {
               <X className="h-5 w-5" />
             </Button>
           </div>
+
+          {/* Impersonation context indicator */}
+          {isImpersonating && impersonationSession && (
+            <div className="mx-4 mb-2 rounded-md bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 text-xs">
+              <span className="text-yellow-800 dark:text-yellow-200 opacity-80">
+                {t('impersonation.operatingAs')}:
+              </span>
+              <strong className="block truncate text-yellow-900 dark:text-yellow-100">
+                {impersonationSession.targetTenantName}
+              </strong>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
