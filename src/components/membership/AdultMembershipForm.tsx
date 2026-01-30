@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -355,6 +356,11 @@ export function AdultMembershipForm() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AuthenticatedHeader
+        tenantName={tenant?.name}
+        tenantLogo={tenant?.logoUrl}
+        tenantSlug={tenantSlug}
+      />
       <div className="container max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <motion.div

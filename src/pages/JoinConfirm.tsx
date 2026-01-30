@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 
 import { useJoin } from '@/contexts/JoinContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -200,6 +201,7 @@ export default function JoinConfirm() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AuthenticatedHeader tenantSlug={selectedTenant.slug} />
       <div className="container max-w-md mx-auto px-4 py-8">
         {/* Header */}
         <motion.div

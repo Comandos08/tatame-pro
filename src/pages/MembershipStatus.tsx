@@ -13,6 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -218,6 +219,11 @@ export default function MembershipStatus() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AuthenticatedHeader
+        tenantName={tenant?.name}
+        tenantLogo={tenant?.logoUrl}
+        tenantSlug={tenantSlug}
+      />
       <div className="container max-w-2xl mx-auto px-4 py-8">
         {/* Header */}
         <motion.div
