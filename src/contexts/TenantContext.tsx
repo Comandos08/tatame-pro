@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Tenant, TenantContext as TenantContextType } from '@/types/tenant';
 
 interface ExtendedTenantContext extends TenantContextType {
   billingInfo: TenantBillingInfo | null;
+  refetchTenant: () => void;
 }
 
 interface TenantBillingInfo {
@@ -26,8 +27,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
+  // ✅ UX/02 — Refetch trigger for forcing context reload
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+  
   // 🔐 HARDENING: Track mount state to prevent setState after unmount
   const isMountedRef = useRef(true);
+  
+  // ✅ UX/02 — Expose refetch function
+  const refetchTenant = useCallback(() => {
+    setRefetchTrigger(prev => prev + 1);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -144,10 +153,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
       isMountedRef.current = false;
       abortController.abort();
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, refetchTrigger]); // ✅ UX/02 — Add refetchTrigger dependency
 
   return (
-    <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo }}>
+    <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo, refetchTenant }}>
       {children}
     </TenantContext.Provider>
   );
