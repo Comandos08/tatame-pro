@@ -75,6 +75,8 @@ export const es: Record<string, string> = {
   'membership.proceed': 'Continuar',
   'membership.payment': 'Pago',
   'membership.success': '¡Afiliación Completada!',
+  'membership.type.first': 'Primera Afiliación',
+  'membership.type.renewal': 'Renovación',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Afiliación de Atleta Adulto',

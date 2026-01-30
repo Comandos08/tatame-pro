@@ -75,6 +75,8 @@ export const en: Record<string, string> = {
   'membership.proceed': 'Continue',
   'membership.payment': 'Payment',
   'membership.success': 'Membership Complete!',
+  'membership.type.first': 'First Membership',
+  'membership.type.renewal': 'Renewal',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Adult Athlete Membership',
