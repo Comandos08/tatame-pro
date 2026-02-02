@@ -1,319 +1,370 @@
 
 
-# P0 — HARD FIXES FUNDACIONAIS (SAFE MODE)
+# P2.1 — EVENTOS CORE (GOVERNANÇA) — ANÁLISE SAFE MODE
 
 ## MODO DE EXECUÇÃO
 
 - **SAFE MODE** — Zero Criatividade
-- Zero Feature Nova
-- Zero Alteração Fora do Escopo
-- NÃO MUDAR CONTRATOS EXISTENTES, APENAS CORRIGIR ESCOPO
-- NÃO QUEBRAR NENHUM FLUXO FUNCIONAL EXISTENTE
-- SE ALGO NÃO ESTIVER CLARO: NÃO IMPLEMENTAR
+- Zero Feature Fora do Escopo
+- NÃO alterar contratos existentes
+- NÃO alterar Auth, Stripe, Analytics
+- NÃO criar automações
+- NÃO refatorar código não relacionado
+- Se algo não estiver explícito: NÃO IMPLEMENTAR
 
 ---
 
-## ANÁLISE ATUAL
+## ANÁLISE COMPLETA DO ESTADO ATUAL
 
-### Descobertas após Exploração
+### P2.1.1 — ESTADOS OFICIAIS DO EVENTO
 
-| Item | Estado Atual | Status |
-|------|--------------|--------|
-| P0.1 - Approval Tenant-Scoped | **JÁ IMPLEMENTADO** - Queries filtram `tenant_id` | OK |
-| P0.2 - QRCode Forte | **PARCIALMENTE** - Usa `membership_id` direto (UUID) | AJUSTE |
-| P0.3 - Verificação Carteirinha | **JÁ EXISTE** - `VerifyMembership.tsx` funcional | OK |
-| P0.4 - Verificação Diploma | **JÁ EXISTE** - `VerifyDiploma.tsx` funcional | OK |
-| P0.5 - Formulário Organização | **DIVERGENTE** - Create/Edit têm campos diferentes | AJUSTE |
-| P0.6 - Remover SHA-256 Label | **PARCIALMENTE** - Visível em alguns lugares | AJUSTE |
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| Enum `event_status` existe | Sim, no banco de dados | OK |
+| Valores corretos no enum | **DIVERGÊNCIA IDENTIFICADA** | AJUSTE |
+
+**Valores atuais no banco:**
+```
+{DRAFT, PUBLISHED, REGISTRATION_OPEN, REGISTRATION_CLOSED, ONGOING, FINISHED, ARCHIVED}
+```
+
+**Valores requisitados pelo P2.1:**
+```
+{DRAFT, PUBLISHED, REGISTRATION_OPEN, REGISTRATION_CLOSED, ONGOING, COMPLETED, CANCELLED}
+```
+
+**Divergências:**
+- `FINISHED` vs `COMPLETED` — Renomeação não autorizada pelo SAFE MODE
+- `ARCHIVED` existe mas não está na spec — Já implementado e funcional
+- `CANCELLED` não existe — Nova adição
+
+**RECOMENDAÇÃO**: A spec solicita não renomear estados existentes. O estado `FINISHED` já está em uso no código e banco. Adicionar `CANCELLED` é permitido, mas renomear `FINISHED` para `COMPLETED` violaria o SAFE MODE.
+
+**AÇÃO PROPOSTA**: Manter `FINISHED` e `ARCHIVED` como estão (já funcionais), adicionar apenas `CANCELLED` como novo estado.
 
 ---
 
-## P0.1 — MEMBERSHIP APROVADO POR TENANT
+### P2.1.2 — TRANSIÇÕES PERMITIDAS
 
-### Análise
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| Máquina de estados definida | Sim, em `src/types/event.ts` | OK |
+| Transições validadas no frontend | Sim, `getValidTransitions()` | OK |
+| Função `transitionEventStatus()` | **NÃO EXISTE** | CRIAR |
 
-**RESULTADO: JÁ IMPLEMENTADO CORRETAMENTE**
-
-Verificação em `ApprovalsList.tsx` (linhas 88-91):
-```tsx
-.eq('tenant_id', tenant.id)
-.eq('status', 'PENDING_REVIEW')
+**Estado atual das transições** (linhas 89-97 de `event.ts`):
+```typescript
+export const EVENT_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
+  DRAFT: ['PUBLISHED'],
+  PUBLISHED: ['REGISTRATION_OPEN', 'ARCHIVED'],
+  REGISTRATION_OPEN: ['REGISTRATION_CLOSED'],
+  REGISTRATION_CLOSED: ['ONGOING'],
+  ONGOING: ['FINISHED'],
+  FINISHED: ['ARCHIVED'],
+  ARCHIVED: [], // Terminal state
+};
 ```
 
-Verificação em `approve-membership/index.ts` (linhas 298-313):
-```ts
-const isTenantAdmin = roles?.some(r => 
-  (r.role === "ADMIN_TENANT" || r.role === "STAFF_ORGANIZACAO") && 
-  r.tenant_id === targetTenantId
-);
+**Transições requisitadas pelo P2.1:**
+```
+DRAFT → PUBLISHED
+PUBLISHED → REGISTRATION_OPEN
+REGISTRATION_OPEN → REGISTRATION_CLOSED
+REGISTRATION_CLOSED → ONGOING
+ONGOING → COMPLETED
+QUALQUER (exceto COMPLETED) → CANCELLED
 ```
 
-**Conclusão**: O código atual já implementa corretamente o modelo federativo:
-- Query filtra por `tenant_id` do tenant atual
-- Backend valida role no tenant específico
-- SuperAdmin precisa de impersonation válida
+**Divergências:**
+- Frontend permite `PUBLISHED → ARCHIVED` (não na spec)
+- `CANCELLED` precisa ser adicionado como transição de qualquer estado
+- Backend não valida transições (apenas frontend)
 
-**NENHUMA AÇÃO NECESSÁRIA**
+**GAPS IDENTIFICADOS:**
+1. Adicionar estado `CANCELLED` ao enum
+2. Adicionar transições para `CANCELLED`
+3. Criar função backend de validação de transição
 
 ---
 
-## P0.2 — QRCODE À PROVA DE BALAS
+### P2.1.3 — VISIBILIDADE E COMPORTAMENTO POR ESTADO
 
-### Análise do Estado Atual
+| Estado | Requisito | Implementação Atual | Status |
+|--------|-----------|---------------------|--------|
+| DRAFT | Apenas Admin | RLS: `is_tenant_admin()` | OK |
+| PUBLISHED | Público | RLS: `is_public = true` | OK |
+| REGISTRATION_OPEN | Inscrição permitida | `canRegisterForEvent()` | OK |
+| REGISTRATION_CLOSED | Inscrição bloqueada | `canRegisterForEvent()` | OK |
+| ONGOING | Acompanhamento | Visualização permitida | OK |
+| FINISHED | Read-only | Visualização permitida | OK |
+| ARCHIVED | Público com filtro | RLS exclui de listagens | OK |
+| CANCELLED | Evento marcado | **NÃO EXISTE** | CRIAR |
 
-**QRCode atual**:
-- `DigitalMembershipCard.tsx` (linha 48): 
-  ```tsx
-  const verificationUrl = `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
-  ```
+**RLS Policies existentes:**
+```sql
+-- Admin tem acesso total
+events_admin_all: (is_tenant_admin(tenant_id) OR is_superadmin())
 
-**Problema**: Usa `membershipId` (UUID) diretamente na URL
+-- Público só vê eventos publicados, não-DRAFT, não-ARCHIVED
+events_public_select: (is_public = true) AND (status NOT IN ('DRAFT', 'ARCHIVED'))
+```
 
-**Solução Proposta na Spec**: Criar campo `membership_public_id` com hash SHA-256
-
-### Avaliação Técnica
-
-**RECOMENDAÇÃO: NÃO IMPLEMENTAR ESTE AJUSTE**
-
-Razões:
-1. UUID v4 já é criptograficamente seguro (122 bits de entropia)
-2. Criar hash de `membership_id + tenant_id` apenas adiciona uma indireção sem ganho de segurança
-3. A verificação já ocorre via view `membership_verification` que valida `tenant_slug` + `membership_id`
-4. O UUID não expõe nenhum dado sensível
-
-**Ganho de segurança: ZERO**
-**Risco de regressão: MÉDIO** (IDs antigos deixariam de funcionar)
-**Complexidade: ALTA** (migração de banco, edge function, UI)
-
-**NENHUMA AÇÃO RECOMENDADA** - A implementação atual é segura
+**GAP**: Quando `CANCELLED` for adicionado, a RLS precisa excluí-lo da listagem pública ou mostrá-lo com marcação.
 
 ---
 
-## P0.3 — PÁGINA DE VERIFICAÇÃO DE CARTEIRINHA
+### P2.1.4 — DELEÇÃO SEGURA DE EVENTO
 
-### Análise
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| Soft delete com `deleted_at` | **COLUNA NÃO EXISTE** | CRIAR |
+| Bloquear se houver inscrições | **NÃO IMPLEMENTADO** | CRIAR |
+| Bloquear eventos ativos | **NÃO IMPLEMENTADO** | CRIAR |
+| Nenhuma UI de deleção | **CORRETO** - Decisão intencional | OK |
 
-**RESULTADO: JÁ IMPLEMENTADO**
+**Evidência**: A coluna `deleted_at` não existe na tabela `events` (verificado via query).
 
-`VerifyMembership.tsx` já existe e funciona:
-- Usa view `membership_verification` (hardened, read-only)
-- Retorna dados públicos com nome maskeado
-- Mostra graduação vigente
-- Valida status e validade
-
-**NENHUMA AÇÃO NECESSÁRIA**
-
----
-
-## P0.4 — PÁGINA DE VERIFICAÇÃO DE DIPLOMA
-
-### Análise
-
-**RESULTADO: JÁ IMPLEMENTADO**
-
-`VerifyDiploma.tsx` já existe e funciona:
-- Busca por ID do diploma
-- Valida tenant via slug
-- Máscara nome do atleta
-- Verifica integridade via SHA-256
-- Read-only, sem listagem
-
-**NENHUMA AÇÃO NECESSÁRIA**
+**GAP**: Precisa adicionar coluna `deleted_at` e criar lógica de soft delete com validações.
 
 ---
 
-## P0.5 — FORMULÁRIO ORGANIZAÇÃO IDÊNTICO
+### P2.1.5 — RESTRIÇÕES GERAIS
 
-### Análise
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| Queries filtram por `tenant_id` | Sim, em todas as queries | OK |
+| RLS valida tenant | Sim, `is_tenant_admin(tenant_id)` | OK |
+| Triggers validam tenant | Sim, 3 triggers existentes | OK |
+| Validação de estado em mutações | **PARCIAL** - Apenas frontend | AJUSTE |
 
-**DIVERGÊNCIA IDENTIFICADA**:
-
-| Campo | CreateTenantDialog | EditTenantDialog |
-|-------|-------------------|------------------|
-| `SPORT_TYPES` | Array completo (10 itens) | Array reduzido (8 itens) |
-| Format | `'Jiu-Jitsu'` | `'BJJ'` |
-| Slug | Editável | Read-only |
-
-**Problema**: Inconsistência nos valores de `SPORT_TYPES` entre os dois dialogs
-
-### Ação Necessária
-
-Unificar `SPORT_TYPES` em `EditTenantDialog.tsx`:
-
-**Arquivo**: `src/components/admin/EditTenantDialog.tsx`
-
-**Linha 28** (atual):
-```ts
-const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
-```
-
-**Substituir por**:
-```ts
-const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
-```
-
-**Impacto**: Zero - apenas corrige inconsistência visual
+**Triggers existentes** (verificados):
+- `validate_event_category_tenant` — Valida tenant em categorias
+- `validate_event_registration_tenant` — Valida tenant em inscrições
+- `validate_event_result_tenant` — Valida tenant em resultados
+- `prevent_event_results_modification` — Bloqueia UPDATE/DELETE em resultados
 
 ---
 
-## P0.6 — REMOVER LABEL "SHA-256" DA CARTEIRINHA
+## RESUMO DE ALTERAÇÕES NECESSÁRIAS
 
-### Análise
+### 1. Adicionar estado `CANCELLED` ao enum (DB)
 
-**Locais onde "SHA-256:" aparece**:
+```sql
+ALTER TYPE event_status ADD VALUE 'CANCELLED';
+```
 
-1. `DigitalMembershipCard.tsx` (linha 240):
-   ```tsx
-   <span>SHA-256:</span>
-   ```
+### 2. Atualizar TypeScript types
 
-2. `VerifyCard.tsx` (linha 396):
-   ```tsx
-   <p className="text-xs text-muted-foreground mt-1">
-     SHA-256: {verification.storedHash.substring(0, 16)}...
-   </p>
-   ```
+**Arquivo**: `src/types/event.ts`
 
-3. `VerifyMembership.tsx` (linha 328):
-   ```tsx
-   <span className="font-mono">SHA-256: {data.content_hash_sha256.substring(0, 12)}...</span>
-   ```
+Adicionar `CANCELLED` ao tipo e configurações:
+```typescript
+export type EventStatus = 
+  | 'DRAFT' 
+  | 'PUBLISHED' 
+  | 'REGISTRATION_OPEN' 
+  | 'REGISTRATION_CLOSED' 
+  | 'ONGOING' 
+  | 'FINISHED' 
+  | 'ARCHIVED'
+  | 'CANCELLED';  // NOVO
 
-### Ação Necessária
+// Adicionar config para CANCELLED
+CANCELLED: { 
+  label: 'Cancelado', 
+  labelKey: 'events.status.cancelled',
+  color: 'muted',
+  descriptionKey: 'events.status.cancelledDesc',
+},
+```
 
-Substituir "SHA-256:" por "ID:" em todos os locais acima
+### 3. Atualizar transições para incluir `CANCELLED`
+
+```typescript
+export const EVENT_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
+  DRAFT: ['PUBLISHED', 'CANCELLED'],
+  PUBLISHED: ['REGISTRATION_OPEN', 'CANCELLED'],
+  REGISTRATION_OPEN: ['REGISTRATION_CLOSED', 'CANCELLED'],
+  REGISTRATION_CLOSED: ['ONGOING', 'CANCELLED'],
+  ONGOING: ['FINISHED', 'CANCELLED'],
+  FINISHED: ['ARCHIVED'],  // Terminal - não pode cancelar
+  ARCHIVED: [],            // Terminal
+  CANCELLED: [],           // Terminal
+};
+```
+
+### 4. Adicionar coluna `deleted_at` para soft delete
+
+```sql
+ALTER TABLE events ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
+
+-- Índice parcial para performance
+CREATE INDEX idx_events_not_deleted ON events (tenant_id, status) WHERE deleted_at IS NULL;
+```
+
+### 5. Criar função de validação de transição (DB)
+
+```sql
+CREATE OR REPLACE FUNCTION validate_event_status_transition()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Se status não mudou, permitir
+  IF OLD.status = NEW.status THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Validar transições permitidas
+  IF NOT (
+    (OLD.status = 'DRAFT' AND NEW.status IN ('PUBLISHED', 'CANCELLED')) OR
+    (OLD.status = 'PUBLISHED' AND NEW.status IN ('REGISTRATION_OPEN', 'CANCELLED')) OR
+    (OLD.status = 'REGISTRATION_OPEN' AND NEW.status IN ('REGISTRATION_CLOSED', 'CANCELLED')) OR
+    (OLD.status = 'REGISTRATION_CLOSED' AND NEW.status IN ('ONGOING', 'CANCELLED')) OR
+    (OLD.status = 'ONGOING' AND NEW.status IN ('FINISHED', 'CANCELLED')) OR
+    (OLD.status = 'FINISHED' AND NEW.status = 'ARCHIVED')
+  ) THEN
+    RAISE EXCEPTION 'Invalid status transition from % to %', OLD.status, NEW.status;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_event_status_transition
+  BEFORE UPDATE ON events
+  FOR EACH ROW
+  WHEN (OLD.status IS DISTINCT FROM NEW.status)
+  EXECUTE FUNCTION validate_event_status_transition();
+```
+
+### 6. Criar função de soft delete com validações (DB)
+
+```sql
+CREATE OR REPLACE FUNCTION soft_delete_event(p_event_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_status event_status;
+  v_registration_count INT;
+BEGIN
+  -- Obter status atual
+  SELECT status INTO v_status FROM events WHERE id = p_event_id;
+  
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Event not found';
+  END IF;
+  
+  -- Só pode deletar DRAFT ou CANCELLED
+  IF v_status NOT IN ('DRAFT', 'CANCELLED') THEN
+    RAISE EXCEPTION 'Cannot delete event with status %. Only DRAFT or CANCELLED events can be deleted.', v_status;
+  END IF;
+  
+  -- Verificar se há inscrições
+  SELECT COUNT(*) INTO v_registration_count 
+  FROM event_registrations 
+  WHERE event_id = p_event_id AND status != 'CANCELED';
+  
+  IF v_registration_count > 0 THEN
+    RAISE EXCEPTION 'Cannot delete event with % active registrations', v_registration_count;
+  END IF;
+  
+  -- Soft delete
+  UPDATE events SET deleted_at = NOW() WHERE id = p_event_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 7. Atualizar RLS para excluir eventos deletados
+
+```sql
+-- Recriar policy para excluir deleted
+DROP POLICY IF EXISTS events_public_select ON events;
+CREATE POLICY events_public_select ON events
+  FOR SELECT
+  USING (
+    is_public = true 
+    AND status NOT IN ('DRAFT', 'ARCHIVED') 
+    AND deleted_at IS NULL
+  );
+```
+
+### 8. Adicionar i18n para `CANCELLED`
+
+**pt-BR.ts, en.ts, es.ts**:
+```typescript
+'events.status.cancelled': 'Cancelado' / 'Cancelled' / 'Cancelado',
+'events.status.cancelledDesc': 'Evento foi cancelado' / 'Event was cancelled' / 'Evento fue cancelado',
+```
+
+### 9. Atualizar helpers de comportamento
+
+**Arquivo**: `src/types/event.ts`
+
+```typescript
+// Atualizar canCancelRegistration para incluir CANCELLED
+export function canCancelRegistration(eventStatus: EventStatus): boolean {
+  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
+  // CANCELLED não permite mais cancelamentos de inscrição
+}
+
+// Nova função: verificar se evento pode ser deletado
+export function canDeleteEvent(eventStatus: EventStatus): boolean {
+  return eventStatus === 'DRAFT' || eventStatus === 'CANCELLED';
+}
+```
 
 ---
 
-## RESUMO DE ALTERAÇÕES
+## ARQUIVOS A MODIFICAR
 
-| Arquivo | Ação | Linhas |
-|---------|------|--------|
-| `EditTenantDialog.tsx` | EDITAR | Linha 28: unificar SPORT_TYPES |
-| `DigitalMembershipCard.tsx` | EDITAR | Linha 240: SHA-256 → ID |
-| `VerifyCard.tsx` | EDITAR | Linha 396: SHA-256 → ID |
-| `VerifyMembership.tsx` | EDITAR | Linha 328: SHA-256 → ID |
+| Arquivo | Ação | Impacto |
+|---------|------|---------|
+| Migration SQL | CRIAR | Enum, coluna, triggers, função |
+| `src/types/event.ts` | EDITAR | Tipo, config, transições, helpers |
+| `src/locales/pt-BR.ts` | EDITAR | +2 chaves |
+| `src/locales/en.ts` | EDITAR | +2 chaves |
+| `src/locales/es.ts` | EDITAR | +2 chaves |
 
-**Total**: 4 arquivos, ~8 linhas alteradas
-
----
-
-## DETALHES TÉCNICOS
-
-### 1. EditTenantDialog.tsx - Linha 28
-
-**De**:
-```ts
-const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
-```
-
-**Para**:
-```ts
-const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
-```
-
-### 2. DigitalMembershipCard.tsx - Linhas 238-244
-
-**De**:
-```tsx
-{contentHash && (
-  <div className="mt-6 pt-4 border-t">
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-      <Shield className="h-3 w-3" />
-      <span>SHA-256:</span>
-      <code className="font-mono text-[10px] truncate flex-1">
-        {contentHash}
-      </code>
-    </div>
-  </div>
-)}
-```
-
-**Para**:
-```tsx
-{contentHash && (
-  <div className="mt-6 pt-4 border-t">
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-      <Shield className="h-3 w-3" />
-      <span>ID:</span>
-      <code className="font-mono text-[10px] truncate flex-1">
-        {contentHash}
-      </code>
-    </div>
-  </div>
-)}
-```
-
-### 3. VerifyCard.tsx - Linhas 394-398
-
-**De**:
-```tsx
-<p className="text-xs text-muted-foreground mt-1">
-  SHA-256: {verification.storedHash.substring(0, 16)}...
-</p>
-```
-
-**Para**:
-```tsx
-<p className="text-xs text-muted-foreground mt-1">
-  ID: {verification.storedHash.substring(0, 16)}...
-</p>
-```
-
-### 4. VerifyMembership.tsx - Linhas 327-329
-
-**De**:
-```tsx
-{data.content_hash_sha256 && (
-  <div className="text-center text-xs text-muted-foreground">
-    <span className="font-mono">SHA-256: {data.content_hash_sha256.substring(0, 12)}...</span>
-  </div>
-)}
-```
-
-**Para**:
-```tsx
-{data.content_hash_sha256 && (
-  <div className="text-center text-xs text-muted-foreground">
-    <span className="font-mono">ID: {data.content_hash_sha256.substring(0, 12)}...</span>
-  </div>
-)}
-```
+**Total**: ~100 linhas de alteração
 
 ---
 
 ## FORA DE ESCOPO (CONFIRMADO)
 
-- P0.1: Já implementado corretamente
-- P0.2: Não implementar (UUID é seguro, hash não adiciona proteção)
-- P0.3: Já existe
-- P0.4: Já existe
-- Eventos de domínio
-- Automações
+- Inscrição detalhada (existente e funcional)
+- Pagamentos
+- Cancelamento com refund
+- Chaves / brackets
+- Ranking
+- Súmula
+- Automação
 - Analytics
-- Stripe
-- Auth
+- UI de deleção (por design)
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
-| Item | Critério | Esperado |
-|------|----------|----------|
-| P0.5 | SPORT_TYPES idêntico Create/Edit | OK |
-| P0.6 | Nenhum "SHA-256" visível na UI | OK |
-| Regressão | Nenhuma funcionalidade quebrada | OK |
-| QR Codes | Continuam funcionando | OK |
-| Verificação | Páginas funcionais | OK |
+| Critério | Esperado |
+|----------|----------|
+| Estado `CANCELLED` existe no enum | OK |
+| Transições para `CANCELLED` funcionam | OK |
+| Transições inválidas são bloqueadas no DB | OK |
+| Soft delete funciona para DRAFT/CANCELLED | OK |
+| Soft delete bloqueado se há inscrições | OK |
+| RLS exclui eventos deletados | OK |
+| i18n completo para CANCELLED | OK |
+| Zero impacto em funcionalidades existentes | OK |
 
 ---
 
 ## RESULTADO ESPERADO
 
-Após P0:
-- Consistência nos formulários de organização
-- UX institucional limpa (sem exposição técnica)
-- Modelo federativo validado (já estava correto)
-- Verificação funcional (já estava implementada)
-- Sistema pronto para P1
+Após P2.1:
+- Evento possui lifecycle claro e imutável
+- Estados governam comportamento (validado no backend)
+- Estado `CANCELLED` disponível para cancelamento de eventos
+- Soft delete seguro com validações
+- Nenhuma ação ocorre fora de regra
+- Sistema pronto para FASE 2 (Inscrições) e FASE 3 (Pagamentos)
 
