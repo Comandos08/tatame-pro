@@ -1,802 +1,189 @@
 
-# P1.2.B — LANDING PAGE: HERO BANNER + LOGOS DE PARCEIROS (SUPERADMIN)
+# P1.2.C.B.1 — LANDING PAGE: FAQs INSTITUCIONAIS
 
 ## MODO DE EXECUÇÃO
 
 - **SAFE GOLD MODE** — Zero Interpretação
-- ❌ NÃO criar CMS genérico
-- ❌ NÃO alterar Edge Functions existentes
+- ❌ NÃO criar CMS
+- ❌ NÃO criar novas páginas
+- ❌ NÃO tocar em backend / Edge Functions
 - ❌ NÃO impactar tenants
-- ✅ APENAS Superadmin
+- ❌ NÃO alterar lógica existente
 - ✅ APENAS Landing Page
-- ✅ Configuração Institucional simples
+- ✅ APENAS conteúdo institucional
+- ✅ APENAS texto + layout simples
 
 ---
 
 ## ARQUITETURA IDENTIFICADA
 
-| Aspecto | Atual | Proposto |
-|---------|-------|----------|
-| Rotas Admin | `/admin`, `/admin/diagnostics`, `/admin/tenants/:tenantId/control` | Adicionar `/admin/landing` |
-| Proteção | `isGlobalSuperadmin` (via `useCurrentUser`) | Mesmo padrão |
-| Padrão de Query | `enabled: isGlobalSuperadmin` | Mesmo padrão |
-| i18n | Arquivos `src/locales/*.ts` | Adicionar chaves `admin.landing.*` e `landing.partnersTitle` |
+| Aspecto | Estado Atual | Proposto |
+|---------|--------------|----------|
+| Landing.tsx | Hero → Features → Partners → CTA → Footer | Hero → Features → Partners → **FAQ** → CTA → Footer |
+| i18n keys | `landing.*` (25 chaves existentes) | Adicionar +14 chaves |
+| Dependências | Nenhuma nova | Nenhuma nova |
 
 ---
 
-## 1️⃣ MIGRAÇÃO — NOVAS TABELAS
+## 1️⃣ LANDING.TSX — INSERÇÃO DA SEÇÃO FAQ
 
-### Arquivo: Nova migração SQL
+### Ponto de Inserção
 
-```sql
--- Tabela 1: Configuração da Landing (hero)
-CREATE TABLE IF NOT EXISTS public.platform_landing_config (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  hero_image_url text,
-  hero_enabled boolean NOT NULL DEFAULT true,
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+- **Após:** Partners Section (linha 242 - fechamento `)}`)
+- **Antes:** CTA Section (linha 244 - `{/* CTA Section */}`)
 
--- Inserir registro padrão (único registro)
-INSERT INTO public.platform_landing_config (id) 
-VALUES ('00000000-0000-0000-0000-000000000001')
-ON CONFLICT DO NOTHING;
+### Código a Inserir (linha 243)
 
--- Tabela 2: Parceiros / Logos
-CREATE TABLE IF NOT EXISTS public.platform_partners (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  logo_url text NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  display_order integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+```text
+      {/* Institutional FAQ Section */}
+      <section className="py-16 lg:py-24 border-t border-border">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="max-w-4xl mx-auto"
+          >
+            <motion.div variants={fadeInUp} className="text-center mb-12">
+              <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
+                {t('landing.faqTitle')}
+              </h2>
+              <p className="text-muted-foreground">
+                {t('landing.faqSubtitle')}
+              </p>
+            </motion.div>
 
--- Índice para ordenação
-CREATE INDEX idx_platform_partners_order ON public.platform_partners(display_order);
-```
-
-### RLS Policies
-
-```sql
--- Leitura pública (Landing Page)
-ALTER TABLE public.platform_landing_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.platform_partners ENABLE ROW LEVEL SECURITY;
-
--- SELECT público
-CREATE POLICY "Public read platform_landing_config"
-  ON public.platform_landing_config FOR SELECT
-  USING (true);
-
-CREATE POLICY "Public read active platform_partners"
-  ON public.platform_partners FOR SELECT
-  USING (is_active = true);
-
--- INSERT/UPDATE/DELETE apenas SUPERADMIN
-CREATE POLICY "Superadmin manage platform_landing_config"
-  ON public.platform_landing_config FOR ALL
-  USING (public.is_superadmin())
-  WITH CHECK (public.is_superadmin());
-
-CREATE POLICY "Superadmin manage platform_partners"
-  ON public.platform_partners FOR ALL
-  USING (public.is_superadmin())
-  WITH CHECK (public.is_superadmin());
-```
-
----
-
-## 2️⃣ FRONTEND — LANDING PAGE
-
-### Arquivo: `src/pages/Landing.tsx`
-
-**2.1. Adicionar imports e query para config**
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-```
-
-**2.2. Adicionar queries dentro do componente**
-
-```typescript
-// Fetch landing config
-const { data: landingConfig } = useQuery({
-  queryKey: ['platform-landing-config'],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('platform_landing_config')
-      .select('hero_image_url, hero_enabled')
-      .single();
-    if (error) return null;
-    return data;
-  },
-  staleTime: 5 * 60 * 1000, // 5 min cache
-});
-
-// Fetch active partners
-const { data: partners } = useQuery({
-  queryKey: ['platform-partners'],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('platform_partners')
-      .select('id, name, logo_url')
-      .eq('is_active', true)
-      .order('display_order');
-    if (error) return [];
-    return data;
-  },
-  staleTime: 5 * 60 * 1000,
-});
-```
-
-**2.3. Modificar Hero Section (linhas 59-115)**
-
-Adicionar background condicional:
-
-```tsx
-<section className="relative overflow-hidden">
-  {/* Background: Hero image if enabled, otherwise gradient */}
-  {landingConfig?.hero_enabled && landingConfig?.hero_image_url ? (
-    <div 
-      className="absolute inset-0 bg-cover bg-center"
-      style={{ backgroundImage: `url(${landingConfig.hero_image_url})` }}
-    >
-      <div className="absolute inset-0 bg-background/80" /> {/* Overlay */}
-    </div>
-  ) : (
-    <div className="absolute inset-0 bg-gradient-glow opacity-50" />
-  )}
-  
-  {/* Header e conteúdo permanecem iguais */}
-  ...
-</section>
-```
-
-**2.4. Adicionar seção de Parceiros (após Features, antes do CTA)**
-
-Inserir após linha 163 (fechamento da seção Features):
-
-```tsx
-{/* Partners Section */}
-{partners && partners.length > 0 && (
-  <section className="py-16 border-t border-border">
-    <div className="container mx-auto px-4">
-      <motion.div
-        initial="initial"
-        whileInView="animate"
-        viewport={{ once: true }}
-        variants={stagger}
-        className="text-center"
-      >
-        <motion.h3 
-          variants={fadeInUp}
-          className="text-muted-foreground text-sm uppercase tracking-wider mb-8"
-        >
-          {t('landing.partnersTitle')}
-        </motion.h3>
-        <motion.div 
-          variants={fadeInUp}
-          className="flex flex-wrap items-center justify-center gap-8 md:gap-12"
-        >
-          {partners.map((partner) => (
-            <div 
-              key={partner.id}
-              className="h-12 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
-            >
-              <img 
-                src={partner.logo_url} 
-                alt={partner.name}
-                className="h-full w-auto object-contain"
-              />
-            </div>
-          ))}
-        </motion.div>
-      </motion.div>
-    </div>
-  </section>
-)}
-```
-
----
-
-## 3️⃣ PÁGINA ADMIN — LANDING SETTINGS
-
-### Arquivo: `src/pages/AdminLandingSettings.tsx` (NOVO)
-
-```typescript
-/**
- * SUPERADMIN ONLY — Landing Page Configuration
- * Manages hero banner and partner logos
- */
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Image, Users, Save, Plus, Trash2, 
-  Loader2, Check, X, GripVertical 
-} from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useCurrentUser } from '@/contexts/AuthContext';
-import { useI18n } from '@/contexts/I18nContext';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import iconLogo from '@/assets/iconLogo.png';
-
-interface LandingConfig {
-  id: string;
-  hero_image_url: string | null;
-  hero_enabled: boolean;
-}
-
-interface Partner {
-  id: string;
-  name: string;
-  logo_url: string;
-  is_active: boolean;
-  display_order: number;
-}
-
-export default function AdminLandingSettings() {
-  const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { t } = useI18n();
-
-  // States for hero config
-  const [heroEnabled, setHeroEnabled] = useState(true);
-  const [heroImageUrl, setHeroImageUrl] = useState('');
-  const [heroSaving, setHeroSaving] = useState(false);
-
-  // States for partner dialog
-  const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
-  const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
-  const [partnerName, setPartnerName] = useState('');
-  const [partnerLogoUrl, setPartnerLogoUrl] = useState('');
-  const [partnerOrder, setPartnerOrder] = useState(0);
-  const [partnerActive, setPartnerActive] = useState(true);
-
-  // Redirect if not superadmin
-  useEffect(() => {
-    if (!authLoading && !isGlobalSuperadmin) {
-      navigate('/portal');
-    }
-  }, [authLoading, isGlobalSuperadmin, navigate]);
-
-  // Fetch landing config
-  const { data: landingConfig, isLoading: configLoading } = useQuery({
-    queryKey: ['admin-landing-config'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('platform_landing_config')
-        .select('*')
-        .single();
-      if (error) throw error;
-      return data as LandingConfig;
-    },
-    enabled: isGlobalSuperadmin,
-  });
-
-  // Fetch partners
-  const { data: partners, isLoading: partnersLoading } = useQuery({
-    queryKey: ['admin-partners'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('platform_partners')
-        .select('*')
-        .order('display_order');
-      if (error) throw error;
-      return data as Partner[];
-    },
-    enabled: isGlobalSuperadmin,
-  });
-
-  // Sync config to state
-  useEffect(() => {
-    if (landingConfig) {
-      setHeroEnabled(landingConfig.hero_enabled);
-      setHeroImageUrl(landingConfig.hero_image_url || '');
-    }
-  }, [landingConfig]);
-
-  // Save hero config
-  const saveHeroConfig = async () => {
-    if (!landingConfig) return;
-    setHeroSaving(true);
-    try {
-      const { error } = await supabase
-        .from('platform_landing_config')
-        .update({
-          hero_enabled: heroEnabled,
-          hero_image_url: heroImageUrl || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', landingConfig.id);
-      
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['admin-landing-config'] });
-      queryClient.invalidateQueries({ queryKey: ['platform-landing-config'] });
-      toast.success(t('common.save') + ' ✓');
-    } catch (err) {
-      toast.error(t('common.error'));
-    } finally {
-      setHeroSaving(false);
-    }
-  };
-
-  // Save partner mutation
-  const savePartnerMutation = useMutation({
-    mutationFn: async () => {
-      if (editingPartner) {
-        // Update
-        const { error } = await supabase
-          .from('platform_partners')
-          .update({
-            name: partnerName,
-            logo_url: partnerLogoUrl,
-            display_order: partnerOrder,
-            is_active: partnerActive,
-          })
-          .eq('id', editingPartner.id);
-        if (error) throw error;
-      } else {
-        // Create
-        const { error } = await supabase
-          .from('platform_partners')
-          .insert({
-            name: partnerName,
-            logo_url: partnerLogoUrl,
-            display_order: partnerOrder,
-            is_active: partnerActive,
-          });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-partners'] });
-      queryClient.invalidateQueries({ queryKey: ['platform-partners'] });
-      toast.success(t('common.save') + ' ✓');
-      closePartnerDialog();
-    },
-    onError: () => {
-      toast.error(t('common.error'));
-    },
-  });
-
-  // Delete partner
-  const deletePartner = async (id: string) => {
-    const { error } = await supabase
-      .from('platform_partners')
-      .delete()
-      .eq('id', id);
-    if (error) {
-      toast.error(t('common.error'));
-    } else {
-      queryClient.invalidateQueries({ queryKey: ['admin-partners'] });
-      queryClient.invalidateQueries({ queryKey: ['platform-partners'] });
-      toast.success(t('common.delete') + ' ✓');
-    }
-  };
-
-  const openPartnerDialog = (partner?: Partner) => {
-    if (partner) {
-      setEditingPartner(partner);
-      setPartnerName(partner.name);
-      setPartnerLogoUrl(partner.logo_url);
-      setPartnerOrder(partner.display_order);
-      setPartnerActive(partner.is_active);
-    } else {
-      setEditingPartner(null);
-      setPartnerName('');
-      setPartnerLogoUrl('');
-      setPartnerOrder((partners?.length || 0) + 1);
-      setPartnerActive(true);
-    }
-    setPartnerDialogOpen(true);
-  };
-
-  const closePartnerDialog = () => {
-    setPartnerDialogOpen(false);
-    setEditingPartner(null);
-  };
-
-  if (authLoading || !isGlobalSuperadmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="container mx-auto flex items-center justify-between py-4 px-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <img src={iconLogo} alt="TATAME" className="h-10 w-10 rounded-xl object-contain" />
-            <div>
-              <h1 className="font-display text-lg font-bold">{t('admin.landing.title')}</h1>
-              <p className="text-xs text-muted-foreground">{t('admin.landing.subtitle')}</p>
-            </div>
-          </div>
+            <motion.div variants={fadeInUp} className="space-y-8">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="border-b border-border pb-6 last:border-0">
+                  <h3 className="font-medium text-lg mb-2">
+                    {t(`landing.faq.q${i}` as TranslationKey)}
+                  </h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {t(`landing.faq.a${i}` as TranslationKey)}
+                  </p>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
         </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        {/* Hero Section Config */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Image className="h-5 w-5" />
-              {t('admin.landing.heroSection')}
-            </CardTitle>
-            <CardDescription>{t('admin.landing.heroDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hero-enabled">{t('admin.landing.heroEnabled')}</Label>
-              <Switch
-                id="hero-enabled"
-                checked={heroEnabled}
-                onCheckedChange={setHeroEnabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hero-url">{t('admin.landing.heroImageUrl')}</Label>
-              <Input
-                id="hero-url"
-                placeholder="https://..."
-                value={heroImageUrl}
-                onChange={(e) => setHeroImageUrl(e.target.value)}
-                disabled={!heroEnabled}
-              />
-            </div>
-            {heroImageUrl && heroEnabled && (
-              <div className="border rounded-lg p-2 bg-muted/50">
-                <p className="text-xs text-muted-foreground mb-2">{t('admin.landing.preview')}</p>
-                <img 
-                  src={heroImageUrl} 
-                  alt="Preview" 
-                  className="max-h-32 object-contain mx-auto rounded"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
-              </div>
-            )}
-            <Button onClick={saveHeroConfig} disabled={heroSaving}>
-              {heroSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {t('common.save')}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Partners Config */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  {t('admin.landing.partnersSection')}
-                </CardTitle>
-                <CardDescription>{t('admin.landing.partnersDesc')}</CardDescription>
-              </div>
-              <Button onClick={() => openPartnerDialog()}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('admin.landing.addPartner')}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {partnersLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : partners && partners.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('admin.landing.partnerOrder')}</TableHead>
-                    <TableHead>{t('admin.landing.partnerName')}</TableHead>
-                    <TableHead>{t('admin.landing.partnerLogo')}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
-                    <TableHead>{t('common.actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {partners.map((partner) => (
-                    <TableRow key={partner.id}>
-                      <TableCell>{partner.display_order}</TableCell>
-                      <TableCell className="font-medium">{partner.name}</TableCell>
-                      <TableCell>
-                        <img 
-                          src={partner.logo_url} 
-                          alt={partner.name}
-                          className="h-8 w-auto object-contain"
-                          onError={(e) => { e.currentTarget.src = iconLogo; }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={partner.is_active ? 'default' : 'secondary'}>
-                          {partner.is_active ? t('status.active') : t('gradingLevels.inactive')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => openPartnerDialog(partner)}
-                          >
-                            {t('common.edit')}
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => deletePartner(partner.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {t('admin.landing.noPartners')}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </main>
-
-      {/* Partner Dialog */}
-      <Dialog open={partnerDialogOpen} onOpenChange={setPartnerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingPartner ? t('admin.landing.editPartner') : t('admin.landing.addPartner')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('admin.landing.partnerDialogDesc')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="partner-name">{t('admin.landing.partnerName')}</Label>
-              <Input
-                id="partner-name"
-                value={partnerName}
-                onChange={(e) => setPartnerName(e.target.value)}
-                placeholder="Federação XYZ"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="partner-logo">{t('admin.landing.partnerLogoUrl')}</Label>
-              <Input
-                id="partner-logo"
-                value={partnerLogoUrl}
-                onChange={(e) => setPartnerLogoUrl(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="partner-order">{t('admin.landing.partnerOrder')}</Label>
-              <Input
-                id="partner-order"
-                type="number"
-                value={partnerOrder}
-                onChange={(e) => setPartnerOrder(Number(e.target.value))}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="partner-active">{t('admin.landing.partnerActive')}</Label>
-              <Switch
-                id="partner-active"
-                checked={partnerActive}
-                onCheckedChange={setPartnerActive}
-              />
-            </div>
-            {partnerLogoUrl && (
-              <div className="border rounded-lg p-2 bg-muted/50">
-                <p className="text-xs text-muted-foreground mb-2">{t('admin.landing.preview')}</p>
-                <img 
-                  src={partnerLogoUrl} 
-                  alt="Preview" 
-                  className="h-12 object-contain mx-auto"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closePartnerDialog}>
-              {t('common.cancel')}
-            </Button>
-            <Button 
-              onClick={() => savePartnerMutation.mutate()}
-              disabled={!partnerName || !partnerLogoUrl || savePartnerMutation.isPending}
-            >
-              {savePartnerMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+      </section>
 ```
 
 ---
 
-## 4️⃣ ROTA ADMIN — REGISTRO
+## 2️⃣ i18n — CHAVES pt-BR.ts
 
-### Arquivo: `src/App.tsx`
+### Ponto de Inserção
 
-Adicionar import e rota:
+- **Após:** `'landing.partnersTitle': 'Organizações que confiam',` (linha 589)
+- **Antes:** `// Admin Landing Settings` (linha 591)
+
+### Chaves a Adicionar
 
 ```typescript
-// Adicionar import (linha ~23)
-import AdminLandingSettings from "@/pages/AdminLandingSettings";
-
-// Adicionar rota (após linha 66)
-<Route path="/admin/landing" element={<AdminLandingSettings />} />
+  // Landing FAQ
+  'landing.faqTitle': 'FAQ Institucional',
+  'landing.faqSubtitle': 'Entenda o papel do Tatame no ecossistema dos esportes de combate',
+  'landing.faq.q1': 'O que é o Tatame?',
+  'landing.faq.a1': 'O Tatame é uma infraestrutura digital criada para organizar, registrar e dar governança ao ecossistema dos esportes de combate. Ele conecta federações, academias e atletas em um ambiente institucional, rastreável e confiável.',
+  'landing.faq.q2': 'O Tatame é uma federação?',
+  'landing.faq.a2': 'Não. O Tatame não substitui federações nem compete com elas. Ele atua como uma plataforma de suporte institucional, oferecendo tecnologia, registro e organização para fortalecer o ecossistema existente.',
+  'landing.faq.q3': 'Para quem o Tatame foi criado?',
+  'landing.faq.a3': 'O Tatame foi criado para federações, ligas, academias, professores e atletas que precisam de organização, certificação, identidade digital e governança institucional.',
+  'landing.faq.q4': 'O Tatame é focado apenas em competição?',
+  'landing.faq.a4': 'Não. O Tatame atende tanto ambientes competitivos quanto educacionais, formativos e institucionais, respeitando diferentes modelos de prática esportiva.',
+  'landing.faq.q5': 'Como o Tatame garante credibilidade?',
+  'landing.faq.a5': 'Os registros são estruturados, com histórico verificável, identidade digital e mecanismos de validação pública que garantem autenticidade e rastreabilidade.',
+  'landing.faq.q6': 'O Tatame é um sistema fechado?',
+  'landing.faq.a6': 'Não. O Tatame foi concebido como uma infraestrutura aberta à integração e colaboração institucional, respeitando a autonomia das organizações.',
 ```
 
 ---
 
-## 5️⃣ LINK NO ADMIN DASHBOARD
+## 3️⃣ i18n — CHAVES en.ts
 
-### Arquivo: `src/pages/AdminDashboard.tsx`
+### Ponto de Inserção
 
-Adicionar link para a nova página (na área de ações do header ou como card):
+- **Após:** `'landing.partnersTitle'`
+- **Antes:** `// Admin Landing Settings`
 
-```typescript
-// Após PlatformHealthCard ou CardDiagnosticsPanel (~linha 418)
-<Card className="card-hover cursor-pointer" onClick={() => navigate('/admin/landing')}>
-  <CardHeader className="flex flex-row items-center gap-4">
-    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-      <Image className="h-5 w-5 text-primary" />
-    </div>
-    <div>
-      <CardTitle className="text-base">{t('admin.landing.title')}</CardTitle>
-      <CardDescription>{t('admin.landing.cardDesc')}</CardDescription>
-    </div>
-  </CardHeader>
-</Card>
-```
-
-Adicionar import:
-```typescript
-import { Image } from 'lucide-react'; // Adicionar ao import existente
-```
-
----
-
-## 6️⃣ CHAVES i18n
-
-### Arquivo: `src/locales/pt-BR.ts`
+### Chaves a Adicionar
 
 ```typescript
-// Landing Partners (após landing.copyright, ~linha 589)
-'landing.partnersTitle': 'Organizações que confiam',
-
-// Admin Landing (~linha 600, nova seção)
-'admin.landing.title': 'Configurações da Landing',
-'admin.landing.subtitle': 'Hero e parceiros',
-'admin.landing.cardDesc': 'Gerenciar banner e logos de parceiros',
-'admin.landing.heroSection': 'Banner Hero',
-'admin.landing.heroDesc': 'Configure a imagem de fundo da seção principal',
-'admin.landing.heroEnabled': 'Ativar imagem de hero',
-'admin.landing.heroImageUrl': 'URL da imagem',
-'admin.landing.preview': 'Pré-visualização',
-'admin.landing.partnersSection': 'Parceiros',
-'admin.landing.partnersDesc': 'Logos de federações e organizações parceiras',
-'admin.landing.addPartner': 'Adicionar Parceiro',
-'admin.landing.editPartner': 'Editar Parceiro',
-'admin.landing.partnerDialogDesc': 'Configure os dados do parceiro',
-'admin.landing.partnerName': 'Nome',
-'admin.landing.partnerLogoUrl': 'URL do Logo',
-'admin.landing.partnerLogo': 'Logo',
-'admin.landing.partnerOrder': 'Ordem',
-'admin.landing.partnerActive': 'Ativo',
-'admin.landing.noPartners': 'Nenhum parceiro cadastrado',
-```
-
-### Arquivo: `src/locales/en.ts`
-
-```typescript
-'landing.partnersTitle': 'Organizations that trust us',
-
-'admin.landing.title': 'Landing Settings',
-'admin.landing.subtitle': 'Hero and partners',
-'admin.landing.cardDesc': 'Manage banner and partner logos',
-'admin.landing.heroSection': 'Hero Banner',
-'admin.landing.heroDesc': 'Configure the main section background image',
-'admin.landing.heroEnabled': 'Enable hero image',
-'admin.landing.heroImageUrl': 'Image URL',
-'admin.landing.preview': 'Preview',
-'admin.landing.partnersSection': 'Partners',
-'admin.landing.partnersDesc': 'Logos from partner federations and organizations',
-'admin.landing.addPartner': 'Add Partner',
-'admin.landing.editPartner': 'Edit Partner',
-'admin.landing.partnerDialogDesc': 'Configure partner details',
-'admin.landing.partnerName': 'Name',
-'admin.landing.partnerLogoUrl': 'Logo URL',
-'admin.landing.partnerLogo': 'Logo',
-'admin.landing.partnerOrder': 'Order',
-'admin.landing.partnerActive': 'Active',
-'admin.landing.noPartners': 'No partners registered',
-```
-
-### Arquivo: `src/locales/es.ts`
-
-```typescript
-'landing.partnersTitle': 'Organizaciones que confían',
-
-'admin.landing.title': 'Configuración de Landing',
-'admin.landing.subtitle': 'Hero y socios',
-'admin.landing.cardDesc': 'Gestionar banner y logos de socios',
-'admin.landing.heroSection': 'Banner Hero',
-'admin.landing.heroDesc': 'Configure la imagen de fondo de la sección principal',
-'admin.landing.heroEnabled': 'Activar imagen hero',
-'admin.landing.heroImageUrl': 'URL de la imagen',
-'admin.landing.preview': 'Vista previa',
-'admin.landing.partnersSection': 'Socios',
-'admin.landing.partnersDesc': 'Logos de federaciones y organizaciones socias',
-'admin.landing.addPartner': 'Agregar Socio',
-'admin.landing.editPartner': 'Editar Socio',
-'admin.landing.partnerDialogDesc': 'Configure los datos del socio',
-'admin.landing.partnerName': 'Nombre',
-'admin.landing.partnerLogoUrl': 'URL del Logo',
-'admin.landing.partnerLogo': 'Logo',
-'admin.landing.partnerOrder': 'Orden',
-'admin.landing.partnerActive': 'Activo',
-'admin.landing.noPartners': 'Ningún socio registrado',
+  // Landing FAQ
+  'landing.faqTitle': 'Institutional FAQ',
+  'landing.faqSubtitle': 'Understand Tatame\'s role in the combat sports ecosystem',
+  'landing.faq.q1': 'What is Tatame?',
+  'landing.faq.a1': 'Tatame is a digital infrastructure designed to organize, register and provide governance for the combat sports ecosystem. It connects federations, academies and athletes in an institutional, traceable and reliable environment.',
+  'landing.faq.q2': 'Is Tatame a federation?',
+  'landing.faq.a2': 'No. Tatame does not replace federations nor compete with them. It acts as an institutional support platform, providing technology, registration and organization to strengthen the existing ecosystem.',
+  'landing.faq.q3': 'Who was Tatame created for?',
+  'landing.faq.a3': 'Tatame was created for federations, leagues, academies, instructors and athletes who need organization, certification, digital identity and institutional governance.',
+  'landing.faq.q4': 'Is Tatame focused only on competition?',
+  'landing.faq.a4': 'No. Tatame supports competitive, educational, formative and institutional environments, respecting different models of sports practice.',
+  'landing.faq.q5': 'How does Tatame ensure credibility?',
+  'landing.faq.a5': 'Records are structured with verifiable history, digital identity and public validation mechanisms that ensure authenticity and traceability.',
+  'landing.faq.q6': 'Is Tatame a closed system?',
+  'landing.faq.a6': 'No. Tatame was designed as an infrastructure open to institutional integration and collaboration, respecting the autonomy of organizations.',
 ```
 
 ---
 
-## 📦 RESUMO DE ARQUIVOS MODIFICADOS
+## 4️⃣ i18n — CHAVES es.ts
 
-| Arquivo | Ação | Tipo |
-|---------|------|------|
-| `supabase/migrations/new_migration.sql` | CRIAR | Migration |
-| `src/pages/Landing.tsx` | EDITAR | Frontend |
-| `src/pages/AdminLandingSettings.tsx` | CRIAR | Frontend |
-| `src/pages/AdminDashboard.tsx` | EDITAR | Frontend |
-| `src/App.tsx` | EDITAR | Rota |
-| `src/locales/pt-BR.ts` | EDITAR | i18n (+19 chaves) |
-| `src/locales/en.ts` | EDITAR | i18n (+19 chaves) |
-| `src/locales/es.ts` | EDITAR | i18n (+19 chaves) |
+### Ponto de Inserção
+
+- **Após:** `'landing.partnersTitle'`
+- **Antes:** `// Admin Landing Settings`
+
+### Chaves a Adicionar
+
+```typescript
+  // Landing FAQ
+  'landing.faqTitle': 'Preguntas Institucionales',
+  'landing.faqSubtitle': 'Comprenda el papel de Tatame en el ecosistema de los deportes de combate',
+  'landing.faq.q1': '¿Qué es Tatame?',
+  'landing.faq.a1': 'Tatame es una infraestructura digital creada para organizar, registrar y dar gobernanza al ecosistema de los deportes de combate. Conecta federaciones, academias y atletas en un entorno institucional, trazable y confiable.',
+  'landing.faq.q2': '¿Tatame es una federación?',
+  'landing.faq.a2': 'No. Tatame no sustituye a las federaciones ni compite con ellas. Actúa como una plataforma de apoyo institucional, ofreciendo tecnología, registro y organización para fortalecer el ecosistema existente.',
+  'landing.faq.q3': '¿Para quién fue creado Tatame?',
+  'landing.faq.a3': 'Tatame fue creado para federaciones, ligas, academias, instructores y atletas que necesitan organización, certificación, identidad digital y gobernanza institucional.',
+  'landing.faq.q4': '¿Tatame está enfocado solo en la competición?',
+  'landing.faq.a4': 'No. Tatame atiende entornos competitivos, educativos, formativos e institucionales, respetando diferentes modelos de práctica deportiva.',
+  'landing.faq.q5': '¿Cómo garantiza Tatame la credibilidad?',
+  'landing.faq.a5': 'Los registros están estructurados con historial verificable, identidad digital y mecanismos de validación pública que garantizan autenticidad y trazabilidad.',
+  'landing.faq.q6': '¿Tatame es un sistema cerrado?',
+  'landing.faq.a6': 'No. Tatame fue concebido como una infraestructura abierta a la integración y colaboración institucional, respetando la autonomía de las organizaciones.',
+```
+
+---
+
+## 📦 RESUMO DE ALTERAÇÕES
+
+| Arquivo | Ação | Impacto |
+|---------|------|---------|
+| `src/pages/Landing.tsx` | INSERIR | Nova seção FAQ (~30 linhas) |
+| `src/locales/pt-BR.ts` | ADICIONAR | +14 chaves |
+| `src/locales/en.ts` | ADICIONAR | +14 chaves |
+| `src/locales/es.ts` | ADICIONAR | +14 chaves |
+
+**Total de linhas alteradas:** ~72 linhas
 
 ---
 
 ## 🚫 FORA DE ESCOPO (CONFIRMADO)
 
-- ❌ CMS genérico
-- ❌ Upload de arquivos (apenas URLs)
-- ❌ Versionamento / histórico
-- ❌ SEO avançado
+- ❌ Página /about
+- ❌ Help Center
+- ❌ CMS
+- ❌ SEO
+- ❌ Backend
 - ❌ Eventos
-- ❌ Conteúdo por tenant
-- ❌ Permissões novas
-- ❌ Editor visual / drag-and-drop
+- ❌ Permissões
+- ❌ Lógica condicional
+- ❌ Admin
 
 ---
 
@@ -804,24 +191,24 @@ import { Image } from 'lucide-react'; // Adicionar ao import existente
 
 | Item | Esperado |
 |------|----------|
-| Hero pode ser alterado sem deploy | ✅ |
-| Logos exibem corretamente na Landing | ✅ |
-| Apenas SUPERADMIN acessa /admin/landing | ✅ |
-| Landing funciona sem config (fallback) | ✅ |
-| Nenhum impacto em tenants | ✅ |
-| Código simples e legível | ✅ |
-| Console sem erros | ✅ |
+| Linguagem institucional clara | ✅ |
+| Elimina objeções comuns | ✅ |
+| Não parece marketing | ✅ |
+| Não cria dependências | ✅ |
+| Zero impacto sistêmico | ✅ |
+| Funciona sem auth | ✅ |
+| i18n completo (pt/en/es) | ✅ |
 
-❌ Qualquer violação → P1.2.B REPROVADO
+❌ Qualquer desvio → P1.2.C.B.1 REPROVADO
 
 ---
 
-## 🏁 RESULTADO FINAL
+## 🏁 RESULTADO ESPERADO
 
-Após P1.2.B:
+Após este PI, o visitante entende que:
 
-- ✅ Controle de autoridade institucional
-- ✅ Reação a acordos e parcerias
-- ✅ Landing transmite prova social
-- ✅ Produto continua enxuto
-- ✅ Nenhum risco arquitetural
+- ✅ O Tatame não é só um software
+- ✅ O Tatame não compete com federações
+- ✅ O Tatame é infraestrutura
+- ✅ O Tatame organiza o ecossistema
+- ✅ O Tatame é confiável
