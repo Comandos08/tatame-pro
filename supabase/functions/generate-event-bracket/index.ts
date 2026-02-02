@@ -1,13 +1,13 @@
 /**
- * generate-event-bracket — P2.4 Bracket Generation (Backend RPC)
+ * generate-event-bracket — P2.4 Bracket Generation (RPC Orchestrator)
  * 
- * Generates a deterministic single-elimination bracket for an event category.
- * Creates bracket as DRAFT status, requiring explicit publish action.
+ * Orchestrates bracket generation by calling the transactional SQL RPC.
+ * Edge Function handles validation only; all mutations are atomic in DB.
  * 
  * SECURITY:
  * - Requires ADMIN_TENANT or SUPERADMIN role
  * - Validates impersonation for superadmin
- * - Transactional insert (bracket + matches)
+ * - All mutations via transactional RPC (zero inconsistent state)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -23,32 +23,6 @@ interface GenerateBracketRequest {
   categoryId: string;
   eventId: string;
   impersonationId?: string;
-}
-
-interface BracketMeta {
-  criterion: string;
-  registrations_count: number;
-  bracket_size: number;
-  byes_count: number;
-  registration_ids_hash?: string;
-}
-
-interface MatchMeta {
-  note?: string;
-  source?: { from: string[] };
-  is_bye?: boolean;
-}
-
-interface MatchInsert {
-  tenant_id: string;
-  bracket_id: string;
-  category_id: string;
-  round: number;
-  position: number;
-  athlete1_registration_id: string | null;
-  athlete2_registration_id: string | null;
-  status: 'SCHEDULED' | 'COMPLETED' | 'BYE';
-  meta: MatchMeta;
 }
 
 Deno.serve(async (req) => {
@@ -183,7 +157,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 7️⃣ Fetch registrations deterministically
+    // 7️⃣ Fetch registrations deterministically (for RPC payload)
     const { data: registrations, error: regError } = await supabaseAdmin
       .from('event_registrations')
       .select('id, athlete_id, created_at')
@@ -210,158 +184,42 @@ Deno.serve(async (req) => {
 
     console.log('[GENERATE-BRACKET] Registrations found:', registrations.length);
 
-    // 8️⃣ Calculate bracket structure
-    const n = registrations.length;
-    const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
-    const byes = bracketSize - n;
-    const rounds = Math.ceil(Math.log2(bracketSize));
+    // 8️⃣ Prepare payload for RPC
+    const registrationsPayload = registrations.map(r => ({
+      id: r.id,
+      athlete_id: r.athlete_id,
+      created_at: r.created_at,
+    }));
 
-    console.log('[GENERATE-BRACKET] Structure:', { n, bracketSize, byes, rounds });
-
-    // 9️⃣ Get next version
-    const { data: lastBracket } = await supabaseAdmin
-      .from('event_brackets')
-      .select('version')
-      .eq('category_id', categoryId)
-      .eq('tenant_id', tenantId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextVersion = (lastBracket?.version || 0) + 1;
-
-    console.log('[GENERATE-BRACKET] Next version:', nextVersion);
-
-    // 🔟 Create bracket meta
-    const bracketMeta: BracketMeta = {
-      criterion: 'SEED_BY_CREATED_AT_ASC_ID_ASC',
-      registrations_count: n,
-      bracket_size: bracketSize,
-      byes_count: byes,
-      registration_ids_hash: registrations.map(r => r.id).join(',').slice(0, 100),
-    };
-
-    // 1️⃣1️⃣ Insert bracket (DRAFT status)
-    const { data: bracket, error: bracketError } = await supabaseAdmin
-      .from('event_brackets')
-      .insert({
-        tenant_id: tenantId,
-        event_id: eventId,
-        category_id: categoryId,
-        version: nextVersion,
-        status: 'DRAFT',
-        generated_by: user.id,
-        meta: bracketMeta,
-      })
-      .select()
-      .single();
-
-    if (bracketError || !bracket) {
-      console.error('[GENERATE-BRACKET] Bracket insert error:', bracketError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to create bracket' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('[GENERATE-BRACKET] Bracket created:', bracket.id);
-
-    // 1️⃣2️⃣ Generate matches
-    const matches: MatchInsert[] = [];
-
-    // Create slots with registrations and BYEs
-    const slots: (string | null)[] = [];
-    for (let i = 0; i < bracketSize; i++) {
-      slots.push(i < n ? registrations[i].id : null);
-    }
-
-    // Round 1 matches
-    const round1MatchCount = bracketSize / 2;
-    for (let pos = 1; pos <= round1MatchCount; pos++) {
-      const idx1 = (pos - 1) * 2;
-      const idx2 = idx1 + 1;
-      const athlete1 = slots[idx1];
-      const athlete2 = slots[idx2];
-      
-      const isBye = athlete1 === null || athlete2 === null;
-      
-      const matchMeta: MatchMeta = {};
-      if (isBye) {
-        matchMeta.is_bye = true;
-        matchMeta.note = 'BYE';
-      }
-
-      matches.push({
-        tenant_id: tenantId,
-        bracket_id: bracket.id,
-        category_id: categoryId,
-        round: 1,
-        position: pos,
-        athlete1_registration_id: athlete1,
-        athlete2_registration_id: athlete2,
-        status: isBye ? 'BYE' : 'SCHEDULED',
-        meta: matchMeta,
+    // 9️⃣ Call transactional RPC (atomic bracket + matches creation)
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin
+      .rpc('generate_event_bracket_rpc', {
+        p_tenant_id: tenantId,
+        p_event_id: eventId,
+        p_category_id: categoryId,
+        p_generated_by: user.id,
+        p_registrations: registrationsPayload,
       });
-    }
 
-    // Future rounds (placeholders)
-    let matchesInPreviousRound = round1MatchCount;
-    for (let round = 2; round <= rounds; round++) {
-      const matchesInThisRound = matchesInPreviousRound / 2;
-      for (let pos = 1; pos <= matchesInThisRound; pos++) {
-        const sourceMatch1 = `R${round - 1}M${(pos - 1) * 2 + 1}`;
-        const sourceMatch2 = `R${round - 1}M${(pos - 1) * 2 + 2}`;
-        
-        matches.push({
-          tenant_id: tenantId,
-          bracket_id: bracket.id,
-          category_id: categoryId,
-          round: round,
-          position: pos,
-          athlete1_registration_id: null,
-          athlete2_registration_id: null,
-          status: 'SCHEDULED',
-          meta: {
-            note: `Winner of ${sourceMatch1} vs Winner of ${sourceMatch2}`,
-            source: { from: [sourceMatch1, sourceMatch2] },
-          },
-        });
-      }
-      matchesInPreviousRound = matchesInThisRound;
-    }
-
-    console.log('[GENERATE-BRACKET] Matches to insert:', matches.length);
-
-    // 1️⃣3️⃣ Insert matches
-    const { error: matchesError } = await supabaseAdmin
-      .from('event_bracket_matches')
-      .insert(matches);
-
-    if (matchesError) {
-      console.error('[GENERATE-BRACKET] Matches insert error:', matchesError);
-      // Rollback bracket
-      await supabaseAdmin
-        .from('event_brackets')
-        .delete()
-        .eq('id', bracket.id);
+    if (rpcError) {
+      console.error('[GENERATE-BRACKET] RPC error:', rpcError);
+      // Check for specific errors
+      const errorMessage = rpcError.message || 'Failed to generate bracket';
+      const isDraftExists = errorMessage.includes('Draft bracket already exists');
       
       return new Response(
-        JSON.stringify({ error: 'Failed to create matches' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: errorMessage,
+          code: isDraftExists ? 'DRAFT_EXISTS' : 'RPC_ERROR'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[GENERATE-BRACKET] Success! Bracket:', bracket.id, 'Version:', nextVersion);
+    console.log('[GENERATE-BRACKET] Success via RPC:', rpcResult);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        bracketId: bracket.id,
-        version: nextVersion,
-        status: 'DRAFT',
-        matchesCreated: matches.length,
-        meta: bracketMeta,
-      }),
+      JSON.stringify(rpcResult),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

@@ -961,6 +961,7 @@ export const ptBR = {
   'events.brackets.deleteDraft': 'Excluir Rascunho',
   'events.brackets.deleteSuccess': 'Rascunho excluído',
   'events.brackets.deleteError': 'Erro ao excluir rascunho',
+  'events.brackets.draftExists': 'Já existe uma chave em rascunho para esta categoria.',
   // Eventos - Geral
   'events.category': 'Categoria',
   'events.place': 'lugar',

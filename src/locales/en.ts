@@ -963,6 +963,7 @@ export const en: Record<string, string> = {
   'events.brackets.deleteDraft': 'Delete Draft',
   'events.brackets.deleteSuccess': 'Draft deleted',
   'events.brackets.deleteError': 'Error deleting draft',
+  'events.brackets.draftExists': 'A draft bracket already exists for this category.',
   // Events - General
   'events.category': 'Category',
   'events.place': 'place',

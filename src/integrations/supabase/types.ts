@@ -2492,6 +2492,16 @@ export type Database = {
           status: string
         }[]
       }
+      generate_event_bracket_rpc: {
+        Args: {
+          p_category_id: string
+          p_event_id: string
+          p_generated_by: string
+          p_registrations: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       get_next_diploma_serial: {
         Args: { p_sport_type: string; p_tenant_id: string }
         Returns: string
