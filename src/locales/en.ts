@@ -590,6 +590,22 @@ export const en: Record<string, string> = {
   'landing.copyright': '© {year} TATAME Pro. All rights reserved.',
   'landing.partnersTitle': 'Organizations that trust us',
 
+  // Landing FAQ
+  'landing.faqTitle': 'Institutional FAQ',
+  'landing.faqSubtitle': 'Understand Tatame\'s role in the combat sports ecosystem',
+  'landing.faq.q1': 'What is Tatame?',
+  'landing.faq.a1': 'Tatame is a digital infrastructure designed to organize, register and provide governance for the combat sports ecosystem. It connects federations, academies and athletes in an institutional, traceable and reliable environment.',
+  'landing.faq.q2': 'Is Tatame a federation?',
+  'landing.faq.a2': 'No. Tatame does not replace federations nor compete with them. It acts as an institutional support platform, providing technology, registration and organization to strengthen the existing ecosystem.',
+  'landing.faq.q3': 'Who was Tatame created for?',
+  'landing.faq.a3': 'Tatame was created for federations, leagues, academies, instructors and athletes who need organization, certification, digital identity and institutional governance.',
+  'landing.faq.q4': 'Is Tatame focused only on competition?',
+  'landing.faq.a4': 'No. Tatame supports competitive, educational, formative and institutional environments, respecting different models of sports practice.',
+  'landing.faq.q5': 'How does Tatame ensure credibility?',
+  'landing.faq.a5': 'Records are structured with verifiable history, digital identity and public validation mechanisms that ensure authenticity and traceability.',
+  'landing.faq.q6': 'Is Tatame a closed system?',
+  'landing.faq.a6': 'No. Tatame was designed as an infrastructure open to institutional integration and collaboration, respecting the autonomy of organizations.',
+
   // Admin Landing Settings
   'admin.landing.title': 'Landing Settings',
   'admin.landing.subtitle': 'Hero and partners',

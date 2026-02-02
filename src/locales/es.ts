@@ -590,6 +590,22 @@ export const es: Record<string, string> = {
   'landing.copyright': '© {year} TATAME Pro. Todos los derechos reservados.',
   'landing.partnersTitle': 'Organizaciones que confían',
 
+  // Landing FAQ
+  'landing.faqTitle': 'Preguntas Institucionales',
+  'landing.faqSubtitle': 'Comprenda el papel de Tatame en el ecosistema de los deportes de combate',
+  'landing.faq.q1': '¿Qué es Tatame?',
+  'landing.faq.a1': 'Tatame es una infraestructura digital creada para organizar, registrar y dar gobernanza al ecosistema de los deportes de combate. Conecta federaciones, academias y atletas en un entorno institucional, trazable y confiable.',
+  'landing.faq.q2': '¿Tatame es una federación?',
+  'landing.faq.a2': 'No. Tatame no sustituye a las federaciones ni compite con ellas. Actúa como una plataforma de apoyo institucional, ofreciendo tecnología, registro y organización para fortalecer el ecosistema existente.',
+  'landing.faq.q3': '¿Para quién fue creado Tatame?',
+  'landing.faq.a3': 'Tatame fue creado para federaciones, ligas, academias, instructores y atletas que necesitan organización, certificación, identidad digital y gobernanza institucional.',
+  'landing.faq.q4': '¿Tatame está enfocado solo en la competición?',
+  'landing.faq.a4': 'No. Tatame atiende entornos competitivos, educativos, formativos e institucionales, respetando diferentes modelos de práctica deportiva.',
+  'landing.faq.q5': '¿Cómo garantiza Tatame la credibilidad?',
+  'landing.faq.a5': 'Los registros están estructurados con historial verificable, identidad digital y mecanismos de validación pública que garantizan autenticidad y trazabilidad.',
+  'landing.faq.q6': '¿Tatame es un sistema cerrado?',
+  'landing.faq.a6': 'No. Tatame fue concebido como una infraestructura abierta a la integración y colaboración institucional, respetando la autonomía de las organizaciones.',
+
   // Admin Landing Settings
   'admin.landing.title': 'Configuración de Landing',
   'admin.landing.subtitle': 'Hero y socios',
