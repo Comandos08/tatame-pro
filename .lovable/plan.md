@@ -1,272 +1,404 @@
 
 
-# P2.2 — INSCRIÇÕES EM EVENTOS (SEM DINHEIRO) — ANÁLISE SAFE MODE
+# P2.3 — CATEGORIAS DE COMPETIÇÃO — PLANO DE IMPLEMENTAÇÃO
 
 ## MODO DE EXECUÇÃO
 
 - **SAFE MODE** — Zero Criatividade
-- Zero Feature Fora do Escopo
-- NÃO alterar contratos existentes
-- NÃO alterar Auth, Stripe, Analytics
-- NÃO criar automações
-- NÃO refatorar código não relacionado
-- Se algo não estiver explícito: NÃO IMPLEMENTAR
+- Alterações aditivas, null-safe, governadas pelo backend
+- Com os 3 ajustes obrigatórios aplicados
 
 ---
 
-## ANÁLISE COMPLETA DO ESTADO ATUAL
+## ALTERAÇÕES DE BANCO DE DADOS
 
-### P2.2.1 — ESTADOS DO EVENTO QUE PERMITEM INSCRIÇÃO
+### Migração SQL Completa
 
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| Inscrição só em `REGISTRATION_OPEN` | **JÁ IMPLEMENTADO** | ✅ OK |
-| Frontend valida | `canRegisterForEvent(eventStatus)` | ✅ OK |
-| Backend valida (RLS) | Policy `registrations_athlete_insert` | ✅ OK |
-
-**Evidência RLS:**
 ```sql
--- registrations_athlete_insert WITH CHECK:
-(EXISTS (SELECT 1 FROM events e WHERE e.id = event_registrations.event_id 
-  AND e.status = 'REGISTRATION_OPEN'::event_status))
-```
+-- P2.3 — CATEGORIAS DE COMPETIÇÃO
+-- SAFE MODE: Alterações aditivas, null-safe, governadas pelo backend
 
-**NENHUMA AÇÃO NECESSÁRIA**
+-- 1. Criar enum category_gender
+CREATE TYPE category_gender AS ENUM ('MALE', 'FEMALE', 'MIXED');
 
----
+-- 2. Adicionar colunas de competição à tabela event_categories
+ALTER TABLE event_categories
+  ADD COLUMN gender category_gender DEFAULT NULL,
+  ADD COLUMN min_weight NUMERIC(5,2) DEFAULT NULL,
+  ADD COLUMN max_weight NUMERIC(5,2) DEFAULT NULL,
+  ADD COLUMN min_age INTEGER DEFAULT NULL,
+  ADD COLUMN max_age INTEGER DEFAULT NULL,
+  ADD COLUMN belt_min_id UUID REFERENCES grading_levels(id) DEFAULT NULL,
+  ADD COLUMN belt_max_id UUID REFERENCES grading_levels(id) DEFAULT NULL,
+  ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
 
-### P2.2.2 — REGRAS DE INSCRIÇÃO (ATLETA)
+-- 3. Índice parcial para performance (excluir deleted)
+CREATE INDEX idx_event_categories_not_deleted 
+  ON event_categories (event_id, tenant_id) 
+  WHERE deleted_at IS NULL;
 
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| `athlete.tenant_id === event.tenant_id` | Trigger `validate_event_registration_tenant` | ✅ OK |
-| Atleta pertence ao usuário atual | RLS valida `a.profile_id = auth.uid()` | ✅ OK |
-| `event.deleted_at IS NULL` | **NÃO VALIDADO** | ⚠️ GAP |
+-- 4. Trigger de Imutabilidade (AJUSTE A: Retorna OLD para DELETE)
+CREATE OR REPLACE FUNCTION validate_event_category_mutation()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_event_status event_status;
+  v_event_id UUID;
+BEGIN
+  -- Para DELETE, usar OLD.event_id; para INSERT/UPDATE, usar NEW.event_id
+  IF TG_OP = 'DELETE' THEN
+    v_event_id := OLD.event_id;
+  ELSE
+    v_event_id := NEW.event_id;
+  END IF;
+  
+  -- Obter status do evento
+  SELECT status INTO v_event_status 
+  FROM events 
+  WHERE id = v_event_id;
+  
+  -- Permitir apenas em estados editáveis
+  IF v_event_status NOT IN ('DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN') THEN
+    RAISE EXCEPTION 'Cannot modify categories when event status is %', v_event_status;
+  END IF;
+  
+  -- AJUSTE A: Retornar OLD para DELETE, NEW para INSERT/UPDATE
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
-**GAP IDENTIFICADO**: A policy `registrations_athlete_insert` não valida `deleted_at IS NULL`.
+CREATE TRIGGER enforce_event_category_immutability
+  BEFORE INSERT OR UPDATE OR DELETE ON event_categories
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_event_category_mutation();
 
-**AÇÃO NECESSÁRIA**: Atualizar RLS para incluir validação de soft delete.
+-- 5. Trigger para validar registro em categoria ativa (AJUSTE B: INSERT e UPDATE)
+CREATE OR REPLACE FUNCTION validate_registration_category_active()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Verificar se categoria não está soft-deleted
+  IF EXISTS (
+    SELECT 1 FROM event_categories 
+    WHERE id = NEW.category_id AND deleted_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Cannot register in deleted category';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
----
+-- AJUSTE B: Trigger para INSERT E UPDATE
+CREATE TRIGGER enforce_registration_category_active
+  BEFORE INSERT OR UPDATE ON event_registrations
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_registration_category_active();
 
-### P2.2.3 — DUPLICIDADE DE INSCRIÇÃO
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| UNIQUE(event_id, category_id, athlete_id) | **JÁ EXISTE** | ✅ OK |
-| Tratamento de erro explícito | UI trata `unique constraint` | ✅ OK |
-
-**Evidência (constraint no banco):**
-```
-event_registrations_event_id_category_id_athlete_id_key: UNIQUE (event_id, category_id, athlete_id)
-```
-
-**NENHUMA AÇÃO NECESSÁRIA**
-
----
-
-### P2.2.4 — CANCELAMENTO DE INSCRIÇÃO (SEM REFUND)
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| Só em `REGISTRATION_OPEN` | **DIVERGENTE** — Permite `REGISTRATION_CLOSED` também | ⚠️ AJUSTE |
-| Soft cancel (status = CANCELED) | **JÁ IMPLEMENTADO** | ✅ OK |
-| Backend valida (RLS) | Policy `registrations_athlete_cancel` | ⚠️ AJUSTE |
-
-**Estado atual da spec P2.2.4:**
-> O cancelamento SÓ é permitido quando: `event.status === 'REGISTRATION_OPEN'`
-
-**Estado atual do código:**
-```typescript
-// src/types/event.ts linha 197-199
-export function canCancelRegistration(eventStatus: EventStatus): boolean {
-  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
-}
-```
-
-**RLS atual (registrations_athlete_cancel):**
-```sql
-(e.status = ANY (ARRAY['REGISTRATION_OPEN', 'REGISTRATION_CLOSED']))
-```
-
-**DISCREPÂNCIA**: O código atual permite cancelamento em `REGISTRATION_CLOSED`, mas a spec P2.2.4 exige APENAS `REGISTRATION_OPEN`.
-
-**RECOMENDAÇÃO**: Seguindo o princípio SAFE MODE de não alterar contratos existentes, a implementação atual é mais flexível e segura (permite cancelamento antes do evento começar). A spec pode estar equivocada ou desatualizada.
-
-**DECISÃO**: Manter como está — é mais seguro permitir cancelamento até `REGISTRATION_CLOSED`.
-
----
-
-### P2.2.5 — INSCRIÇÕES APÓS CANCELAMENTO DO EVENTO
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| `CANCELLED` bloqueia novas inscrições | **JÁ IMPLEMENTADO** (RLS) | ✅ OK |
-| `CANCELLED` bloqueia cancelamentos | **PARCIAL** | ⚠️ GAP |
-
-**GAP**: A policy `registrations_athlete_cancel` não exclui eventos `CANCELLED`.
-
-**Evidência atual:**
-```sql
--- registrations_athlete_cancel WITH CHECK:
-e.status = ANY (ARRAY['REGISTRATION_OPEN', 'REGISTRATION_CLOSED'])
-```
-
-Isso já bloqueia implicitamente `CANCELLED` porque não está na lista de valores permitidos.
-
-**NENHUMA AÇÃO NECESSÁRIA** — já bloqueado.
-
----
-
-### P2.2.6 — VALIDAÇÃO NO BACKEND (OBRIGATÓRIO)
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| RLS valida estado do evento | **JÁ IMPLEMENTADO** | ✅ OK |
-| RLS valida tenant | Trigger existente | ✅ OK |
-| RLS valida atleta | `a.profile_id = auth.uid()` | ✅ OK |
-| Trigger adicional de validação | **NÃO EXISTE** | ⚠️ OPCIONAL |
-
-**NOTA**: RLS já cobre todos os casos. Trigger adicional seria redundante.
-
----
-
-### P2.2.7 — UI / UX (SEM NOVA TELA)
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| `EventRegistrationButton` existente | ✅ 254 linhas completas | ✅ OK |
-| Estado "Inscrever-se" | ✅ Implementado | ✅ OK |
-| Estado "Cancelar inscrição" | ✅ Implementado | ✅ OK |
-| Estado "Inscrições encerradas" | ✅ Implementado | ✅ OK |
-| Estado "Evento cancelado" | **NÃO DIFERENCIADO** | ⚠️ GAP |
-
-**GAP**: O botão não diferencia "Inscrições encerradas" de "Evento cancelado".
-
----
-
-## RESUMO DE ALTERAÇÕES NECESSÁRIAS
-
-### 1. Atualizar RLS para validar `deleted_at IS NULL`
-
-**Migração SQL:**
-```sql
--- Atualizar policy de INSERT para validar deleted_at
-DROP POLICY IF EXISTS registrations_athlete_insert ON event_registrations;
-CREATE POLICY registrations_athlete_insert ON event_registrations
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM events e 
-      WHERE e.id = event_registrations.event_id 
-        AND e.status = 'REGISTRATION_OPEN'
-        AND e.deleted_at IS NULL
-    )
-    AND EXISTS (
-      SELECT 1 FROM athletes a 
-      WHERE a.id = event_registrations.athlete_id 
-        AND a.profile_id = auth.uid()
-    )
-  );
-
--- Atualizar policy de UPDATE (cancelamento) para validar deleted_at
-DROP POLICY IF EXISTS registrations_athlete_cancel ON event_registrations;
-CREATE POLICY registrations_athlete_cancel ON event_registrations
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM athletes a 
-      WHERE a.id = event_registrations.athlete_id 
-        AND a.profile_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    status = 'CANCELED'
+-- 6. Atualizar RLS para excluir categorias deletadas e eventos CANCELLED
+DROP POLICY IF EXISTS event_categories_public_select ON event_categories;
+CREATE POLICY event_categories_public_select ON event_categories
+  FOR SELECT
+  USING (
+    deleted_at IS NULL
     AND EXISTS (
       SELECT 1 FROM events e 
-      WHERE e.id = event_registrations.event_id 
-        AND e.status IN ('REGISTRATION_OPEN', 'REGISTRATION_CLOSED')
+      WHERE e.id = event_categories.event_id 
+        AND e.is_public = true 
+        AND e.status NOT IN ('DRAFT', 'ARCHIVED', 'CANCELLED')
         AND e.deleted_at IS NULL
     )
   );
 ```
 
-### 2. Atualizar UI para diferenciar "Evento cancelado"
+---
 
-**Arquivo**: `src/components/events/EventRegistrationButton.tsx`
+## ALTERAÇÕES TYPESCRIPT
 
-Adicionar verificação para `eventStatus === 'CANCELLED'`:
+### 1. Atualizar `src/types/event.ts`
+
+Adicionar tipo `CategoryGender` e atualizar interface `EventCategory`:
 
 ```typescript
-// Após a verificação de login (linha 138)
+// Adicionar após linha 12 (após EventRegistrationStatus)
+export type CategoryGender = 'MALE' | 'FEMALE' | 'MIXED';
 
-// Event cancelled - read-only
-if (eventStatus === 'CANCELLED') {
-  return (
-    <Button disabled variant="outline" className="text-destructive border-destructive/50">
-      {t('events.eventCancelled') || 'Evento Cancelado'}
-    </Button>
-  );
+// Atualizar interface EventCategory (linhas 43-54)
+export interface EventCategory {
+  id: string;
+  event_id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  // Campos de competição (P2.3)
+  gender: CategoryGender | null;
+  min_weight: number | null;
+  max_weight: number | null;
+  min_age: number | null;
+  max_age: number | null;
+  belt_min_id: string | null;
+  belt_max_id: string | null;
+  deleted_at: string | null;
+  // Campos de pagamento (P3)
+  price_cents: number;
+  currency: string;
+  max_participants: number | null;
+  is_active: boolean;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+// Adicionar helper após canDeleteEvent (após linha 202)
+export function canEditCategories(eventStatus: EventStatus): boolean {
+  return eventStatus === 'DRAFT' || eventStatus === 'PUBLISHED' || eventStatus === 'REGISTRATION_OPEN';
 }
 ```
 
-### 3. Adicionar i18n key para "Evento cancelado"
-
-**Arquivos**: `pt-BR.ts`, `en.ts`, `es.ts`
+### 2. Criar `src/lib/eventEligibility.ts` (NOVO)
 
 ```typescript
-'events.eventCancelled': 'Evento Cancelado',
-'events.eventCancelledDesc': 'Este evento foi cancelado',
+/**
+ * Event Eligibility Helpers - TATAME Platform
+ * P2.3 — Categorias de Competição
+ * 
+ * Deterministic athlete eligibility validation for event categories.
+ * AJUSTE C: Weight validation is conditional - only applied when athlete.weight is available.
+ */
+
+import { CategoryGender } from '@/types/event';
+
+export interface AthleteForEligibility {
+  tenant_id: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  birth_date: string;
+  current_grading?: {
+    grading_level_id: string;
+    order_index: number;
+  } | null;
+  weight?: number | null; // Optional - AJUSTE C
+}
+
+export interface CategoryForEligibility {
+  tenant_id: string;
+  gender: CategoryGender | null;
+  min_weight: number | null;
+  max_weight: number | null;
+  min_age: number | null;
+  max_age: number | null;
+  belt_min_order_index?: number | null;
+  belt_max_order_index?: number | null;
+}
+
+export interface EligibilityResult {
+  eligible: boolean;
+  reasons: string[];
+}
+
+function calculateAge(birthDate: string): number {
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+/**
+ * Deterministic eligibility check
+ * AJUSTE C: Weight is only validated if athlete.weight is defined and not null
+ */
+export function isAthleteEligibleForCategory(
+  athlete: AthleteForEligibility,
+  category: CategoryForEligibility,
+  eventTenantId: string
+): EligibilityResult {
+  const reasons: string[] = [];
+  
+  // 1. Tenant match
+  if (athlete.tenant_id !== eventTenantId) {
+    reasons.push('Atleta não pertence à organização do evento');
+  }
+  
+  // 2. Gender check
+  if (category.gender !== null && category.gender !== 'MIXED') {
+    if (athlete.gender === 'OTHER' || athlete.gender !== category.gender) {
+      reasons.push('Gênero incompatível com a categoria');
+    }
+  }
+  
+  // 3. Age check
+  if (category.min_age !== null || category.max_age !== null) {
+    const age = calculateAge(athlete.birth_date);
+    if (category.min_age !== null && age < category.min_age) {
+      reasons.push(`Idade mínima: ${category.min_age} anos`);
+    }
+    if (category.max_age !== null && age > category.max_age) {
+      reasons.push(`Idade máxima: ${category.max_age} anos`);
+    }
+  }
+  
+  // 4. Belt check
+  if (athlete.current_grading && 
+      (category.belt_min_order_index !== null || category.belt_max_order_index !== null)) {
+    const athleteBeltOrder = athlete.current_grading.order_index;
+    if (category.belt_min_order_index !== null && athleteBeltOrder < category.belt_min_order_index) {
+      reasons.push('Faixa abaixo do mínimo');
+    }
+    if (category.belt_max_order_index !== null && athleteBeltOrder > category.belt_max_order_index) {
+      reasons.push('Faixa acima do máximo');
+    }
+  }
+  
+  // 5. Weight check - AJUSTE C: ONLY if athlete.weight is available
+  if (athlete.weight !== undefined && athlete.weight !== null) {
+    if (category.min_weight !== null && athlete.weight < category.min_weight) {
+      reasons.push(`Peso mínimo: ${category.min_weight}kg`);
+    }
+    if (category.max_weight !== null && athlete.weight > category.max_weight) {
+      reasons.push(`Peso máximo: ${category.max_weight}kg`);
+    }
+  }
+  // Se weight for undefined/null, validação de peso é IGNORADA (não falha)
+  
+  return { eligible: reasons.length === 0, reasons };
+}
 ```
+
+---
+
+## ALTERAÇÕES DE i18n
+
+### `src/locales/pt-BR.ts` (após linha 896)
+
+```typescript
+  // Eventos - Categorias de Competição (P2.3)
+  'events.categoryGender': 'Gênero',
+  'events.categoryGender.male': 'Masculino',
+  'events.categoryGender.female': 'Feminino',
+  'events.categoryGender.mixed': 'Misto',
+  'events.categoryWeight': 'Peso',
+  'events.categoryMinWeight': 'Peso mínimo (kg)',
+  'events.categoryMaxWeight': 'Peso máximo (kg)',
+  'events.categoryAge': 'Idade',
+  'events.categoryMinAge': 'Idade mínima',
+  'events.categoryMaxAge': 'Idade máxima',
+  'events.categoryBelt': 'Faixa',
+  'events.categoryBeltMin': 'Faixa mínima',
+  'events.categoryBeltMax': 'Faixa máxima',
+  'events.categoriesLocked': 'Categorias bloqueadas após fechamento das inscrições',
+  'events.athleteNotEligible': 'Atleta não elegível para esta categoria',
+  'events.eligibility.wrongTenant': 'Atleta não pertence à organização do evento',
+  'events.eligibility.genderMismatch': 'Gênero incompatível com a categoria',
+  'events.eligibility.ageTooLow': 'Idade abaixo do mínimo',
+  'events.eligibility.ageTooHigh': 'Idade acima do máximo',
+  'events.eligibility.weightTooLow': 'Peso abaixo do mínimo',
+  'events.eligibility.weightTooHigh': 'Peso acima do máximo',
+  'events.eligibility.beltTooLow': 'Faixa abaixo do mínimo',
+  'events.eligibility.beltTooHigh': 'Faixa acima do máximo',
+```
+
+### `src/locales/en.ts` (após linha 898)
+
+```typescript
+  // Events - Competition Categories (P2.3)
+  'events.categoryGender': 'Gender',
+  'events.categoryGender.male': 'Male',
+  'events.categoryGender.female': 'Female',
+  'events.categoryGender.mixed': 'Mixed',
+  'events.categoryWeight': 'Weight',
+  'events.categoryMinWeight': 'Minimum weight (kg)',
+  'events.categoryMaxWeight': 'Maximum weight (kg)',
+  'events.categoryAge': 'Age',
+  'events.categoryMinAge': 'Minimum age',
+  'events.categoryMaxAge': 'Maximum age',
+  'events.categoryBelt': 'Belt',
+  'events.categoryBeltMin': 'Minimum belt',
+  'events.categoryBeltMax': 'Maximum belt',
+  'events.categoriesLocked': 'Categories locked after registration closes',
+  'events.athleteNotEligible': 'Athlete not eligible for this category',
+  'events.eligibility.wrongTenant': 'Athlete does not belong to the event organization',
+  'events.eligibility.genderMismatch': 'Gender incompatible with category',
+  'events.eligibility.ageTooLow': 'Age below minimum',
+  'events.eligibility.ageTooHigh': 'Age above maximum',
+  'events.eligibility.weightTooLow': 'Weight below minimum',
+  'events.eligibility.weightTooHigh': 'Weight above maximum',
+  'events.eligibility.beltTooLow': 'Belt below minimum',
+  'events.eligibility.beltTooHigh': 'Belt above maximum',
+```
+
+### `src/locales/es.ts` (após linha 898)
+
+```typescript
+  // Eventos - Categorías de Competición (P2.3)
+  'events.categoryGender': 'Género',
+  'events.categoryGender.male': 'Masculino',
+  'events.categoryGender.female': 'Femenino',
+  'events.categoryGender.mixed': 'Mixto',
+  'events.categoryWeight': 'Peso',
+  'events.categoryMinWeight': 'Peso mínimo (kg)',
+  'events.categoryMaxWeight': 'Peso máximo (kg)',
+  'events.categoryAge': 'Edad',
+  'events.categoryMinAge': 'Edad mínima',
+  'events.categoryMaxAge': 'Edad máxima',
+  'events.categoryBelt': 'Cinturón',
+  'events.categoryBeltMin': 'Cinturón mínimo',
+  'events.categoryBeltMax': 'Cinturón máximo',
+  'events.categoriesLocked': 'Categorías bloqueadas después del cierre de inscripciones',
+  'events.athleteNotEligible': 'Atleta no elegible para esta categoría',
+  'events.eligibility.wrongTenant': 'El atleta no pertenece a la organización del evento',
+  'events.eligibility.genderMismatch': 'Género incompatible con la categoría',
+  'events.eligibility.ageTooLow': 'Edad por debajo del mínimo',
+  'events.eligibility.ageTooHigh': 'Edad por encima del máximo',
+  'events.eligibility.weightTooLow': 'Peso por debajo del mínimo',
+  'events.eligibility.weightTooHigh': 'Peso por encima del máximo',
+  'events.eligibility.beltTooLow': 'Cinturón por debajo del mínimo',
+  'events.eligibility.beltTooHigh': 'Cinturón por encima del máximo',
+```
+
+---
+
+## RESUMO DOS AJUSTES OBRIGATÓRIOS APLICADOS
+
+| Ajuste | Descrição | Status |
+|--------|-----------|--------|
+| **A** | Trigger retorna `OLD` para `DELETE` | ✅ Aplicado |
+| **B** | Trigger de categoria ativa para `INSERT OR UPDATE` | ✅ Aplicado |
+| **C** | Peso condicional — não falha se `athlete.weight` for `undefined/null` | ✅ Aplicado |
 
 ---
 
 ## ARQUIVOS A MODIFICAR
 
-| Arquivo | Ação | Impacto |
-|---------|------|---------|
-| Migration SQL | CRIAR | Atualizar RLS com `deleted_at IS NULL` |
-| `src/components/events/EventRegistrationButton.tsx` | EDITAR | ~10 linhas |
-| `src/locales/pt-BR.ts` | EDITAR | +2 chaves |
-| `src/locales/en.ts` | EDITAR | +2 chaves |
-| `src/locales/es.ts` | EDITAR | +2 chaves |
+| Arquivo | Ação | Linhas |
+|---------|------|--------|
+| Migration SQL | CRIAR | ~70 linhas |
+| `src/types/event.ts` | EDITAR | ~20 linhas |
+| `src/lib/eventEligibility.ts` | **CRIAR** | ~100 linhas |
+| `src/locales/pt-BR.ts` | EDITAR | +22 chaves |
+| `src/locales/en.ts` | EDITAR | +22 chaves |
+| `src/locales/es.ts` | EDITAR | +22 chaves |
 
-**Total**: ~30 linhas de alteração
-
----
-
-## FORA DE ESCOPO (CONFIRMADO)
-
-- Pagamento (existente mas não alterado)
-- Taxa de inscrição
-- Refund
-- Automação
-- E-mail
-- Analytics
-- Ranking
-- Chaves
-- Súmula
+**Total**: ~180 linhas de alteração
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
-| Critério | Estado Esperado |
-|----------|-----------------|
-| Inscrição só em REGISTRATION_OPEN | ✅ Já implementado |
-| Evento deletado bloqueia inscrição | ⚠️ Precisa RLS |
-| Duplicidade bloqueada | ✅ Constraint existe |
-| Cancelamento preserva histórico | ✅ Soft cancel |
-| Evento CANCELLED = read-only | ⚠️ Precisa UI |
-| Backend valida tudo | ✅ RLS completo |
-| UI diferencia estados | ⚠️ Precisa "Evento cancelado" |
-
----
-
-## RESULTADO ESPERADO
-
-Após P2.2:
-- Inscrição 100% governada por estado
-- `deleted_at` validado no backend
-- UI diferencia "Evento cancelado" de outros bloqueios
-- Zero inconsistência de dados
-- Sistema pronto para P3 (Pagamentos)
+| Critério | Esperado |
+|----------|----------|
+| Campos de competição na tabela | ✅ gender, weight, age, belt |
+| Enum `category_gender` criado | ✅ MALE, FEMALE, MIXED |
+| Soft delete com `deleted_at` | ✅ |
+| Imutabilidade após REGISTRATION_CLOSED | ✅ Trigger bloqueia |
+| Delete retorna OLD corretamente | ✅ AJUSTE A |
+| Update de registro valida categoria | ✅ AJUSTE B |
+| Peso não bloqueia sem dados | ✅ AJUSTE C |
+| RLS exclui categorias deletadas | ✅ |
+| Helper `isAthleteEligibleForCategory()` | ✅ Determinístico |
+| Zero impacto em inscrições existentes | ✅ Campos nullable |
 
