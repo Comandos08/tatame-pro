@@ -1555,6 +1555,54 @@ export type Database = {
           },
         ]
       }
+      platform_landing_config: {
+        Row: {
+          hero_enabled: boolean
+          hero_image_url: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          hero_enabled?: boolean
+          hero_image_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          hero_enabled?: boolean
+          hero_image_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_partners: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          logo_url: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          logo_url: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          logo_url?: string
+          name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
