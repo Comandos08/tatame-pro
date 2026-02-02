@@ -237,7 +237,7 @@ export function DigitalMembershipCard({
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Shield className="h-3 w-3" />
-              <span>SHA-256:</span>
+              <span>ID:</span>
               <code className="font-mono text-[10px] truncate flex-1">
                 {contentHash}
               </code>
