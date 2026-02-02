@@ -1,175 +1,148 @@
 
 
-# P1.2.C.C — FECHAMENTO INSTITUCIONAL GLOBAL
+# P1.3.A — CAMADA INSTITUCIONAL NO LOGIN
 
 ## MODO DE EXECUÇÃO
 
 - **SAFE GOLD MODE** — Zero Interpretação
-- ❌ NÃO criar novas rotas
-- ❌ NÃO tocar em backend / Edge Functions
-- ❌ NÃO alterar textos existentes
+- ❌ NÃO alterar fluxo de auth
+- ❌ NÃO alterar AuthContext / IdentityContext
+- ❌ NÃO criar nova rota
+- ❌ NÃO criar CMS
+- ❌ NÃO tocar em tenants
 - ❌ NÃO alterar layout base
-- ✅ APENAS links de navegação
-- ✅ APENAS modificar destinos
-- ✅ i18n obrigatório
+- ✅ APENAS substituir copy do painel lateral
+- ✅ i18n obrigatório (pt/en/es)
 
 ---
 
 ## ARQUITETURA IDENTIFICADA
 
-| Local | Estado Atual | Proposto |
-|-------|--------------|----------|
-| Hero CTA secundário | `/help` | `/about` |
-| PublicHeader (no tenant) | Sem link institucional | Adicionar "Sobre" → `/about` |
-| Landing Footer | Logo + copyright | Adicionar link "Sobre" |
-| About Footer | Logo + copyright | Adicionar link "Sobre" |
-| i18n | Sem `nav.about` | Adicionar chave |
+| Aspecto | Estado Atual | Proposto |
+|---------|--------------|----------|
+| Painel esquerdo | Formulário de login | **INTOCADO** |
+| Painel direito (desktop) | Copy genérico ("Gerencie sua federação") | Copy institucional |
+| i18n keys | `auth.manageOrganization`, `auth.manageOrganizationDesc` | Substituir por novas chaves `login.institutional.*` |
 
 ---
 
-## 1️⃣ LANDING.TSX — HERO CTA SECUNDÁRIO
+## 1️⃣ LOGIN.TSX — PAINEL INSTITUCIONAL
 
 ### Ponto de Alteração
 
-- **Linha:** 147
-- **Atual:** `<Link to="/help">{t('landing.learnMore')}</Link>`
-- **Novo:** `<Link to="/about">{t('landing.learnMore')}</Link>`
+- **Linhas:** 198-212 (painel direito existente)
+- **Ação:** Substituir conteúdo interno mantendo estrutura
 
-### Código
+### Código Atual (linhas 198-212)
 
 ```tsx
-<Button size="lg" variant="tenant-outline" className="text-lg h-12 px-8" asChild>
-  <Link to="/about">{t('landing.learnMore')}</Link>
-</Button>
+<div className="hidden lg:flex flex-1 items-center justify-center bg-card border-l border-border relative overflow-hidden">
+  <div className="absolute inset-0 bg-gradient-glow opacity-30" />
+  <motion.div
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ duration: 0.5, delay: 0.2 }}
+    className="relative z-10 text-center p-8"
+  >
+    <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
+      <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
+    </div>
+    <h2 className="font-display text-3xl font-bold mb-4">{t("auth.manageOrganization")}</h2>
+    <p className="text-muted-foreground max-w-sm">{t("auth.manageOrganizationDesc")}</p>
+  </motion.div>
+</div>
 ```
 
-**Observação:** O texto permanece `landing.learnMore` (já existente) — apenas o destino muda.
+### Código Proposto
+
+```tsx
+<div className="hidden lg:flex flex-1 items-center justify-center bg-card border-l border-border relative overflow-hidden">
+  <div className="absolute inset-0 bg-gradient-glow opacity-30" />
+  <motion.div
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ duration: 0.5, delay: 0.2 }}
+    className="relative z-10 text-center p-8 max-w-md"
+  >
+    <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
+      <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
+    </div>
+    <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+      {t("login.institutional.title")}
+    </h2>
+    <p className="text-muted-foreground leading-relaxed mb-6">
+      {t("login.institutional.description")}
+    </p>
+    <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+        <span>{t("login.institutional.point1")}</span>
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+        <span>{t("login.institutional.point2")}</span>
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+        <span>{t("login.institutional.point3")}</span>
+      </div>
+    </div>
+  </motion.div>
+</div>
+```
+
+**Mudanças:**
+- `max-w-md` adicionado para melhor leitura
+- Título e descrição institucionais
+- 3 bullet points de reforço (governança, rastreabilidade, neutralidade)
 
 ---
 
-## 2️⃣ PUBLICHEADER.TSX — LINK "SOBRE"
+## 2️⃣ i18n — CHAVES pt-BR.ts
 
 ### Ponto de Inserção
 
-- **Após:** Theme Selector (linha 110)
-- **Antes:** Auth Links (linha 112)
-
-### Código a Inserir
-
-```tsx
-{/* Institutional Link */}
-<Link 
-  to="/about" 
-  className="hidden md:block text-muted-foreground hover:text-foreground transition-colors"
->
-  {t('nav.about')}
-</Link>
-```
-
-### Posição Final na UI
-
-```text
-[Logo] .................. [Globe] [Theme] [Sobre] [Login] [Acessar Plataforma]
-```
-
----
-
-## 3️⃣ LANDING.TSX — FOOTER
-
-### Ponto de Alteração
-
-- **Linha:** 320-328 (dentro do footer flex container)
-
-### Código Atualizado
-
-```tsx
-<footer className="py-8 border-t border-border">
-  <div className="container mx-auto px-4">
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
-          <span className="font-display font-bold">TATAME</span>
-        </div>
-        <Link 
-          to="/about" 
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {t('nav.about')}
-        </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-      </p>
-    </div>
-  </div>
-</footer>
-```
-
----
-
-## 4️⃣ ABOUT.TSX — FOOTER
-
-### Ponto de Alteração
-
-- **Linha:** 140-152 (footer section)
-
-### Código Atualizado
-
-```tsx
-<footer className="py-8 border-t border-border">
-  <div className="container mx-auto px-4">
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
-          <span className="font-display font-bold">TATAME</span>
-        </div>
-        <Link 
-          to="/about" 
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {t('nav.about')}
-        </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-      </p>
-    </div>
-  </div>
-</footer>
-```
-
----
-
-## 5️⃣ i18n — NOVA CHAVE
-
-### Arquivos
-
-- `src/locales/pt-BR.ts`
-- `src/locales/en.ts`
-- `src/locales/es.ts`
-
-### Ponto de Inserção
-
-- **Após:** `'nav.rankings': 'Rankings',` (linha 19)
-- **Antes:** `// Common` (linha 21)
+- **Após:** `'auth.manageOrganizationDesc': '...',` (linha ~540)
 
 ### Chaves a Adicionar
 
-**pt-BR.ts:**
 ```typescript
-'nav.about': 'Sobre',
+  // Login institutional block
+  'login.institutional.title': 'Infraestrutura institucional para esportes de combate',
+  'login.institutional.description': 'O Tatame organiza, registra e preserva a história esportiva de federações, academias e atletas em um ambiente verificável e confiável.',
+  'login.institutional.point1': 'Governança e organização institucional',
+  'login.institutional.point2': 'Rastreabilidade e histórico verificável',
+  'login.institutional.point3': 'Neutralidade e colaboração no ecossistema',
 ```
 
-**en.ts:**
+---
+
+## 3️⃣ i18n — CHAVES en.ts
+
+### Chaves a Adicionar
+
 ```typescript
-'nav.about': 'About',
+  // Login institutional block
+  'login.institutional.title': 'Institutional infrastructure for combat sports',
+  'login.institutional.description': 'Tatame organizes, registers and preserves the sports history of federations, academies and athletes in a verifiable and reliable environment.',
+  'login.institutional.point1': 'Governance and institutional organization',
+  'login.institutional.point2': 'Traceability and verifiable history',
+  'login.institutional.point3': 'Neutrality and ecosystem collaboration',
 ```
 
-**es.ts:**
+---
+
+## 4️⃣ i18n — CHAVES es.ts
+
+### Chaves a Adicionar
+
 ```typescript
-'nav.about': 'Acerca de',
+  // Login institutional block
+  'login.institutional.title': 'Infraestructura institucional para deportes de combate',
+  'login.institutional.description': 'Tatame organiza, registra y preserva la historia deportiva de federaciones, academias y atletas en un entorno verificable y confiable.',
+  'login.institutional.point1': 'Gobernanza y organización institucional',
+  'login.institutional.point2': 'Trazabilidad e historial verificable',
+  'login.institutional.point3': 'Neutralidad y colaboración en el ecosistema',
 ```
 
 ---
@@ -178,56 +151,48 @@
 
 | Arquivo | Ação | Impacto |
 |---------|------|---------|
-| `src/pages/Landing.tsx` | EDITAR | Linha 147: `/help` → `/about` |
-| `src/pages/Landing.tsx` | EDITAR | Footer: adicionar link "Sobre" |
-| `src/components/PublicHeader.tsx` | EDITAR | Adicionar link "Sobre" |
-| `src/pages/About.tsx` | EDITAR | Footer: adicionar link "Sobre" |
-| `src/locales/pt-BR.ts` | EDITAR | +1 chave (`nav.about`) |
-| `src/locales/en.ts` | EDITAR | +1 chave (`nav.about`) |
-| `src/locales/es.ts` | EDITAR | +1 chave (`nav.about`) |
+| `src/pages/Login.tsx` | EDITAR | Linhas 198-212: substituir conteúdo do painel direito |
+| `src/locales/pt-BR.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
+| `src/locales/en.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
+| `src/locales/es.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
 
-**Total de linhas alteradas:** ~25 linhas
+**Total de linhas alteradas:** ~30 linhas
 
 ---
 
 ## 🚫 FORA DE ESCOPO (CONFIRMADO)
 
+- ❌ Fluxo de auth
+- ❌ AuthContext / IdentityContext
+- ❌ Nova rota
 - ❌ CMS
-- ❌ SEO
-- ❌ Analytics
-- ❌ Novas páginas
-- ❌ Alterar copy existente
-- ❌ Alterar layout base
-- ❌ Eventos
-- ❌ Admin
-- ❌ Permissões
+- ❌ Tenants
+- ❌ Alterar formulário de login
+- ❌ Alterar validações
 
 ---
 
-## ✅ VALIDAÇÕES OBRIGATÓRIAS
+## ✅ CRITÉRIOS DE ACEITE (BINÁRIO)
 
-Após execução, garantir:
-
-| Validação | Esperado |
-|-----------|----------|
-| `/about` acessível sem login | ✅ (já implementado em P1.2.C.B.2) |
-| Hero → "Saiba mais" leva para `/about` | ✅ |
-| Header → "Sobre" leva para `/about` | ✅ |
-| Footer (Landing) → "Sobre" leva para `/about` | ✅ |
-| Footer (About) → "Sobre" leva para `/about` | ✅ |
-| `/about` → CTA final leva para `/login` | ✅ (já implementado) |
-| Zero impacto em IdentityGate | ✅ |
-| Zero warning ou erro de rota | ✅ |
+| Item | Esperado |
+|------|----------|
+| Login continua funcionando exatamente igual | ✅ |
+| Nenhuma mudança em auth/identity | ✅ |
+| Bloco institucional aparece no painel direito | ✅ |
+| i18n completo pt/en/es | ✅ |
+| UX limpa, sem poluição visual | ✅ |
+| Reforço institucional claro | ✅ |
+| Responsivo (painel oculto em mobile) | ✅ |
 
 ---
 
 ## 🏁 RESULTADO ESPERADO
 
-Após P1.2.C.C:
+Após P1.3.A:
 
-- ✅ Navegação institucional completa
-- ✅ 3 pontos de entrada para `/about` (Hero, Header, Footer)
-- ✅ Qualquer visitante entende quem somos antes de entrar
-- ✅ Landing deixa de ser "porta cega"
-- ✅ Plataforma com maturidade institucional
+- ✅ Continuidade narrativa da Landing → About → Login
+- ✅ Visitante entende que está entrando em infraestrutura institucional
+- ✅ Não há quebra de contexto entre páginas públicas e login
+- ✅ Zero impacto em funcionalidade de auth
+- ✅ Maturidade institucional completa no funil de entrada
 
