@@ -20,7 +20,8 @@ import { GradingHistoryCard } from "@/components/portal/GradingHistoryCard";
 import { MyEventsCard } from "@/components/portal/MyEventsCard";
 import { MembershipTimeline } from "@/components/membership/MembershipTimeline";
 import { InAppNotice } from "@/components/notifications/InAppNotice";
-import { PostLoginInstitutionalBanner } from "@/components/notifications/PostLoginInstitutionalBanner";
+import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
+import { InstitutionalEnvironmentStatus } from '@/components/institutional';
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { isValidStatusType, getStatusI18nKey } from "@/lib/statusUtils";
@@ -215,6 +216,7 @@ export default function AthletePortal() {
         error={athleteError as Error | null}
       >
         <PostLoginInstitutionalBanner />
+        <InstitutionalEnvironmentStatus />
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3">

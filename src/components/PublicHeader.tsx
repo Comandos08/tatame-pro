@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { InstitutionalSeal } from '@/components/institutional';
 
 // ForwardRef wrapper for Button to fix DropdownMenuTrigger ref warning
 const TriggerButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
@@ -57,6 +58,9 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
           </Link>
           
           <div className="flex items-center gap-2">
+            {/* Institutional Seal */}
+            <InstitutionalSeal />
+
             {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
