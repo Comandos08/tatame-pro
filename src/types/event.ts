@@ -15,6 +15,9 @@ export type EventStatus =
 
 export type EventRegistrationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELED';
 
+// P2.3 — Competition Categories
+export type CategoryGender = 'MALE' | 'FEMALE' | 'MIXED';
+
 export interface Event {
   id: string;
   tenant_id: string;
@@ -38,10 +41,21 @@ export interface EventCategory {
   tenant_id: string;
   name: string;
   description: string | null;
+  // Competition fields (P2.3)
+  gender: CategoryGender | null;
+  min_weight: number | null;
+  max_weight: number | null;
+  min_age: number | null;
+  max_age: number | null;
+  belt_min_id: string | null;
+  belt_max_id: string | null;
+  deleted_at: string | null;
+  // Payment fields (P3)
   price_cents: number;
   currency: string;
   max_participants: number | null;
   is_active: boolean;
+  // Timestamps
   created_at: string;
   updated_at: string;
 }
@@ -206,4 +220,9 @@ export function canPublishResults(eventStatus: EventStatus): boolean {
 // Helper to check if event can be soft deleted
 export function canDeleteEvent(eventStatus: EventStatus): boolean {
   return eventStatus === 'DRAFT' || eventStatus === 'CANCELLED';
+}
+
+// P2.3 — Helper to check if categories can be edited
+export function canEditCategories(eventStatus: EventStatus): boolean {
+  return eventStatus === 'DRAFT' || eventStatus === 'PUBLISHED' || eventStatus === 'REGISTRATION_OPEN';
 }
