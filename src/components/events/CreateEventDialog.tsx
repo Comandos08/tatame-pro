@@ -104,7 +104,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t('events.createSuccess' as any) || 'Evento criado com sucesso!');
+      toast.success(t('events.createSuccess'));
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setOpen(false);
       form.reset();
@@ -112,7 +112,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
     },
     onError: (error) => {
       console.error('Error creating event:', error);
-      toast.error(t('events.createError' as any) || 'Erro ao criar evento');
+      toast.error(t('events.createError'));
     },
   });
 
@@ -126,15 +126,15 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
         {children || (
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            {t('events.createEvent' as any) || 'Criar Evento'}
+            {t('events.createEvent')}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{t('events.createEvent' as any) || 'Criar Evento'}</DialogTitle>
+          <DialogTitle>{t('events.createEvent')}</DialogTitle>
           <DialogDescription>
-            {t('events.createEventDesc' as any) || 'Preencha os dados do evento. Ele será criado como rascunho.'}
+            {t('events.createEventDesc')}
           </DialogDescription>
         </DialogHeader>
         
@@ -145,9 +145,9 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('events.eventName' as any) || 'Nome do Evento'}</FormLabel>
+                  <FormLabel>{t('events.eventName.label')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Campeonato Estadual 2024" {...field} />
+                    <Input placeholder={t('events.eventName.placeholder')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -159,10 +159,10 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('settings.description') || 'Descrição'}</FormLabel>
+                  <FormLabel>{t('events.description.label')}</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Descrição do evento..."
+                      placeholder={t('events.description.placeholder')}
                       className="resize-none"
                       {...field} 
                     />
@@ -178,7 +178,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                 name="start_date"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>{t('events.startDate' as any) || 'Data de Início'}</FormLabel>
+                    <FormLabel>{t('events.startDate.label')}</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -192,7 +192,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                             {field.value ? (
                               format(field.value, 'dd/MM/yyyy')
                             ) : (
-                              <span>Selecione</span>
+                              <span>{t('events.startDate.placeholder')}</span>
                             )}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
@@ -218,7 +218,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                 name="end_date"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>{t('events.endDate' as any) || 'Data de Fim'}</FormLabel>
+                    <FormLabel>{t('events.endDate.label')}</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -232,7 +232,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                             {field.value ? (
                               format(field.value, 'dd/MM/yyyy')
                             ) : (
-                              <span>Selecione</span>
+                              <span>{t('events.endDate.placeholder')}</span>
                             )}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
@@ -262,9 +262,9 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('events.location' as any) || 'Local'}</FormLabel>
+                  <FormLabel>{t('events.location.label')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Ginásio Municipal" {...field} />
+                    <Input placeholder={t('events.location.placeholder')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -277,11 +277,11 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                 name="sport_type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.sportType' as any) || 'Modalidade'}</FormLabel>
+                    <FormLabel>{t('events.sportType.label')}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione a modalidade" />
+                          <SelectValue placeholder={t('events.sportType.placeholder')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -318,7 +318,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createEvent.isPending}>
-                {createEvent.isPending ? t('common.loading') : t('events.createEvent' as any) || 'Criar Evento'}
+                {createEvent.isPending ? t('common.loading') : t('events.createEvent')}
               </Button>
             </DialogFooter>
           </form>

@@ -1934,4 +1934,42 @@ export const en: Record<string, string> = {
   'events.categoryCreateError': 'Error creating category',
   'events.categoriesLockedDesc': 'Cannot modify categories after registration closes',
 
+  // P2.X — i18n Phase 3: Canonical Event & Category Keys
+  // Events Creation
+  'events.createEventDesc': 'Fill in the event details. It will be created as a draft.',
+  'events.eventName.label': 'Event Name',
+  'events.eventName.placeholder': 'E.g.: State Championship 2024',
+  'events.description.label': 'Description',
+  'events.description.placeholder': 'Event description...',
+  'events.startDate.label': 'Start Date',
+  'events.startDate.placeholder': 'Select',
+  'events.endDate.label': 'End Date',
+  'events.endDate.placeholder': 'Select',
+  'events.location.label': 'Location',
+  'events.location.placeholder': 'E.g.: City Gym',
+  'events.sportType.label': 'Sport Type',
+  'events.sportType.placeholder': 'Select the sport type',
+  'events.createSuccess': 'Event created successfully!',
+  'events.createError': 'Error creating event',
+
+  // Events Status & Feedback
+  'events.statusUpdated': 'Status updated!',
+  'events.statusUpdateError': 'Error updating status',
+  'events.registrationUpdated': 'Registration updated!',
+  'events.dates': 'Dates',
+  'events.notDefined': 'Not defined',
+
+  // Categories Creation (normalized)
+  'events.gender.label': 'Gender',
+  'events.genderMale': 'Male',
+  'events.genderFemale': 'Female',
+  'events.genderMixed': 'Mixed',
+  'events.minWeight.label': 'Minimum weight',
+  'events.minWeight.placeholder': 'kg',
+  'events.maxWeight.label': 'Maximum weight',
+  'events.maxWeight.placeholder': 'kg',
+  'events.minAge.label': 'Minimum age',
+  'events.maxAge.label': 'Maximum age',
+  'events.years': 'years',
+
 };
