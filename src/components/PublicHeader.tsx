@@ -69,7 +69,7 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
                   <DropdownMenuItem
                     key={loc}
                     onClick={() => setLocale(loc)}
-                    className={locale === loc ? 'bg-accent' : ''}
+                    className={locale === loc ? 'bg-accent text-accent-foreground font-medium' : ''}
                   >
                     {localeLabels[loc]}
                   </DropdownMenuItem>
@@ -160,7 +160,7 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
                 <DropdownMenuItem
                   key={loc}
                   onClick={() => setLocale(loc)}
-                  className={locale === loc ? 'bg-accent' : ''}
+                  className={locale === loc ? 'bg-accent text-accent-foreground font-medium' : ''}
                 >
                   {localeLabels[loc]}
                 </DropdownMenuItem>

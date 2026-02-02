@@ -412,9 +412,14 @@ export default function VerifyCard() {
               </Button>
             )}
 
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
-              <Shield className="h-4 w-4" />
-              <span>{t('verification.authenticDocument')} {verification.tenantName}</span>
+            <div className="text-center pt-4 border-t space-y-2">
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Shield className="h-4 w-4" />
+                <span>{t('verification.authenticDocument')} {verification.tenantName}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('verification.cardInstitutionalMessage')}
+              </p>
             </div>
           </CardContent>
         </Card>

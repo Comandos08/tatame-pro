@@ -263,7 +263,7 @@ export function AppShell({ children }: AppShellProps) {
                 <DropdownMenuItem 
                   key={lang.code} 
                   onClick={() => setLocale(lang.code)}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between cursor-pointer"
                 >
                   {lang.label}
                   {locale === lang.code && <CheckCircle className="h-4 w-4 text-primary" />}
