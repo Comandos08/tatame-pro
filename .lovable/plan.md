@@ -1,387 +1,319 @@
 
 
-# P1.4 — GOVERNANÇA VISÍVEL (SEM RUÍDO, SEM MARKETING)
+# P0 — HARD FIXES FUNDACIONAIS (SAFE MODE)
 
 ## MODO DE EXECUÇÃO
 
-- **SAFE GOLD MODE** — Zero Interpretação
-- ❌ NÃO criar novas rotas
-- ❌ NÃO tocar em backend / Edge Functions
-- ❌ NÃO alterar lógica existente
-- ❌ NÃO criar CMS
-- ❌ NÃO alterar auth / identity
-- ❌ NÃO impactar tenants
-- ❌ NÃO criar onboarding ou wizard
-- ❌ NÃO adicionar CTAs obrigatórios
-- ✅ APENAS UI informativa
-- ✅ APENAS estados institucionais
-- ✅ APENAS leitura (read-only)
-- ✅ i18n obrigatório (pt / en / es)
+- **SAFE MODE** — Zero Criatividade
+- Zero Feature Nova
+- Zero Alteração Fora do Escopo
+- NÃO MUDAR CONTRATOS EXISTENTES, APENAS CORRIGIR ESCOPO
+- NÃO QUEBRAR NENHUM FLUXO FUNCIONAL EXISTENTE
+- SE ALGO NÃO ESTIVER CLARO: NÃO IMPLEMENTAR
 
 ---
 
-## ARQUITETURA IDENTIFICADA
+## ANÁLISE ATUAL
 
-| Local | Estado Atual | Proposto |
-|-------|--------------|----------|
-| `src/components/institutional/` | Não existe | Criar diretório com componentes |
-| PublicHeader | Sem selo institucional | Adicionar `InstitutionalSeal` |
-| Footer (Landing/About) | Logo + "Sobre" + copyright | Adicionar `InstitutionalSeal` |
-| AdminDashboard | `PostLoginInstitutionalBanner` | Adicionar `InstitutionalEnvironmentStatus` |
-| TenantDashboard | `PostLoginInstitutionalBanner` | Adicionar `InstitutionalEnvironmentStatus` |
-| AthletePortal | `PostLoginInstitutionalBanner` | Adicionar `InstitutionalEnvironmentStatus` |
-| i18n | Sem chaves `institutional.*` | Adicionar 2 chaves |
+### Descobertas após Exploração
+
+| Item | Estado Atual | Status |
+|------|--------------|--------|
+| P0.1 - Approval Tenant-Scoped | **JÁ IMPLEMENTADO** - Queries filtram `tenant_id` | OK |
+| P0.2 - QRCode Forte | **PARCIALMENTE** - Usa `membership_id` direto (UUID) | AJUSTE |
+| P0.3 - Verificação Carteirinha | **JÁ EXISTE** - `VerifyMembership.tsx` funcional | OK |
+| P0.4 - Verificação Diploma | **JÁ EXISTE** - `VerifyDiploma.tsx` funcional | OK |
+| P0.5 - Formulário Organização | **DIVERGENTE** - Create/Edit têm campos diferentes | AJUSTE |
+| P0.6 - Remover SHA-256 Label | **PARCIALMENTE** - Visível em alguns lugares | AJUSTE |
 
 ---
 
-## 1️⃣ NOVO COMPONENTE — InstitutionalSeal.tsx
+## P0.1 — MEMBERSHIP APROVADO POR TENANT
 
-### Localização
+### Análise
 
-`src/components/institutional/InstitutionalSeal.tsx`
+**RESULTADO: JÁ IMPLEMENTADO CORRETAMENTE**
 
-### Código
-
+Verificação em `ApprovalsList.tsx` (linhas 88-91):
 ```tsx
-import React from 'react';
-import { ShieldCheck } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useI18n } from '@/contexts/I18nContext';
-
-export function InstitutionalSeal() {
-  const { t } = useI18n();
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-default">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t('institutional.seal')}</span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-xs text-center">
-        <p>{t('institutional.sealTooltip')}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+.eq('tenant_id', tenant.id)
+.eq('status', 'PENDING_REVIEW')
 ```
 
-**Características:**
-- Ícone `ShieldCheck` (discreto, institucional)
-- Texto curto visível em telas maiores
-- Tooltip explicativo no hover
-- Zero impacto visual agressivo
+Verificação em `approve-membership/index.ts` (linhas 298-313):
+```ts
+const isTenantAdmin = roles?.some(r => 
+  (r.role === "ADMIN_TENANT" || r.role === "STAFF_ORGANIZACAO") && 
+  r.tenant_id === targetTenantId
+);
+```
+
+**Conclusão**: O código atual já implementa corretamente o modelo federativo:
+- Query filtra por `tenant_id` do tenant atual
+- Backend valida role no tenant específico
+- SuperAdmin precisa de impersonation válida
+
+**NENHUMA AÇÃO NECESSÁRIA**
 
 ---
 
-## 2️⃣ NOVO COMPONENTE — InstitutionalEnvironmentStatus.tsx
+## P0.2 — QRCODE À PROVA DE BALAS
 
-### Localização
+### Análise do Estado Atual
 
-`src/components/institutional/InstitutionalEnvironmentStatus.tsx`
+**QRCode atual**:
+- `DigitalMembershipCard.tsx` (linha 48): 
+  ```tsx
+  const verificationUrl = `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
+  ```
 
-### Código
+**Problema**: Usa `membershipId` (UUID) diretamente na URL
 
-```tsx
-import React from 'react';
-import { useI18n } from '@/contexts/I18nContext';
+**Solução Proposta na Spec**: Criar campo `membership_public_id` com hash SHA-256
 
-export function InstitutionalEnvironmentStatus() {
-  const { t } = useI18n();
+### Avaliação Técnica
 
-  return (
-    <div className="mb-4 rounded-lg border border-border/50 bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-      <span>{t('institutional.environment.active')}</span>
-    </div>
-  );
-}
-```
+**RECOMENDAÇÃO: NÃO IMPLEMENTAR ESTE AJUSTE**
 
-**Características:**
-- Banner discreto, estilo informativo
-- Não bloqueia navegação
-- Cor neutra (muted)
-- Apenas uma linha de texto
+Razões:
+1. UUID v4 já é criptograficamente seguro (122 bits de entropia)
+2. Criar hash de `membership_id + tenant_id` apenas adiciona uma indireção sem ganho de segurança
+3. A verificação já ocorre via view `membership_verification` que valida `tenant_slug` + `membership_id`
+4. O UUID não expõe nenhum dado sensível
 
----
+**Ganho de segurança: ZERO**
+**Risco de regressão: MÉDIO** (IDs antigos deixariam de funcionar)
+**Complexidade: ALTA** (migração de banco, edge function, UI)
 
-## 3️⃣ INDEX — src/components/institutional/index.ts
-
-### Código
-
-```tsx
-export { InstitutionalSeal } from './InstitutionalSeal';
-export { InstitutionalEnvironmentStatus } from './InstitutionalEnvironmentStatus';
-```
+**NENHUMA AÇÃO RECOMENDADA** - A implementação atual é segura
 
 ---
 
-## 4️⃣ PUBLICHEADER.TSX — INSERIR SELO
+## P0.3 — PÁGINA DE VERIFICAÇÃO DE CARTEIRINHA
 
-### Ponto de Inserção (modo sem tenant)
+### Análise
 
-- **Linha:** 58 (dentro do `<div className="flex items-center gap-2">`)
-- **Posição:** Após o logo, antes do Language Selector
+**RESULTADO: JÁ IMPLEMENTADO**
 
-### Código a Inserir
+`VerifyMembership.tsx` já existe e funciona:
+- Usa view `membership_verification` (hardened, read-only)
+- Retorna dados públicos com nome maskeado
+- Mostra graduação vigente
+- Valida status e validade
 
-```tsx
-// Import no topo
-import { InstitutionalSeal } from '@/components/institutional';
-
-// Dentro do header, no container flex direito, ANTES do Language Selector
-<InstitutionalSeal />
-```
-
-### Posição Final na UI (sem tenant)
-
-```text
-[Logo TATAME] ......... [Selo] [Globe] [Theme] [Sobre] [Login] [Acessar Plataforma]
-```
+**NENHUMA AÇÃO NECESSÁRIA**
 
 ---
 
-## 5️⃣ LANDING.TSX — FOOTER COM SELO
+## P0.4 — PÁGINA DE VERIFICAÇÃO DE DIPLOMA
 
-### Ponto de Alteração
+### Análise
 
-- **Linha:** 320-332 (footer flex container)
+**RESULTADO: JÁ IMPLEMENTADO**
 
-### Código Atualizado
+`VerifyDiploma.tsx` já existe e funciona:
+- Busca por ID do diploma
+- Valida tenant via slug
+- Máscara nome do atleta
+- Verifica integridade via SHA-256
+- Read-only, sem listagem
 
+**NENHUMA AÇÃO NECESSÁRIA**
+
+---
+
+## P0.5 — FORMULÁRIO ORGANIZAÇÃO IDÊNTICO
+
+### Análise
+
+**DIVERGÊNCIA IDENTIFICADA**:
+
+| Campo | CreateTenantDialog | EditTenantDialog |
+|-------|-------------------|------------------|
+| `SPORT_TYPES` | Array completo (10 itens) | Array reduzido (8 itens) |
+| Format | `'Jiu-Jitsu'` | `'BJJ'` |
+| Slug | Editável | Read-only |
+
+**Problema**: Inconsistência nos valores de `SPORT_TYPES` entre os dois dialogs
+
+### Ação Necessária
+
+Unificar `SPORT_TYPES` em `EditTenantDialog.tsx`:
+
+**Arquivo**: `src/components/admin/EditTenantDialog.tsx`
+
+**Linha 28** (atual):
+```ts
+const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
+```
+
+**Substituir por**:
+```ts
+const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
+```
+
+**Impacto**: Zero - apenas corrige inconsistência visual
+
+---
+
+## P0.6 — REMOVER LABEL "SHA-256" DA CARTEIRINHA
+
+### Análise
+
+**Locais onde "SHA-256:" aparece**:
+
+1. `DigitalMembershipCard.tsx` (linha 240):
+   ```tsx
+   <span>SHA-256:</span>
+   ```
+
+2. `VerifyCard.tsx` (linha 396):
+   ```tsx
+   <p className="text-xs text-muted-foreground mt-1">
+     SHA-256: {verification.storedHash.substring(0, 16)}...
+   </p>
+   ```
+
+3. `VerifyMembership.tsx` (linha 328):
+   ```tsx
+   <span className="font-mono">SHA-256: {data.content_hash_sha256.substring(0, 12)}...</span>
+   ```
+
+### Ação Necessária
+
+Substituir "SHA-256:" por "ID:" em todos os locais acima
+
+---
+
+## RESUMO DE ALTERAÇÕES
+
+| Arquivo | Ação | Linhas |
+|---------|------|--------|
+| `EditTenantDialog.tsx` | EDITAR | Linha 28: unificar SPORT_TYPES |
+| `DigitalMembershipCard.tsx` | EDITAR | Linha 240: SHA-256 → ID |
+| `VerifyCard.tsx` | EDITAR | Linha 396: SHA-256 → ID |
+| `VerifyMembership.tsx` | EDITAR | Linha 328: SHA-256 → ID |
+
+**Total**: 4 arquivos, ~8 linhas alteradas
+
+---
+
+## DETALHES TÉCNICOS
+
+### 1. EditTenantDialog.tsx - Linha 28
+
+**De**:
+```ts
+const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
+```
+
+**Para**:
+```ts
+const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
+```
+
+### 2. DigitalMembershipCard.tsx - Linhas 238-244
+
+**De**:
 ```tsx
-// Import no topo
-import { InstitutionalSeal } from '@/components/institutional';
-
-// Footer atualizado
-<footer className="py-8 border-t border-border">
-  <div className="container mx-auto px-4">
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
-          <span className="font-display font-bold">TATAME</span>
-        </div>
-        <InstitutionalSeal />
-        <Link 
-          to="/about" 
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {t('nav.about')}
-        </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-      </p>
+{contentHash && (
+  <div className="mt-6 pt-4 border-t">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Shield className="h-3 w-3" />
+      <span>SHA-256:</span>
+      <code className="font-mono text-[10px] truncate flex-1">
+        {contentHash}
+      </code>
     </div>
   </div>
-</footer>
+)}
 ```
 
----
-
-## 6️⃣ ABOUT.TSX — FOOTER COM SELO
-
-### Ponto de Alteração
-
-- **Linha:** 140-152 (footer section)
-
-### Código Atualizado
-
+**Para**:
 ```tsx
-// Import no topo
-import { InstitutionalSeal } from '@/components/institutional';
-
-// Footer atualizado (igual ao Landing)
-<footer className="py-8 border-t border-border">
-  <div className="container mx-auto px-4">
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
-          <span className="font-display font-bold">TATAME</span>
-        </div>
-        <InstitutionalSeal />
-        <Link 
-          to="/about" 
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {t('nav.about')}
-        </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-      </p>
+{contentHash && (
+  <div className="mt-6 pt-4 border-t">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Shield className="h-3 w-3" />
+      <span>ID:</span>
+      <code className="font-mono text-[10px] truncate flex-1">
+        {contentHash}
+      </code>
     </div>
   </div>
-</footer>
+)}
 ```
 
----
+### 3. VerifyCard.tsx - Linhas 394-398
 
-## 7️⃣ ADMINDASHBOARD.TSX — INSERIR STATUS
-
-### Ponto de Inserção
-
-- **Linha:** 348 (após `<PostLoginInstitutionalBanner />`)
-- **Antes:** `<div className="mb-8">` (título do painel)
-
-### Código a Inserir
-
+**De**:
 ```tsx
-// Import no topo
-import { InstitutionalEnvironmentStatus } from '@/components/institutional';
-
-// Após PostLoginInstitutionalBanner
-<InstitutionalEnvironmentStatus />
+<p className="text-xs text-muted-foreground mt-1">
+  SHA-256: {verification.storedHash.substring(0, 16)}...
+</p>
 ```
 
----
-
-## 8️⃣ TENANTDASHBOARD.TSX — INSERIR STATUS
-
-### Ponto de Inserção
-
-- **Linha:** 258 (após `<PostLoginInstitutionalBanner />`)
-- **Antes:** `<div>` com welcome message
-
-### Código a Inserir
-
+**Para**:
 ```tsx
-// Import no topo
-import { InstitutionalEnvironmentStatus } from '@/components/institutional';
-
-// Após PostLoginInstitutionalBanner
-<InstitutionalEnvironmentStatus />
+<p className="text-xs text-muted-foreground mt-1">
+  ID: {verification.storedHash.substring(0, 16)}...
+</p>
 ```
 
----
+### 4. VerifyMembership.tsx - Linhas 327-329
 
-## 9️⃣ ATHLETEPORTAL.TSX — INSERIR STATUS
-
-### Ponto de Inserção
-
-- **Linha:** 218 (após `<PostLoginInstitutionalBanner />`)
-- **Antes:** `{/* Header */}` comment
-
-### Código a Inserir
-
+**De**:
 ```tsx
-// Import no topo
-import { InstitutionalEnvironmentStatus } from '@/components/institutional';
+{data.content_hash_sha256 && (
+  <div className="text-center text-xs text-muted-foreground">
+    <span className="font-mono">SHA-256: {data.content_hash_sha256.substring(0, 12)}...</span>
+  </div>
+)}
+```
 
-// Após PostLoginInstitutionalBanner
-<InstitutionalEnvironmentStatus />
+**Para**:
+```tsx
+{data.content_hash_sha256 && (
+  <div className="text-center text-xs text-muted-foreground">
+    <span className="font-mono">ID: {data.content_hash_sha256.substring(0, 12)}...</span>
+  </div>
+)}
 ```
 
 ---
 
-## 🔟 i18n — CHAVES pt-BR.ts
+## FORA DE ESCOPO (CONFIRMADO)
 
-### Ponto de Inserção
-
-- **Após:** chaves `postlogin.institutional.*` (linha ~556)
-
-### Chaves a Adicionar
-
-```typescript
-  // Institutional governance
-  'institutional.seal': 'Infraestrutura Institucional',
-  'institutional.sealTooltip': 'Plataforma de governança e registro esportivo oficial, com rastreabilidade e neutralidade institucional.',
-  'institutional.environment.active': 'Este ambiente opera sob governança institucional ativa, com registros estruturados e rastreáveis.',
-```
+- P0.1: Já implementado corretamente
+- P0.2: Não implementar (UUID é seguro, hash não adiciona proteção)
+- P0.3: Já existe
+- P0.4: Já existe
+- Eventos de domínio
+- Automações
+- Analytics
+- Stripe
+- Auth
 
 ---
 
-## 1️⃣1️⃣ i18n — CHAVES en.ts
+## CRITÉRIOS DE ACEITE
 
-### Chaves a Adicionar
-
-```typescript
-  // Institutional governance
-  'institutional.seal': 'Institutional Infrastructure',
-  'institutional.sealTooltip': 'Official sports governance and registration platform with traceability and institutional neutrality.',
-  'institutional.environment.active': 'This environment operates under active institutional governance with structured and traceable records.',
-```
-
----
-
-## 1️⃣2️⃣ i18n — CHAVES es.ts
-
-### Chaves a Adicionar
-
-```typescript
-  // Institutional governance
-  'institutional.seal': 'Infraestructura Institucional',
-  'institutional.sealTooltip': 'Plataforma oficial de gobernanza y registro deportivo con trazabilidad y neutralidad institucional.',
-  'institutional.environment.active': 'Este entorno opera bajo gobernanza institucional activa con registros estructurados y trazables.',
-```
+| Item | Critério | Esperado |
+|------|----------|----------|
+| P0.5 | SPORT_TYPES idêntico Create/Edit | OK |
+| P0.6 | Nenhum "SHA-256" visível na UI | OK |
+| Regressão | Nenhuma funcionalidade quebrada | OK |
+| QR Codes | Continuam funcionando | OK |
+| Verificação | Páginas funcionais | OK |
 
 ---
 
-## 📦 RESUMO DE ALTERAÇÕES
+## RESULTADO ESPERADO
 
-| Arquivo | Ação | Impacto |
-|---------|------|---------|
-| `src/components/institutional/InstitutionalSeal.tsx` | CRIAR | Componente reutilizável (~25 linhas) |
-| `src/components/institutional/InstitutionalEnvironmentStatus.tsx` | CRIAR | Componente reutilizável (~15 linhas) |
-| `src/components/institutional/index.ts` | CRIAR | Barrel export (~3 linhas) |
-| `src/components/PublicHeader.tsx` | EDITAR | +1 import, +1 componente |
-| `src/pages/Landing.tsx` | EDITAR | +1 import, +1 componente no footer |
-| `src/pages/About.tsx` | EDITAR | +1 import, +1 componente no footer |
-| `src/pages/AdminDashboard.tsx` | EDITAR | +1 import, +1 componente |
-| `src/pages/TenantDashboard.tsx` | EDITAR | +1 import, +1 componente |
-| `src/pages/AthletePortal.tsx` | EDITAR | +1 import, +1 componente |
-| `src/locales/pt-BR.ts` | EDITAR | +3 chaves |
-| `src/locales/en.ts` | EDITAR | +3 chaves |
-| `src/locales/es.ts` | EDITAR | +3 chaves |
-
-**Total de linhas alteradas:** ~70 linhas
-**Novos arquivos:** 3
-
----
-
-## 🚫 FORA DE ESCOPO (CONFIRMADO)
-
-- ❌ Selos por tenant
-- ❌ Estados dinâmicos
-- ❌ Compliance técnico
-- ❌ Auditoria
-- ❌ Logs
-- ❌ Backend
-- ❌ Configuração
-- ❌ Admin settings
-
----
-
-## ✅ CRITÉRIOS DE ACEITE (BINÁRIO)
-
-| Item | Esperado |
-|------|----------|
-| Selo aparece no PublicHeader (sem tenant) | ✅ |
-| Selo aparece no Footer (Landing) | ✅ |
-| Selo aparece no Footer (About) | ✅ |
-| Tooltip do selo funciona | ✅ |
-| Status aparece em AdminDashboard | ✅ |
-| Status aparece em TenantDashboard | ✅ |
-| Status aparece em AthletePortal | ✅ |
-| i18n completo pt/en/es | ✅ |
-| Zero impacto em auth/identity | ✅ |
-| Zero impacto em fluxos | ✅ |
-| UX discreta, sem ruído | ✅ |
-
----
-
-## 🏁 RESULTADO ESPERADO
-
-Após P1.4:
-
-- ✅ Governança visível em toda a plataforma
-- ✅ Selo institucional como identidade de infraestrutura
-- ✅ Estado do ambiente clarifica contexto operacional
-- ✅ Plataforma com postura institucional madura
-- ✅ UX sem fricção, sem marketing
-- ✅ Base pronta para P2 (Eventos, Registros, Rankings)
-- ✅ Tatame deixa de "parecer software" e passa a parecer infraestrutura
+Após P0:
+- Consistência nos formulários de organização
+- UX institucional limpa (sem exposição técnica)
+- Modelo federativo validado (já estava correto)
+- Verificação funcional (já estava implementada)
+- Sistema pronto para P1
 
