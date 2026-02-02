@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.publish-event-bracket]
 verify_jwt = false
+
+[functions.record-match-result]
+verify_jwt = false

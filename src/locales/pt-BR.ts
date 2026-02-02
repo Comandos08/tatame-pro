@@ -1984,6 +1984,18 @@ export const ptBR = {
   'events.maxAge.label': 'Idade máxima',
   'events.years': 'anos',
 
+  // P2.5 — Match Results
+  'events.brackets.recordResult': 'Registrar Resultado',
+  'events.brackets.selectWinner': 'Selecione o Vencedor',
+  'events.brackets.confirmResult': 'Confirmar Resultado',
+  'events.brackets.resultRecorded': 'Resultado registrado com sucesso!',
+  'events.brackets.resultError': 'Erro ao registrar resultado',
+  'events.brackets.resultWarning': 'Essa ação é irreversível. O resultado não poderá ser alterado.',
+  'events.brackets.completed': 'Concluída',
+  'events.brackets.winner': 'Vencedor',
+  'events.brackets.bothAthletesMustBeDefined': 'Ambos os atletas devem estar definidos',
+  'events.brackets.matchAlreadyCompleted': 'Esta luta já foi finalizada',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
