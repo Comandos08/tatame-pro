@@ -184,7 +184,7 @@ export default function AcademiesList() {
 
   if (!tenant) return null;
 
-  const AcademyForm = () => (
+  const formJSX = (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -288,7 +288,7 @@ export default function AcademiesList() {
                     {t('admin.academies.createDesc')}
                   </DialogDescription>
                 </DialogHeader>
-                <AcademyForm />
+                {formJSX}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                     {t('common.cancel')}
@@ -387,7 +387,7 @@ export default function AcademiesList() {
                                 {t('admin.academies.editDesc')}
                               </DialogDescription>
                             </DialogHeader>
-                            <AcademyForm />
+                            {formJSX}
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setEditingAcademy(null)}>
                                 {t('common.cancel')}
