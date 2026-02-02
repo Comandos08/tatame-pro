@@ -1926,4 +1926,12 @@ export const es: Record<string, string> = {
   'recovery.action.home': 'Ir al Inicio',
   'recovery.action.support': 'Contactar Soporte',
 
+  // P2.3.1 — Create Category Dialog
+  'events.createCategory': 'Nueva Categoría',
+  'events.createCategoryDesc': 'Define los criterios de la categoría de competición',
+  'events.categoryName': 'Nombre de la Categoría',
+  'events.categoryCreated': '¡Categoría creada con éxito!',
+  'events.categoryCreateError': 'Error al crear categoría',
+  'events.categoriesLockedDesc': 'No se pueden modificar categorías después del cierre de inscripciones',
+
 };

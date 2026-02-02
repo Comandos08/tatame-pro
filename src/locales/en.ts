@@ -1926,4 +1926,12 @@ export const en: Record<string, string> = {
   'recovery.action.home': 'Go Home',
   'recovery.action.support': 'Contact Support',
 
+  // P2.3.1 — Create Category Dialog
+  'events.createCategory': 'New Category',
+  'events.createCategoryDesc': 'Define the competition category criteria',
+  'events.categoryName': 'Category Name',
+  'events.categoryCreated': 'Category created successfully!',
+  'events.categoryCreateError': 'Error creating category',
+  'events.categoriesLockedDesc': 'Cannot modify categories after registration closes',
+
 };
