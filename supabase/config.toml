@@ -86,3 +86,9 @@ verify_jwt = false
 
 [functions.cleanup-expired-tenants]
 verify_jwt = false
+
+[functions.generate-event-bracket]
+verify_jwt = false
+
+[functions.publish-event-bracket]
+verify_jwt = false

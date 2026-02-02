@@ -823,6 +823,194 @@ export type Database = {
           },
         ]
       }
+      event_bracket_matches: {
+        Row: {
+          athlete1_registration_id: string | null
+          athlete2_registration_id: string | null
+          bracket_id: string
+          category_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          meta: Json
+          position: number
+          round: number
+          status: string
+          tenant_id: string
+          updated_at: string
+          winner_registration_id: string | null
+        }
+        Insert: {
+          athlete1_registration_id?: string | null
+          athlete2_registration_id?: string | null
+          bracket_id: string
+          category_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          meta?: Json
+          position: number
+          round: number
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          winner_registration_id?: string | null
+        }
+        Update: {
+          athlete1_registration_id?: string | null
+          athlete2_registration_id?: string | null
+          bracket_id?: string
+          category_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          meta?: Json
+          position?: number
+          round?: number
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          winner_registration_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_bracket_matches_athlete1_registration_id_fkey"
+            columns: ["athlete1_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_athlete2_registration_id_fkey"
+            columns: ["athlete2_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_bracket_id_fkey"
+            columns: ["bracket_id"]
+            isOneToOne: false
+            referencedRelation: "event_brackets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_winner_registration_id_fkey"
+            columns: ["winner_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_brackets: {
+        Row: {
+          category_id: string
+          created_at: string
+          deleted_at: string | null
+          event_id: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          meta: Json
+          notes: string | null
+          published_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          deleted_at?: string | null
+          event_id: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          published_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          event_id?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          published_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_brackets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_brackets_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_brackets_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_brackets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_brackets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_categories: {
         Row: {
           belt_max_id: string | null
