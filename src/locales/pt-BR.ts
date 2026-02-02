@@ -17,6 +17,7 @@ export const ptBR = {
   'nav.logout': 'Sair',
   'nav.globalAdmin': 'Admin Global',
   'nav.rankings': 'Rankings',
+  'nav.about': 'Sobre',
 
   // Common
   'common.loading': 'Carregando...',

@@ -144,7 +144,7 @@ export default function Landing() {
                 </Link>
               </Button>
               <Button size="lg" variant="tenant-outline" className="text-lg h-12 px-8" asChild>
-                <Link to="/help">{t('landing.learnMore')}</Link>
+                <Link to="/about">{t('landing.learnMore')}</Link>
               </Button>
             </motion.div>
           </motion.div>
@@ -318,9 +318,17 @@ export default function Landing() {
       <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
-              <span className="font-display font-bold">TATAME</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
+                <span className="font-display font-bold">TATAME</span>
+              </div>
+              <Link 
+                to="/about" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {t('nav.about')}
+              </Link>
             </div>
             <p className="text-sm text-muted-foreground">
               {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}

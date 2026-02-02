@@ -109,6 +109,14 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Institutional Link */}
+            <Link 
+              to="/about" 
+              className="hidden md:block text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('nav.about')}
+            </Link>
+
             {/* Auth Links */}
             <Link to="/login" className="hidden md:block text-muted-foreground hover:text-foreground transition-colors">
               {t('auth.login')}
