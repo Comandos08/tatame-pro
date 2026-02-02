@@ -1,334 +1,235 @@
 
-# P-MENU-01 — REORGANIZAÇÃO DO MENU SUPERIOR (UX CLEANUP)
+# P-REG-01 — CORREÇÃO DE INSCRIÇÃO DE ATLETA EM EVENTOS
 
-## SAFE MODE · VISUAL ONLY · ZERO REGRESSÃO
+## SAFE MODE · FRONTEND-ONLY · ZERO REGRESSÃO
 
 ---
 
-## ANÁLISE DO ESTADO ATUAL
+## RESUMO EXECUTIVO
 
-### Estrutura Existente
+Corrigir o fluxo de inscrição de atleta em eventos públicos, garantindo:
+1. Integração do componente `EventRegistrationButton` na página pública
+2. Hierarquia de estados correta (auth → profile → athlete → elegibilidade)
+3. CTAs específicos para cada estado do usuário
 
-O sistema utiliza um layout de **Sidebar + Header**:
+---
+
+## FASE 1 — CORRIGIR HIERARQUIA DE ESTADOS
+
+### Arquivo: `src/components/events/EventRegistrationButton.tsx`
+
+**Mudanças Necessárias:**
+
+1. Importar estados de auth corretamente:
+```typescript
+const { currentUser, isLoading: isAuthLoading, isAuthenticated } = useCurrentUser();
+```
+
+2. Adicionar tracking de loading do perfil de atleta:
+```typescript
+const { data: athlete, isLoading: isAthleteLoading } = useQuery({...});
+```
+
+3. Nova hierarquia de decisão (prioridade de cima para baixo):
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│ SIDEBAR (lg:visible)           │ HEADER (sticky top)                   │
-│ ─────────────────────────      │ ─────────────────────────────────────│
-│ [Logo] Tenant Name             │ [☰] │ <flex-1/> │ [🌐] [🌙] [?] Sport │
-│ ─────────────────────────      │                                       │
-│ Impersonation Badge            │                                       │
-│ ─────────────────────────      │                                       │
-│ • Minha Área                   │                                       │
-│ • Dashboard                    │                                       │
-│ • Atletas                      │                                       │
-│ • ... (12+ itens)             │                                       │
-│ ─────────────────────────      │                                       │
-│ [Avatar] User Menu             │                                       │
-└────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    NOVA HIERARQUIA DE ESTADOS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. isAuthLoading?                                                          │
+│     → Skeleton/Loader (estado transitório)                                  │
+│                                                                             │
+│  2. !isAuthenticated?                                                       │
+│     → "Faça login para se inscrever"                                        │
+│       Link para: /{tenantSlug}/login                                        │
+│                                                                             │
+│  3. isAthleteLoading?                                                       │
+│     → Loader (estado transitório)                                           │
+│                                                                             │
+│  4. !athlete (logado mas sem perfil de atleta)?                             │
+│     → "Complete sua filiação para se inscrever"                             │
+│       Link para: /{tenantSlug}/membership/new                               │
+│                                                                             │
+│  5. eventStatus === 'CANCELLED'?                                            │
+│     → "Evento Cancelado" (disabled, destructive)                            │
+│                                                                             │
+│  6. activeRegistration?                                                     │
+│     → "Inscrito em: {categoria}" + botão cancelar                           │
+│                                                                             │
+│  7. !canRegisterForEvent(eventStatus)?                                      │
+│     → "Inscrições encerradas"                                               │
+│                                                                             │
+│  8. categories.length === 0?                                                │
+│     → "Nenhuma categoria disponível"                                        │
+│                                                                             │
+│  9. Elegível                                                                │
+│     → Select de categoria + "Inscrever-se"                                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Problemas Identificados
+### Código Refatorado (Seção de Decisão)
 
-| Problema | Onde |
-|----------|------|
-| Header vazio em desktop (só utility buttons) | `AppShell.tsx` linhas 239-327 |
-| Informação de tenant duplicada (sidebar + header) | Sidebar mostra logo/nome |
-| Muitos ícones sem contexto visível | Globe, Moon, HelpCircle, Building2 |
-| Sport types exibido no header (pouco útil) | Linha 321-325 |
-| Nenhum indicador de impersonation no header | Só aparece no sidebar |
-
-### Restrições Técnicas Identificadas
-
-| Ação Proposta | Viabilidade | Razão |
-|---------------|-------------|-------|
-| "Criar Evento" global | ✅ Viável | `CreateEventDialog` não requer contexto |
-| "Criar Categoria" global | ❌ Inviável | Requer `eventId` obrigatório |
-| "Criar Atleta" global | ❌ Inviável | Atletas são criados via fluxo de membership |
-
----
-
-## ESCOPO REVISADO (SAFE + VIÁVEL)
-
-### O Que SERÁ Feito
-
-1. **Adicionar indicador de tenant/impersonation no header**
-2. **Consolidar utility buttons em um único menu**
-3. **Remover exibição de sport types (baixo valor)**
-4. **Adicionar botão "Criar Evento" global no header** (somente para admin)
-5. **Melhorar espaçamento e hierarquia visual**
-
-### O Que NÃO Será Feito
-
-- ❌ Menu "Criar" com múltiplas opções (restrição técnica)
-- ❌ Navegação central no header (já existe na sidebar)
-- ❌ Alterações em routes/guards/contexts
-
----
-
-## FASE 1 — NOVA ESTRUTURA DO HEADER
-
-### Layout Proposto
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ [☰] │ [Logo] TenantName [🟡 Impersonating] │ <flex/> │ [+] [⚙] [Avatar]│
-└─────────────────────────────────────────────────────────────────────────┘
-
-ESQUERDA:
-- Mobile menu button
-- Tenant logo + nome (em desktop)
-- Badge de impersonation (se ativo)
-
-DIREITA:
-- Botão "+ Evento" (admin only, visível)
-- Settings dropdown (consolida: Theme, Language, Help)
-- Avatar dropdown (perfil, admin global, logout)
-```
-
-### Detalhamento
-
-**Esquerda — Contexto**
-```tsx
-<div className="flex items-center gap-3">
-  {/* Mobile menu */}
-  <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-    <Menu className="h-5 w-5" />
-  </Button>
-  
-  {/* Tenant indicator (desktop) */}
-  <div className="hidden lg:flex items-center gap-2">
-    {tenant?.logoUrl ? (
-      <img src={tenant.logoUrl} alt="" className="h-6 w-6 rounded" />
-    ) : null}
-    <span className="text-sm font-medium truncate max-w-[150px]">{tenant?.name}</span>
-  </div>
-  
-  {/* Impersonation badge */}
-  {isImpersonating && (
-    <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-300">
-      {t('impersonation.badge')}
-    </Badge>
-  )}
-</div>
-```
-
-**Direita — Ações**
-```tsx
-<div className="flex items-center gap-2">
-  {/* Quick Create Event (admin only) */}
-  {can('TENANT_EVENTS') && (
-    <CreateEventDialog>
-      <Button size="sm" className="hidden sm:flex">
-        <Plus className="mr-2 h-4 w-4" />
-        {t('events.createEvent')}
-      </Button>
-    </CreateEventDialog>
-  )}
-  
-  {/* Settings dropdown (Theme + Language + Help) */}
-  <SettingsDropdown />
-  
-  {/* User menu */}
-  <UserMenu />
-</div>
-```
-
----
-
-## FASE 2 — CRIAR COMPONENTE `HeaderSettingsDropdown`
-
-**Arquivo:** `src/components/layout/HeaderSettingsDropdown.tsx`
-
-**Responsabilidade:** Consolidar Theme, Language e Help em um único dropdown
-
-```tsx
-export function HeaderSettingsDropdown() {
+```typescript
+// Estado 1: Auth carregando
+if (isAuthLoading) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Settings className="h-5 w-5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        {/* Language submenu */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Globe className="mr-2 h-4 w-4" />
-            {t('language.select')}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {languages.map(lang => (...))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        
-        {/* Theme submenu */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
-            {t('theme.label')}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={() => setTheme('light')}>...</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('dark')}>...</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('system')}>...</DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        
-        <DropdownMenuSeparator />
-        
-        {/* Help link */}
-        <DropdownMenuItem onClick={() => navigate(`/${tenantSlug}/app/help`)}>
-          <HelpCircle className="mr-2 h-4 w-4" />
-          {t('nav.help')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-```
-
----
-
-## FASE 3 — EXTRAIR COMPONENTE `HeaderUserMenu`
-
-**Arquivo:** `src/components/layout/HeaderUserMenu.tsx`
-
-Move a lógica do user menu atual do sidebar para um componente reutilizável no header.
-
-```tsx
-export function HeaderUserMenu() {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2">
-          <Avatar className="h-7 w-7">
-            <AvatarImage src={currentUser?.avatarUrl} />
-            <AvatarFallback>{getInitials(currentUser?.name)}</AvatarFallback>
-          </Avatar>
-          <span className="hidden sm:inline text-sm max-w-[80px] truncate">
-            {currentUser?.name?.split(' ')[0]}
-          </span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{currentUser?.email}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {isGlobalSuperadmin && (
-          <DropdownMenuItem onClick={() => navigate('/admin')}>
-            <Shield className="mr-2 h-4 w-4" />
-            {t('nav.globalAdmin')}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-          <LogOut className="mr-2 h-4 w-4" />
-          {t('nav.logout')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-```
-
----
-
-## FASE 4 — ATUALIZAR `AppShell.tsx`
-
-### Alterações no Header (linhas 239-327)
-
-```tsx
-{/* Header */}
-<header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/95 backdrop-blur px-4 lg:px-6">
-  {/* LEFT: Context */}
-  <div className="flex items-center gap-3">
-    <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-      <Menu className="h-5 w-5" />
-    </Button>
-    
-    {/* Tenant name (desktop only, since sidebar shows on lg) */}
-    <div className="hidden lg:flex items-center gap-2">
-      {tenant?.logoUrl && (
-        <img src={tenant.logoUrl} alt="" className="h-6 w-6 rounded object-cover" />
-      )}
-      <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
-        {tenant?.name}
-      </span>
+    <div className="flex items-center justify-center py-4">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
-    
-    {/* Impersonation badge */}
-    {isImpersonating && (
-      <Badge variant="outline" className="text-xs border-warning/50 bg-warning/10 text-warning-foreground">
-        {t('impersonation.badge')}
-      </Badge>
-    )}
-  </div>
-  
-  {/* SPACER */}
-  <div className="flex-1" />
-  
-  {/* RIGHT: Actions */}
-  <div className="flex items-center gap-1">
-    {/* Quick Create Event (admin, desktop) */}
-    {can('TENANT_EVENTS') && (
-      <CreateEventDialog>
-        <Button size="sm" variant="default" className="hidden md:flex gap-2">
-          <Plus className="h-4 w-4" />
-          <span>{t('events.createEvent')}</span>
-        </Button>
-      </CreateEventDialog>
-    )}
-    
-    {/* Settings dropdown */}
-    <HeaderSettingsDropdown />
-    
-    {/* User menu */}
-    <HeaderUserMenu />
-  </div>
-</header>
+  );
+}
+
+// Estado 2: Não autenticado
+if (!isAuthenticated) {
+  return (
+    <Button asChild variant="default" className="w-full">
+      <Link to={`/${tenantSlug}/login?next=/${tenantSlug}/events/${eventId}`}>
+        {t('events.loginToRegister')}
+      </Link>
+    </Button>
+  );
+}
+
+// Estado 3: Atleta carregando
+if (isAthleteLoading) {
+  return (
+    <div className="flex items-center justify-center py-4">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+// Estado 4: Logado mas sem perfil de atleta (NOVO!)
+if (!athlete) {
+  return (
+    <div className="space-y-2 text-center">
+      <p className="text-sm text-muted-foreground">
+        {t('events.completeMembershipToRegister')}
+      </p>
+      <Button asChild variant="default" className="w-full">
+        <Link to={`/${tenantSlug}/membership/new`}>
+          {t('events.startMembership')}
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+// Estados 5-9: Lógica existente (evento cancelado, já inscrito, etc.)
 ```
 
 ---
 
-## FASE 5 — CRIAR DIRETÓRIO E ARQUIVOS
+## FASE 2 — INTEGRAR BOTÃO NA PÁGINA PÚBLICA
 
-### Estrutura de Arquivos
+### Arquivo: `src/pages/PublicEventDetails.tsx`
 
+**Mudanças:**
+
+1. Importar o componente:
+```typescript
+import { EventRegistrationButton } from '@/components/events/EventRegistrationButton';
 ```
-src/components/layout/
-├── HeaderSettingsDropdown.tsx  (NOVO)
-├── HeaderUserMenu.tsx          (NOVO)
-└── index.ts                    (NOVO - barrel export)
+
+2. Substituir o CTA estático (linhas 306-329) pelo componente real:
+
+```tsx
+{/* Registration CTA - INTEGRADO */}
+<Card className="border-2 border-primary/20">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-lg">
+      {t('events.registerForEvent')}
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <EventRegistrationButton
+      eventId={event.id}
+      eventStatus={event.status as EventStatus}
+      tenantId={tenant?.id || ''}
+      categories={categories}
+      tenantSlug={tenant?.slug || ''}
+    />
+  </CardContent>
+</Card>
+```
+
+3. Adicionar prop `tenantSlug` ao componente para suportar links de redirecionamento.
+
+---
+
+## FASE 3 — ATUALIZAR INTERFACE DO COMPONENTE
+
+### Arquivo: `src/components/events/EventRegistrationButton.tsx`
+
+**Adicionar nova prop:**
+
+```typescript
+interface EventRegistrationButtonProps {
+  eventId: string;
+  eventStatus: EventStatus;
+  tenantId: string;
+  categories: EventCategory[];
+  tenantSlug?: string; // NOVO — para links de redirecionamento
+}
+```
+
+**Fallback para tenantSlug:**
+```typescript
+// Se não fornecido via prop, extrair da URL
+const { tenantSlug: urlTenantSlug } = useParams<{ tenantSlug: string }>();
+const resolvedTenantSlug = tenantSlug || urlTenantSlug || '';
 ```
 
 ---
 
-## FASE 6 — i18n (NOVAS CHAVES)
+## FASE 4 — NOVAS CHAVES i18n
 
 ### Chaves a Adicionar
 
-```typescript
-// pt-BR, en, es
-'settings.title': 'Configurações' | 'Settings' | 'Configuración',
-'theme.label': 'Tema' | 'Theme' | 'Tema',
-'impersonation.badge': 'Impersonação' | 'Impersonation' | 'Suplantación',
-```
-
-> Nota: Maioria das chaves já existe (`language.select`, `theme.light`, `nav.help`, etc.)
+| Chave | pt-BR | en | es |
+|-------|-------|----|----|
+| `events.completeMembershipToRegister` | Complete sua filiação para se inscrever | Complete your membership to register | Complete su afiliación para inscribirse |
+| `events.startMembership` | Iniciar Filiação | Start Membership | Iniciar Afiliación |
+| `events.registerForEvent` | Inscrição no Evento | Event Registration | Inscripción al Evento |
 
 ---
 
-## ARQUIVOS A CRIAR/MODIFICAR
+## FASE 5 — AJUSTES FINAIS
+
+### Remover lógica problemática
+
+**Antes (linha 138):**
+```typescript
+if (!currentUser || !athlete) {
+  return <Button disabled>{t('events.loginToRegister')}</Button>
+}
+```
+
+**Depois:**
+```typescript
+// Removido — substituído por hierarquia explícita acima
+```
+
+### Garantir imports necessários
+
+```typescript
+import { Link, useParams } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
+```
+
+---
+
+## ARQUIVOS A MODIFICAR
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/layout/HeaderSettingsDropdown.tsx` | CRIAR | Consolida Theme + Language + Help |
-| `src/components/layout/HeaderUserMenu.tsx` | CRIAR | Avatar dropdown com logout |
-| `src/components/layout/index.ts` | CRIAR | Barrel exports |
-| `src/layouts/AppShell.tsx` | EDITAR | Refatorar header |
-| `src/locales/pt-BR.ts` | EDITAR | +2 keys |
-| `src/locales/en.ts` | EDITAR | +2 keys |
-| `src/locales/es.ts` | EDITAR | +2 keys |
+| `src/components/events/EventRegistrationButton.tsx` | EDITAR | Refatorar hierarquia de estados + nova prop |
+| `src/pages/PublicEventDetails.tsx` | EDITAR | Integrar componente real |
+| `src/locales/pt-BR.ts` | EDITAR | +3 chaves |
+| `src/locales/en.ts` | EDITAR | +3 chaves |
+| `src/locales/es.ts` | EDITAR | +3 chaves |
 
 ---
 
@@ -336,74 +237,66 @@ src/components/layout/
 
 ### Antes
 
+```text
+Estado: Usuário logado sem perfil de atleta
+CTA: "Faça login para se inscrever" ❌
 ```
-[☰] │ <─────── flex-1 ──────> │ [🌐] [🌙] [?] [Sport Types]
-```
-
-- 4 botões de ícone isolados
-- Sport types ocupando espaço
-- Nenhum contexto de tenant
-- Nenhum indicador de impersonation
 
 ### Depois
 
+```text
+Estado: Usuário logado sem perfil de atleta
+CTA: "Complete sua filiação para se inscrever"
+     [Iniciar Filiação] → /{tenant}/membership/new ✅
 ```
-[☰] │ [Logo] TenantName [🟡 Badge] │ <─ flex ─> │ [+ Evento] [⚙] [👤]
-```
-
-- Contexto do tenant visível
-- Impersonation badge no header
-- Botão de ação rápida (Criar Evento)
-- Utilities consolidadas em 1 dropdown
-- User menu claro com avatar
 
 ---
 
-## QA CHECKLIST
+## CENÁRIOS DE TESTE
 
-### Visual
-- [ ] Header não parece "vazio" em desktop
-- [ ] Tenant name visível (lg+)
-- [ ] Badge de impersonation aparece quando ativo
-- [ ] Botão "Criar Evento" só para admin
-- [ ] Settings dropdown funciona (Theme + Language + Help)
-- [ ] User menu funciona (Admin global + Logout)
+| # | Estado do Usuário | CTA Esperado | Link |
+|---|-------------------|--------------|------|
+| 1 | Não autenticado | "Faça login para se inscrever" | /{tenant}/login |
+| 2 | Auth loading | Spinner | - |
+| 3 | Autenticado, athlete loading | Spinner | - |
+| 4 | Autenticado, sem atleta | "Complete sua filiação..." + Botão | /{tenant}/membership/new |
+| 5 | Autenticado, atleta, já inscrito | "Inscrito em: X" + Cancelar | - |
+| 6 | Autenticado, atleta, evento fechado | "Inscrições encerradas" | - |
+| 7 | Autenticado, atleta, evento cancelado | "Evento Cancelado" | - |
+| 8 | Autenticado, atleta, elegível | Select + "Inscrever-se" | - |
 
-### Funcional
-- [ ] Theme toggle funciona
-- [ ] Language toggle funciona
-- [ ] Help navega corretamente
-- [ ] Criar Evento abre dialog
-- [ ] Logout funciona
-- [ ] Admin global navega para /admin
+---
 
-### Regressão
-- [ ] Mobile menu continua funcionando
-- [ ] Sidebar continua funcionando
-- [ ] Nenhum warning no console
-- [ ] Todos os fluxos existentes OK
+## O QUE NÃO SERÁ ALTERADO
+
+- ❌ Nenhuma Edge Function
+- ❌ Nenhuma RLS policy
+- ❌ Nenhum schema de banco
+- ❌ Nenhum Context (Auth, Tenant, etc.)
+- ❌ Nenhuma lógica de eligibilidade (eventEligibility.ts)
+- ❌ Nenhuma rota
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
 ```text
-✅ Header mais informativo
-✅ Menos clutter visual
-✅ Contexto de tenant visível
-✅ Impersonation destacado
-✅ Ação rápida disponível
-✅ Zero regressão
+✅ Componente integrado na página pública
+✅ Estados de loading explícitos
+✅ "Faça login" APENAS para não autenticados
+✅ "Complete filiação" para logados sem atleta
+✅ CTAs com links funcionais
+✅ Zero regressão em fluxos existentes
+✅ i18n completo (pt/en/es)
 ```
 
 ---
 
-## O QUE NÃO SERÁ ALTERADO
+## RESULTADO ESPERADO
 
-- ❌ Sidebar (continua igual)
-- ❌ Routes
-- ❌ Guards / Permissions
-- ❌ Contexts (Auth, Tenant, Impersonation)
-- ❌ Edge Functions
-- ❌ Banco de dados
-- ❌ RLS policies
+```text
+P-REG-01 = DONE
+Inscrição de atleta funcional
+Hierarquia de estados correta
+UX clara e institucional
+```
