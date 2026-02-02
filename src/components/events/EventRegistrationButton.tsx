@@ -143,6 +143,15 @@ export function EventRegistrationButton({
     );
   }
 
+  // Event cancelled - read-only
+  if (eventStatus === 'CANCELLED') {
+    return (
+      <Button disabled variant="outline" className="text-destructive border-destructive/50">
+        {t('events.eventCancelled' as any) || 'Evento Cancelado'}
+      </Button>
+    );
+  }
+
   // Already registered
   if (activeRegistration) {
     const canCancel = canCancelRegistration(eventStatus);

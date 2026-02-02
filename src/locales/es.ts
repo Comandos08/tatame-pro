@@ -975,6 +975,9 @@ export const es: Record<string, string> = {
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Archivado',
   'events.status.cancelled': 'Cancelado',
+  'events.status.cancelledDesc': 'El evento fue cancelado',
+  'events.eventCancelled': 'Evento Cancelado',
+  'events.eventCancelledDesc': 'Este evento ha sido cancelado',
   
   // Eventos - Transiciones de Estado
   'events.noTransitionsAvailable': 'Estado final',
