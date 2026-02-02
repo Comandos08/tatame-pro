@@ -203,8 +203,8 @@ export default function Login() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="relative z-10 text-center p-8"
         >
-          <div className="h-24 w-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary">
-            <img src={iconLogo} alt="TATAME" className="h-24 w-24 rounded-2xl object-contain" />
+          <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
+            <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
           </div>
           <h2 className="font-display text-3xl font-bold mb-4">{t("auth.manageOrganization")}</h2>
           <p className="text-muted-foreground max-w-sm">{t("auth.manageOrganizationDesc")}</p>

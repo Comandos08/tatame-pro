@@ -9,7 +9,8 @@ import {
   ChevronRight,
   Building2,
   Award,
-  Filter
+  Filter,
+  ArrowUpDown
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
@@ -53,11 +54,29 @@ interface AthleteWithMembership {
     start_date: string | null;
     end_date: string | null;
   } | null;
+  currentGrading: {
+    level_id: string;
+    display_name: string;
+    order_index: number;
+  } | null;
 }
 
 interface Academy {
   id: string;
   name: string;
+}
+
+interface GradingLevel {
+  id: string;
+  display_name: string;
+  order_index: number;
+}
+
+interface AthleteCurrentGrading {
+  athlete_id: string;
+  grading_level_id: string;
+  level_name: string;
+  order_index: number;
 }
 
 export default function AthletesList() {
@@ -67,6 +86,8 @@ export default function AthletesList() {
   const [searchName, setSearchName] = useState('');
   const [filterAcademy, setFilterAcademy] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterGrading, setFilterGrading] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'grading'>('name');
 
   // Fetch academies for filter
   const { data: academies } = useQuery({
@@ -84,9 +105,25 @@ export default function AthletesList() {
     enabled: !!tenant?.id,
   });
 
-  // Fetch athletes with their latest membership
+  // Fetch grading levels for filter dropdown
+  const { data: gradingLevels } = useQuery({
+    queryKey: ['grading-levels-filter', tenant?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('grading_levels')
+        .select('id, display_name, order_index')
+        .eq('tenant_id', tenant!.id)
+        .eq('is_active', true)
+        .order('order_index');
+      if (error) throw error;
+      return data as GradingLevel[];
+    },
+    enabled: !!tenant?.id,
+  });
+
+  // Fetch athletes with their latest membership and current grading
   const { data: athletes, isLoading } = useQuery({
-    queryKey: ['athletes-list', tenant?.id, searchName, filterAcademy, filterStatus],
+    queryKey: ['athletes-list', tenant?.id, searchName, filterAcademy, filterStatus, filterGrading, sortBy],
     queryFn: async () => {
       // First get athletes
       let athleteQuery = supabase
@@ -110,6 +147,8 @@ export default function AthletesList() {
       const { data: athletesData, error: athletesError } = await athleteQuery;
       if (athletesError) throw athletesError;
 
+      if (!athletesData.length) return [];
+
       // Get memberships for these athletes
       const athleteIds = athletesData.map(a => a.id);
       const { data: membershipsData, error: membershipsError } = await supabase
@@ -121,6 +160,12 @@ export default function AthletesList() {
 
       if (membershipsError) throw membershipsError;
 
+      // Get current gradings for these athletes
+      const { data: gradingsData } = await supabase
+        .from('athlete_current_grading')
+        .select('athlete_id, grading_level_id, level_name, order_index')
+        .in('athlete_id', athleteIds);
+
       // Map memberships to athletes (get latest per athlete)
       const membershipsByAthlete = new Map<string, typeof membershipsData[0]>();
       membershipsData.forEach(m => {
@@ -129,7 +174,13 @@ export default function AthletesList() {
         }
       });
 
-      // Combine data
+      // Create grading map
+      const gradingsByAthlete = new Map<string, AthleteCurrentGrading>();
+      gradingsData?.forEach(g => {
+        gradingsByAthlete.set(g.athlete_id, g as AthleteCurrentGrading);
+      });
+
+      // Combine data including grading
       let result: AthleteWithMembership[] = athletesData.map(athlete => ({
         id: athlete.id,
         full_name: athlete.full_name,
@@ -146,12 +197,34 @@ export default function AthletesList() {
               end_date: membershipsByAthlete.get(athlete.id)!.end_date,
             }
           : null,
+        currentGrading: gradingsByAthlete.has(athlete.id)
+          ? {
+              level_id: gradingsByAthlete.get(athlete.id)!.grading_level_id,
+              display_name: gradingsByAthlete.get(athlete.id)!.level_name,
+              order_index: gradingsByAthlete.get(athlete.id)!.order_index,
+            }
+          : null,
       }));
 
       // Filter by membership status if specified
       if (filterStatus && filterStatus !== 'all') {
         result = result.filter(a => a.latest_membership?.status === filterStatus);
       }
+
+      // Filter by grading if specified
+      if (filterGrading && filterGrading !== 'all') {
+        result = result.filter(a => a.currentGrading?.level_id === filterGrading);
+      }
+
+      // Sort
+      result.sort((a, b) => {
+        if (sortBy === 'grading') {
+          const orderA = a.currentGrading?.order_index ?? 999;
+          const orderB = b.currentGrading?.order_index ?? 999;
+          return orderA - orderB;
+        }
+        return a.full_name.localeCompare(b.full_name);
+      });
 
       return result;
     },
@@ -249,6 +322,30 @@ export default function AthletesList() {
                   <SelectItem value="EXPIRED">{t('status.expired')}</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterGrading} onValueChange={setFilterGrading}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <Award className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder={t('admin.athletes.filterGrading')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('admin.athletes.allGradings')}</SelectItem>
+                  {gradingLevels?.map((level) => (
+                    <SelectItem key={level.id} value={level.id}>
+                      {level.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'name' | 'grading')}>
+                <SelectTrigger className="w-full md:w-[150px]">
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder={t('admin.athletes.sortBy')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">{t('admin.athletes.sortByName')}</SelectItem>
+                  <SelectItem value="grading">{t('admin.athletes.sortByGrading')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -275,6 +372,7 @@ export default function AthletesList() {
                   <TableRow>
                     <TableHead>{t('admin.athletes.tableAthlete')}</TableHead>
                     <TableHead>{t('admin.athletes.tableAcademy')}</TableHead>
+                    <TableHead>{t('admin.athletes.tableGrading')}</TableHead>
                     <TableHead>{t('admin.athletes.tableMembershipStatus')}</TableHead>
                     <TableHead>{t('admin.athletes.tablePeriod')}</TableHead>
                     <TableHead className="text-right">{t('common.actions')}</TableHead>
@@ -301,6 +399,13 @@ export default function AthletesList() {
                             <Building2 className="h-4 w-4 text-muted-foreground" />
                             <span>{athlete.academy_name}</span>
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {athlete.currentGrading ? (
+                          <Badge variant="secondary">{athlete.currentGrading.display_name}</Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

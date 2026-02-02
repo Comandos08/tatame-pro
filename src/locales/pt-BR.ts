@@ -412,6 +412,8 @@ export const ptBR = {
   'verification.downloadCard': 'Baixar Carteira Digital',
   'verification.issuedAt': 'Emitido em',
   'verification.grading': 'Graduação',
+  'verification.diplomaInstitutionalMessage': 'Este diploma foi emitido por uma organização oficial registrada na plataforma TATAME Pro.',
+  'verification.cardInstitutionalMessage': 'Esta carteira digital foi emitida por uma organização oficial registrada na plataforma TATAME Pro.',
 
   // Athlete Area
   'nav.athleteArea': 'Meu Perfil',
@@ -1601,6 +1603,12 @@ export const ptBR = {
   'admin.athletes.csv.membershipStatus': 'Status Filiação',
   'admin.athletes.csv.membershipStart': 'Início Filiação',
   'admin.athletes.csv.membershipEnd': 'Fim Filiação',
+  'admin.athletes.filterGrading': 'Graduação',
+  'admin.athletes.allGradings': 'Todas graduações',
+  'admin.athletes.sortBy': 'Ordenar',
+  'admin.athletes.sortByName': 'Nome (A–Z)',
+  'admin.athletes.sortByGrading': 'Graduação',
+  'admin.athletes.tableGrading': 'Graduação',
 
   // Admin Academies (P4/4)
   'admin.academies.title': 'Academias',

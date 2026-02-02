@@ -414,6 +414,8 @@ export const en: Record<string, string> = {
   'verification.downloadCard': 'Download Digital Card',
   'verification.issuedAt': 'Issued on',
   'verification.grading': 'Grading',
+  'verification.diplomaInstitutionalMessage': 'This diploma was issued by an official organization registered on the TATAME Pro platform.',
+  'verification.cardInstitutionalMessage': 'This digital card was issued by an official organization registered on the TATAME Pro platform.',
 
   // Athlete Area
   'nav.athleteArea': 'My Profile',
@@ -1617,6 +1619,12 @@ export const en: Record<string, string> = {
   'admin.athletes.csv.membershipStatus': 'Membership Status',
   'admin.athletes.csv.membershipStart': 'Membership Start',
   'admin.athletes.csv.membershipEnd': 'Membership End',
+  'admin.athletes.filterGrading': 'Grading',
+  'admin.athletes.allGradings': 'All gradings',
+  'admin.athletes.sortBy': 'Sort by',
+  'admin.athletes.sortByName': 'Name (A–Z)',
+  'admin.athletes.sortByGrading': 'Grading',
+  'admin.athletes.tableGrading': 'Grading',
 
   // Admin Academies (P4/4)
   'admin.academies.title': 'Academies',
