@@ -276,7 +276,7 @@ export default function CoachesList() {
 
   if (!tenant) return null;
 
-  const CoachForm = () => (
+  const formJSX = (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="full_name">{t('admin.coaches.formName')}</Label>
@@ -354,7 +354,7 @@ export default function CoachesList() {
                     {t('admin.coaches.createDesc')}
                   </DialogDescription>
                 </DialogHeader>
-                <CoachForm />
+                {formJSX}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                     {t('common.cancel')}
@@ -509,7 +509,7 @@ export default function CoachesList() {
                                 {t('admin.coaches.editDesc')}
                               </DialogDescription>
                             </DialogHeader>
-                            <CoachForm />
+                            {formJSX}
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setEditingCoach(null)}>
                                 {t('common.cancel')}
