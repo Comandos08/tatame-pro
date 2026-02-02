@@ -110,12 +110,12 @@ export default function EventDetails() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t('events.statusUpdated' as any) || 'Status atualizado!');
+      toast.success(t('events.statusUpdated'));
       queryClient.invalidateQueries({ queryKey: ['event', eventId] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
     },
     onError: () => {
-      toast.error(t('events.statusUpdateError' as any) || 'Erro ao atualizar status');
+      toast.error(t('events.statusUpdateError'));
     },
   });
 
@@ -144,7 +144,7 @@ export default function EventDetails() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t('events.registrationUpdated' as any) || 'Inscrição atualizada!');
+      toast.success(t('events.registrationUpdated'));
       queryClient.invalidateQueries({ queryKey: ['event-registrations-admin', eventId] });
     },
   });
@@ -164,7 +164,7 @@ export default function EventDetails() {
     return (
       <AppShell>
         <div className="text-center py-12">
-          <p>{t('events.notFound' as any) || 'Evento não encontrado'}</p>
+          <p>{t('events.notFound')}</p>
           <Button asChild className="mt-4">
             <Link to={`/${tenant?.slug}/app/events`}>{t('common.back')}</Link>
           </Button>
@@ -210,7 +210,7 @@ export default function EventDetails() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                {t('events.dates' as any) || 'Datas'}
+                {t('events.dates')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -227,11 +227,11 @@ export default function EventDetails() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
-                {t('events.location' as any) || 'Local'}
+                {t('events.location')}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-medium">{event.location || 'Não definido'}</p>
+              <p className="font-medium">{event.location || t('events.notDefined')}</p>
             </CardContent>
           </Card>
 

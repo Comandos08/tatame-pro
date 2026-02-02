@@ -98,16 +98,16 @@ export function EventRegistrationButton({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t('events.registrationSuccess' as any) || 'Inscrição realizada com sucesso!');
+      toast.success(t('events.registrationSuccess'));
       queryClient.invalidateQueries({ queryKey: ['event-registrations'] });
       setSelectedCategory('');
     },
     onError: (error: any) => {
       console.error('Registration error:', error);
       if (error.message?.includes('unique constraint')) {
-        toast.error(t('events.alreadyRegistered' as any) || 'Você já está inscrito nesta categoria');
+        toast.error(t('events.alreadyRegistered'));
       } else {
-        toast.error(t('events.registrationError' as any) || 'Erro ao realizar inscrição');
+        toast.error(t('events.registrationError'));
       }
     },
   });
@@ -124,13 +124,13 @@ export function EventRegistrationButton({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t('events.cancellationSuccess' as any) || 'Inscrição cancelada');
+      toast.success(t('events.cancellationSuccess'));
       queryClient.invalidateQueries({ queryKey: ['event-registrations'] });
       setShowCancelDialog(false);
     },
     onError: (error) => {
       console.error('Cancellation error:', error);
-      toast.error(t('events.cancellationError' as any) || 'Erro ao cancelar inscrição');
+      toast.error(t('events.cancellationError'));
     },
   });
 
@@ -138,7 +138,7 @@ export function EventRegistrationButton({
   if (!currentUser || !athlete) {
     return (
       <Button disabled variant="outline">
-        {t('events.loginToRegister' as any) || 'Faça login para se inscrever'}
+        {t('events.loginToRegister')}
       </Button>
     );
   }
@@ -147,7 +147,7 @@ export function EventRegistrationButton({
   if (eventStatus === 'CANCELLED') {
     return (
       <Button disabled variant="outline" className="text-destructive border-destructive/50">
-        {t('events.eventCancelled' as any) || 'Evento Cancelado'}
+        {t('events.eventCancelled')}
       </Button>
     );
   }
@@ -162,7 +162,7 @@ export function EventRegistrationButton({
         <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
           <Check className="h-4 w-4" />
           <span>
-            {t('events.registeredIn' as any) || 'Inscrito em'}: {registeredCategory?.name || 'Categoria'}
+            {t('events.registeredIn')}: {registeredCategory?.name || t('events.category')}
           </span>
         </div>
         
@@ -179,24 +179,23 @@ export function EventRegistrationButton({
               ) : (
                 <X className="mr-2 h-4 w-4" />
               )}
-              {t('events.cancelRegistration' as any) || 'Cancelar Inscrição'}
+              {t('events.cancelRegistration')}
             </Button>
 
             <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    {t('events.confirmCancellation' as any) || 'Confirmar Cancelamento'}
+                    {t('events.confirmCancellation')}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    {t('events.cancellationWarning' as any) || 
-                      'Tem certeza que deseja cancelar sua inscrição? Esta ação não pode ser desfeita.'}
+                    {t('events.cancellationWarning')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={() => cancelMutation.mutate()}>
-                    {t('events.confirmCancel' as any) || 'Sim, cancelar'}
+                    {t('events.confirmCancel')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -211,7 +210,7 @@ export function EventRegistrationButton({
   if (!canRegisterForEvent(eventStatus)) {
     return (
       <Button disabled variant="outline">
-        {t('events.registrationsClosed' as any) || 'Inscrições encerradas'}
+        {t('events.registrationsClosed')}
       </Button>
     );
   }
@@ -220,7 +219,7 @@ export function EventRegistrationButton({
   if (categories.length === 0) {
     return (
       <Button disabled variant="outline">
-        {t('events.noCategoriesAvailable' as any) || 'Nenhuma categoria disponível'}
+        {t('events.noCategoriesAvailable')}
       </Button>
     );
   }
@@ -231,7 +230,7 @@ export function EventRegistrationButton({
     <div className="space-y-3">
       <Select value={selectedCategory} onValueChange={setSelectedCategory}>
         <SelectTrigger>
-          <SelectValue placeholder={t('events.selectCategory' as any) || 'Selecione uma categoria'} />
+          <SelectValue placeholder={t('events.selectCategory')} />
         </SelectTrigger>
         <SelectContent>
           {activeCategories.map((category) => (
@@ -256,7 +255,7 @@ export function EventRegistrationButton({
         {registerMutation.isPending ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : null}
-        {t('events.register' as any) || 'Inscrever-se'}
+        {t('events.register')}
       </Button>
     </div>
   );

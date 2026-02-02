@@ -194,7 +194,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
               name="gender"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('events.gender')}</FormLabel>
+                  <FormLabel>{t('events.gender.label')}</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
@@ -222,13 +222,13 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                 name="minWeight"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.minWeight')}</FormLabel>
+                    <FormLabel>{t('events.minWeight.label')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="0"
                         step="0.1"
-                        placeholder="kg"
+                        placeholder={t('events.minWeight.placeholder')}
                         {...field}
                       />
                     </FormControl>
@@ -241,13 +241,13 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                 name="maxWeight"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.maxWeight')}</FormLabel>
+                    <FormLabel>{t('events.maxWeight.label')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="0"
                         step="0.1"
-                        placeholder="kg"
+                        placeholder={t('events.maxWeight.placeholder')}
                         {...field}
                       />
                     </FormControl>
@@ -264,7 +264,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                 name="minAge"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.minAge')}</FormLabel>
+                    <FormLabel>{t('events.minAge.label')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -283,7 +283,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                 name="maxAge"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.maxAge')}</FormLabel>
+                    <FormLabel>{t('events.maxAge.label')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
