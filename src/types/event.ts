@@ -10,7 +10,8 @@ export type EventStatus =
   | 'REGISTRATION_CLOSED' 
   | 'ONGOING' 
   | 'FINISHED' 
-  | 'ARCHIVED';
+  | 'ARCHIVED'
+  | 'CANCELLED';
 
 export type EventRegistrationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELED';
 
@@ -87,16 +88,17 @@ export interface EventResult {
  * The human organizer is ALWAYS responsible for each transition.
  */
 export const EVENT_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
-  DRAFT: ['PUBLISHED'],
-  PUBLISHED: ['REGISTRATION_OPEN', 'ARCHIVED'],
-  REGISTRATION_OPEN: ['REGISTRATION_CLOSED'],
-  REGISTRATION_CLOSED: ['ONGOING'],
-  ONGOING: ['FINISHED'],
-  FINISHED: ['ARCHIVED'],
-  ARCHIVED: [], // Terminal state - no transitions
+  DRAFT: ['PUBLISHED', 'CANCELLED'],
+  PUBLISHED: ['REGISTRATION_OPEN', 'CANCELLED'],
+  REGISTRATION_OPEN: ['REGISTRATION_CLOSED', 'CANCELLED'],
+  REGISTRATION_CLOSED: ['ONGOING', 'CANCELLED'],
+  ONGOING: ['FINISHED', 'CANCELLED'],
+  FINISHED: ['ARCHIVED'],  // Terminal - cannot cancel after finished
+  ARCHIVED: [],            // Terminal state
+  CANCELLED: [],           // Terminal state
 };
 
-export type EventStatusColor = 'muted' | 'info' | 'success' | 'warning' | 'purple' | 'slate';
+export type EventStatusColor = 'muted' | 'info' | 'success' | 'warning' | 'purple' | 'slate' | 'destructive';
 
 export const EVENT_STATUS_CONFIG: Record<EventStatus, { 
   label: string; 
@@ -146,6 +148,12 @@ export const EVENT_STATUS_CONFIG: Record<EventStatus, {
     color: 'muted',
     descriptionKey: 'events.status.archivedDesc',
   },
+  CANCELLED: { 
+    label: 'Cancelado', 
+    labelKey: 'events.status.cancelled',
+    color: 'destructive',
+    descriptionKey: 'events.status.cancelledDesc',
+  },
 };
 
 export const EVENT_REGISTRATION_STATUS_CONFIG: Record<EventRegistrationStatus, {
@@ -193,4 +201,9 @@ export function canCancelRegistration(eventStatus: EventStatus): boolean {
 // Helper to check if results can be published
 export function canPublishResults(eventStatus: EventStatus): boolean {
   return eventStatus === 'FINISHED';
+}
+
+// Helper to check if event can be soft deleted
+export function canDeleteEvent(eventStatus: EventStatus): boolean {
+  return eventStatus === 'DRAFT' || eventStatus === 'CANCELLED';
 }

@@ -972,6 +972,7 @@ export const ptBR = {
   'events.status.ongoing': 'Em Andamento',
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Arquivado',
+  'events.status.cancelled': 'Cancelado',
   
   // Eventos - Transições de Status
   'events.noTransitionsAvailable': 'Estado final',
