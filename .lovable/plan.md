@@ -1,41 +1,108 @@
 
-# P2.4 — FINALIZAÇÃO SEGURA COM GOVERNANÇA TOTAL (SAFE MODE)
+
+# P2.5 — RESULTADOS DE LUTAS (SAFE MODE · GOVERNANÇA TOTAL)
 
 ## ANÁLISE DO ESTADO ATUAL
 
-### ✅ Já Implementado Corretamente
+### ✅ Já Implementado
 | Componente | Status |
 |------------|--------|
-| Tabelas `event_brackets` e `event_bracket_matches` | ✅ |
-| Trigger de imutabilidade para PUBLISHED | ✅ |
-| RLS por tenant + visibilidade pública | ✅ |
-| Edge Function de publicação | ✅ |
-| UI básica de visualização | ✅ |
-| i18n completo | ✅ |
+| Coluna `winner_registration_id` em `event_bracket_matches` | ✅ Já existe |
+| Status `COMPLETED` no match | ✅ Já existe |
+| Trigger de imutabilidade para bracket PUBLISHED | ✅ |
+| Edge Functions padrão (generate, publish) | ✅ |
+| UI de visualização de matches | ✅ |
 
-### ❌ Gaps Identificados (Críticos)
-| Gap | Risco | Severidade |
-|-----|-------|------------|
-| Geração usa INSERTs separados (não transacional) | Estado inconsistente se match falhar | CRÍTICO |
-| Hash truncado com `.slice(0, 100)` | Auditoria comprometida | ALTO |
-| Sem lock de DRAFT único por categoria | Múltiplos DRAFTs possíveis | ALTO |
-| UI não verifica DRAFT existente | UX confusa | MÉDIO |
+### ❌ Gaps a Implementar
+| Gap | Descrição |
+|-----|-----------|
+| Colunas `completed_at` e `recorded_by` | Auditoria de quem/quando |
+| RPC `record_match_result_rpc` | Transação atômica: resultado + avanço |
+| Trigger `enforce_match_result_rules` | Bloquear resultado em não-PUBLISHED / regravação |
+| Edge Function `record-match-result` | Orquestrador seguro |
+| UI de registro de resultado | Modal em BracketMatchCard |
 
 ---
 
-## FASE 1 — SQL RPC TRANSACIONAL (CRÍTICO)
+## FASE 1 — BANCO DE DADOS (EXTENSÃO CONTROLADA)
 
-### Objetivo
-Criar função SQL `generate_event_bracket_rpc` que executa TODO o processo em uma única transação atômica.
+### 1.1 Novas Colunas em `event_bracket_matches`
 
-### Implementação
 ```sql
-CREATE OR REPLACE FUNCTION generate_event_bracket_rpc(
-  p_tenant_id uuid,
-  p_event_id uuid,
-  p_category_id uuid,
-  p_generated_by uuid,
-  p_registrations jsonb  -- Array de {id, athlete_id, created_at}
+-- Adicionar colunas de auditoria
+ALTER TABLE event_bracket_matches
+ADD COLUMN IF NOT EXISTS completed_at timestamptz,
+ADD COLUMN IF NOT EXISTS recorded_by uuid REFERENCES profiles(id);
+```
+
+### 1.2 Constraint de Integridade
+
+```sql
+-- Garantir que o vencedor é um dos participantes
+ALTER TABLE event_bracket_matches
+ADD CONSTRAINT winner_must_be_participant
+CHECK (
+  winner_registration_id IS NULL
+  OR winner_registration_id = athlete1_registration_id
+  OR winner_registration_id = athlete2_registration_id
+);
+```
+
+### 1.3 Trigger de Governança (CRÍTICO)
+
+```sql
+CREATE OR REPLACE FUNCTION enforce_match_result_rules()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_bracket_status text;
+BEGIN
+  -- 1. Buscar status do bracket
+  SELECT status INTO v_bracket_status
+  FROM event_brackets
+  WHERE id = NEW.bracket_id;
+
+  -- 2. Só permite resultado se bracket for PUBLISHED
+  IF v_bracket_status IS DISTINCT FROM 'PUBLISHED' THEN
+    RAISE EXCEPTION 'Cannot record result on non-published bracket';
+  END IF;
+
+  -- 3. Bloquear regravação de resultado (imutável após COMPLETED)
+  IF OLD.status = 'COMPLETED' THEN
+    RAISE EXCEPTION 'Match result is immutable once completed';
+  END IF;
+
+  -- 4. Validar que o vencedor é um participante
+  IF NEW.winner_registration_id IS NOT NULL 
+     AND NEW.winner_registration_id NOT IN (NEW.athlete1_registration_id, NEW.athlete2_registration_id) THEN
+    RAISE EXCEPTION 'Winner must be one of the match participants';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public';
+
+-- Trigger para transição para COMPLETED
+CREATE TRIGGER enforce_match_result
+BEFORE UPDATE ON event_bracket_matches
+FOR EACH ROW
+WHEN (OLD.status = 'SCHEDULED' AND NEW.status = 'COMPLETED')
+EXECUTE FUNCTION enforce_match_result_rules();
+```
+
+**Garantias:**
+- Só registra resultado em bracket PUBLISHED
+- Match COMPLETED é imutável
+- Vencedor deve ser participante do match
+
+---
+
+## FASE 2 — RPC TRANSACIONAL: `record_match_result_rpc`
+
+```sql
+CREATE OR REPLACE FUNCTION record_match_result_rpc(
+  p_match_id uuid,
+  p_winner_registration_id uuid,
+  p_recorded_by uuid
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -43,282 +110,403 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  v_bracket_id uuid;
-  v_version int;
-  v_n int;
-  v_bracket_size int;
-  v_byes int;
-  v_rounds int;
-  v_reg_ids text[];
-  v_hash text;
-  v_match_count int := 0;
-  v_round int;
-  v_pos int;
-  v_matches_in_round int;
-  v_idx1 int;
-  v_idx2 int;
-  v_athlete1 uuid;
-  v_athlete2 uuid;
-  v_is_bye boolean;
-  v_reg record;
+  v_match record;
+  v_bracket record;
+  v_next_match record;
+  v_source_key text;
 BEGIN
-  -- 1. Verificar se já existe DRAFT para esta categoria
-  IF EXISTS (
-    SELECT 1 FROM event_brackets
-    WHERE category_id = p_category_id
-      AND tenant_id = p_tenant_id
-      AND status = 'DRAFT'
-      AND deleted_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Draft bracket already exists for this category';
+  -- 1️⃣ Buscar match com lock
+  SELECT * INTO v_match
+  FROM event_bracket_matches
+  WHERE id = p_match_id
+    AND deleted_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Match not found';
   END IF;
 
-  -- 2. Calcular próxima versão
-  SELECT COALESCE(MAX(version), 0) + 1
-  INTO v_version
+  -- 2️⃣ Validar status do match
+  IF v_match.status = 'COMPLETED' THEN
+    RAISE EXCEPTION 'Match result is already recorded';
+  END IF;
+
+  IF v_match.status = 'BYE' THEN
+    RAISE EXCEPTION 'Cannot record result for BYE match';
+  END IF;
+
+  -- 3️⃣ Validar que ambos os atletas estão definidos
+  IF v_match.athlete1_registration_id IS NULL OR v_match.athlete2_registration_id IS NULL THEN
+    RAISE EXCEPTION 'Both athletes must be defined to record result';
+  END IF;
+
+  -- 4️⃣ Validar que o vencedor é participante
+  IF p_winner_registration_id NOT IN (v_match.athlete1_registration_id, v_match.athlete2_registration_id) THEN
+    RAISE EXCEPTION 'Winner must be one of the match participants';
+  END IF;
+
+  -- 5️⃣ Buscar bracket e validar status
+  SELECT * INTO v_bracket
   FROM event_brackets
-  WHERE category_id = p_category_id
-    AND tenant_id = p_tenant_id;
+  WHERE id = v_match.bracket_id;
 
-  -- 3. Extrair IDs e calcular hash SHA-256 real
-  SELECT array_agg(r->>'id' ORDER BY r->>'created_at', r->>'id')
-  INTO v_reg_ids
-  FROM jsonb_array_elements(p_registrations) r;
+  IF v_bracket.status != 'PUBLISHED' THEN
+    RAISE EXCEPTION 'Can only record results on published brackets';
+  END IF;
 
-  v_hash := encode(digest(array_to_string(v_reg_ids, '|'), 'sha256'), 'hex');
-  v_n := array_length(v_reg_ids, 1);
+  -- 6️⃣ Atualizar match atual
+  UPDATE event_bracket_matches
+  SET
+    winner_registration_id = p_winner_registration_id,
+    status = 'COMPLETED',
+    completed_at = now(),
+    recorded_by = p_recorded_by,
+    updated_at = now()
+  WHERE id = p_match_id;
 
-  -- 4. Calcular estrutura do bracket
-  v_bracket_size := power(2, ceil(log(2, greatest(v_n, 2))));
-  v_byes := v_bracket_size - v_n;
-  v_rounds := ceil(log(2, v_bracket_size));
+  -- 7️⃣ Avançar vencedor para o próximo round
+  v_source_key := format('R%sM%s', v_match.round, v_match.position);
 
-  -- 5. Inserir bracket
-  INSERT INTO event_brackets (
-    tenant_id, event_id, category_id, version, status,
-    generated_by, meta
-  ) VALUES (
-    p_tenant_id, p_event_id, p_category_id, v_version, 'DRAFT',
-    p_generated_by,
-    jsonb_build_object(
-      'criterion', 'SEED_BY_CREATED_AT_ASC_ID_ASC',
-      'registrations_count', v_n,
-      'bracket_size', v_bracket_size,
-      'byes_count', v_byes,
-      'registration_ids_hash', v_hash
-    )
-  )
-  RETURNING id INTO v_bracket_id;
+  SELECT * INTO v_next_match
+  FROM event_bracket_matches
+  WHERE bracket_id = v_match.bracket_id
+    AND round = v_match.round + 1
+    AND meta->'source'->'from' ? v_source_key
+    AND deleted_at IS NULL
+  LIMIT 1;
 
-  -- 6. Criar matches Round 1
-  v_matches_in_round := v_bracket_size / 2;
-  FOR v_pos IN 1..v_matches_in_round LOOP
-    v_idx1 := (v_pos - 1) * 2 + 1;
-    v_idx2 := v_idx1 + 1;
-    
-    v_athlete1 := CASE WHEN v_idx1 <= v_n THEN (v_reg_ids[v_idx1])::uuid ELSE NULL END;
-    v_athlete2 := CASE WHEN v_idx2 <= v_n THEN (v_reg_ids[v_idx2])::uuid ELSE NULL END;
-    v_is_bye := v_athlete1 IS NULL OR v_athlete2 IS NULL;
+  IF FOUND THEN
+    -- Determinar qual slot preencher
+    IF v_next_match.athlete1_registration_id IS NULL THEN
+      UPDATE event_bracket_matches
+      SET athlete1_registration_id = p_winner_registration_id,
+          updated_at = now()
+      WHERE id = v_next_match.id;
+    ELSIF v_next_match.athlete2_registration_id IS NULL THEN
+      UPDATE event_bracket_matches
+      SET athlete2_registration_id = p_winner_registration_id,
+          updated_at = now()
+      WHERE id = v_next_match.id;
+    END IF;
+  END IF;
 
-    INSERT INTO event_bracket_matches (
-      tenant_id, bracket_id, category_id, round, position,
-      athlete1_registration_id, athlete2_registration_id,
-      status, meta
-    ) VALUES (
-      p_tenant_id, v_bracket_id, p_category_id, 1, v_pos,
-      v_athlete1, v_athlete2,
-      CASE WHEN v_is_bye THEN 'BYE' ELSE 'SCHEDULED' END,
-      CASE WHEN v_is_bye THEN '{"is_bye": true, "note": "BYE"}'::jsonb ELSE '{}'::jsonb END
-    );
-    v_match_count := v_match_count + 1;
-  END LOOP;
-
-  -- 7. Criar matches para rounds futuros (placeholders)
-  FOR v_round IN 2..v_rounds LOOP
-    v_matches_in_round := v_matches_in_round / 2;
-    FOR v_pos IN 1..v_matches_in_round LOOP
-      INSERT INTO event_bracket_matches (
-        tenant_id, bracket_id, category_id, round, position,
-        athlete1_registration_id, athlete2_registration_id,
-        status, meta
-      ) VALUES (
-        p_tenant_id, v_bracket_id, p_category_id, v_round, v_pos,
-        NULL, NULL, 'SCHEDULED',
-        jsonb_build_object(
-          'note', format('Winner of R%sM%s vs R%sM%s', 
-            v_round-1, (v_pos-1)*2+1, v_round-1, (v_pos-1)*2+2),
-          'source', jsonb_build_object('from', 
-            array[format('R%sM%s', v_round-1, (v_pos-1)*2+1),
-                  format('R%sM%s', v_round-1, (v_pos-1)*2+2)])
-        )
-      );
-      v_match_count := v_match_count + 1;
-    END LOOP;
-  END LOOP;
-
-  -- 8. Retornar resultado
+  -- 8️⃣ Retornar resultado
   RETURN jsonb_build_object(
     'success', true,
-    'bracketId', v_bracket_id,
-    'version', v_version,
-    'status', 'DRAFT',
-    'matchesCreated', v_match_count,
-    'meta', jsonb_build_object(
-      'criterion', 'SEED_BY_CREATED_AT_ASC_ID_ASC',
-      'registrations_count', v_n,
-      'bracket_size', v_bracket_size,
-      'byes_count', v_byes,
-      'registration_ids_hash', v_hash
-    )
+    'matchId', p_match_id,
+    'winnerId', p_winner_registration_id,
+    'status', 'COMPLETED',
+    'completedAt', now(),
+    'nextMatchId', v_next_match.id
   );
 END;
 $$;
 ```
 
-### Garantias
-- ✅ **Transação atômica**: Falha em qualquer ponto = rollback total
-- ✅ **Lock de DRAFT**: Só permite 1 DRAFT por categoria
-- ✅ **Hash SHA-256 real**: Sem truncamento
-- ✅ **Versionamento correto**: MAX(version) + 1
+**Garantias:**
+- Transação atômica (resultado + avanço)
+- Lock `FOR UPDATE` previne race conditions
+- Validação completa de regras de negócio
+- Avanço automático do vencedor
 
 ---
 
-## FASE 2 — EDGE FUNCTION SIMPLIFICADA
+## FASE 3 — EDGE FUNCTION: `record-match-result`
 
-### Alterações no `generate-event-bracket/index.ts`
+**Arquivo:** `supabase/functions/record-match-result/index.ts`
 
-**REMOVER**:
-- INSERT direto de bracket (linhas 245-257)
-- INSERT direto de matches (linhas 336-338)
-- Lógica de rollback manual (linhas 340-352)
-- Cálculo de hash truncado (linha 241)
+**Responsabilidades:**
+1. Autenticação + validação de role (ADMIN_TENANT)
+2. Verificação de impersonation (superadmin)
+3. Buscar match para validar tenant
+4. Chamar RPC `record_match_result_rpc`
+5. Retornar feedback claro
 
-**ADICIONAR**:
-- Chamada única à RPC `generate_event_bracket_rpc`
+**Estrutura:**
+```typescript
+interface RecordResultRequest {
+  matchId: string;
+  winnerRegistrationId: string;
+  impersonationId?: string;
+}
+```
+
+**Config:** `supabase/config.toml`
+```toml
+[functions.record-match-result]
+verify_jwt = false
+```
+
+---
+
+## FASE 4 — TYPES (EXTENSÃO MÍNIMA)
+
+### 4.1 Atualizar `EventBracketMatch` em `src/types/event.ts`
 
 ```typescript
-// Após validações e busca de registrations...
+export interface EventBracketMatch {
+  id: string;
+  tenant_id: string;
+  bracket_id: string;
+  category_id: string;
+  round: number;
+  position: number;
+  athlete1_registration_id: string | null;
+  athlete2_registration_id: string | null;
+  winner_registration_id: string | null;
+  status: 'SCHEDULED' | 'COMPLETED' | 'BYE';
+  meta: MatchMeta;
+  // P2.5 — Campos de resultado
+  completed_at: string | null;
+  recorded_by: string | null;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+```
 
-// Preparar payload para RPC
-const registrationsPayload = registrations.map(r => ({
-  id: r.id,
-  athlete_id: r.athlete_id,
-  created_at: r.created_at,
-}));
+### 4.2 Novo Helper
 
-// Chamar RPC transacional
-const { data: rpcResult, error: rpcError } = await supabaseAdmin
-  .rpc('generate_event_bracket_rpc', {
-    p_tenant_id: tenantId,
-    p_event_id: eventId,
-    p_category_id: categoryId,
-    p_generated_by: user.id,
-    p_registrations: registrationsPayload,
-  });
-
-if (rpcError) {
-  console.error('[GENERATE-BRACKET] RPC error:', rpcError);
-  return new Response(
-    JSON.stringify({ error: rpcError.message }),
-    { status: 400, headers: corsHeaders }
+```typescript
+// Helper: pode registrar resultado no match
+export function canRecordMatchResult(
+  match: EventBracketMatch,
+  bracketStatus: BracketStatus
+): boolean {
+  return (
+    bracketStatus === 'PUBLISHED' &&
+    match.status === 'SCHEDULED' &&
+    match.athlete1_registration_id !== null &&
+    match.athlete2_registration_id !== null
   );
 }
-
-console.log('[GENERATE-BRACKET] Success via RPC:', rpcResult);
-
-return new Response(
-  JSON.stringify(rpcResult),
-  { status: 200, headers: corsHeaders }
-);
 ```
-
-### Benefícios
-- Edge Function vira **orquestrador puro**
-- Toda lógica de mutação no backend SQL
-- Zero chance de estado inconsistente
 
 ---
 
-## FASE 3 — UI DEFENSIVA (CategoryBracketsSection)
+## FASE 5 — UI (MINIMALISTA E SEGURA)
 
-### Lógica Atual (PROBLEMA)
+### 5.1 Atualizar `BracketMatchCard.tsx`
+
+**Adições:**
+- Props: `isAdmin`, `bracketStatus`, `onResultRecorded`
+- Botão "Registrar Resultado" (condicional)
+- Modal de confirmação com seleção de vencedor
+- Visual de match COMPLETED com vencedor destacado
+
+**Condições para exibir botão:**
 ```typescript
-const canGenerate = canGenerateBracket(eventStatus) && isAdmin;
-// ❌ Não verifica se já existe DRAFT
+const canRecord = 
+  isAdmin && 
+  bracketStatus === 'PUBLISHED' &&
+  match.status === 'SCHEDULED' &&
+  !!athlete1 && !!athlete2;
 ```
 
-### Lógica Corrigida
+**Modal simples:**
+- Radio buttons: Atleta 1 / Atleta 2
+- Aviso: "Essa ação é irreversível"
+- Botão "Confirmar Resultado"
+
+### 5.2 Visual de Match Completo
+
 ```typescript
-const draftBracket = brackets.find(b => b.status === 'DRAFT');
-const canGenerate = canGenerateBracket(eventStatus) && isAdmin && !draftBracket;
+// Se COMPLETED, destacar vencedor
+const isWinner = (registrationId: string | null) => 
+  match.status === 'COMPLETED' && 
+  match.winner_registration_id === registrationId;
+
+// Aplicar classe condicional
+<div className={cn(
+  'flex items-center gap-2 py-1',
+  isWinner(match.athlete1_registration_id) && 'bg-green-50 dark:bg-green-950/20 font-bold'
+)}>
 ```
 
-### UI Condicional
+### 5.3 Atualizar `BracketViewer.tsx`
+
+**Passar novas props para BracketMatchCard:**
 ```tsx
-{/* Se existe DRAFT, mostrar opções de Publicar/Excluir */}
-{draftBracket && isAdmin && (
-  <div className="flex gap-2">
-    <Button variant="default" size="sm" onClick={handlePublish}>
-      {t('events.brackets.publish')}
-    </Button>
-    <Button variant="outline" size="sm" onClick={handleDeleteDraft}>
-      {t('events.brackets.deleteDraft')}
-    </Button>
-  </div>
-)}
-
-{/* Só mostrar Gerar se não houver DRAFT */}
-{canGenerate && !draftBracket && (
-  <GenerateBracketButton ... />
-)}
+<BracketMatchCard
+  key={match.id}
+  match={match}
+  athletes={athletes}
+  compact
+  isAdmin={isAdmin}
+  bracketStatus={bracket.status}
+  onResultRecorded={() => {
+    queryClient.invalidateQueries({ queryKey: ['event-bracket-matches', bracketId] });
+  }}
+/>
 ```
 
 ---
 
-## FASE 4 — i18n (NOVA KEY)
+## FASE 6 — i18n (NOVAS CHAVES)
 
-### Adicionar em todos os locales:
+### pt-BR
 ```typescript
-'events.brackets.draftExists': 'Já existe uma chave em rascunho para esta categoria.',
+'events.brackets.recordResult': 'Registrar Resultado',
+'events.brackets.selectWinner': 'Selecione o Vencedor',
+'events.brackets.confirmResult': 'Confirmar Resultado',
+'events.brackets.resultRecorded': 'Resultado registrado com sucesso!',
+'events.brackets.resultError': 'Erro ao registrar resultado',
+'events.brackets.resultWarning': 'Essa ação é irreversível. O resultado não poderá ser alterado.',
+'events.brackets.completed': 'Concluída',
+'events.brackets.winner': 'Vencedor',
+'events.brackets.bothAthletesMustBeDefined': 'Ambos os atletas devem estar definidos',
+'events.brackets.matchAlreadyCompleted': 'Esta luta já foi finalizada',
+```
+
+### en
+```typescript
+'events.brackets.recordResult': 'Record Result',
+'events.brackets.selectWinner': 'Select Winner',
+'events.brackets.confirmResult': 'Confirm Result',
+'events.brackets.resultRecorded': 'Result recorded successfully!',
+'events.brackets.resultError': 'Error recording result',
+'events.brackets.resultWarning': 'This action is irreversible. The result cannot be changed.',
+'events.brackets.completed': 'Completed',
+'events.brackets.winner': 'Winner',
+'events.brackets.bothAthletesMustBeDefined': 'Both athletes must be defined',
+'events.brackets.matchAlreadyCompleted': 'This match is already completed',
+```
+
+### es
+```typescript
+'events.brackets.recordResult': 'Registrar Resultado',
+'events.brackets.selectWinner': 'Seleccione el Ganador',
+'events.brackets.confirmResult': 'Confirmar Resultado',
+'events.brackets.resultRecorded': '¡Resultado registrado con éxito!',
+'events.brackets.resultError': 'Error al registrar resultado',
+'events.brackets.resultWarning': 'Esta acción es irreversible. El resultado no podrá ser modificado.',
+'events.brackets.completed': 'Completada',
+'events.brackets.winner': 'Ganador',
+'events.brackets.bothAthletesMustBeDefined': 'Ambos atletas deben estar definidos',
+'events.brackets.matchAlreadyCompleted': 'Este combate ya fue completado',
 ```
 
 ---
 
-## ARQUIVOS A MODIFICAR
+## FASE 7 — ATUALIZAÇÃO DO TRIGGER P2.4
+
+### Ajuste Necessário
+
+O trigger `validate_bracket_immutability` do P2.4 bloqueia **qualquer** UPDATE em matches de brackets PUBLISHED. Para P2.5 funcionar, precisamos permitir a atualização controlada de:
+- `winner_registration_id`
+- `status` (SCHEDULED → COMPLETED)
+- `completed_at`, `recorded_by`
+- `athlete1_registration_id`, `athlete2_registration_id` (avanço do vencedor)
+
+**Trigger Atualizado:**
+```sql
+CREATE OR REPLACE FUNCTION validate_bracket_immutability()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_bracket_status text;
+BEGIN
+  IF TG_TABLE_NAME = 'event_brackets' THEN
+    IF TG_OP = 'UPDATE' THEN
+      IF OLD.status = 'PUBLISHED' THEN
+        RAISE EXCEPTION 'Cannot modify published bracket';
+      END IF;
+      RETURN NEW;
+    END IF;
+    
+    IF TG_OP = 'DELETE' THEN
+      IF OLD.status = 'PUBLISHED' THEN
+        RAISE EXCEPTION 'Cannot delete published bracket';
+      END IF;
+      RETURN OLD;
+    END IF;
+  END IF;
+
+  IF TG_TABLE_NAME = 'event_bracket_matches' THEN
+    SELECT status INTO v_bracket_status
+    FROM event_brackets
+    WHERE id = COALESCE(NEW.bracket_id, OLD.bracket_id);
+    
+    IF v_bracket_status = 'PUBLISHED' THEN
+      IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'Cannot delete matches from published bracket';
+      END IF;
+      
+      IF TG_OP = 'UPDATE' THEN
+        -- P2.5: Permitir apenas transição SCHEDULED→COMPLETED ou avanço de atletas
+        IF OLD.status = 'COMPLETED' THEN
+          -- Match já completado é IMUTÁVEL
+          RAISE EXCEPTION 'Cannot modify completed match';
+        END IF;
+        
+        -- Permitir apenas campos autorizados
+        IF (
+          OLD.round IS DISTINCT FROM NEW.round OR
+          OLD.position IS DISTINCT FROM NEW.position OR
+          OLD.bracket_id IS DISTINCT FROM NEW.bracket_id OR
+          OLD.category_id IS DISTINCT FROM NEW.category_id OR
+          OLD.tenant_id IS DISTINCT FROM NEW.tenant_id
+        ) THEN
+          RAISE EXCEPTION 'Cannot modify structural fields of match in published bracket';
+        END IF;
+        
+        -- Permitir: status, winner, completed_at, recorded_by, athletes (para avanço)
+        RETURN NEW;
+      END IF;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public';
+```
+
+---
+
+## ARQUIVOS A CRIAR/MODIFICAR
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Migration SQL (NOVO) | CRIAR | Função `generate_event_bracket_rpc` |
-| `supabase/functions/generate-event-bracket/index.ts` | EDITAR | Remover INSERTs, chamar RPC |
-| `src/components/events/CategoryBracketsSection.tsx` | EDITAR | Validar DRAFT existente |
-| `src/locales/pt-BR.ts` | EDITAR | +1 key |
-| `src/locales/en.ts` | EDITAR | +1 key |
-| `src/locales/es.ts` | EDITAR | +1 key |
+| Migration SQL | CRIAR | Colunas + constraints + trigger + RPC + trigger ajustado |
+| `supabase/functions/record-match-result/index.ts` | CRIAR | Edge Function orquestradora |
+| `supabase/config.toml` | EDITAR | +1 function |
+| `src/types/event.ts` | EDITAR | +2 campos + helper |
+| `src/components/events/BracketMatchCard.tsx` | EDITAR | Botão resultado + visual |
+| `src/components/events/BracketViewer.tsx` | EDITAR | Passar novas props |
+| `src/locales/pt-BR.ts` | EDITAR | +10 keys |
+| `src/locales/en.ts` | EDITAR | +10 keys |
+| `src/locales/es.ts` | EDITAR | +10 keys |
 
 ---
 
-## QA FINAL (CHECKLIST)
+## QA FINAL — P2.5 (CHECKLIST)
 
 ### Banco de Dados
-- [ ] RPC `generate_event_bracket_rpc` existe
-- [ ] Falha em match → nada é salvo (testável via trigger de erro)
-- [ ] Constraint: só 1 DRAFT por categoria
-- [ ] Hash SHA-256 completo (64 caracteres hex)
+- [ ] Colunas `completed_at` e `recorded_by` existem
+- [ ] Constraint `winner_must_be_participant` funciona
+- [ ] Trigger bloqueia resultado em DRAFT
+- [ ] Trigger bloqueia regravação de resultado
+- [ ] RPC avança vencedor corretamente
+- [ ] Match COMPLETED é imutável
 
 ### Edge Function
-- [ ] Sem INSERT direto
-- [ ] Apenas chamada RPC
-- [ ] Retorna erro claro se DRAFT existir
+- [ ] Só admin pode registrar
+- [ ] Impersonation validado para superadmin
+- [ ] Tenant isolation mantido
+- [ ] Erro claro em validações
 
 ### UI
-- [ ] Se DRAFT existir: mostrar "Publicar" e "Excluir"
-- [ ] Se DRAFT não existir: mostrar "Gerar"
-- [ ] Toast de erro se tentar gerar com DRAFT existente
+- [ ] Botão só aparece quando permitido
+- [ ] Modal exige seleção de vencedor
+- [ ] Aviso de irreversibilidade visível
+- [ ] Vencedor destacado após registro
+- [ ] Próximo round atualizado automaticamente
 
 ### Segurança
+- [ ] Público só visualiza resultados
+- [ ] Nenhuma edição após COMPLETED
 - [ ] Tenant isolation mantido
-- [ ] Superadmin exige impersonation
-- [ ] Público só vê PUBLISHED
 
 ---
 
@@ -326,20 +514,20 @@ const canGenerate = canGenerateBracket(eventStatus) && isAdmin && !draftBracket;
 
 Quando todos os itens acima estiverem ✅:
 
-```
-P2.4 = DONE
+```text
+P2.5 = DONE
+EVENT FLOW COMPLETO: Inscrição → Chave → Resultado
 FREEZE AUTORIZADO
-Entrada segura no P2.5
 ```
 
 ---
 
 ## RESULTADO ESPERADO
 
-Após a finalização:
-- ✅ Geração 100% transacional (zero estado inconsistente)
-- ✅ Hash SHA-256 real para auditoria
-- ✅ Máximo 1 DRAFT por categoria
-- ✅ UI reage corretamente ao estado
-- ✅ Base sólida e imutável para P2.5 (resultados)
-- ✅ Zero regressão em P2.1/P2.2/P2.3
+Após P2.5:
+- ✅ Resultados registrados de forma atômica
+- ✅ Vencedor avança automaticamente
+- ✅ Match completado é imutável
+- ✅ UI minimalista e segura
+- ✅ Zero regressão em P2.1/P2.2/P2.3/P2.4
+- ✅ Fluxo completo de eventos ponta a ponta
