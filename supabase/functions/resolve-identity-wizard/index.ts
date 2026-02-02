@@ -300,7 +300,7 @@ async function handleCompleteWizard(
         status: "RESOLVED",
         role: "ADMIN_TENANT",
         tenant: existingTenant[0],
-        redirectPath: `/${existingTenant[0].slug}/onboarding`,
+        redirectPath: `/${existingTenant[0].slug}/app`,
       };
     }
   }
@@ -428,6 +428,6 @@ async function handleCompleteWizard(
       slug: newTenant.slug,
       name: newTenant.name,
     },
-    redirectPath: `/${newTenant.slug}/onboarding`,
+    redirectPath: `/${newTenant.slug}/app`,
   };
 }
