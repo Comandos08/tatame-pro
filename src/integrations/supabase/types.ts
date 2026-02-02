@@ -825,45 +825,83 @@ export type Database = {
       }
       event_categories: {
         Row: {
+          belt_max_id: string | null
+          belt_min_id: string | null
           created_at: string | null
           currency: string | null
+          deleted_at: string | null
           description: string | null
           event_id: string
+          gender: Database["public"]["Enums"]["category_gender"] | null
           id: string
           is_active: boolean | null
+          max_age: number | null
           max_participants: number | null
+          max_weight: number | null
+          min_age: number | null
+          min_weight: number | null
           name: string
           price_cents: number | null
           tenant_id: string
           updated_at: string | null
         }
         Insert: {
+          belt_max_id?: string | null
+          belt_min_id?: string | null
           created_at?: string | null
           currency?: string | null
+          deleted_at?: string | null
           description?: string | null
           event_id: string
+          gender?: Database["public"]["Enums"]["category_gender"] | null
           id?: string
           is_active?: boolean | null
+          max_age?: number | null
           max_participants?: number | null
+          max_weight?: number | null
+          min_age?: number | null
+          min_weight?: number | null
           name: string
           price_cents?: number | null
           tenant_id: string
           updated_at?: string | null
         }
         Update: {
+          belt_max_id?: string | null
+          belt_min_id?: string | null
           created_at?: string | null
           currency?: string | null
+          deleted_at?: string | null
           description?: string | null
           event_id?: string
+          gender?: Database["public"]["Enums"]["category_gender"] | null
           id?: string
           is_active?: boolean | null
+          max_age?: number | null
           max_participants?: number | null
+          max_weight?: number | null
+          min_age?: number | null
+          min_weight?: number | null
           name?: string
           price_cents?: number | null
           tenant_id?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "event_categories_belt_max_id_fkey"
+            columns: ["belt_max_id"]
+            isOneToOne: false
+            referencedRelation: "grading_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_categories_belt_min_id_fkey"
+            columns: ["belt_min_id"]
+            isOneToOne: false
+            referencedRelation: "grading_levels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_categories_event_id_fkey"
             columns: ["event_id"]
@@ -2357,6 +2395,7 @@ export type Database = {
         | "UNPAID"
         | "TRIAL_EXPIRED"
         | "PENDING_DELETE"
+      category_gender: "MALE" | "FEMALE" | "MIXED"
       diploma_status: "DRAFT" | "ISSUED" | "REVOKED"
       document_type:
         | "ID_DOCUMENT"
@@ -2535,6 +2574,7 @@ export const Constants = {
         "TRIAL_EXPIRED",
         "PENDING_DELETE",
       ],
+      category_gender: ["MALE", "FEMALE", "MIXED"],
       diploma_status: ["DRAFT", "ISSUED", "REVOKED"],
       document_type: [
         "ID_DOCUMENT",
