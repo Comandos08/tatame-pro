@@ -270,9 +270,26 @@ export interface EventBracketMatch {
   winner_registration_id: string | null;
   status: 'SCHEDULED' | 'COMPLETED' | 'BYE';
   meta: MatchMeta;
+  // P2.5 — Result audit fields
+  completed_at: string | null;
+  recorded_by: string | null;
+  // Timestamps
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+// Helper: can record result on this match
+export function canRecordMatchResult(
+  match: EventBracketMatch,
+  bracketStatus: BracketStatus
+): boolean {
+  return (
+    bracketStatus === 'PUBLISHED' &&
+    match.status === 'SCHEDULED' &&
+    match.athlete1_registration_id !== null &&
+    match.athlete2_registration_id !== null
+  );
 }
 
 export interface MatchMeta {

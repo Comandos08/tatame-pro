@@ -266,6 +266,11 @@ export function BracketViewer({ bracketId, isAdmin = false }: BracketViewerProps
                       match={match}
                       athletes={athletes}
                       compact
+                      isAdmin={isAdmin}
+                      bracketStatus={bracket.status as 'DRAFT' | 'PUBLISHED'}
+                      onResultRecorded={() => {
+                        queryClient.invalidateQueries({ queryKey: ['event-bracket-matches', bracketId] });
+                      }}
                     />
                   ))}
                 </div>

@@ -2004,4 +2004,16 @@ export const en: Record<string, string> = {
   'events.maxAge.label': 'Maximum age',
   'events.years': 'years',
 
+  // P2.5 — Match Results
+  'events.brackets.recordResult': 'Record Result',
+  'events.brackets.selectWinner': 'Select Winner',
+  'events.brackets.confirmResult': 'Confirm Result',
+  'events.brackets.resultRecorded': 'Result recorded successfully!',
+  'events.brackets.resultError': 'Error recording result',
+  'events.brackets.resultWarning': 'This action is irreversible. The result cannot be changed.',
+  'events.brackets.completed': 'Completed',
+  'events.brackets.winner': 'Winner',
+  'events.brackets.bothAthletesMustBeDefined': 'Both athletes must be defined',
+  'events.brackets.matchAlreadyCompleted': 'This match is already completed',
+
 };

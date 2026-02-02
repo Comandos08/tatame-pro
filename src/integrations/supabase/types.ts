@@ -829,11 +829,13 @@ export type Database = {
           athlete2_registration_id: string | null
           bracket_id: string
           category_id: string
+          completed_at: string | null
           created_at: string
           deleted_at: string | null
           id: string
           meta: Json
           position: number
+          recorded_by: string | null
           round: number
           status: string
           tenant_id: string
@@ -845,11 +847,13 @@ export type Database = {
           athlete2_registration_id?: string | null
           bracket_id: string
           category_id: string
+          completed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           meta?: Json
           position: number
+          recorded_by?: string | null
           round: number
           status?: string
           tenant_id: string
@@ -861,11 +865,13 @@ export type Database = {
           athlete2_registration_id?: string | null
           bracket_id?: string
           category_id?: string
+          completed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           meta?: Json
           position?: number
+          recorded_by?: string | null
           round?: number
           status?: string
           tenant_id?: string
@@ -899,6 +905,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2551,6 +2564,14 @@ export type Database = {
       membership_has_digital_card: {
         Args: { _membership_id: string }
         Returns: boolean
+      }
+      record_match_result_rpc: {
+        Args: {
+          p_match_id: string
+          p_recorded_by: string
+          p_winner_registration_id: string
+        }
+        Returns: Json
       }
       soft_delete_event: { Args: { p_event_id: string }; Returns: boolean }
       tenant_has_active_billing: {
