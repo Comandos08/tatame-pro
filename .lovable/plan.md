@@ -1,499 +1,345 @@
 
-# P2.4 — CHAVES / BRACKETS — "OFFICIAL SNAPSHOT + JUSTIFIED BRACKET"
+# P2.4 — FINALIZAÇÃO SEGURA COM GOVERNANÇA TOTAL (SAFE MODE)
 
-## AJUSTES OBRIGATÓRIOS APLICADOS
+## ANÁLISE DO ESTADO ATUAL
 
-| Ajuste | Descrição | Implementação |
-|--------|-----------|---------------|
-| **A** | Geração no backend (RPC transacional) | Edge function `generate-event-bracket` com transação |
-| **B** | Imutabilidade total de brackets publicados | Trigger SQL bloqueia UPDATE/DELETE em PUBLISHED |
-| **C** | Status inicial DRAFT com publicação explícita | Dois botões: "Gerar Chave" → DRAFT, "Publicar" → PUBLISHED |
+### ✅ Já Implementado Corretamente
+| Componente | Status |
+|------------|--------|
+| Tabelas `event_brackets` e `event_bracket_matches` | ✅ |
+| Trigger de imutabilidade para PUBLISHED | ✅ |
+| RLS por tenant + visibilidade pública | ✅ |
+| Edge Function de publicação | ✅ |
+| UI básica de visualização | ✅ |
+| i18n completo | ✅ |
+
+### ❌ Gaps Identificados (Críticos)
+| Gap | Risco | Severidade |
+|-----|-------|------------|
+| Geração usa INSERTs separados (não transacional) | Estado inconsistente se match falhar | CRÍTICO |
+| Hash truncado com `.slice(0, 100)` | Auditoria comprometida | ALTO |
+| Sem lock de DRAFT único por categoria | Múltiplos DRAFTs possíveis | ALTO |
+| UI não verifica DRAFT existente | UX confusa | MÉDIO |
 
 ---
 
-## FASE 1 — BANCO DE DADOS (MIGRATION SQL)
+## FASE 1 — SQL RPC TRANSACIONAL (CRÍTICO)
 
-### 1.1 Nova Tabela: `event_brackets`
+### Objetivo
+Criar função SQL `generate_event_bracket_rpc` que executa TODO o processo em uma única transação atômica.
 
+### Implementação
 ```sql
-CREATE TABLE public.event_brackets (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id),
-  event_id uuid NOT NULL REFERENCES public.events(id),
-  category_id uuid NOT NULL REFERENCES public.event_categories(id),
-  version integer NOT NULL DEFAULT 1,
-  status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
-  generated_by uuid REFERENCES public.profiles(id),
-  generated_at timestamptz NOT NULL DEFAULT now(),
-  published_at timestamptz,
-  notes text,
-  meta jsonb NOT NULL DEFAULT '{}'::jsonb,
-  deleted_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(tenant_id, category_id, version)
-);
-```
-
-### 1.2 Nova Tabela: `event_bracket_matches`
-
-```sql
-CREATE TABLE public.event_bracket_matches (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id),
-  bracket_id uuid NOT NULL REFERENCES public.event_brackets(id) ON DELETE CASCADE,
-  category_id uuid NOT NULL REFERENCES public.event_categories(id),
-  round integer NOT NULL CHECK (round > 0),
-  position integer NOT NULL CHECK (position > 0),
-  athlete1_registration_id uuid REFERENCES public.event_registrations(id),
-  athlete2_registration_id uuid REFERENCES public.event_registrations(id),
-  winner_registration_id uuid REFERENCES public.event_registrations(id),
-  status text NOT NULL DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'COMPLETED', 'BYE')),
-  meta jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz,
-  UNIQUE(bracket_id, round, position)
-);
-```
-
-### 1.3 Índices
-
-```sql
-CREATE INDEX idx_event_brackets_category ON event_brackets(category_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_event_brackets_event ON event_brackets(event_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_event_bracket_matches_bracket ON event_bracket_matches(bracket_id) WHERE deleted_at IS NULL;
-```
-
-### 1.4 Trigger de Imutabilidade (Ajuste B)
-
-```sql
-CREATE OR REPLACE FUNCTION validate_bracket_immutability()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION generate_event_bracket_rpc(
+  p_tenant_id uuid,
+  p_event_id uuid,
+  p_category_id uuid,
+  p_generated_by uuid,
+  p_registrations jsonb  -- Array de {id, athlete_id, created_at}
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 DECLARE
-  v_bracket_status text;
+  v_bracket_id uuid;
+  v_version int;
+  v_n int;
+  v_bracket_size int;
+  v_byes int;
+  v_rounds int;
+  v_reg_ids text[];
+  v_hash text;
+  v_match_count int := 0;
+  v_round int;
+  v_pos int;
+  v_matches_in_round int;
+  v_idx1 int;
+  v_idx2 int;
+  v_athlete1 uuid;
+  v_athlete2 uuid;
+  v_is_bye boolean;
+  v_reg record;
 BEGIN
-  -- Para event_brackets: bloquear modificações em PUBLISHED
-  IF TG_TABLE_NAME = 'event_brackets' THEN
-    IF TG_OP = 'UPDATE' THEN
-      -- Permitir apenas transição DRAFT→PUBLISHED
-      IF OLD.status = 'PUBLISHED' THEN
-        RAISE EXCEPTION 'Cannot modify published bracket';
-      END IF;
-      -- Permitir atualização se ainda DRAFT
-      RETURN NEW;
-    END IF;
-    
-    IF TG_OP = 'DELETE' THEN
-      IF OLD.status = 'PUBLISHED' THEN
-        RAISE EXCEPTION 'Cannot delete published bracket';
-      END IF;
-      RETURN OLD;
-    END IF;
+  -- 1. Verificar se já existe DRAFT para esta categoria
+  IF EXISTS (
+    SELECT 1 FROM event_brackets
+    WHERE category_id = p_category_id
+      AND tenant_id = p_tenant_id
+      AND status = 'DRAFT'
+      AND deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Draft bracket already exists for this category';
   END IF;
 
-  -- Para event_bracket_matches
-  IF TG_TABLE_NAME = 'event_bracket_matches' THEN
-    SELECT status INTO v_bracket_status
-    FROM event_brackets
-    WHERE id = COALESCE(NEW.bracket_id, OLD.bracket_id);
-    
-    IF v_bracket_status = 'PUBLISHED' THEN
-      IF TG_OP = 'DELETE' THEN
-        RAISE EXCEPTION 'Cannot delete matches from published bracket';
-      END IF;
-      IF TG_OP = 'UPDATE' THEN
-        -- P2.4: Bloquear tudo. P2.5+ permitirá winner_registration_id
-        RAISE EXCEPTION 'Cannot modify matches in published bracket';
-      END IF;
-    END IF;
-    RETURN COALESCE(NEW, OLD);
-  END IF;
+  -- 2. Calcular próxima versão
+  SELECT COALESCE(MAX(version), 0) + 1
+  INTO v_version
+  FROM event_brackets
+  WHERE category_id = p_category_id
+    AND tenant_id = p_tenant_id;
 
-  RETURN COALESCE(NEW, OLD);
+  -- 3. Extrair IDs e calcular hash SHA-256 real
+  SELECT array_agg(r->>'id' ORDER BY r->>'created_at', r->>'id')
+  INTO v_reg_ids
+  FROM jsonb_array_elements(p_registrations) r;
+
+  v_hash := encode(digest(array_to_string(v_reg_ids, '|'), 'sha256'), 'hex');
+  v_n := array_length(v_reg_ids, 1);
+
+  -- 4. Calcular estrutura do bracket
+  v_bracket_size := power(2, ceil(log(2, greatest(v_n, 2))));
+  v_byes := v_bracket_size - v_n;
+  v_rounds := ceil(log(2, v_bracket_size));
+
+  -- 5. Inserir bracket
+  INSERT INTO event_brackets (
+    tenant_id, event_id, category_id, version, status,
+    generated_by, meta
+  ) VALUES (
+    p_tenant_id, p_event_id, p_category_id, v_version, 'DRAFT',
+    p_generated_by,
+    jsonb_build_object(
+      'criterion', 'SEED_BY_CREATED_AT_ASC_ID_ASC',
+      'registrations_count', v_n,
+      'bracket_size', v_bracket_size,
+      'byes_count', v_byes,
+      'registration_ids_hash', v_hash
+    )
+  )
+  RETURNING id INTO v_bracket_id;
+
+  -- 6. Criar matches Round 1
+  v_matches_in_round := v_bracket_size / 2;
+  FOR v_pos IN 1..v_matches_in_round LOOP
+    v_idx1 := (v_pos - 1) * 2 + 1;
+    v_idx2 := v_idx1 + 1;
+    
+    v_athlete1 := CASE WHEN v_idx1 <= v_n THEN (v_reg_ids[v_idx1])::uuid ELSE NULL END;
+    v_athlete2 := CASE WHEN v_idx2 <= v_n THEN (v_reg_ids[v_idx2])::uuid ELSE NULL END;
+    v_is_bye := v_athlete1 IS NULL OR v_athlete2 IS NULL;
+
+    INSERT INTO event_bracket_matches (
+      tenant_id, bracket_id, category_id, round, position,
+      athlete1_registration_id, athlete2_registration_id,
+      status, meta
+    ) VALUES (
+      p_tenant_id, v_bracket_id, p_category_id, 1, v_pos,
+      v_athlete1, v_athlete2,
+      CASE WHEN v_is_bye THEN 'BYE' ELSE 'SCHEDULED' END,
+      CASE WHEN v_is_bye THEN '{"is_bye": true, "note": "BYE"}'::jsonb ELSE '{}'::jsonb END
+    );
+    v_match_count := v_match_count + 1;
+  END LOOP;
+
+  -- 7. Criar matches para rounds futuros (placeholders)
+  FOR v_round IN 2..v_rounds LOOP
+    v_matches_in_round := v_matches_in_round / 2;
+    FOR v_pos IN 1..v_matches_in_round LOOP
+      INSERT INTO event_bracket_matches (
+        tenant_id, bracket_id, category_id, round, position,
+        athlete1_registration_id, athlete2_registration_id,
+        status, meta
+      ) VALUES (
+        p_tenant_id, v_bracket_id, p_category_id, v_round, v_pos,
+        NULL, NULL, 'SCHEDULED',
+        jsonb_build_object(
+          'note', format('Winner of R%sM%s vs R%sM%s', 
+            v_round-1, (v_pos-1)*2+1, v_round-1, (v_pos-1)*2+2),
+          'source', jsonb_build_object('from', 
+            array[format('R%sM%s', v_round-1, (v_pos-1)*2+1),
+                  format('R%sM%s', v_round-1, (v_pos-1)*2+2)])
+        )
+      );
+      v_match_count := v_match_count + 1;
+    END LOOP;
+  END LOOP;
+
+  -- 8. Retornar resultado
+  RETURN jsonb_build_object(
+    'success', true,
+    'bracketId', v_bracket_id,
+    'version', v_version,
+    'status', 'DRAFT',
+    'matchesCreated', v_match_count,
+    'meta', jsonb_build_object(
+      'criterion', 'SEED_BY_CREATED_AT_ASC_ID_ASC',
+      'registrations_count', v_n,
+      'bracket_size', v_bracket_size,
+      'byes_count', v_byes,
+      'registration_ids_hash', v_hash
+    )
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public';
-
-CREATE TRIGGER enforce_bracket_immutability
-  BEFORE UPDATE OR DELETE ON event_brackets
-  FOR EACH ROW EXECUTE FUNCTION validate_bracket_immutability();
-
-CREATE TRIGGER enforce_bracket_match_immutability
-  BEFORE UPDATE OR DELETE ON event_bracket_matches
-  FOR EACH ROW EXECUTE FUNCTION validate_bracket_immutability();
+$$;
 ```
 
-### 1.5 RLS Policies
+### Garantias
+- ✅ **Transação atômica**: Falha em qualquer ponto = rollback total
+- ✅ **Lock de DRAFT**: Só permite 1 DRAFT por categoria
+- ✅ **Hash SHA-256 real**: Sem truncamento
+- ✅ **Versionamento correto**: MAX(version) + 1
 
-```sql
-ALTER TABLE event_brackets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE event_bracket_matches ENABLE ROW LEVEL SECURITY;
+---
 
--- event_brackets: Admin ALL
-CREATE POLICY event_brackets_admin_all ON event_brackets
-  FOR ALL USING (is_tenant_admin(tenant_id) OR is_superadmin())
-  WITH CHECK (is_tenant_admin(tenant_id) OR is_superadmin());
+## FASE 2 — EDGE FUNCTION SIMPLIFICADA
 
--- event_brackets: Público SELECT (apenas PUBLISHED + evento válido)
-CREATE POLICY event_brackets_public_select ON event_brackets
-  FOR SELECT USING (
-    deleted_at IS NULL
-    AND status = 'PUBLISHED'
-    AND EXISTS (
-      SELECT 1 FROM events e
-      WHERE e.id = event_brackets.event_id
-      AND e.is_public = true
-      AND e.status NOT IN ('DRAFT', 'ARCHIVED', 'CANCELLED')
-      AND e.deleted_at IS NULL
-    )
+### Alterações no `generate-event-bracket/index.ts`
+
+**REMOVER**:
+- INSERT direto de bracket (linhas 245-257)
+- INSERT direto de matches (linhas 336-338)
+- Lógica de rollback manual (linhas 340-352)
+- Cálculo de hash truncado (linha 241)
+
+**ADICIONAR**:
+- Chamada única à RPC `generate_event_bracket_rpc`
+
+```typescript
+// Após validações e busca de registrations...
+
+// Preparar payload para RPC
+const registrationsPayload = registrations.map(r => ({
+  id: r.id,
+  athlete_id: r.athlete_id,
+  created_at: r.created_at,
+}));
+
+// Chamar RPC transacional
+const { data: rpcResult, error: rpcError } = await supabaseAdmin
+  .rpc('generate_event_bracket_rpc', {
+    p_tenant_id: tenantId,
+    p_event_id: eventId,
+    p_category_id: categoryId,
+    p_generated_by: user.id,
+    p_registrations: registrationsPayload,
+  });
+
+if (rpcError) {
+  console.error('[GENERATE-BRACKET] RPC error:', rpcError);
+  return new Response(
+    JSON.stringify({ error: rpcError.message }),
+    { status: 400, headers: corsHeaders }
   );
+}
 
--- event_bracket_matches: Admin ALL
-CREATE POLICY event_bracket_matches_admin_all ON event_bracket_matches
-  FOR ALL USING (is_tenant_admin(tenant_id) OR is_superadmin())
-  WITH CHECK (is_tenant_admin(tenant_id) OR is_superadmin());
+console.log('[GENERATE-BRACKET] Success via RPC:', rpcResult);
 
--- event_bracket_matches: Público SELECT (se bracket PUBLISHED)
-CREATE POLICY event_bracket_matches_public_select ON event_bracket_matches
-  FOR SELECT USING (
-    deleted_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM event_brackets b
-      WHERE b.id = event_bracket_matches.bracket_id
-      AND b.status = 'PUBLISHED'
-      AND b.deleted_at IS NULL
-    )
-  );
+return new Response(
+  JSON.stringify(rpcResult),
+  { status: 200, headers: corsHeaders }
+);
 ```
+
+### Benefícios
+- Edge Function vira **orquestrador puro**
+- Toda lógica de mutação no backend SQL
+- Zero chance de estado inconsistente
 
 ---
 
-## FASE 2 — EDGE FUNCTION: `generate-event-bracket` (Ajuste A)
+## FASE 3 — UI DEFENSIVA (CategoryBracketsSection)
 
-**Arquivo**: `supabase/functions/generate-event-bracket/index.ts`
-
-Responsabilidades:
-1. Autenticação + validação de role (ADMIN_TENANT ou SUPERADMIN)
-2. Validação de status do evento (`canGenerateBracket`)
-3. Busca determinística de inscrições
-4. Cálculo de estrutura (bracket_size, byes, rounds)
-5. Transação: INSERT bracket + INSERT matches
-6. Retorno de bracket_id + version
-
+### Lógica Atual (PROBLEMA)
 ```typescript
-// Estrutura do payload
-interface GenerateBracketRequest {
-  categoryId: string;
-  eventId: string;
-  impersonationId?: string;
-}
-
-// Algoritmo determinístico
-// 1. Buscar registrations: ORDER BY created_at ASC, id ASC
-// 2. bracket_size = Math.pow(2, Math.ceil(Math.log2(n)))
-// 3. byes = bracket_size - n
-// 4. Round 1: pares (1-2, 3-4...), BYEs no final
-// 5. Rounds 2..N: placeholders com meta.source
+const canGenerate = canGenerateBracket(eventStatus) && isAdmin;
+// ❌ Não verifica se já existe DRAFT
 ```
 
-**Config**: `supabase/config.toml`
-```toml
-[functions.generate-event-bracket]
-verify_jwt = false
-```
-
----
-
-## FASE 3 — EDGE FUNCTION: `publish-event-bracket`
-
-**Arquivo**: `supabase/functions/publish-event-bracket/index.ts`
-
-Transição DRAFT → PUBLISHED (Ajuste C):
-1. Validar role
-2. Validar que bracket está em DRAFT
-3. UPDATE status = 'PUBLISHED', published_at = now()
-
----
-
-## FASE 4 — TYPESCRIPT TYPES
-
-**Arquivo**: `src/types/event.ts`
-
-Adicionar:
-
+### Lógica Corrigida
 ```typescript
-// P2.4 — Brackets / Chaves
+const draftBracket = brackets.find(b => b.status === 'DRAFT');
+const canGenerate = canGenerateBracket(eventStatus) && isAdmin && !draftBracket;
+```
 
-export type BracketStatus = 'DRAFT' | 'PUBLISHED';
+### UI Condicional
+```tsx
+{/* Se existe DRAFT, mostrar opções de Publicar/Excluir */}
+{draftBracket && isAdmin && (
+  <div className="flex gap-2">
+    <Button variant="default" size="sm" onClick={handlePublish}>
+      {t('events.brackets.publish')}
+    </Button>
+    <Button variant="outline" size="sm" onClick={handleDeleteDraft}>
+      {t('events.brackets.deleteDraft')}
+    </Button>
+  </div>
+)}
 
-export interface EventBracket {
-  id: string;
-  tenant_id: string;
-  event_id: string;
-  category_id: string;
-  version: number;
-  status: BracketStatus;
-  generated_by: string | null;
-  generated_at: string;
-  published_at: string | null;
-  notes: string | null;
-  meta: BracketMeta;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BracketMeta {
-  criterion: string;
-  registrations_count: number;
-  bracket_size: number;
-  byes_count: number;
-  registration_ids_hash?: string;
-}
-
-export interface EventBracketMatch {
-  id: string;
-  tenant_id: string;
-  bracket_id: string;
-  category_id: string;
-  round: number;
-  position: number;
-  athlete1_registration_id: string | null;
-  athlete2_registration_id: string | null;
-  winner_registration_id: string | null;
-  status: 'SCHEDULED' | 'COMPLETED' | 'BYE';
-  meta: MatchMeta;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
-
-export interface MatchMeta {
-  note?: string;
-  source?: { from: string[] };
-  is_bye?: boolean;
-}
-
-// Helper: pode gerar bracket
-export function canGenerateBracket(eventStatus: EventStatus): boolean {
-  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
-}
-
-// Helper: bracket visível publicamente
-export function canViewBracketPublic(eventStatus: EventStatus): boolean {
-  return !['DRAFT', 'ARCHIVED', 'CANCELLED'].includes(eventStatus);
-}
+{/* Só mostrar Gerar se não houver DRAFT */}
+{canGenerate && !draftBracket && (
+  <GenerateBracketButton ... />
+)}
 ```
 
 ---
 
-## FASE 5 — COMPONENTES UI
+## FASE 4 — i18n (NOVA KEY)
 
-### 5.1 `src/components/events/GenerateBracketButton.tsx`
-
-Botão com confirmação para gerar bracket:
-- Props: `categoryId`, `eventId`, `disabled`
-- Chama edge function `generate-event-bracket`
-- Toast de sucesso/erro
-- Logs obrigatórios
-
-### 5.2 `src/components/events/BracketViewer.tsx`
-
-Visualizador de chave:
-- Badge: "Chave Oficial • vX" ou "Rascunho • vX"
-- Subtexto: critério + data
-- Grid de rounds/matches
-- Indica BYEs claramente
-- Botão "Publicar" se status=DRAFT e isAdmin
-
-### 5.3 `src/components/events/BracketMatchCard.tsx`
-
-Card de match individual:
-- Atleta 1 vs Atleta 2
-- Indicador de BYE
-- Estilo diferenciado para rounds
-
----
-
-## FASE 6 — INTEGRAÇÃO UI
-
-### 6.1 `src/pages/EventDetails.tsx`
-
-Na aba de Categorias:
-1. Adicionar coluna "Chave" na tabela de categorias
-2. Botão "Gerar Chave" por categoria (se `canGenerateBracket`)
-3. Link "Ver Chave" se bracket existir
-4. Modal ou aba para visualizar BracketViewer
-
-### 6.2 Página ou Modal de Visualização
-
-Exibir:
-- Versão atual + histórico de versões
-- Status (DRAFT/PUBLISHED)
-- Ação de publicar (admin)
-- Visualização completa da chave
-
----
-
-## FASE 7 — i18n
-
-**Novas chaves (pt-BR, en, es)**:
-
+### Adicionar em todos os locales:
 ```typescript
-// pt-BR
-'events.brackets.title': 'Chaves',
-'events.brackets.generate': 'Gerar Chave',
-'events.brackets.generating': 'Gerando...',
-'events.brackets.generated': 'Chave gerada com sucesso!',
-'events.brackets.generationError': 'Erro ao gerar chave',
-'events.brackets.official': 'Chave Oficial',
-'events.brackets.draft': 'Rascunho',
-'events.brackets.version': 'Versão {version}',
-'events.brackets.criterion': 'Critério: ordem de inscrição',
-'events.brackets.snapshotWarning': 'Isso cria uma chave oficial versionada (snapshot). Não recalcula automaticamente.',
-'events.brackets.confirmGenerate': 'Confirmar Geração',
-'events.brackets.noRegistrations': 'Nenhum inscrito ativo nesta categoria',
-'events.brackets.generatedAt': 'Gerada em {date}',
-'events.brackets.round': 'Rodada {round}',
-'events.brackets.match': 'Luta {match}',
-'events.brackets.bye': 'BYE',
-'events.brackets.tbd': 'A definir',
-'events.brackets.noBrackets': 'Nenhuma chave gerada',
-'events.brackets.viewBracket': 'Ver Chave',
-'events.brackets.latestVersion': 'Versão mais recente',
-'events.brackets.allVersions': 'Todas as versões',
-'events.brackets.publish': 'Publicar Chave',
-'events.brackets.publishing': 'Publicando...',
-'events.brackets.published': 'Chave publicada com sucesso!',
-'events.brackets.publishError': 'Erro ao publicar chave',
-'events.brackets.publishWarning': 'Após publicar, a chave não poderá mais ser alterada.',
-'events.brackets.confirmPublish': 'Confirmar Publicação',
-'events.brackets.deleteDraft': 'Excluir Rascunho',
-'events.brackets.deleteSuccess': 'Rascunho excluído',
-'events.brackets.deleteError': 'Erro ao excluir rascunho',
-
-// en
-'events.brackets.title': 'Brackets',
-'events.brackets.generate': 'Generate Bracket',
-'events.brackets.generating': 'Generating...',
-'events.brackets.generated': 'Bracket generated successfully!',
-'events.brackets.generationError': 'Error generating bracket',
-'events.brackets.official': 'Official Bracket',
-'events.brackets.draft': 'Draft',
-'events.brackets.version': 'Version {version}',
-'events.brackets.criterion': 'Criterion: registration order',
-'events.brackets.snapshotWarning': 'This creates an official versioned bracket (snapshot). It does not recalculate automatically.',
-'events.brackets.confirmGenerate': 'Confirm Generation',
-'events.brackets.noRegistrations': 'No active registrations in this category',
-'events.brackets.generatedAt': 'Generated on {date}',
-'events.brackets.round': 'Round {round}',
-'events.brackets.match': 'Match {match}',
-'events.brackets.bye': 'BYE',
-'events.brackets.tbd': 'TBD',
-'events.brackets.noBrackets': 'No brackets generated',
-'events.brackets.viewBracket': 'View Bracket',
-'events.brackets.latestVersion': 'Latest version',
-'events.brackets.allVersions': 'All versions',
-'events.brackets.publish': 'Publish Bracket',
-'events.brackets.publishing': 'Publishing...',
-'events.brackets.published': 'Bracket published successfully!',
-'events.brackets.publishError': 'Error publishing bracket',
-'events.brackets.publishWarning': 'After publishing, the bracket cannot be modified.',
-'events.brackets.confirmPublish': 'Confirm Publication',
-'events.brackets.deleteDraft': 'Delete Draft',
-'events.brackets.deleteSuccess': 'Draft deleted',
-'events.brackets.deleteError': 'Error deleting draft',
-
-// es (equivalentes)
+'events.brackets.draftExists': 'Já existe uma chave em rascunho para esta categoria.',
 ```
 
 ---
 
-## ARQUIVOS A CRIAR/MODIFICAR
+## ARQUIVOS A MODIFICAR
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Migration SQL | CRIAR | Tabelas + triggers + RLS + índices |
-| `supabase/functions/generate-event-bracket/index.ts` | CRIAR | RPC transacional (Ajuste A) |
-| `supabase/functions/publish-event-bracket/index.ts` | CRIAR | Publicação explícita (Ajuste C) |
-| `supabase/config.toml` | EDITAR | +2 functions |
-| `src/types/event.ts` | EDITAR | +Types + helpers |
-| `src/components/events/GenerateBracketButton.tsx` | CRIAR | Botão de geração |
-| `src/components/events/BracketViewer.tsx` | CRIAR | Visualizador |
-| `src/components/events/BracketMatchCard.tsx` | CRIAR | Card de match |
-| `src/pages/EventDetails.tsx` | EDITAR | Integrar UI |
-| `src/locales/pt-BR.ts` | EDITAR | +30 keys |
-| `src/locales/en.ts` | EDITAR | +30 keys |
-| `src/locales/es.ts` | EDITAR | +30 keys |
+| Migration SQL (NOVO) | CRIAR | Função `generate_event_bracket_rpc` |
+| `supabase/functions/generate-event-bracket/index.ts` | EDITAR | Remover INSERTs, chamar RPC |
+| `src/components/events/CategoryBracketsSection.tsx` | EDITAR | Validar DRAFT existente |
+| `src/locales/pt-BR.ts` | EDITAR | +1 key |
+| `src/locales/en.ts` | EDITAR | +1 key |
+| `src/locales/es.ts` | EDITAR | +1 key |
 
 ---
 
-## GOVERNANÇA PRESERVADA
+## QA FINAL (CHECKLIST)
 
-| Aspecto | Status |
-|---------|--------|
-| Geração no backend (RPC) | ✅ Ajuste A aplicado |
-| Trigger de imutabilidade | ✅ Ajuste B aplicado |
-| Status DRAFT → PUBLISHED | ✅ Ajuste C aplicado |
-| RLS por tenant | ✅ Isolamento garantido |
-| RLS público | ✅ Só vê PUBLISHED + evento válido |
-| Determinismo | ✅ ORDER BY created_at ASC, id ASC |
-| Versionamento | ✅ UNIQUE(tenant_id, category_id, version) |
-| Justificativa | ✅ meta.criterion documentado |
-| Rate limiting | ✅ Padrão do projeto |
-| Impersonation | ✅ Superadmin requer sessão válida |
+### Banco de Dados
+- [ ] RPC `generate_event_bracket_rpc` existe
+- [ ] Falha em match → nada é salvo (testável via trigger de erro)
+- [ ] Constraint: só 1 DRAFT por categoria
+- [ ] Hash SHA-256 completo (64 caracteres hex)
 
----
-
-## CRITÉRIOS DE ACEITE
-
-| Critério | Resultado Esperado |
-|----------|-------------------|
-| Admin gera bracket (backend) | ✅ |
-| Bracket criado como DRAFT | ✅ |
-| Admin pode publicar DRAFT | ✅ |
-| Bracket PUBLISHED imutável | ✅ |
-| Geração determinística | ✅ |
-| Público só vê PUBLISHED | ✅ |
-| UI exibe versão + critério | ✅ |
-| BYEs indicados | ✅ |
-| Zero impacto em P2.1/P2.2/P2.3 | ✅ |
-| Zero alteração em Auth/Stripe | ✅ |
-| Logs de diagnóstico | ✅ |
-
----
-
-## QA PÓS-P2.4 (CHECKLIST)
-
-### Banco
-- [ ] Tabelas criadas com constraints corretos
-- [ ] Trigger bloqueia UPDATE/DELETE em PUBLISHED
-- [ ] RLS isolamento por tenant funciona
-- [ ] RLS público só vê PUBLISHED
-
-### Algoritmo (via Edge Function)
-- [ ] n=0 → erro amigável "sem inscritos"
-- [ ] n=1 → 1 match com BYE
-- [ ] n=3 → bracket_size=4, 1 BYE
-- [ ] n=8 → bracket_size=8, 0 BYEs
-- [ ] Determinismo: 2x = mesma estrutura
+### Edge Function
+- [ ] Sem INSERT direto
+- [ ] Apenas chamada RPC
+- [ ] Retorna erro claro se DRAFT existir
 
 ### UI
-- [ ] Botão "Gerar Chave" visível para admin
-- [ ] Botão "Publicar" visível para DRAFT
-- [ ] Bracket exibido corretamente
-- [ ] Atleta vê apenas PUBLISHED
-- [ ] i18n completo
+- [ ] Se DRAFT existir: mostrar "Publicar" e "Excluir"
+- [ ] Se DRAFT não existir: mostrar "Gerar"
+- [ ] Toast de erro se tentar gerar com DRAFT existente
+
+### Segurança
+- [ ] Tenant isolation mantido
+- [ ] Superadmin exige impersonation
+- [ ] Público só vê PUBLISHED
+
+---
+
+## CRITÉRIOS DE FREEZE
+
+Quando todos os itens acima estiverem ✅:
+
+```
+P2.4 = DONE
+FREEZE AUTORIZADO
+Entrada segura no P2.5
+```
 
 ---
 
 ## RESULTADO ESPERADO
 
-Após P2.4:
-- ✅ Chaves geradas no backend (transacional)
-- ✅ Snapshots versionados e imutáveis após publicação
-- ✅ Fluxo DRAFT → PUBLISHED explícito
-- ✅ Transparência: "critério: ordem de inscrição"
-- ✅ Base pronta para P2.5 (resultados/vencedores)
-- ✅ Zero regressão
-
+Após a finalização:
+- ✅ Geração 100% transacional (zero estado inconsistente)
+- ✅ Hash SHA-256 real para auditoria
+- ✅ Máximo 1 DRAFT por categoria
+- ✅ UI reage corretamente ao estado
+- ✅ Base sólida e imutável para P2.5 (resultados)
+- ✅ Zero regressão em P2.1/P2.2/P2.3
