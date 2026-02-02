@@ -547,6 +547,13 @@ export const ptBR = {
   'login.institutional.point2': 'Rastreabilidade e histórico verificável',
   'login.institutional.point3': 'Neutralidade e colaboração no ecossistema',
 
+  // Post-login institutional
+  'postlogin.institutional.title': 'Você está acessando uma infraestrutura institucional',
+  'postlogin.institutional.description': 'O Tatame organiza, registra e preserva informações esportivas de forma estruturada, rastreável e institucionalmente confiável.',
+  'postlogin.institutional.point1': 'Governança e organização do ecossistema',
+  'postlogin.institutional.point2': 'Histórico esportivo verificável',
+  'postlogin.institutional.point3': 'Neutralidade e colaboração institucional',
+
   // Reset Password page
   'auth.validatingLink': 'Validando link...',
   'auth.invalidLink': 'Link Inválido',
