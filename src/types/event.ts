@@ -226,3 +226,67 @@ export function canDeleteEvent(eventStatus: EventStatus): boolean {
 export function canEditCategories(eventStatus: EventStatus): boolean {
   return eventStatus === 'DRAFT' || eventStatus === 'PUBLISHED' || eventStatus === 'REGISTRATION_OPEN';
 }
+
+// ============================================================================
+// P2.4 — Brackets / Chaves
+// ============================================================================
+
+export type BracketStatus = 'DRAFT' | 'PUBLISHED';
+
+export interface EventBracket {
+  id: string;
+  tenant_id: string;
+  event_id: string;
+  category_id: string;
+  version: number;
+  status: BracketStatus;
+  generated_by: string | null;
+  generated_at: string;
+  published_at: string | null;
+  notes: string | null;
+  meta: BracketMeta;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BracketMeta {
+  criterion: string;
+  registrations_count: number;
+  bracket_size: number;
+  byes_count: number;
+  registration_ids_hash?: string;
+}
+
+export interface EventBracketMatch {
+  id: string;
+  tenant_id: string;
+  bracket_id: string;
+  category_id: string;
+  round: number;
+  position: number;
+  athlete1_registration_id: string | null;
+  athlete2_registration_id: string | null;
+  winner_registration_id: string | null;
+  status: 'SCHEDULED' | 'COMPLETED' | 'BYE';
+  meta: MatchMeta;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface MatchMeta {
+  note?: string;
+  source?: { from: string[] };
+  is_bye?: boolean;
+}
+
+// Helper: can generate bracket for this event status
+export function canGenerateBracket(eventStatus: EventStatus): boolean {
+  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
+}
+
+// Helper: is bracket visible publicly
+export function canViewBracketPublic(eventStatus: EventStatus): boolean {
+  return !['DRAFT', 'ARCHIVED', 'CANCELLED'].includes(eventStatus);
+}

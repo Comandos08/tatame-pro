@@ -38,8 +38,9 @@ import { EventStatusTransition } from '@/components/events/EventStatusTransition
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG, canGenerateBracket } from '@/types/event';
 import { CreateCategoryDialog } from '@/components/events/CreateCategoryDialog';
+import { CategoryBracketsSection } from '@/components/events/CategoryBracketsSection';
 
 export default function EventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -384,20 +385,34 @@ export default function EventDetails() {
                     </TableHeader>
                     <TableBody>
                       {categories.map((cat) => (
-                        <TableRow key={cat.id}>
-                          <TableCell className="font-medium">{cat.name}</TableCell>
-                          <TableCell>
-                            {cat.price_cents > 0 
-                              ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cat.currency }).format(cat.price_cents / 100)
-                              : t('events.free')}
-                          </TableCell>
-                          <TableCell>{cat.max_participants || '∞'}</TableCell>
-                          <TableCell>
-                            <Badge variant={cat.is_active ? 'default' : 'secondary'}>
-                              {cat.is_active ? t('status.active') : t('gradingLevels.inactive')}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={cat.id}>
+                          <TableRow>
+                            <TableCell className="font-medium">{cat.name}</TableCell>
+                            <TableCell>
+                              {cat.price_cents > 0 
+                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cat.currency }).format(cat.price_cents / 100)
+                                : t('events.free')}
+                            </TableCell>
+                            <TableCell>{cat.max_participants || '∞'}</TableCell>
+                            <TableCell>
+                              <Badge variant={cat.is_active ? 'default' : 'secondary'}>
+                                {cat.is_active ? t('status.active') : t('gradingLevels.inactive')}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          {/* P2.4: Brackets section per category */}
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={4} className="pt-0 pb-4">
+                              <CategoryBracketsSection
+                                categoryId={cat.id}
+                                categoryName={cat.name}
+                                eventId={eventId!}
+                                eventStatus={event.status as EventStatus}
+                                isAdmin={true}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>
