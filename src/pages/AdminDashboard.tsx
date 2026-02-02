@@ -5,7 +5,7 @@ import {
   Building2, Users, LogOut, Activity, ExternalLink, 
   Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
   Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, 
-  Shield
+  Shield, Image
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -409,6 +409,22 @@ export default function AdminDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Landing Settings Card */}
+          <Card 
+            className="mb-8 card-hover cursor-pointer" 
+            onClick={() => navigate('/admin/landing')}
+          >
+            <CardHeader className="flex flex-row items-center gap-4">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Image className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-base">{t('admin.landing.title')}</CardTitle>
+                <CardDescription>{t('admin.landing.cardDesc')}</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
 
           {/* Platform Health Card */}
           <PlatformHealthCard />

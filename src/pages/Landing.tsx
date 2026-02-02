@@ -2,10 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Shield, Zap, Users, Award, ArrowRight, Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import PublicHeader from '@/components/PublicHeader';
 import iconLogo from '@/assets/iconLogo.png';
 import { useI18n } from '@/contexts/I18nContext';
+import { supabase } from '@/integrations/supabase/client';
 import type { TranslationKey } from '@/locales/pt-BR';
 
 const fadeInUp = {
@@ -54,12 +56,50 @@ const ctaItems: TranslationKey[] = [
 export default function Landing() {
   const { t } = useI18n();
 
+  // Fetch landing config (hero banner)
+  const { data: landingConfig } = useQuery({
+    queryKey: ['platform-landing-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_landing_config')
+        .select('hero_image_url, hero_enabled')
+        .single();
+      if (error) return null;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 min cache
+  });
+
+  // Fetch active partners
+  const { data: partners } = useQuery({
+    queryKey: ['platform-partners'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_partners')
+        .select('id, name, logo_url')
+        .eq('is_active', true)
+        .order('display_order');
+      if (error) return [];
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Background glow */}
-        <div className="absolute inset-0 bg-gradient-glow opacity-50" />
+        {/* Background: Hero image if enabled, otherwise gradient */}
+        {landingConfig?.hero_enabled && landingConfig?.hero_image_url ? (
+          <div 
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${landingConfig.hero_image_url})` }}
+          >
+            <div className="absolute inset-0 bg-background/80" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-glow opacity-50" />
+        )}
         
         {/* Header */}
         <PublicHeader />
@@ -161,6 +201,45 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+
+      {/* Partners Section */}
+      {partners && partners.length > 0 && (
+        <section className="py-16 border-t border-border">
+          <div className="container mx-auto px-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={stagger}
+              className="text-center"
+            >
+              <motion.h3 
+                variants={fadeInUp}
+                className="text-muted-foreground text-sm uppercase tracking-wider mb-8"
+              >
+                {t('landing.partnersTitle')}
+              </motion.h3>
+              <motion.div 
+                variants={fadeInUp}
+                className="flex flex-wrap items-center justify-center gap-8 md:gap-12"
+              >
+                {partners.map((partner) => (
+                  <div 
+                    key={partner.id}
+                    className="h-12 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                  >
+                    <img 
+                      src={partner.logo_url} 
+                      alt={partner.name}
+                      className="h-full w-auto object-contain"
+                    />
+                  </div>
+                ))}
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-24 lg:py-32 border-t border-border">
