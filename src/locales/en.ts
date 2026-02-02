@@ -1004,6 +1004,9 @@ export const en: Record<string, string> = {
   
   // Events - Registration Actions
   'events.loginToRegister': 'Log in to register',
+  'events.completeMembershipToRegister': 'Complete your membership to register for this event',
+  'events.startMembership': 'Start Membership',
+  'events.registerForEvent': 'Event Registration',
   'events.registrationsClosed': 'Registrations closed',
   'events.noCategoriesAvailable': 'No categories available',
   'events.selectCategory': 'Select a category',

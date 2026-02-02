@@ -1002,6 +1002,9 @@ export const ptBR = {
   
   // Eventos - Ações de Inscrição
   'events.loginToRegister': 'Faça login para se inscrever',
+  'events.completeMembershipToRegister': 'Complete sua filiação para se inscrever neste evento',
+  'events.startMembership': 'Iniciar Filiação',
+  'events.registerForEvent': 'Inscrição no Evento',
   'events.registrationsClosed': 'Inscrições encerradas',
   'events.noCategoriesAvailable': 'Nenhuma categoria disponível',
   'events.selectCategory': 'Selecione uma categoria',
