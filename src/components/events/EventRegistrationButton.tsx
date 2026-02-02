@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, X, Loader2 } from 'lucide-react';
+import { Check, X, Loader2, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +32,7 @@ interface EventRegistrationButtonProps {
   eventStatus: EventStatus;
   tenantId: string;
   categories: EventCategory[];
+  tenantSlug?: string;
 }
 
 export function EventRegistrationButton({
@@ -38,16 +40,20 @@ export function EventRegistrationButton({
   eventStatus,
   tenantId,
   categories,
+  tenantSlug,
 }: EventRegistrationButtonProps) {
-  const { currentUser } = useCurrentUser();
+  const { currentUser, isLoading: isAuthLoading, isAuthenticated } = useCurrentUser();
   const { t } = useI18n();
   const queryClient = useQueryClient();
+  const { tenantSlug: urlTenantSlug } = useParams<{ tenantSlug: string }>();
+  
+  const resolvedTenantSlug = tenantSlug || urlTenantSlug || '';
   
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  // Get athlete ID for current user
-  const { data: athlete } = useQuery({
+  // Get athlete ID for current user (only runs if authenticated)
+  const { data: athlete, isLoading: isAthleteLoading } = useQuery({
     queryKey: ['athlete-for-registration', currentUser?.id, tenantId],
     queryFn: async () => {
       if (!currentUser?.id) return null;
@@ -60,7 +66,7 @@ export function EventRegistrationButton({
       if (error) throw error;
       return data;
     },
-    enabled: !!currentUser?.id && !!tenantId,
+    enabled: !!currentUser?.id && !!tenantId && isAuthenticated,
   });
 
   // Get existing registrations for this event
@@ -134,19 +140,58 @@ export function EventRegistrationButton({
     },
   });
 
-  // Not logged in or no athlete profile
-  if (!currentUser || !athlete) {
+  // === STATE HIERARCHY (in priority order) ===
+  
+  // State 1: Auth loading
+  if (isAuthLoading) {
     return (
-      <Button disabled variant="outline">
-        {t('events.loginToRegister')}
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // State 2: Not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Button asChild variant="default" className="w-full">
+        <Link to={`/${resolvedTenantSlug}/login?next=/${resolvedTenantSlug}/events/${eventId}`}>
+          {t('events.loginToRegister')}
+        </Link>
       </Button>
     );
   }
 
-  // Event cancelled - read-only
+  // State 3: Athlete loading
+  if (isAthleteLoading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // State 4: Logged in but no athlete profile in this tenant
+  if (!athlete) {
+    return (
+      <div className="space-y-3 text-center">
+        <p className="text-sm text-muted-foreground">
+          {t('events.completeMembershipToRegister')}
+        </p>
+        <Button asChild variant="default" className="w-full">
+          <Link to={`/${resolvedTenantSlug}/membership/new`}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            {t('events.startMembership')}
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // State 5: Event cancelled - read-only
   if (eventStatus === 'CANCELLED') {
     return (
-      <Button disabled variant="outline" className="text-destructive border-destructive/50">
+      <Button disabled variant="outline" className="w-full text-destructive border-destructive/50">
         {t('events.eventCancelled')}
       </Button>
     );
@@ -159,7 +204,7 @@ export function EventRegistrationButton({
     
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+        <div className="flex items-center gap-2 text-sm text-primary">
           <Check className="h-4 w-4" />
           <span>
             {t('events.registeredIn')}: {registeredCategory?.name || t('events.category')}

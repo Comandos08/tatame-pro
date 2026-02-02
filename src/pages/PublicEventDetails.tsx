@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EventStatusBadge } from '@/components/events/EventStatusBadge';
+import { EventRegistrationButton } from '@/components/events/EventRegistrationButton';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -105,7 +106,6 @@ export default function PublicEventDetails() {
   const startDate = new Date(event.start_date);
   const endDate = new Date(event.end_date);
   const isSameDay = format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd');
-  const isRegistrationOpen = event.status === 'REGISTRATION_OPEN';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -303,28 +303,21 @@ export default function PublicEventDetails() {
             </CardContent>
           </Card>
 
-          {/* Registration CTA - Read Only */}
-          <Card className="border-2 border-dashed">
-            <CardContent className="py-6 text-center">
-              {isRegistrationOpen ? (
-              <>
-                  <Badge className="bg-primary/10 text-primary border-primary/20 mb-3">
-                    {t('events.details.registrationOpen')}
-                  </Badge>
-                  <p className="text-muted-foreground">
-                    {t('events.details.loginToRegister')}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Badge variant="secondary" className="mb-3">
-                    {t('events.details.registrationClosed')}
-                  </Badge>
-                  <p className="text-muted-foreground">
-                    {t('events.details.registrationNotAvailable')}
-                  </p>
-                </>
-              )}
+          {/* Registration CTA - Integrated Component */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">
+                {t('events.registerForEvent')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EventRegistrationButton
+                eventId={event.id}
+                eventStatus={event.status as EventStatus}
+                tenantId={tenant?.id || ''}
+                categories={categories}
+                tenantSlug={tenant?.slug || ''}
+              />
             </CardContent>
           </Card>
         </motion.div>

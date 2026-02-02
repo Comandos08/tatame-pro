@@ -1004,6 +1004,9 @@ export const es: Record<string, string> = {
   
   // Eventos - Acciones de Inscripción
   'events.loginToRegister': 'Inicia sesión para inscribirte',
+  'events.completeMembershipToRegister': 'Completa tu afiliación para inscribirte en este evento',
+  'events.startMembership': 'Iniciar Afiliación',
+  'events.registerForEvent': 'Inscripción al Evento',
   'events.registrationsClosed': 'Inscripciones cerradas',
   'events.noCategoriesAvailable': 'Ninguna categoría disponible',
   'events.selectCategory': 'Selecciona una categoría',
