@@ -1906,6 +1906,14 @@ export const ptBR = {
   'recovery.action.home': 'Ir para Início',
   'recovery.action.support': 'Contatar Suporte',
 
+  // P2.3.1 — Create Category Dialog
+  'events.createCategory': 'Nova Categoria',
+  'events.createCategoryDesc': 'Defina os critérios da categoria de competição',
+  'events.categoryName': 'Nome da Categoria',
+  'events.categoryCreated': 'Categoria criada com sucesso!',
+  'events.categoryCreateError': 'Erro ao criar categoria',
+  'events.categoriesLockedDesc': 'Não é possível modificar categorias após o fechamento das inscrições',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

@@ -38,7 +38,8 @@ import { EventStatusTransition } from '@/components/events/EventStatusTransition
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { CreateCategoryDialog } from '@/components/events/CreateCategoryDialog';
 
 export default function EventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -361,10 +362,10 @@ export default function EventDetails() {
                     {t('events.categoriesDesc')}
                   </CardDescription>
                 </div>
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t('events.addCategory')}
-                </Button>
+                <CreateCategoryDialog 
+                  eventId={eventId!} 
+                  disabled={!canEditCategories(event.status as EventStatus)}
+                />
               </CardHeader>
               <CardContent>
                 {categories.length === 0 ? (
