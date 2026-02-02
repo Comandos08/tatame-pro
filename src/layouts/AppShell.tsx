@@ -1,4 +1,10 @@
-import React, { ReactNode } from 'react';
+/**
+ * 🏠 AppShell — Main authenticated layout with sidebar and header
+ * 
+ * P-MENU-01: Reorganized header with tenant context, consolidated settings dropdown,
+ * and quick create action. Reduced from 345 to ~310 lines via component extraction.
+ */
+import React, { ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -10,33 +16,28 @@ import {
   Menu,
   X,
   Building2,
-  Sun,
-  Moon,
-  Monitor,
   HelpCircle,
-  Globe,
   FileText,
-  CheckCircle,
   Trophy,
   CreditCard,
   UserCircle,
-  Check,
   UserCheck,
   Calendar,
-  Shield
+  Shield,
+  Plus
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
-import { useState } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n, Locale } from '@/contexts/I18nContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +46,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
+import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
+import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import type { FeatureKey } from '@/lib/accessMatrix';
 
 interface AppShellProps {
@@ -64,10 +66,10 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentUser, signOut, isGlobalSuperadmin } = useCurrentUser();
   const { tenant } = useTenant();
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const { t, locale, setLocale } = useI18n();
+  const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
   const { isImpersonating, session: impersonationSession } = useImpersonation();
-  const { can, isLoading: permissionsLoading } = usePermissions();
+  const { can } = usePermissions();
   const navigate = useNavigate();
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
@@ -106,12 +108,6 @@ export function AppShell({ children }: AppShellProps) {
     if (!item.feature) return true;
     return can(item.feature);
   });
-
-  const languages: { code: Locale; label: string }[] = [
-    { code: 'pt-BR', label: t('language.ptBR') },
-    { code: 'en', label: t('language.en') },
-    { code: 'es', label: t('language.es') },
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -236,94 +232,66 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main content */}
       <div className="lg:pl-64">
-        {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex-1" />
-
-          {/* Language selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Globe className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{t('language.select')}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {languages.map((lang) => (
-                <DropdownMenuItem 
-                  key={lang.code} 
-                  onClick={() => setLocale(lang.code)}
-                  className="flex items-center justify-between cursor-pointer"
-                >
-                  {lang.label}
-                  {locale === lang.code && <CheckCircle className="h-4 w-4 text-primary" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Theme selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Sun className="h-4 w-4" />
-                  {t('theme.light')}
-                </span>
-                {theme === 'light' && <Check className="h-4 w-4 text-primary" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Moon className="h-4 w-4" />
-                  {t('theme.dark')}
-                </span>
-                {theme === 'dark' && <Check className="h-4 w-4 text-primary" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4" />
-                  {t('theme.system')}
-                </span>
-                {theme === 'system' && <Check className="h-4 w-4 text-primary" />}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Help */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(`/${tenantSlug}/app/help`)}
-              >
-                <HelpCircle className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('nav.help')}</TooltipContent>
-          </Tooltip>
-          
-          {tenant && (
-            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              <span>{tenant.sportTypes.join(', ')}</span>
+        {/* Header — P-MENU-01: Reorganized with tenant context and consolidated menus */}
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+          {/* LEFT: Context */}
+          <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            {/* Tenant name (desktop only, since sidebar shows on lg) */}
+            <div className="hidden lg:flex items-center gap-2">
+              {tenant?.logoUrl && (
+                <img 
+                  src={tenant.logoUrl} 
+                  alt="" 
+                  className="h-6 w-6 rounded object-cover" 
+                />
+              )}
+              <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
+                {tenant?.name}
+              </span>
             </div>
-          )}
+            
+            {/* Impersonation badge */}
+            {isImpersonating && (
+              <Badge 
+                variant="outline" 
+                className="text-xs border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"
+              >
+                {t('impersonation.badge')}
+              </Badge>
+            )}
+          </div>
+          
+          {/* SPACER */}
+          <div className="flex-1" />
+          
+          {/* RIGHT: Actions */}
+          <div className="flex items-center gap-1">
+            {/* Quick Create Event (admin, desktop) */}
+            {can('TENANT_EVENTS') && (
+              <CreateEventDialog>
+                <Button size="sm" variant="default" className="hidden md:flex gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>{t('events.createEvent')}</span>
+                </Button>
+              </CreateEventDialog>
+            )}
+            
+            {/* Settings dropdown (Theme + Language + Help) */}
+            <HeaderSettingsDropdown />
+            
+            {/* User menu */}
+            <HeaderUserMenu />
+          </div>
         </header>
 
         {/* Page content */}
