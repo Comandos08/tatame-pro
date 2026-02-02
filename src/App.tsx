@@ -5,6 +5,7 @@ import IdentityGate from "@/components/identity/IdentityGate";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Help from "@/pages/Help";
+import About from "@/pages/About";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuthCallback from "@/pages/AuthCallback";
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/help" element={<Help />} />
+        <Route path="/about" element={<About />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

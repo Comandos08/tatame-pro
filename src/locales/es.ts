@@ -606,6 +606,21 @@ export const es: Record<string, string> = {
   'landing.faq.q6': '¿Tatame es un sistema cerrado?',
   'landing.faq.a6': 'No. Tatame fue concebido como una infraestructura abierta a la integración y colaboración institucional, respetando la autonomía de las organizaciones.',
 
+  // About Page
+  'about.heroTitle': 'Infraestructura institucional para deportes de combate',
+  'about.heroSubtitle': 'Gobernanza, trazabilidad y organización para el ecosistema deportivo',
+  'about.section1.title': '¿Qué es Tatame?',
+  'about.section1.text': 'Tatame es una infraestructura digital creada para organizar, registrar y dar gobernanza al ecosistema de los deportes de combate. Conecta federaciones, academias y atletas en un entorno institucional confiable.',
+  'about.section2.title': '¿Qué no es Tatame?',
+  'about.section2.text': 'Tatame no es una federación, no sustituye entidades existentes ni compite con organizaciones deportivas. Actúa como una capa de soporte institucional y tecnológico.',
+  'about.section3.title': '¿Para quién existe Tatame?',
+  'about.section3.text': 'Tatame existe para federaciones, ligas, academias, instructores y atletas que necesitan organización, certificación, identidad digital e historial verificable.',
+  'about.section4.title': 'Gobernanza y credibilidad',
+  'about.section4.text': 'Los registros en Tatame son estructurados, trazables y verificables públicamente, garantizando autenticidad, transparencia y preservación histórica.',
+  'about.section5.title': 'Neutralidad y ecosistema',
+  'about.section5.text': 'Tatame fue concebido como una infraestructura neutral, respetando la autonomía de las organizaciones y promoviendo la colaboración institucional.',
+  'about.cta': 'Acceder a la plataforma',
+
   // Admin Landing Settings
   'admin.landing.title': 'Configuración de Landing',
   'admin.landing.subtitle': 'Hero y socios',
