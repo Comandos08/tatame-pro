@@ -963,6 +963,7 @@ export const es: Record<string, string> = {
   'events.brackets.deleteDraft': 'Eliminar Borrador',
   'events.brackets.deleteSuccess': 'Borrador eliminado',
   'events.brackets.deleteError': 'Error al eliminar borrador',
+  'events.brackets.draftExists': 'Ya existe una llave en borrador para esta categoría.',
   // Eventos - General
   'events.category': 'Categoría',
   'events.place': 'lugar',

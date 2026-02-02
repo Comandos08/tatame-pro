@@ -56,7 +56,13 @@ export function CategoryBracketsSection({
   });
 
   const latestBracket = brackets[0];
-  const canGenerate = canGenerateBracket(eventStatus) && isAdmin;
+  
+  // P2.4 SAFE MODE: Check for existing DRAFT (only 1 allowed per category)
+  const draftBracket = brackets.find(b => b.status === 'DRAFT');
+  const hasDraft = !!draftBracket;
+  
+  // Can only generate if event allows it, user is admin, AND no draft exists
+  const canGenerate = canGenerateBracket(eventStatus) && isAdmin && !hasDraft;
 
   const handleBracketGenerated = (bracketId: string) => {
     setSelectedBracketId(bracketId);
@@ -64,8 +70,8 @@ export function CategoryBracketsSection({
     refetch();
   };
 
-  // If no brackets and can't generate, don't show anything
-  if (brackets.length === 0 && !canGenerate) {
+  // If no brackets and can't generate (either no permission or draft exists), don't show
+  if (brackets.length === 0 && !canGenerate && !hasDraft) {
     return null;
   }
 
