@@ -17,6 +17,7 @@ export const en: Record<string, string> = {
   'nav.logout': 'Logout',
   'nav.globalAdmin': 'Global Admin',
   'nav.rankings': 'Rankings',
+  'nav.about': 'About',
 
   // Common
   'common.loading': 'Loading...',
