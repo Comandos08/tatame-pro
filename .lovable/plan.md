@@ -1,148 +1,250 @@
 
 
-# P1.3.A — CAMADA INSTITUCIONAL NO LOGIN
+# P1.3.B — CAMADA INSTITUCIONAL NO PRIMEIRO ACESSO (PÓS-LOGIN)
 
 ## MODO DE EXECUÇÃO
 
 - **SAFE GOLD MODE** — Zero Interpretação
-- ❌ NÃO alterar fluxo de auth
+- ❌ NÃO criar novas rotas
+- ❌ NÃO alterar fluxo de autenticação
 - ❌ NÃO alterar AuthContext / IdentityContext
-- ❌ NÃO criar nova rota
+- ❌ NÃO criar onboarding, wizard ou tour
+- ❌ NÃO impactar tenants
+- ❌ NÃO tocar em backend / Edge Functions
 - ❌ NÃO criar CMS
-- ❌ NÃO tocar em tenants
-- ❌ NÃO alterar layout base
-- ✅ APENAS substituir copy do painel lateral
-- ✅ i18n obrigatório (pt/en/es)
+- ❌ NÃO alterar lógica existente
+- ✅ APENAS UI contextual
+- ✅ APENAS copy institucional
+- ✅ APENAS primeiro acesso da sessão
+- ✅ i18n obrigatório (pt-BR / en / es)
 
 ---
 
 ## ARQUITETURA IDENTIFICADA
 
-| Aspecto | Estado Atual | Proposto |
-|---------|--------------|----------|
-| Painel esquerdo | Formulário de login | **INTOCADO** |
-| Painel direito (desktop) | Copy genérico ("Gerencie sua federação") | Copy institucional |
-| i18n keys | `auth.manageOrganization`, `auth.manageOrganizationDesc` | Substituir por novas chaves `login.institutional.*` |
+| Componente | Função | Ação Proposta |
+|------------|--------|---------------|
+| `PortalRouter.tsx` | Passthrough (retorna null) | ❌ NÃO APLICÁVEL |
+| `AdminDashboard.tsx` | Dashboard superadmin | ✅ Inserir bloco institucional |
+| `TenantDashboard.tsx` | Dashboard tenant admin | ✅ Inserir bloco institucional |
+| `AthletePortal.tsx` | Portal do atleta | ✅ Inserir bloco institucional |
+
+### Estratégia: Componente Reutilizável
+
+Para evitar duplicação de código, criar um componente isolado `PostLoginInstitutionalBanner.tsx` que encapsula:
+- Lógica de sessionStorage
+- UI do bloco institucional
+- i18n
 
 ---
 
-## 1️⃣ LOGIN.TSX — PAINEL INSTITUCIONAL
+## 1️⃣ NOVO COMPONENTE — PostLoginInstitutionalBanner.tsx
 
-### Ponto de Alteração
+### Localização
 
-- **Linhas:** 198-212 (painel direito existente)
-- **Ação:** Substituir conteúdo interno mantendo estrutura
+`src/components/notifications/PostLoginInstitutionalBanner.tsx`
 
-### Código Atual (linhas 198-212)
-
-```tsx
-<div className="hidden lg:flex flex-1 items-center justify-center bg-card border-l border-border relative overflow-hidden">
-  <div className="absolute inset-0 bg-gradient-glow opacity-30" />
-  <motion.div
-    initial={{ opacity: 0, scale: 0.9 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ duration: 0.5, delay: 0.2 }}
-    className="relative z-10 text-center p-8"
-  >
-    <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
-      <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
-    </div>
-    <h2 className="font-display text-3xl font-bold mb-4">{t("auth.manageOrganization")}</h2>
-    <p className="text-muted-foreground max-w-sm">{t("auth.manageOrganizationDesc")}</p>
-  </motion.div>
-</div>
-```
-
-### Código Proposto
+### Código
 
 ```tsx
-<div className="hidden lg:flex flex-1 items-center justify-center bg-card border-l border-border relative overflow-hidden">
-  <div className="absolute inset-0 bg-gradient-glow opacity-30" />
-  <motion.div
-    initial={{ opacity: 0, scale: 0.9 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ duration: 0.5, delay: 0.2 }}
-    className="relative z-10 text-center p-8 max-w-md"
-  >
-    <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
-      <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
-    </div>
-    <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-      {t("login.institutional.title")}
-    </h2>
-    <p className="text-muted-foreground leading-relaxed mb-6">
-      {t("login.institutional.description")}
-    </p>
-    <div className="flex flex-col gap-3 text-sm text-muted-foreground">
-      <div className="flex items-center justify-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-        <span>{t("login.institutional.point1")}</span>
-      </div>
-      <div className="flex items-center justify-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-        <span>{t("login.institutional.point2")}</span>
-      </div>
-      <div className="flex items-center justify-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-        <span>{t("login.institutional.point3")}</span>
-      </div>
-    </div>
-  </motion.div>
-</div>
-```
+import React, { useState, useEffect } from 'react';
+import { useI18n } from '@/contexts/I18nContext';
 
-**Mudanças:**
-- `max-w-md` adicionado para melhor leitura
-- Título e descrição institucionais
-- 3 bullet points de reforço (governança, rastreabilidade, neutralidade)
+const STORAGE_KEY = 'tatame:postlogin_institutional_seen';
+
+export function PostLoginInstitutionalBanner() {
+  const { t } = useI18n();
+  const [shouldShow, setShouldShow] = useState(false);
+
+  useEffect(() => {
+    // Check if already seen this session
+    const alreadySeen = sessionStorage.getItem(STORAGE_KEY) === 'true';
+    
+    if (!alreadySeen) {
+      setShouldShow(true);
+      // Mark as seen
+      sessionStorage.setItem(STORAGE_KEY, 'true');
+    }
+  }, []);
+
+  if (!shouldShow) {
+    return null;
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-border bg-card p-6">
+      <h2 className="font-display text-xl font-bold mb-2">
+        {t('postlogin.institutional.title')}
+      </h2>
+      <p className="text-muted-foreground mb-4 max-w-2xl">
+        {t('postlogin.institutional.description')}
+      </p>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+          {t('postlogin.institutional.point1')}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+          {t('postlogin.institutional.point2')}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+          {t('postlogin.institutional.point3')}
+        </span>
+      </div>
+    </div>
+  );
+}
+```
 
 ---
 
-## 2️⃣ i18n — CHAVES pt-BR.ts
+## 2️⃣ ADMINDASHBOARD.TSX — INSERIR COMPONENTE
 
 ### Ponto de Inserção
 
-- **Após:** `'auth.manageOrganizationDesc': '...',` (linha ~540)
+- **Linha:** 346 (início do conteúdo `<main>`)
+- **Após:** `<motion.div initial...>`
+- **Antes:** `<div className="mb-8">` (título do painel)
 
-### Chaves a Adicionar
+### Código a Inserir
 
-```typescript
-  // Login institutional block
-  'login.institutional.title': 'Infraestrutura institucional para esportes de combate',
-  'login.institutional.description': 'O Tatame organiza, registra e preserva a história esportiva de federações, academias e atletas em um ambiente verificável e confiável.',
-  'login.institutional.point1': 'Governança e organização institucional',
-  'login.institutional.point2': 'Rastreabilidade e histórico verificável',
-  'login.institutional.point3': 'Neutralidade e colaboração no ecossistema',
+```tsx
+// Import no topo
+import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
+
+// Dentro do main, após o motion.div de abertura
+<PostLoginInstitutionalBanner />
+```
+
+### Posição Final
+
+```tsx
+<main className="container mx-auto px-4 py-8">
+  <motion.div ...>
+    <PostLoginInstitutionalBanner />  {/* ← NOVO */}
+    <div className="mb-8">
+      <h2>...</h2>
+    </div>
+    ...
+  </motion.div>
+</main>
 ```
 
 ---
 
-## 3️⃣ i18n — CHAVES en.ts
+## 3️⃣ TENANTDASHBOARD.TSX — INSERIR COMPONENTE
 
-### Chaves a Adicionar
+### Ponto de Inserção
 
-```typescript
-  // Login institutional block
-  'login.institutional.title': 'Institutional infrastructure for combat sports',
-  'login.institutional.description': 'Tatame organizes, registers and preserves the sports history of federations, academies and athletes in a verifiable and reliable environment.',
-  'login.institutional.point1': 'Governance and institutional organization',
-  'login.institutional.point2': 'Traceability and verifiable history',
-  'login.institutional.point3': 'Neutrality and ecosystem collaboration',
+- **Linha:** 254-255 (dentro de `<AppShell>`, após `<BillingStatusBanner />`)
+- **Antes:** `<div>` com o welcome message
+
+### Código a Inserir
+
+```tsx
+// Import no topo
+import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
+
+// Dentro do AppShell, após BillingStatusBanner
+<PostLoginInstitutionalBanner />
+```
+
+### Posição Final
+
+```tsx
+<AppShell>
+  <div className="space-y-8">
+    <BillingStatusBanner />
+    <PostLoginInstitutionalBanner />  {/* ← NOVO */}
+    <div>
+      <motion.h1>...</motion.h1>
+    </div>
+    ...
+  </div>
+</AppShell>
 ```
 
 ---
 
-## 4️⃣ i18n — CHAVES es.ts
+## 4️⃣ ATHLETEPORTAL.TSX — INSERIR COMPONENTE
+
+### Ponto de Inserção
+
+- **Linha:** 216 (dentro de `<PortalAccessGate>`, antes do header)
+- **Antes:** `{/* Header */}` comment
+
+### Código a Inserir
+
+```tsx
+// Import no topo
+import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
+
+// Dentro do PortalAccessGate, antes do Header
+<PostLoginInstitutionalBanner />
+```
+
+### Posição Final
+
+```tsx
+<PortalAccessGate ...>
+  <PostLoginInstitutionalBanner />  {/* ← NOVO */}
+  {/* Header */}
+  <div className="mb-6">
+    ...
+  </div>
+  ...
+</PortalAccessGate>
+```
+
+---
+
+## 5️⃣ i18n — CHAVES pt-BR.ts
+
+### Ponto de Inserção
+
+- **Após:** chaves `login.institutional.*` (linha ~548)
 
 ### Chaves a Adicionar
 
 ```typescript
-  // Login institutional block
-  'login.institutional.title': 'Infraestructura institucional para deportes de combate',
-  'login.institutional.description': 'Tatame organiza, registra y preserva la historia deportiva de federaciones, academias y atletas en un entorno verificable y confiable.',
-  'login.institutional.point1': 'Gobernanza y organización institucional',
-  'login.institutional.point2': 'Trazabilidad e historial verificable',
-  'login.institutional.point3': 'Neutralidad y colaboración en el ecosistema',
+  // Post-login institutional
+  'postlogin.institutional.title': 'Você está acessando uma infraestrutura institucional',
+  'postlogin.institutional.description': 'O Tatame organiza, registra e preserva informações esportivas de forma estruturada, rastreável e institucionalmente confiável.',
+  'postlogin.institutional.point1': 'Governança e organização do ecossistema',
+  'postlogin.institutional.point2': 'Histórico esportivo verificável',
+  'postlogin.institutional.point3': 'Neutralidade e colaboração institucional',
+```
+
+---
+
+## 6️⃣ i18n — CHAVES en.ts
+
+### Chaves a Adicionar
+
+```typescript
+  // Post-login institutional
+  'postlogin.institutional.title': 'You are accessing an institutional infrastructure',
+  'postlogin.institutional.description': 'Tatame organizes, registers and preserves sports information in a structured, traceable and institutionally reliable way.',
+  'postlogin.institutional.point1': 'Ecosystem governance and organization',
+  'postlogin.institutional.point2': 'Verifiable sports history',
+  'postlogin.institutional.point3': 'Neutrality and institutional collaboration',
+```
+
+---
+
+## 7️⃣ i18n — CHAVES es.ts
+
+### Chaves a Adicionar
+
+```typescript
+  // Post-login institutional
+  'postlogin.institutional.title': 'Está accediendo a una infraestructura institucional',
+  'postlogin.institutional.description': 'Tatame organiza, registra y preserva información deportiva de forma estructurada, trazable y confiable a nivel institucional.',
+  'postlogin.institutional.point1': 'Gobernanza y organización del ecosistema',
+  'postlogin.institutional.point2': 'Historial deportivo verificable',
+  'postlogin.institutional.point3': 'Neutralidad y colaboración institucional',
 ```
 
 ---
@@ -151,24 +253,49 @@
 
 | Arquivo | Ação | Impacto |
 |---------|------|---------|
-| `src/pages/Login.tsx` | EDITAR | Linhas 198-212: substituir conteúdo do painel direito |
-| `src/locales/pt-BR.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
-| `src/locales/en.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
-| `src/locales/es.ts` | EDITAR | +5 chaves (`login.institutional.*`) |
+| `src/components/notifications/PostLoginInstitutionalBanner.tsx` | CRIAR | Componente reutilizável (~40 linhas) |
+| `src/pages/AdminDashboard.tsx` | EDITAR | +1 import, +1 componente |
+| `src/pages/TenantDashboard.tsx` | EDITAR | +1 import, +1 componente |
+| `src/pages/AthletePortal.tsx` | EDITAR | +1 import, +1 componente |
+| `src/locales/pt-BR.ts` | EDITAR | +4 chaves |
+| `src/locales/en.ts` | EDITAR | +4 chaves |
+| `src/locales/es.ts` | EDITAR | +4 chaves |
 
-**Total de linhas alteradas:** ~30 linhas
+**Total de linhas alteradas:** ~60 linhas
+
+---
+
+## 🔒 COMPORTAMENTO DA SESSÃO
+
+```text
+Primeiro acesso:
+  sessionStorage['tatame:postlogin_institutional_seen'] = undefined
+  → Bloco APARECE
+  → Marca como 'true'
+
+Navegação subsequente:
+  sessionStorage['tatame:postlogin_institutional_seen'] = 'true'
+  → Bloco NÃO APARECE
+
+Nova aba/sessão:
+  sessionStorage limpo
+  → Bloco APARECE novamente
+```
 
 ---
 
 ## 🚫 FORA DE ESCOPO (CONFIRMADO)
 
-- ❌ Fluxo de auth
-- ❌ AuthContext / IdentityContext
-- ❌ Nova rota
-- ❌ CMS
-- ❌ Tenants
-- ❌ Alterar formulário de login
-- ❌ Alterar validações
+- ❌ Onboarding
+- ❌ Tour
+- ❌ Modal
+- ❌ CTA obrigatório
+- ❌ Persistência em banco
+- ❌ Backend
+- ❌ Alteração de fluxo
+- ❌ Tenant logic
+- ❌ Eventos
+- ❌ Admin settings
 
 ---
 
@@ -176,23 +303,26 @@
 
 | Item | Esperado |
 |------|----------|
-| Login continua funcionando exatamente igual | ✅ |
-| Nenhuma mudança em auth/identity | ✅ |
-| Bloco institucional aparece no painel direito | ✅ |
-| i18n completo pt/en/es | ✅ |
-| UX limpa, sem poluição visual | ✅ |
-| Reforço institucional claro | ✅ |
-| Responsivo (painel oculto em mobile) | ✅ |
+| Aparece só no primeiro acesso da sessão | ✅ |
+| Não bloqueia navegação | ✅ |
+| Não altera auth | ✅ |
+| Linguagem institucional | ✅ |
+| UX discreta | ✅ |
+| i18n completo | ✅ |
+| Zero impacto sistêmico | ✅ |
+| Presente em AdminDashboard | ✅ |
+| Presente em TenantDashboard | ✅ |
+| Presente em AthletePortal | ✅ |
 
 ---
 
 ## 🏁 RESULTADO ESPERADO
 
-Após P1.3.A:
+Após P1.3.B:
 
-- ✅ Continuidade narrativa da Landing → About → Login
-- ✅ Visitante entende que está entrando em infraestrutura institucional
-- ✅ Não há quebra de contexto entre páginas públicas e login
-- ✅ Zero impacto em funcionalidade de auth
-- ✅ Maturidade institucional completa no funil de entrada
+- ✅ A jornada institucional está 100% fechada
+- ✅ O usuário entende onde entrou
+- ✅ O sistema ganha densidade institucional
+- ✅ Não há fricção nem onboarding forçado
+- ✅ Plataforma pronta para eventos, governança, dados e parceiros institucionais
 
