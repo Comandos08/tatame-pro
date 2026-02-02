@@ -241,6 +241,41 @@ export default function Landing() {
         </section>
       )}
 
+      {/* Institutional FAQ Section */}
+      <section className="py-16 lg:py-24 border-t border-border">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="max-w-4xl mx-auto"
+          >
+            <motion.div variants={fadeInUp} className="text-center mb-12">
+              <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
+                {t('landing.faqTitle')}
+              </h2>
+              <p className="text-muted-foreground">
+                {t('landing.faqSubtitle')}
+              </p>
+            </motion.div>
+
+            <motion.div variants={fadeInUp} className="space-y-8">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="border-b border-border pb-6 last:border-0">
+                  <h3 className="font-medium text-lg mb-2">
+                    {t(`landing.faq.q${i}` as TranslationKey)}
+                  </h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {t(`landing.faq.a${i}` as TranslationKey)}
+                  </p>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 lg:py-32 border-t border-border">
         <div className="container mx-auto px-4">
