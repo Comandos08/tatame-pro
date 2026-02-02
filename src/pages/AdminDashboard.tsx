@@ -30,6 +30,7 @@ import { PlatformHealthCard } from '@/components/admin/PlatformHealthCard';
 import { CardDiagnosticsPanel } from '@/components/admin/CardDiagnosticsPanel';
 import { StartImpersonationDialog } from '@/components/impersonation/StartImpersonationDialog';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
+import { InstitutionalEnvironmentStatus } from '@/components/institutional';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -345,6 +346,7 @@ export default function AdminDashboard() {
           transition={{ duration: 0.4 }}
         >
           <PostLoginInstitutionalBanner />
+          <InstitutionalEnvironmentStatus />
           <div className="mb-8">
             <h2 className="font-display text-3xl font-bold mb-2">
               {t('admin.globalAdminPanel')}

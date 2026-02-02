@@ -554,6 +554,11 @@ export const ptBR = {
   'postlogin.institutional.point2': 'Histórico esportivo verificável',
   'postlogin.institutional.point3': 'Neutralidade e colaboração institucional',
 
+  // Institutional governance
+  'institutional.seal': 'Infraestrutura Institucional',
+  'institutional.sealTooltip': 'Plataforma de governança e registro esportivo oficial, com rastreabilidade e neutralidade institucional.',
+  'institutional.environment.active': 'Este ambiente opera sob governança institucional ativa, com registros estruturados e rastreáveis.',
+
   // Reset Password page
   'auth.validatingLink': 'Validando link...',
   'auth.invalidLink': 'Link Inválido',

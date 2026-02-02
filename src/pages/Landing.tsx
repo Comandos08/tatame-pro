@@ -9,6 +9,7 @@ import iconLogo from '@/assets/iconLogo.png';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { TranslationKey } from '@/locales/pt-BR';
+import { InstitutionalSeal } from '@/components/institutional';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -323,6 +324,7 @@ export default function Landing() {
                 <img src={iconLogo} alt="TATAME" className="h-8 w-8 rounded-lg object-contain" />
                 <span className="font-display font-bold">TATAME</span>
               </div>
+              <InstitutionalSeal />
               <Link 
                 to="/about" 
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"

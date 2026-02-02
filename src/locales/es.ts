@@ -556,6 +556,11 @@ export const es: Record<string, string> = {
   'postlogin.institutional.point2': 'Historial deportivo verificable',
   'postlogin.institutional.point3': 'Neutralidad y colaboración institucional',
 
+  // Institutional governance
+  'institutional.seal': 'Infraestructura Institucional',
+  'institutional.sealTooltip': 'Plataforma oficial de gobernanza y registro deportivo con trazabilidad y neutralidad institucional.',
+  'institutional.environment.active': 'Este entorno opera bajo gobernanza institucional activa con registros estructurados y trazables.',
+
   // Reset Password page
   'auth.validatingLink': 'Validando enlace...',
   'auth.invalidLink': 'Enlace Inválido',
