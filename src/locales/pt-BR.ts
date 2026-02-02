@@ -973,6 +973,9 @@ export const ptBR = {
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Arquivado',
   'events.status.cancelled': 'Cancelado',
+  'events.status.cancelledDesc': 'Evento foi cancelado',
+  'events.eventCancelled': 'Evento Cancelado',
+  'events.eventCancelledDesc': 'Este evento foi cancelado',
   
   // Eventos - Transições de Status
   'events.noTransitionsAvailable': 'Estado final',
