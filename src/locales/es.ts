@@ -974,6 +974,7 @@ export const es: Record<string, string> = {
   'events.status.ongoing': 'En Curso',
   'events.status.finished': 'Finalizado',
   'events.status.archived': 'Archivado',
+  'events.status.cancelled': 'Cancelado',
   
   // Eventos - Transiciones de Estado
   'events.noTransitionsAvailable': 'Estado final',

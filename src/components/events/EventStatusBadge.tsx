@@ -17,6 +17,7 @@ const colorVariants: Record<EventStatusColor, string> = {
   warning: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
   purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
   slate: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20',
+  destructive: 'bg-destructive/10 text-destructive dark:text-destructive border-destructive/20',
 };
 
 const sizeVariants = {

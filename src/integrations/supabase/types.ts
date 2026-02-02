@@ -1070,6 +1070,7 @@ export type Database = {
           banner_url: string | null
           created_at: string | null
           created_by: string | null
+          deleted_at: string | null
           description: string | null
           end_date: string
           id: string
@@ -1086,6 +1087,7 @@ export type Database = {
           banner_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           end_date: string
           id?: string
@@ -1102,6 +1104,7 @@ export type Database = {
           banner_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           end_date?: string
           id?: string
@@ -2313,6 +2316,7 @@ export type Database = {
         Args: { _membership_id: string }
         Returns: boolean
       }
+      soft_delete_event: { Args: { p_event_id: string }; Returns: boolean }
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
         Returns: boolean
@@ -2368,6 +2372,7 @@ export type Database = {
         | "ONGOING"
         | "FINISHED"
         | "ARCHIVED"
+        | "CANCELLED"
       gender_type: "MALE" | "FEMALE" | "OTHER"
       guardian_relationship: "PARENT" | "GUARDIAN" | "OTHER"
       membership_status:
@@ -2546,6 +2551,7 @@ export const Constants = {
         "ONGOING",
         "FINISHED",
         "ARCHIVED",
+        "CANCELLED",
       ],
       gender_type: ["MALE", "FEMALE", "OTHER"],
       guardian_relationship: ["PARENT", "GUARDIAN", "OTHER"],
