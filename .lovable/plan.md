@@ -1,442 +1,194 @@
 
 
-# P1.1 REVISADO — ATLETAS & CERTIFICAÇÃO (CORE DO PRODUTO)
+# P1.2.A — LANDING PAGE: HERO + COPY INSTITUCIONAL
 
 ## ⚠️ MODO DE EXECUÇÃO
 
 - **SAFE GOLD MODE** — Zero Interpretação
-- ❌ NÃO tocar em EVENTOS
-- ❌ NÃO criar novas rotas
-- ❌ NÃO alterar Edge Functions
-- ❌ NÃO alterar RLS ou banco
-- ❌ NÃO alterar schemas / migrations
-- ✅ APENAS frontend (React / UI / hooks existentes)
-- ✅ APENAS arquivos explicitamente listados
+- ❌ NÃO tocar em backend / Edge Functions
+- ❌ NÃO alterar estrutura do Landing.tsx
+- ❌ NÃO criar novas rotas ou componentes
+- ✅ APENAS ajustes textuais em arquivos de localização
 
 ---
 
-## 📋 ESCOPO FECHADO (REAFIRMADO)
+## 📋 ESCOPO FECHADO
 
 | Permitido | Proibido |
 |-----------|----------|
-| UI React existente | Novas rotas |
-| Filtros client-side | Edge Functions |
-| Ordenação client-side | RLS / Migrations |
-| Chaves i18n necessárias | Eventos |
-| Ajustes CSS simples | Novas APIs |
-| Mensagens institucionais | Refatorações oportunistas |
+| Alterar strings i18n | Landing.tsx estrutura |
+| pt-BR, en, es | Novos componentes |
+| Copy institucional | CTAs (estrutura) |
+| Ajuste de tom | Novas seções |
 
 ---
 
-## 1️⃣ LISTA DE ATLETAS — FILTRO POR GRADUAÇÃO + ORDENAÇÃO
+## 📍 ARQUIVOS ALVO
 
-### Arquivo: `src/pages/AthletesList.tsx`
+| Arquivo | Alterações |
+|---------|------------|
+| `src/locales/pt-BR.ts` | Atualizar 10 chaves landing.* |
+| `src/locales/en.ts` | Atualizar 10 chaves landing.* |
+| `src/locales/es.ts` | Atualizar 10 chaves landing.* |
 
-**1.1. Adicionar imports (linha 11)**
-
-Adicionar `ArrowUpDown` ao import de lucide-react:
-```typescript
-import { 
-  Search, 
-  Users, 
-  Loader2, 
-  ChevronRight,
-  Building2,
-  Award,
-  Filter,
-  ArrowUpDown  // ADICIONAR
-} from 'lucide-react';
-```
-
-**1.2. Adicionar estados (linha 69, após filterStatus)**
-
-```typescript
-const [filterGrading, setFilterGrading] = useState<string>('all');
-const [sortBy, setSortBy] = useState<'name' | 'grading'>('name');
-```
-
-**1.3. Adicionar interface para grading (após linha 60)**
-
-```typescript
-interface GradingLevel {
-  id: string;
-  display_name: string;
-  order_index: number;
-}
-
-interface AthleteCurrentGrading {
-  athlete_id: string;
-  grading_level_id: string;
-  display_name: string;
-  order_index: number;
-}
-```
-
-**1.4. Adicionar query para níveis de graduação (após linha 85)**
-
-```typescript
-// Fetch grading levels for filter dropdown
-const { data: gradingLevels } = useQuery({
-  queryKey: ['grading-levels-filter', tenant?.id],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('grading_levels')
-      .select('id, display_name, order_index')
-      .eq('tenant_id', tenant!.id)
-      .eq('is_active', true)
-      .order('order_index');
-    if (error) throw error;
-    return data as GradingLevel[];
-  },
-  enabled: !!tenant?.id,
-});
-```
-
-**1.5. Modificar query principal (linhas 88-159)**
-
-Estender a interface `AthleteWithMembership` para incluir graduação atual:
-
-```typescript
-interface AthleteWithMembership {
-  // ... campos existentes ...
-  currentGrading: {
-    level_id: string;
-    display_name: string;
-    order_index: number;
-  } | null;
-}
-```
-
-Dentro do queryFn, após buscar memberships:
-
-```typescript
-// Get current gradings for these athletes
-const { data: gradingsData } = await supabase
-  .from('athlete_current_grading')
-  .select('athlete_id, grading_level_id, display_name, order_index')
-  .in('athlete_id', athleteIds);
-
-// Create grading map
-const gradingsByAthlete = new Map<string, AthleteCurrentGrading>();
-gradingsData?.forEach(g => {
-  gradingsByAthlete.set(g.athlete_id, g);
-});
-
-// Combine data including grading
-let result: AthleteWithMembership[] = athletesData.map(athlete => ({
-  // ... campos existentes ...
-  currentGrading: gradingsByAthlete.has(athlete.id)
-    ? {
-        level_id: gradingsByAthlete.get(athlete.id)!.grading_level_id,
-        display_name: gradingsByAthlete.get(athlete.id)!.display_name,
-        order_index: gradingsByAthlete.get(athlete.id)!.order_index,
-      }
-    : null,
-}));
-
-// Filter by grading if specified
-if (filterGrading && filterGrading !== 'all') {
-  result = result.filter(a => a.currentGrading?.level_id === filterGrading);
-}
-
-// Sort
-result.sort((a, b) => {
-  if (sortBy === 'grading') {
-    const orderA = a.currentGrading?.order_index ?? 999;
-    const orderB = b.currentGrading?.order_index ?? 999;
-    return orderA - orderB;
-  }
-  return a.full_name.localeCompare(b.full_name);
-});
-```
-
-Adicionar `filterGrading` e `sortBy` às dependências da query:
-```typescript
-queryKey: ['athletes-list', tenant?.id, searchName, filterAcademy, filterStatus, filterGrading, sortBy],
-```
-
-**1.6. Adicionar filtros UI (após linha 251, dentro do CardContent)**
-
-Após o Select de filterStatus:
-
-```tsx
-<Select value={filterGrading} onValueChange={setFilterGrading}>
-  <SelectTrigger className="w-full md:w-[200px]">
-    <Award className="h-4 w-4 mr-2" />
-    <SelectValue placeholder={t('admin.athletes.filterGrading')} />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">{t('admin.athletes.allGradings')}</SelectItem>
-    {gradingLevels?.map((level) => (
-      <SelectItem key={level.id} value={level.id}>
-        {level.display_name}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-<Select value={sortBy} onValueChange={(v) => setSortBy(v as 'name' | 'grading')}>
-  <SelectTrigger className="w-full md:w-[150px]">
-    <ArrowUpDown className="h-4 w-4 mr-2" />
-    <SelectValue placeholder={t('admin.athletes.sortBy')} />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="name">{t('admin.athletes.sortByName')}</SelectItem>
-    <SelectItem value="grading">{t('admin.athletes.sortByGrading')}</SelectItem>
-  </SelectContent>
-</Select>
-```
-
-**1.7. Adicionar coluna de graduação na tabela (após linha 278)**
-
-Adicionar nova coluna no TableHeader:
-```tsx
-<TableHead>{t('admin.athletes.tableGrading')}</TableHead>
-```
-
-Adicionar célula correspondente no TableBody (após linha 306):
-```tsx
-<TableCell>
-  {athlete.currentGrading ? (
-    <Badge variant="secondary">{athlete.currentGrading.display_name}</Badge>
-  ) : (
-    <span className="text-muted-foreground">-</span>
-  )}
-</TableCell>
-```
+**Nota:** O arquivo `Landing.tsx` **NÃO será alterado** — toda a copy está nos arquivos de localização.
 
 ---
 
-## 2️⃣ VERIFICAÇÃO DE CARTEIRA (VerifyCard.tsx)
+## 1️⃣ HERO — AJUSTES DE COPY
 
-### Escopo: APENAS UI — Mensagem Institucional
+### 1.1 Badge / Eyebrow (`landing.platformBadge`)
 
-**Arquivo: `src/pages/VerifyCard.tsx`**
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Plataforma de Gestão para Esportes de Combate` | `Plataforma oficial de gestão para esportes de combate` |
+| en | `Management Platform for Combat Sports` | `Official management platform for combat sports` |
+| es | `Plataforma de Gestión para Deportes de Combate` | `Plataforma oficial de gestión para deportes de combate` |
 
-**Nota:** Esta página é de verificação pública por ID único. Não existe lista de carteiras para filtrar.
+### 1.2 Headline H1 (`landing.heroTitle` + `landing.heroTitleHighlight` + `landing.heroTitleEnd`)
 
-**Ajuste:** Adicionar mensagem institucional similar ao VerifyDiploma.
+| Idioma | Chave | Atual | Novo |
+|--------|-------|-------|------|
+| pt-BR | `heroTitle` | `Gerencie sua` | `Gerencie sua` |
+| pt-BR | `heroTitleHighlight` | `organização de esporte de combate` | `organização de esporte de combate` |
+| pt-BR | `heroTitleEnd` | `com excelência` | `com excelência e credibilidade institucional` |
+| en | `heroTitle` | `Manage your` | `Manage your` |
+| en | `heroTitleHighlight` | `combat sports organization` | `combat sports organization` |
+| en | `heroTitleEnd` | `with excellence` | `with excellence and institutional credibility` |
+| es | `heroTitle` | `Gestione su` | `Gestione su` |
+| es | `heroTitleHighlight` | `organización de deporte de combate` | `organización de deporte de combate` |
+| es | `heroTitleEnd` | `con excelencia` | `con excelencia y credibilidad institucional` |
 
-**Linha 415-418, substituir:**
+### 1.3 Subheadline / Descrição (`landing.heroDescription`)
 
-```tsx
-<div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
-  <Shield className="h-4 w-4" />
-  <span>{t('verification.authenticDocument')} {verification.tenantName}</span>
-</div>
-```
-
-**Por:**
-
-```tsx
-<div className="text-center pt-4 border-t space-y-2">
-  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-    <Shield className="h-4 w-4" />
-    <span>{t('verification.authenticDocument')} {verification.tenantName}</span>
-  </div>
-  <p className="text-xs text-muted-foreground">
-    {t('verification.cardInstitutionalMessage')}
-  </p>
-</div>
-```
-
----
-
-## 3️⃣ VERIFICAÇÃO DE DIPLOMA (VerifyDiploma.tsx)
-
-### Escopo: Mensagem Institucional + Busca por ID apenas (LGPD-safe)
-
-**Arquivo: `src/pages/VerifyDiploma.tsx`**
-
-**Linhas 383-386, substituir:**
-
-```tsx
-<div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
-  <Shield className="h-4 w-4" />
-  <span>{t('verification.authenticDiploma')} {verification.tenantName}</span>
-</div>
-```
-
-**Por:**
-
-```tsx
-<div className="text-center pt-4 border-t space-y-2">
-  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-    <Shield className="h-4 w-4" />
-    <span>{t('verification.authenticDiploma')} {verification.tenantName}</span>
-  </div>
-  <p className="text-xs text-muted-foreground">
-    {t('verification.diplomaInstitutionalMessage')}
-  </p>
-</div>
-```
-
-**❌ Proibido:**
-- Busca por nome (LGPD)
-- Alteração de API/Edge Function
-- Alteração de query server-side
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Sistema completo para sua organização de esporte de combate. Filiações, graduações, eventos e pagamentos em uma única plataforma.` | `Governança, certificação e identidade digital para federações, academias e atletas. Sistema completo com rastreabilidade, validação oficial e histórico auditável.` |
+| en | `Complete system for your combat sports organization. Memberships, gradings, events and payments in one platform.` | `Governance, certification and digital identity for federations, academies and athletes. Complete system with traceability, official validation and auditable history.` |
+| es | `Sistema completo para su organización de deporte de combate. Afiliaciones, graduaciones, eventos y pagos en una sola plataforma.` | `Gobernanza, certificación e identidad digital para federaciones, academias y atletas. Sistema completo con trazabilidad, validación oficial e historial auditable.` |
 
 ---
 
-## 4️⃣ CHAVES i18n — ADIÇÕES
+## 2️⃣ SEÇÃO FEATURES — AJUSTES DE TOM
 
-### Arquivo: `src/locales/pt-BR.ts`
+### 2.1 Subtítulo da seção (`landing.featuresDescription`)
 
-**Após linha 1603 (admin.athletes.csv.membershipEnd):**
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Ferramentas completas para gerenciar atletas, academias, graduações e eventos.` | `Infraestrutura completa para a gestão oficial de atletas, academias, graduações e eventos.` |
+| en | `Complete tools to manage athletes, academies, gradings and events.` | `Complete infrastructure for official management of athletes, academies, gradings and events.` |
+| es | `Herramientas completas para gestionar atletas, academias, graduaciones y eventos.` | `Infraestructura completa para la gestión oficial de atletas, academias, graduaciones y eventos.` |
 
-```typescript
-'admin.athletes.filterGrading': 'Graduação',
-'admin.athletes.allGradings': 'Todas graduações',
-'admin.athletes.sortBy': 'Ordenar',
-'admin.athletes.sortByName': 'Nome (A–Z)',
-'admin.athletes.sortByGrading': 'Graduação',
-'admin.athletes.tableGrading': 'Graduação',
-```
+### 2.2 Cards de Features (descrições)
 
-**Após linha 413 (verification.grading):**
+#### Gestão de Atletas (`landing.featureAthletesDesc`)
 
-```typescript
-'verification.diplomaInstitutionalMessage': 'Este diploma foi emitido por uma organização oficial registrada na plataforma TATAME Pro.',
-'verification.cardInstitutionalMessage': 'Esta carteira digital foi emitida por uma organização oficial registrada na plataforma TATAME Pro.',
-```
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Controle completo de filiações, documentos e histórico de graduações.` | `Controle institucional de filiações, vínculo federativo e histórico do atleta.` |
+| en | `Complete control of memberships, documents and grading history.` | `Institutional control of memberships, federation bonds and athlete history.` |
+| es | `Control completo de afiliaciones, documentos e historial de graduaciones.` | `Control institucional de afiliaciones, vínculo federativo e historial del atleta.` |
 
-### Arquivo: `src/locales/en.ts`
+#### Graduações & Diplomas (`landing.featureGradingsDesc`)
 
-**Após admin.athletes.csv.membershipEnd:**
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Emissão digital de diplomas com verificação QR Code integrada.` | `Emissão de diplomas e graduações com verificação digital e validade oficial.` |
+| en | `Digital diploma issuance with integrated QR Code verification.` | `Diploma and grading issuance with digital verification and official validity.` |
+| es | `Emisión digital de diplomas con verificación QR Code integrada.` | `Emisión de diplomas y graduaciones con verificación digital y validez oficial.` |
 
-```typescript
-'admin.athletes.filterGrading': 'Grading',
-'admin.athletes.allGradings': 'All gradings',
-'admin.athletes.sortBy': 'Sort by',
-'admin.athletes.sortByName': 'Name (A–Z)',
-'admin.athletes.sortByGrading': 'Grading',
-'admin.athletes.tableGrading': 'Grading',
-```
+#### Multi-esporte (`landing.featureMultiSportDesc`)
 
-**Após verification.grading:**
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Suporte a BJJ, Judô, Wrestling, Muay Thai e outros esportes de combate.` | `Suporte a múltiplas modalidades de esporte de combate em uma única governança.` |
+| en | `Support for BJJ, Judo, Wrestling, Muay Thai and other combat sports.` | `Support for multiple combat sports modalities under a single governance.` |
+| es | `Soporte para BJJ, Judo, Wrestling, Muay Thai y otros deportes de combate.` | `Soporte para múltiples modalidades de deporte de combate bajo una única gobernanza.` |
 
-```typescript
-'verification.diplomaInstitutionalMessage': 'This diploma was issued by an official organization registered on the TATAME Pro platform.',
-'verification.cardInstitutionalMessage': 'This digital card was issued by an official organization registered on the TATAME Pro platform.',
-```
+#### Pagamentos Integrados (`landing.featurePaymentsDesc`)
 
-### Arquivo: `src/locales/es.ts`
-
-**Após admin.athletes.csv.membershipEnd:**
-
-```typescript
-'admin.athletes.filterGrading': 'Graduación',
-'admin.athletes.allGradings': 'Todas las graduaciones',
-'admin.athletes.sortBy': 'Ordenar',
-'admin.athletes.sortByName': 'Nombre (A–Z)',
-'admin.athletes.sortByGrading': 'Graduación',
-'admin.athletes.tableGrading': 'Graduación',
-```
-
-**Após verification.grading:**
-
-```typescript
-'verification.diplomaInstitutionalMessage': 'Este diploma fue emitido por una organización oficial registrada en la plataforma TATAME Pro.',
-'verification.cardInstitutionalMessage': 'Esta credencial digital fue emitida por una organización oficial registrada en la plataforma TATAME Pro.',
-```
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Stripe integrado para filiações, eventos e taxas de graduação.` | `Gestão financeira integrada para filiações, eventos e taxas institucionais.` |
+| en | `Stripe integrated for memberships, events and grading fees.` | `Integrated financial management for memberships, events and institutional fees.` |
+| es | `Stripe integrado para afiliaciones, eventos y tasas de graduación.` | `Gestión financiera integrada para afiliaciones, eventos y tasas institucionales.` |
 
 ---
 
-## 5️⃣ MENU DE IDIOMAS — AJUSTE VISUAL
+## 3️⃣ SEÇÃO CTA FINAL — AJUSTE DE TÍTULO
 
-### Arquivo: `src/components/PublicHeader.tsx`
+### Título (`landing.ctaTitle`)
 
-**Linhas 69-75 e 159-167, alterar classe do DropdownMenuItem selecionado:**
-
-De:
-```tsx
-className={locale === loc ? 'bg-accent' : ''}
-```
-
-Para:
-```tsx
-className={locale === loc ? 'bg-accent text-accent-foreground font-medium' : ''}
-```
-
-### Arquivo: `src/layouts/AppShell.tsx`
-
-**Linha ~267, no DropdownMenuItem de idiomas:**
-
-Adicionar `cursor-pointer` para melhor UX:
-```tsx
-<DropdownMenuItem 
-  key={lang.code} 
-  onClick={() => setLocale(lang.code)}
-  className="flex items-center justify-between cursor-pointer"
->
-```
+| Idioma | Atual | Novo |
+|--------|-------|------|
+| pt-BR | `Pronto para começar?` | `Pronto para estruturar sua organização com credibilidade?` |
+| en | `Ready to start?` | `Ready to structure your organization with credibility?` |
+| es | `¿Listo para comenzar?` | `¿Listo para estructurar su organización con credibilidad?` |
 
 ---
 
-## 6️⃣ LOGO DISTORCIDA NO LOGIN
+## 4️⃣ CHAVES MANTIDAS SEM ALTERAÇÃO
 
-### Arquivo: `src/pages/Login.tsx`
-
-**Linha 206-207, ajustar container e imagem:**
-
-De:
-```tsx
-<div className="h-24 w-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary">
-  <img src={iconLogo} alt="TATAME" className="h-24 w-24 rounded-2xl object-contain" />
-</div>
-```
-
-Para:
-```tsx
-<div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
-  <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
-</div>
-```
+| Chave | Razão |
+|-------|-------|
+| `landing.featuresTitle` | "Tudo que você precisa" — mantém conforme especificação |
+| `landing.accessPlatform` | CTA preservado |
+| `landing.learnMore` | CTA preservado |
+| `landing.createFreeAccount` | CTA preservado |
+| `landing.ctaFreeSignup` | Bullet preservado |
+| `landing.ctaSupport` | Bullet preservado |
+| `landing.ctaStripe` | Bullet preservado |
+| `landing.copyright` | Footer preservado |
 
 ---
 
 ## 📦 RESUMO DE ARQUIVOS MODIFICADOS
 
-| Arquivo | Alterações |
-|---------|------------|
-| `src/pages/AthletesList.tsx` | Filtro graduação, ordenação, coluna tabela |
-| `src/pages/VerifyCard.tsx` | Mensagem institucional |
-| `src/pages/VerifyDiploma.tsx` | Mensagem institucional |
-| `src/pages/Login.tsx` | Ajuste CSS logo |
-| `src/layouts/AppShell.tsx` | Ajuste dropdown idioma |
-| `src/components/PublicHeader.tsx` | Ajuste dropdown idioma |
-| `src/locales/pt-BR.ts` | +8 chaves |
-| `src/locales/en.ts` | +8 chaves |
-| `src/locales/es.ts` | +8 chaves |
+| Arquivo | Chaves Alteradas |
+|---------|------------------|
+| `src/locales/pt-BR.ts` | 10 chaves landing.* |
+| `src/locales/en.ts` | 10 chaves landing.* |
+| `src/locales/es.ts` | 10 chaves landing.* |
+
+**Total: 30 alterações de strings (10 por idioma)**
 
 ---
 
-## 🚫 FORA DE ESCOPO (CONFIRMADO)
+## 🚫 FORA DE ESCOPO (REAFIRMADO)
 
-- ❌ Eventos (módulo inteiro)
-- ❌ Rankings  
-- ❌ Brackets / Competições
-- ❌ Pagamentos
-- ❌ Novas rotas
-- ❌ Edge Functions
-- ❌ RLS / Migrations
-- ❌ Novas APIs
-- ❌ Novas permissões
+- ❌ Landing.tsx (estrutura/layout)
+- ❌ Carrossel de logos
+- ❌ CMS / Admin de banners
+- ❌ Eventos
+- ❌ FAQs
+- ❌ SEO avançado
+- ❌ Novas seções
+- ❌ Backend / Edge Functions
 
 ---
 
 ## ✅ CRITÉRIOS DE ACEITE (BINÁRIO)
 
-| Item | Resultado Esperado |
-|------|-------------------|
-| Lista de atletas | Completa |
-| Filtro por graduação | Funciona |
-| Ordenação (Nome/Graduação) | Funciona |
-| Verificação de carteira | Mensagem institucional visível |
-| Verificação de diploma | Mensagem institucional visível |
-| Labels i18n | Estáveis em pt-BR, en, es |
-| Menu idioma | Visual correto com contraste |
-| Login | Logo sem distorção |
-| Console | Zero erros |
+| Item | Esperado |
+|------|----------|
+| Hero transmite oficialidade | ✅ |
+| Linguagem institucional clara | ✅ |
+| Clareza funcional preservada | ✅ |
+| Nenhuma quebra visual | ✅ |
+| Nenhuma alteração estrutural | ✅ |
+| Console sem erros | ✅ |
+| Três idiomas atualizados | ✅ |
 
-❌ Se qualquer item falhar → P1.1 REPROVADO
+❌ Se qualquer ponto falhar → P1.2.A REPROVADO
+
+---
+
+## 🏁 RESULTADO ESPERADO
+
+Após P1.2.A, o visitante perceberá o TATAME Pro como:
+
+1. Uma **plataforma oficial**
+2. Uma **infraestrutura de governança**
+3. Um **registro institucional do esporte**
+4. E só depois... um software
 
