@@ -540,6 +540,13 @@ export const ptBR = {
   'auth.manageOrganization': 'Gerencie sua federação',
   'auth.manageOrganizationDesc': 'Sistema completo para organizações de esportes de combate. BJJ, Judô, Wrestling, Muay Thai e muito mais.',
 
+  // Login institutional block
+  'login.institutional.title': 'Infraestrutura institucional para esportes de combate',
+  'login.institutional.description': 'O Tatame organiza, registra e preserva a história esportiva de federações, academias e atletas em um ambiente verificável e confiável.',
+  'login.institutional.point1': 'Governança e organização institucional',
+  'login.institutional.point2': 'Rastreabilidade e histórico verificável',
+  'login.institutional.point3': 'Neutralidade e colaboração no ecossistema',
+
   // Reset Password page
   'auth.validatingLink': 'Validando link...',
   'auth.invalidLink': 'Link Inválido',
