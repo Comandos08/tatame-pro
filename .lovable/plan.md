@@ -1,192 +1,371 @@
 
-# RELEASE READINESS P0 — TATAME PRO
 
-> **Version:** 1.0.0  
-> **Status:** DECISION SUPPORT  
-> **Date:** 2026-01-30  
-> **Authority:** Gate document for READY/NOT READY declaration
+# P0 FIX: IMPLEMENTAR COMPLETE_WIZARD — PLANO FINAL AJUSTADO
 
----
-
-## 1. Release Goal
-
-This release prepares Tatame Pro for **controlled onboarding of real sports organizations** (federations, leagues, governing bodies). The goal is to validate that all CORE capabilities defined in PRODUCT-MATURITY-MAP.md are functional, stable, and free of blocking issues.
-
-**READY** means:
-- A new organization can complete onboarding without manual intervention
-- Athletes can be registered and approved through the standard workflow
-- Official documents (cards, diplomas) can be issued and publicly verified
-- Billing enforcement works correctly
-- No blocking bugs exist in critical paths
-
-This is NOT a feature-complete release. This is a stability and governance release.
+> **Status:** APROVADO COM AJUSTES  
+> **Escopo:** APENAS `supabase/functions/resolve-identity-wizard/index.ts`  
+> **Modo:** SAFE GOLD / ZERO INTERPRETAÇÃO / NO REGRESSION
 
 ---
 
-## 2. P0 — Blocking Issues (MANDATORY)
+## Ajustes Incorporados
 
-These items MUST be resolved before any sales or onboarding activity.
-
-| ID | Item | Status | Action | Acceptance Criteria |
-|----|------|--------|--------|---------------------|
-| **P0-001** | Tenant stuck on onboarding Step 5 | NOT CONFIRMED | Manual validation required: Create new tenant, complete onboarding wizard, verify `onboarding_completed` flag is set to `true` in database | Tenant navigates to `/{slug}/app` after clicking "Complete Setup" without loop or error |
-| **P0-002** | `refetchTenant()` after onboarding completion | CODE REVIEWED | Verify `TenantContext.refetchTrigger` updates and `TenantOnboardingGate` allows navigation | `onboardingCompleted === true` reflected in context within 2 seconds of edge function success |
-
-**Current Assessment:**
-
-Code review shows:
-- `TenantOnboarding.tsx` calls `refetchTenant()` on mutation success (line 102)
-- `TenantContext.tsx` has `refetchTrigger` dependency in useEffect (line 156)
-- `TenantOnboardingGate.tsx` has defensive bypass for configured tenants (lines 53-58)
-- `complete-tenant-onboarding` edge function updates `onboarding_completed` flag (lines 215-223)
-
-**Risk:** Medium. Code appears correct but requires manual end-to-end validation.
+| Ajuste Solicitado | Status | Implementação |
+|-------------------|--------|---------------|
+| `role` retorna exatamente `"ADMIN_TENANT"` | ✅ | Conforme enum `app_role` |
+| `joinMode === "existing"` retorna ERROR | ✅ | `UNSUPPORTED_JOIN_MODE` + comentário |
+| Billing como best-effort | ✅ | Log warning, não aborta, continua RESOLVED |
+| Escopo estrito (1 arquivo) | ✅ | Apenas Edge Function |
+| Fail-closed absoluto | ✅ | Nunca retorna WIZARD_REQUIRED |
+| Contrato frontend preservado | ✅ | Zero chaves novas |
 
 ---
 
-## 3. P1 — Required Fixes (Before Sales)
+## Contrato de Response (FINAL)
 
-Functional issues that do not block operation but affect professional perception.
+### Sucesso
+```json
+{
+  "status": "RESOLVED",
+  "role": "ADMIN_TENANT",
+  "tenant": {
+    "id": "uuid",
+    "slug": "org-slug",
+    "name": "Org Name"
+  },
+  "redirectPath": "/{tenantSlug}/onboarding"
+}
+```
 
-| ID | Item | Status | Action | Acceptance Criteria |
-|----|------|--------|--------|---------------------|
-| **P1-001** | Athlete filter by grading level | NOT IMPLEMENTED | Add dropdown filter to `AthletesList.tsx` using `athlete_current_grading` view | Admin can filter athletes by belt/rank |
-| **P1-002** | Event filter by date range | NOT IMPLEMENTED | Add date picker filter to `EventsList.tsx` | Admin can filter events by start/end date |
-| **P1-003** | Impersonation i18n label shifts | NOT CONFIRMED | Reproduce and document scenario. If confirmed, fix context isolation | Labels remain stable during impersonation session |
-| **P1-004** | Form focus loss after impersonation | NOT CONFIRMED | Reproduce and document scenario. If confirmed, investigate re-render cascade | Form inputs retain focus when user is impersonating |
-
----
-
-## 4. P2 — Perception & Polish
-
-Cosmetic issues that affect first impression but not functionality.
-
-| ID | Item | Status | Action | Acceptance Criteria |
-|----|------|--------|--------|---------------------|
-| **P2-001** | Partner logos carousel | NOT IMPLEMENTED | Decide if needed for MVP; if yes, implement using existing `Carousel` component | Landing page displays partner logos OR decision documented as "deferred" |
-| **P2-002** | Dynamic hero banner management | NOT IMPLEMENTED | Defer; current static hero is sufficient for MVP | No action required |
-| **P2-003** | Login page logo distortion | NOT CONFIRMED | Validate visually; `Login.tsx` uses `object-contain` which should prevent distortion | Logo displays correctly on all screen sizes |
-| **P2-004** | Language menu color | NOT CONFIRMED | Validate visually in both light/dark themes | Language selector matches design system |
-
----
-
-## 5. Explicitly Deferred Items
-
-These items will NOT be addressed in this release. This is intentional.
-
-| Item | Reason | Reference |
-|------|--------|-----------|
-| Event registration with payment | Out of scope per PRODUCT-SCOPE.md §9 | PRODUCT-MATURITY-MAP §4.10: "Event payments NOT PLANNED" |
-| Competition brackets/chaves | Out of scope per PRODUCT-SCOPE.md §9 | PRODUCT-MATURITY-MAP §4.10: "Competition brackets NOT PLANNED" |
-| Event ranking/classification | Competition management is excluded | PRODUCT-SCOPE.md §9 |
-| Event delete button | Intentional design decision; events are archived, not deleted | Governance integrity |
-| Diploma search by athlete name | Privacy/LGPD concern; verification by ID is sufficient | PRODUCT-MATURITY-MAP §4.5 |
-| Bulk athlete import | Out of scope | PRODUCT-MATURITY-MAP §4.2: "Bulk athlete import NOT PLANNED" |
-| Athlete self-registration | Violates organization-mediated principle | PRODUCT-SCOPE.md §13 |
+### Erro
+```json
+{
+  "status": "ERROR",
+  "error": {
+    "code": "SOME_CODE",
+    "message": "Mensagem curta"
+  }
+}
+```
 
 ---
 
-## 6. Go / No-Go Checklist
+## Implementação Detalhada
 
-Binary validation for release decision.
+### 1. Estrutura da Função `handleCompleteWizard()`
 
-| # | Check | Result | Notes |
-|---|-------|--------|-------|
-| 1 | Tenant can complete onboarding without loop | ⏳ PENDING | Requires P0-001 manual validation |
-| 2 | Academy can be created during onboarding | ✅ YES | Verified in code |
-| 3 | Grading scheme can be created during onboarding | ✅ YES | Verified in code |
-| 4 | Athlete membership can be submitted | ✅ YES | Adult and youth flows exist |
-| 5 | Membership can be approved by admin | ✅ YES | `approve-membership` edge function exists |
-| 6 | Digital card is generated on approval | ✅ YES | `generate-digital-card` edge function exists |
-| 7 | Card verification page works publicly | ✅ YES | `VerifyCard.tsx` verified |
-| 8 | Diploma verification page works publicly | ✅ YES | `VerifyDiploma.tsx` verified |
-| 9 | Billing blocks sensitive actions when expired | ✅ YES | `requireBillingStatus` middleware exists |
-| 10 | Logout is accessible on all authenticated pages | ✅ YES | Present in `AppShell.tsx` and `PortalLayout.tsx` |
-| 11 | Impersonation banner displays correctly | ✅ YES | `ImpersonationBanner.tsx` exists |
-| 12 | Audit logs are created for administrative actions | ✅ YES | Verified in edge functions |
+```typescript
+/**
+ * Handles COMPLETE_WIZARD action for new organization creation.
+ * 
+ * IMPORTANT: joinMode === "existing" is intentionally NOT implemented.
+ * This will be addressed in a future phase. Any attempt to use it
+ * returns ERROR with code UNSUPPORTED_JOIN_MODE.
+ */
+async function handleCompleteWizard(
+  supabase: SupabaseClient,
+  userId: string,
+  payload: any
+): Promise<IdentityResponse>
+```
 
-**Blocking Items:** 1 (P0-001 validation pending)
+### 2. Validações (Fail-Closed)
+
+**2.1. joinMode**
+```typescript
+// ⛔ joinMode === "existing" is intentionally NOT implemented.
+// This feature will be addressed in a future phase.
+// For now, only "new" organization creation is supported.
+if (payload?.joinMode !== "new") {
+  return {
+    status: "ERROR",
+    error: {
+      code: "UNSUPPORTED_JOIN_MODE",
+      message: "Only 'new' organization mode is supported."
+    }
+  };
+}
+```
+
+**2.2. newOrgName**
+```typescript
+const orgName = payload?.newOrgName?.trim();
+if (!orgName || orgName.length < 3) {
+  return {
+    status: "ERROR",
+    error: {
+      code: "INVALID_PAYLOAD",
+      message: "Organization name must be at least 3 characters."
+    }
+  };
+}
+```
+
+### 3. Idempotência
+
+```typescript
+// Check if user already completed wizard
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("wizard_completed, tenant_id")
+  .eq("id", userId)
+  .limit(1);
+
+if (profile?.[0]?.wizard_completed === true && profile?.[0]?.tenant_id) {
+  // Already completed - fetch existing tenant and return RESOLVED
+  const { data: existingTenant } = await supabase
+    .from("tenants")
+    .select("id, slug, name")
+    .eq("id", profile[0].tenant_id)
+    .limit(1);
+  
+  if (existingTenant?.[0]) {
+    return {
+      status: "RESOLVED",
+      role: "ADMIN_TENANT",
+      tenant: existingTenant[0],
+      redirectPath: `/${existingTenant[0].slug}/onboarding`
+    };
+  }
+}
+```
+
+### 4. Geração de Slug Único
+
+```typescript
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .substring(0, 48);
+}
+
+// Check uniqueness with retry
+let finalSlug = baseSlug;
+for (let i = 2; i <= 20; i++) {
+  const { data: existing } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("slug", finalSlug)
+    .limit(1);
+  
+  if (!existing || existing.length === 0) break;
+  
+  finalSlug = `${baseSlug}-${i}`;
+  if (i === 20) {
+    return {
+      status: "ERROR",
+      error: { code: "SLUG_CONFLICT", message: "Could not generate unique slug." }
+    };
+  }
+}
+```
+
+### 5. Criar Tenant
+
+```typescript
+const { data: newTenant, error: tenantError } = await supabase
+  .from("tenants")
+  .insert({
+    name: orgName,
+    slug: finalSlug,
+    onboarding_completed: false,
+    sport_types: ["BJJ"]
+  })
+  .select("id, slug, name")
+  .single();
+
+if (tenantError || !newTenant) {
+  console.error("[resolve-identity-wizard] TENANT_CREATE_FAILED:", tenantError);
+  return {
+    status: "ERROR",
+    error: { code: "TENANT_CREATE_FAILED", message: "Failed to create organization." }
+  };
+}
+```
+
+### 6. Criar Role (ADMIN_TENANT)
+
+```typescript
+const { error: roleError } = await supabase
+  .from("user_roles")
+  .insert({
+    user_id: userId,
+    role: "ADMIN_TENANT",
+    tenant_id: newTenant.id
+  });
+
+if (roleError) {
+  console.error("[resolve-identity-wizard] ROLE_CREATE_FAILED:", roleError);
+  // Rollback: delete tenant
+  await supabase.from("tenants").delete().eq("id", newTenant.id);
+  return {
+    status: "ERROR",
+    error: { code: "ROLE_CREATE_FAILED", message: "Failed to assign admin role." }
+  };
+}
+```
+
+### 7. Atualizar Profile
+
+```typescript
+const { error: profileError } = await supabase
+  .from("profiles")
+  .update({
+    wizard_completed: true,
+    tenant_id: newTenant.id
+  })
+  .eq("id", userId);
+
+if (profileError) {
+  console.error("[resolve-identity-wizard] PROFILE_UPDATE_FAILED:", profileError);
+  return {
+    status: "ERROR",
+    error: { code: "PROFILE_UPDATE_FAILED", message: "Failed to update profile." }
+  };
+}
+```
+
+### 8. Billing Trial (Best-Effort)
+
+```typescript
+// 🔔 BILLING IS BEST-EFFORT FOR P0
+// If billing creation fails, we log a warning but do NOT abort the flow.
+// The user can still complete onboarding. Billing will be addressed separately.
+try {
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const { error: billingError } = await supabase
+    .from("tenant_billing")
+    .insert({
+      tenant_id: newTenant.id,
+      status: "TRIALING",
+      plan_name: "Trial",
+      plan_price_id: "trial_placeholder",
+      current_period_start: now.toISOString(),
+      current_period_end: trialEnd.toISOString(),
+      trial_started_at: now.toISOString(),
+      trial_expires_at: trialEnd.toISOString()
+    });
+
+  if (billingError) {
+    console.warn("[resolve-identity-wizard] BILLING_CREATE_WARNING (non-blocking):", billingError);
+    // Continue - billing does not block P0 onboarding
+  }
+} catch (billingErr) {
+  console.warn("[resolve-identity-wizard] BILLING_CREATE_EXCEPTION (non-blocking):", billingErr);
+  // Continue - billing does not block P0 onboarding
+}
+```
+
+### 9. Retornar RESOLVED
+
+```typescript
+console.log("[resolve-identity-wizard] COMPLETE_WIZARD success:", {
+  userId,
+  tenantId: newTenant.id,
+  slug: newTenant.slug
+});
+
+return {
+  status: "RESOLVED",
+  role: "ADMIN_TENANT",
+  tenant: {
+    id: newTenant.id,
+    slug: newTenant.slug,
+    name: newTenant.name
+  },
+  redirectPath: `/${newTenant.slug}/onboarding`
+};
+```
 
 ---
 
-## 7. Release Declaration
+## Modificação do Switch Principal
 
-### Current Status
+**Antes (linhas 98-100):**
+```typescript
+if (body.action === "COMPLETE_WIZARD") {
+  // 🔒 TEMPORARIAMENTE DESABILITADO COM SEGURANÇA
+  return json({ status: "WIZARD_REQUIRED" });
+}
+```
 
-**⏳ CONDITIONAL READY**
-
-The system is architecturally ready. All CORE capabilities are implemented. No blocking bugs have been confirmed.
-
-### Conditions for READY Declaration
-
-1. **P0-001 validated:** Manual test confirms tenant completes onboarding successfully
-2. **P0-002 validated:** TenantContext reflects updated `onboardingCompleted` flag
-
-### Upgrade Path
-
-Upon successful validation of P0 items:
-
-**✅ READY FOR CONTROLLED ONBOARDING**
-
-- Limited pilot with 1-3 organizations
-- Monitoring for edge cases
-- P1 items addressed during pilot phase
-
----
-
-## 8. Validation Protocol
-
-To clear P0 blockers:
-
-### Test Script for P0-001 / P0-002
-
-1. Create new tenant via Superadmin `CreateTenantDialog`
-2. Login as tenant admin
-3. Complete onboarding wizard:
-   - Step 1: Welcome → Next
-   - Step 2: Create 1 academy → Next
-   - Step 3: Skip coaches (optional) → Next
-   - Step 4: Create 1 grading scheme → Next
-   - Step 5: Review → Click "Complete Setup"
-4. **Expected:** Redirect to `/{slug}/app` (dashboard)
-5. **Verify:** Database `tenants.onboarding_completed = true`
-6. **Verify:** Browser refresh still shows dashboard, not onboarding
-
-### Failure Indicators
-
-- User remains on onboarding page after clicking "Complete Setup"
-- Toast error appears
-- Browser console shows error
-- Database flag not updated
+**Depois:**
+```typescript
+if (body.action === "COMPLETE_WIZARD") {
+  try {
+    const result = await handleCompleteWizard(supabaseAdmin, user.id, body.payload);
+    return json(result);
+  } catch (err) {
+    console.error("[resolve-identity-wizard] COMPLETE_WIZARD unexpected error:", err);
+    return json({
+      status: "ERROR",
+      error: { code: "UNEXPECTED", message: "Erro inesperado ao completar wizard." }
+    });
+  }
+}
+```
 
 ---
 
-## 9. Document Relationships
+## Códigos de Erro
 
-| Document | Relationship |
-|----------|--------------|
-| `PRODUCT-SCOPE.md` | Defines what is in/out of scope for this release |
-| `PRODUCT-MATURITY-MAP.md` | Defines maturity levels referenced in deferred items |
-| `PRODUCT-SAFETY.md` | Defines invariants that must be preserved |
-| `PRICING-PACKAGING-STRATEGY.md` | Governs commercial decisions post-release |
-| `SALES-NARRATIVE.md` | Governs how product is positioned post-release |
-
----
-
-## Changelog
-
-| Version | Date | Change |
-|---------|------|--------|
-| 1.0.0 | 2026-01-30 | Initial release readiness assessment |
+| Code | Cenário | Blocking |
+|------|---------|----------|
+| `UNSUPPORTED_JOIN_MODE` | joinMode !== "new" | ✅ |
+| `INVALID_PAYLOAD` | newOrgName inválido | ✅ |
+| `SLUG_CONFLICT` | Não conseguiu slug único | ✅ |
+| `TENANT_CREATE_FAILED` | Falha ao criar tenant | ✅ |
+| `ROLE_CREATE_FAILED` | Falha ao criar role | ✅ |
+| `PROFILE_UPDATE_FAILED` | Falha ao atualizar profile | ✅ |
+| `UNEXPECTED` | Exceção não tratada | ✅ |
+| (billing warning) | Falha ao criar billing | ❌ Non-blocking |
 
 ---
 
-*This document is a gate for release decisions. It does not promise features. It validates readiness.*
+## Arquivo Modificado
+
+| Arquivo | Operação |
+|---------|----------|
+| `supabase/functions/resolve-identity-wizard/index.ts` | EDIT |
+
+**Proibido modificar:**
+- ❌ UI / React
+- ❌ Contexts
+- ❌ RLS
+- ❌ Schemas / Migrations
+- ❌ Outras Edge Functions
 
 ---
 
-## File to Create
+## Critérios de Aceite (Binário)
 
-| File | Action |
-|------|--------|
-| `docs/RELEASE-READINESS-P0.md` | CREATE with content above |
+| # | Critério | Esperado |
+|---|----------|----------|
+| 1 | Identity Wizard conclui sem erro | ✅ |
+| 2 | Retorna `status: "RESOLVED"` | ✅ |
+| 3 | Redireciona para `/{slug}/onboarding` | ✅ |
+| 4 | Tenant criado corretamente | ✅ |
+| 5 | Role `ADMIN_TENANT` criada | ✅ |
+| 6 | `profiles.wizard_completed = true` | ✅ |
+| 7 | Billing trial criado (best-effort) | ✅ (não bloqueia) |
+
+---
+
+## Comentários Obrigatórios no Código
+
+```typescript
+// ⛔ joinMode === "existing" is intentionally NOT implemented.
+// This feature will be addressed in a future phase.
+// Do NOT implement invite-based join in this PI.
+
+// 🔔 BILLING IS BEST-EFFORT FOR P0
+// If billing creation fails, log warning but do NOT abort.
+// User can complete onboarding. Billing addressed separately.
+```
+
