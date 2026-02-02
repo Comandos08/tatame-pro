@@ -13,6 +13,7 @@ import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
 import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
 import { SystemHealthCard } from '@/components/dashboard/SystemHealthCard';
+import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -253,6 +254,7 @@ export default function TenantDashboard() {
     <AppShell>
       <div className="space-y-8">
         <BillingStatusBanner />
+        <PostLoginInstitutionalBanner />
         
         <div>
           <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="font-display text-3xl font-bold mb-2">

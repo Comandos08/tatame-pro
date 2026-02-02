@@ -549,6 +549,13 @@ export const es: Record<string, string> = {
   'login.institutional.point2': 'Trazabilidad e historial verificable',
   'login.institutional.point3': 'Neutralidad y colaboración en el ecosistema',
 
+  // Post-login institutional
+  'postlogin.institutional.title': 'Está accediendo a una infraestructura institucional',
+  'postlogin.institutional.description': 'Tatame organiza, registra y preserva información deportiva de forma estructurada, trazable y confiable a nivel institucional.',
+  'postlogin.institutional.point1': 'Gobernanza y organización del ecosistema',
+  'postlogin.institutional.point2': 'Historial deportivo verificable',
+  'postlogin.institutional.point3': 'Neutralidad y colaboración institucional',
+
   // Reset Password page
   'auth.validatingLink': 'Validando enlace...',
   'auth.invalidLink': 'Enlace Inválido',
