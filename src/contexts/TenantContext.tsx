@@ -33,6 +33,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
   // 🔐 HARDENING: Track mount state to prevent setState after unmount
   const isMountedRef = useRef(true);
   
+  // ✅ P-IMP-01 — Guard to prevent concurrent fetches
+  const isFetchingRef = useRef(false);
+  
   // ✅ UX/02 — Expose refetch function
   const refetchTenant = useCallback(() => {
     setRefetchTrigger(prev => prev + 1);
@@ -44,6 +47,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
     const abortController = new AbortController();
 
     async function fetchTenant() {
+      // ✅ P-IMP-01 — Prevent concurrent fetches
+      if (isFetchingRef.current) {
+        console.log('[TENANT] Fetch already in progress, skipping');
+        return;
+      }
+      
       if (!tenantSlug) {
         if (isMountedRef.current) {
           setTenant(null);
@@ -52,6 +61,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
         }
         return;
       }
+
+      isFetchingRef.current = true;
+      console.log('[TENANT] Fetch started for slug:', tenantSlug);
 
       if (isMountedRef.current) {
         setIsLoading(true);
@@ -135,13 +147,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
       } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
         
-        console.error('Error fetching tenant:', err);
+        console.error('[TENANT] Fetch error:', err);
         setError(err instanceof Error ? err : new Error('Erro ao carregar organização'));
         setTenant(null);
         setBillingInfo(null);
       } finally {
+        // ✅ P-IMP-01 — Always release fetch lock
+        isFetchingRef.current = false;
         if (!abortController.signal.aborted && isMountedRef.current) {
           setIsLoading(false);
+          console.log('[TENANT] Fetch completed');
         }
       }
     }

@@ -4,9 +4,9 @@
  * If tenant.onboarding_completed is false, redirects to /app/onboarding
  * except for allowed routes (academies, coaches, grading-schemes, onboarding itself).
  * 
- * ✅ UX/02 — Enhanced with impersonation bypass and defensive real-config check
+ * ✅ P-IMP-01 — Fixed infinite loop on impersonation with single-refetch guard
  */
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -31,11 +31,31 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ UX/02 — Refetch tenant data when impersonation changes
+  // ✅ P-IMP-01 — Single-refetch guard per impersonation session
+  const hasRefetchedForImpersonationRef = useRef(false);
+
+  // ✅ P-IMP-01 — Refetch tenant data ONCE when impersonation starts
   useEffect(() => {
-    if (isImpersonating && !isLoading) {
-      refetchTenant();
+    // Reset guard when impersonation ends
+    if (!isImpersonating) {
+      hasRefetchedForImpersonationRef.current = false;
+      return;
     }
+
+    // Already refetched for this session? Skip
+    if (hasRefetchedForImpersonationRef.current) {
+      return;
+    }
+
+    // Wait for initial loading to complete
+    if (isLoading) {
+      return;
+    }
+
+    // Execute ONCE
+    hasRefetchedForImpersonationRef.current = true;
+    console.log('[ONBOARDING-GATE] Refetching tenant for impersonation (once)');
+    refetchTenant();
   }, [isImpersonating, isLoading, refetchTenant]);
 
   useEffect(() => {
