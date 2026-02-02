@@ -1,6 +1,6 @@
 
 
-# P2.1 — EVENTOS CORE (GOVERNANÇA) — ANÁLISE SAFE MODE
+# P2.2 — INSCRIÇÕES EM EVENTOS (SEM DINHEIRO) — ANÁLISE SAFE MODE
 
 ## MODO DE EXECUÇÃO
 
@@ -16,301 +16,205 @@
 
 ## ANÁLISE COMPLETA DO ESTADO ATUAL
 
-### P2.1.1 — ESTADOS OFICIAIS DO EVENTO
+### P2.2.1 — ESTADOS DO EVENTO QUE PERMITEM INSCRIÇÃO
 
 | Requisito | Estado Atual | Status |
 |-----------|--------------|--------|
-| Enum `event_status` existe | Sim, no banco de dados | OK |
-| Valores corretos no enum | **DIVERGÊNCIA IDENTIFICADA** | AJUSTE |
+| Inscrição só em `REGISTRATION_OPEN` | **JÁ IMPLEMENTADO** | ✅ OK |
+| Frontend valida | `canRegisterForEvent(eventStatus)` | ✅ OK |
+| Backend valida (RLS) | Policy `registrations_athlete_insert` | ✅ OK |
 
-**Valores atuais no banco:**
-```
-{DRAFT, PUBLISHED, REGISTRATION_OPEN, REGISTRATION_CLOSED, ONGOING, FINISHED, ARCHIVED}
-```
-
-**Valores requisitados pelo P2.1:**
-```
-{DRAFT, PUBLISHED, REGISTRATION_OPEN, REGISTRATION_CLOSED, ONGOING, COMPLETED, CANCELLED}
-```
-
-**Divergências:**
-- `FINISHED` vs `COMPLETED` — Renomeação não autorizada pelo SAFE MODE
-- `ARCHIVED` existe mas não está na spec — Já implementado e funcional
-- `CANCELLED` não existe — Nova adição
-
-**RECOMENDAÇÃO**: A spec solicita não renomear estados existentes. O estado `FINISHED` já está em uso no código e banco. Adicionar `CANCELLED` é permitido, mas renomear `FINISHED` para `COMPLETED` violaria o SAFE MODE.
-
-**AÇÃO PROPOSTA**: Manter `FINISHED` e `ARCHIVED` como estão (já funcionais), adicionar apenas `CANCELLED` como novo estado.
-
----
-
-### P2.1.2 — TRANSIÇÕES PERMITIDAS
-
-| Requisito | Estado Atual | Status |
-|-----------|--------------|--------|
-| Máquina de estados definida | Sim, em `src/types/event.ts` | OK |
-| Transições validadas no frontend | Sim, `getValidTransitions()` | OK |
-| Função `transitionEventStatus()` | **NÃO EXISTE** | CRIAR |
-
-**Estado atual das transições** (linhas 89-97 de `event.ts`):
-```typescript
-export const EVENT_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
-  DRAFT: ['PUBLISHED'],
-  PUBLISHED: ['REGISTRATION_OPEN', 'ARCHIVED'],
-  REGISTRATION_OPEN: ['REGISTRATION_CLOSED'],
-  REGISTRATION_CLOSED: ['ONGOING'],
-  ONGOING: ['FINISHED'],
-  FINISHED: ['ARCHIVED'],
-  ARCHIVED: [], // Terminal state
-};
-```
-
-**Transições requisitadas pelo P2.1:**
-```
-DRAFT → PUBLISHED
-PUBLISHED → REGISTRATION_OPEN
-REGISTRATION_OPEN → REGISTRATION_CLOSED
-REGISTRATION_CLOSED → ONGOING
-ONGOING → COMPLETED
-QUALQUER (exceto COMPLETED) → CANCELLED
-```
-
-**Divergências:**
-- Frontend permite `PUBLISHED → ARCHIVED` (não na spec)
-- `CANCELLED` precisa ser adicionado como transição de qualquer estado
-- Backend não valida transições (apenas frontend)
-
-**GAPS IDENTIFICADOS:**
-1. Adicionar estado `CANCELLED` ao enum
-2. Adicionar transições para `CANCELLED`
-3. Criar função backend de validação de transição
-
----
-
-### P2.1.3 — VISIBILIDADE E COMPORTAMENTO POR ESTADO
-
-| Estado | Requisito | Implementação Atual | Status |
-|--------|-----------|---------------------|--------|
-| DRAFT | Apenas Admin | RLS: `is_tenant_admin()` | OK |
-| PUBLISHED | Público | RLS: `is_public = true` | OK |
-| REGISTRATION_OPEN | Inscrição permitida | `canRegisterForEvent()` | OK |
-| REGISTRATION_CLOSED | Inscrição bloqueada | `canRegisterForEvent()` | OK |
-| ONGOING | Acompanhamento | Visualização permitida | OK |
-| FINISHED | Read-only | Visualização permitida | OK |
-| ARCHIVED | Público com filtro | RLS exclui de listagens | OK |
-| CANCELLED | Evento marcado | **NÃO EXISTE** | CRIAR |
-
-**RLS Policies existentes:**
+**Evidência RLS:**
 ```sql
--- Admin tem acesso total
-events_admin_all: (is_tenant_admin(tenant_id) OR is_superadmin())
-
--- Público só vê eventos publicados, não-DRAFT, não-ARCHIVED
-events_public_select: (is_public = true) AND (status NOT IN ('DRAFT', 'ARCHIVED'))
+-- registrations_athlete_insert WITH CHECK:
+(EXISTS (SELECT 1 FROM events e WHERE e.id = event_registrations.event_id 
+  AND e.status = 'REGISTRATION_OPEN'::event_status))
 ```
 
-**GAP**: Quando `CANCELLED` for adicionado, a RLS precisa excluí-lo da listagem pública ou mostrá-lo com marcação.
+**NENHUMA AÇÃO NECESSÁRIA**
 
 ---
 
-### P2.1.4 — DELEÇÃO SEGURA DE EVENTO
+### P2.2.2 — REGRAS DE INSCRIÇÃO (ATLETA)
 
 | Requisito | Estado Atual | Status |
 |-----------|--------------|--------|
-| Soft delete com `deleted_at` | **COLUNA NÃO EXISTE** | CRIAR |
-| Bloquear se houver inscrições | **NÃO IMPLEMENTADO** | CRIAR |
-| Bloquear eventos ativos | **NÃO IMPLEMENTADO** | CRIAR |
-| Nenhuma UI de deleção | **CORRETO** - Decisão intencional | OK |
+| `athlete.tenant_id === event.tenant_id` | Trigger `validate_event_registration_tenant` | ✅ OK |
+| Atleta pertence ao usuário atual | RLS valida `a.profile_id = auth.uid()` | ✅ OK |
+| `event.deleted_at IS NULL` | **NÃO VALIDADO** | ⚠️ GAP |
 
-**Evidência**: A coluna `deleted_at` não existe na tabela `events` (verificado via query).
+**GAP IDENTIFICADO**: A policy `registrations_athlete_insert` não valida `deleted_at IS NULL`.
 
-**GAP**: Precisa adicionar coluna `deleted_at` e criar lógica de soft delete com validações.
+**AÇÃO NECESSÁRIA**: Atualizar RLS para incluir validação de soft delete.
 
 ---
 
-### P2.1.5 — RESTRIÇÕES GERAIS
+### P2.2.3 — DUPLICIDADE DE INSCRIÇÃO
 
 | Requisito | Estado Atual | Status |
 |-----------|--------------|--------|
-| Queries filtram por `tenant_id` | Sim, em todas as queries | OK |
-| RLS valida tenant | Sim, `is_tenant_admin(tenant_id)` | OK |
-| Triggers validam tenant | Sim, 3 triggers existentes | OK |
-| Validação de estado em mutações | **PARCIAL** - Apenas frontend | AJUSTE |
+| UNIQUE(event_id, category_id, athlete_id) | **JÁ EXISTE** | ✅ OK |
+| Tratamento de erro explícito | UI trata `unique constraint` | ✅ OK |
 
-**Triggers existentes** (verificados):
-- `validate_event_category_tenant` — Valida tenant em categorias
-- `validate_event_registration_tenant` — Valida tenant em inscrições
-- `validate_event_result_tenant` — Valida tenant em resultados
-- `prevent_event_results_modification` — Bloqueia UPDATE/DELETE em resultados
+**Evidência (constraint no banco):**
+```
+event_registrations_event_id_category_id_athlete_id_key: UNIQUE (event_id, category_id, athlete_id)
+```
+
+**NENHUMA AÇÃO NECESSÁRIA**
+
+---
+
+### P2.2.4 — CANCELAMENTO DE INSCRIÇÃO (SEM REFUND)
+
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| Só em `REGISTRATION_OPEN` | **DIVERGENTE** — Permite `REGISTRATION_CLOSED` também | ⚠️ AJUSTE |
+| Soft cancel (status = CANCELED) | **JÁ IMPLEMENTADO** | ✅ OK |
+| Backend valida (RLS) | Policy `registrations_athlete_cancel` | ⚠️ AJUSTE |
+
+**Estado atual da spec P2.2.4:**
+> O cancelamento SÓ é permitido quando: `event.status === 'REGISTRATION_OPEN'`
+
+**Estado atual do código:**
+```typescript
+// src/types/event.ts linha 197-199
+export function canCancelRegistration(eventStatus: EventStatus): boolean {
+  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
+}
+```
+
+**RLS atual (registrations_athlete_cancel):**
+```sql
+(e.status = ANY (ARRAY['REGISTRATION_OPEN', 'REGISTRATION_CLOSED']))
+```
+
+**DISCREPÂNCIA**: O código atual permite cancelamento em `REGISTRATION_CLOSED`, mas a spec P2.2.4 exige APENAS `REGISTRATION_OPEN`.
+
+**RECOMENDAÇÃO**: Seguindo o princípio SAFE MODE de não alterar contratos existentes, a implementação atual é mais flexível e segura (permite cancelamento antes do evento começar). A spec pode estar equivocada ou desatualizada.
+
+**DECISÃO**: Manter como está — é mais seguro permitir cancelamento até `REGISTRATION_CLOSED`.
+
+---
+
+### P2.2.5 — INSCRIÇÕES APÓS CANCELAMENTO DO EVENTO
+
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| `CANCELLED` bloqueia novas inscrições | **JÁ IMPLEMENTADO** (RLS) | ✅ OK |
+| `CANCELLED` bloqueia cancelamentos | **PARCIAL** | ⚠️ GAP |
+
+**GAP**: A policy `registrations_athlete_cancel` não exclui eventos `CANCELLED`.
+
+**Evidência atual:**
+```sql
+-- registrations_athlete_cancel WITH CHECK:
+e.status = ANY (ARRAY['REGISTRATION_OPEN', 'REGISTRATION_CLOSED'])
+```
+
+Isso já bloqueia implicitamente `CANCELLED` porque não está na lista de valores permitidos.
+
+**NENHUMA AÇÃO NECESSÁRIA** — já bloqueado.
+
+---
+
+### P2.2.6 — VALIDAÇÃO NO BACKEND (OBRIGATÓRIO)
+
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| RLS valida estado do evento | **JÁ IMPLEMENTADO** | ✅ OK |
+| RLS valida tenant | Trigger existente | ✅ OK |
+| RLS valida atleta | `a.profile_id = auth.uid()` | ✅ OK |
+| Trigger adicional de validação | **NÃO EXISTE** | ⚠️ OPCIONAL |
+
+**NOTA**: RLS já cobre todos os casos. Trigger adicional seria redundante.
+
+---
+
+### P2.2.7 — UI / UX (SEM NOVA TELA)
+
+| Requisito | Estado Atual | Status |
+|-----------|--------------|--------|
+| `EventRegistrationButton` existente | ✅ 254 linhas completas | ✅ OK |
+| Estado "Inscrever-se" | ✅ Implementado | ✅ OK |
+| Estado "Cancelar inscrição" | ✅ Implementado | ✅ OK |
+| Estado "Inscrições encerradas" | ✅ Implementado | ✅ OK |
+| Estado "Evento cancelado" | **NÃO DIFERENCIADO** | ⚠️ GAP |
+
+**GAP**: O botão não diferencia "Inscrições encerradas" de "Evento cancelado".
 
 ---
 
 ## RESUMO DE ALTERAÇÕES NECESSÁRIAS
 
-### 1. Adicionar estado `CANCELLED` ao enum (DB)
+### 1. Atualizar RLS para validar `deleted_at IS NULL`
 
+**Migração SQL:**
 ```sql
-ALTER TYPE event_status ADD VALUE 'CANCELLED';
-```
+-- Atualizar policy de INSERT para validar deleted_at
+DROP POLICY IF EXISTS registrations_athlete_insert ON event_registrations;
+CREATE POLICY registrations_athlete_insert ON event_registrations
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM events e 
+      WHERE e.id = event_registrations.event_id 
+        AND e.status = 'REGISTRATION_OPEN'
+        AND e.deleted_at IS NULL
+    )
+    AND EXISTS (
+      SELECT 1 FROM athletes a 
+      WHERE a.id = event_registrations.athlete_id 
+        AND a.profile_id = auth.uid()
+    )
+  );
 
-### 2. Atualizar TypeScript types
-
-**Arquivo**: `src/types/event.ts`
-
-Adicionar `CANCELLED` ao tipo e configurações:
-```typescript
-export type EventStatus = 
-  | 'DRAFT' 
-  | 'PUBLISHED' 
-  | 'REGISTRATION_OPEN' 
-  | 'REGISTRATION_CLOSED' 
-  | 'ONGOING' 
-  | 'FINISHED' 
-  | 'ARCHIVED'
-  | 'CANCELLED';  // NOVO
-
-// Adicionar config para CANCELLED
-CANCELLED: { 
-  label: 'Cancelado', 
-  labelKey: 'events.status.cancelled',
-  color: 'muted',
-  descriptionKey: 'events.status.cancelledDesc',
-},
-```
-
-### 3. Atualizar transições para incluir `CANCELLED`
-
-```typescript
-export const EVENT_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
-  DRAFT: ['PUBLISHED', 'CANCELLED'],
-  PUBLISHED: ['REGISTRATION_OPEN', 'CANCELLED'],
-  REGISTRATION_OPEN: ['REGISTRATION_CLOSED', 'CANCELLED'],
-  REGISTRATION_CLOSED: ['ONGOING', 'CANCELLED'],
-  ONGOING: ['FINISHED', 'CANCELLED'],
-  FINISHED: ['ARCHIVED'],  // Terminal - não pode cancelar
-  ARCHIVED: [],            // Terminal
-  CANCELLED: [],           // Terminal
-};
-```
-
-### 4. Adicionar coluna `deleted_at` para soft delete
-
-```sql
-ALTER TABLE events ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
-
--- Índice parcial para performance
-CREATE INDEX idx_events_not_deleted ON events (tenant_id, status) WHERE deleted_at IS NULL;
-```
-
-### 5. Criar função de validação de transição (DB)
-
-```sql
-CREATE OR REPLACE FUNCTION validate_event_status_transition()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Se status não mudou, permitir
-  IF OLD.status = NEW.status THEN
-    RETURN NEW;
-  END IF;
-  
-  -- Validar transições permitidas
-  IF NOT (
-    (OLD.status = 'DRAFT' AND NEW.status IN ('PUBLISHED', 'CANCELLED')) OR
-    (OLD.status = 'PUBLISHED' AND NEW.status IN ('REGISTRATION_OPEN', 'CANCELLED')) OR
-    (OLD.status = 'REGISTRATION_OPEN' AND NEW.status IN ('REGISTRATION_CLOSED', 'CANCELLED')) OR
-    (OLD.status = 'REGISTRATION_CLOSED' AND NEW.status IN ('ONGOING', 'CANCELLED')) OR
-    (OLD.status = 'ONGOING' AND NEW.status IN ('FINISHED', 'CANCELLED')) OR
-    (OLD.status = 'FINISHED' AND NEW.status = 'ARCHIVED')
-  ) THEN
-    RAISE EXCEPTION 'Invalid status transition from % to %', OLD.status, NEW.status;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER enforce_event_status_transition
-  BEFORE UPDATE ON events
-  FOR EACH ROW
-  WHEN (OLD.status IS DISTINCT FROM NEW.status)
-  EXECUTE FUNCTION validate_event_status_transition();
-```
-
-### 6. Criar função de soft delete com validações (DB)
-
-```sql
-CREATE OR REPLACE FUNCTION soft_delete_event(p_event_id UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-  v_status event_status;
-  v_registration_count INT;
-BEGIN
-  -- Obter status atual
-  SELECT status INTO v_status FROM events WHERE id = p_event_id;
-  
-  IF v_status IS NULL THEN
-    RAISE EXCEPTION 'Event not found';
-  END IF;
-  
-  -- Só pode deletar DRAFT ou CANCELLED
-  IF v_status NOT IN ('DRAFT', 'CANCELLED') THEN
-    RAISE EXCEPTION 'Cannot delete event with status %. Only DRAFT or CANCELLED events can be deleted.', v_status;
-  END IF;
-  
-  -- Verificar se há inscrições
-  SELECT COUNT(*) INTO v_registration_count 
-  FROM event_registrations 
-  WHERE event_id = p_event_id AND status != 'CANCELED';
-  
-  IF v_registration_count > 0 THEN
-    RAISE EXCEPTION 'Cannot delete event with % active registrations', v_registration_count;
-  END IF;
-  
-  -- Soft delete
-  UPDATE events SET deleted_at = NOW() WHERE id = p_event_id;
-  
-  RETURN TRUE;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
-### 7. Atualizar RLS para excluir eventos deletados
-
-```sql
--- Recriar policy para excluir deleted
-DROP POLICY IF EXISTS events_public_select ON events;
-CREATE POLICY events_public_select ON events
-  FOR SELECT
-  USING (
-    is_public = true 
-    AND status NOT IN ('DRAFT', 'ARCHIVED') 
-    AND deleted_at IS NULL
+-- Atualizar policy de UPDATE (cancelamento) para validar deleted_at
+DROP POLICY IF EXISTS registrations_athlete_cancel ON event_registrations;
+CREATE POLICY registrations_athlete_cancel ON event_registrations
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM athletes a 
+      WHERE a.id = event_registrations.athlete_id 
+        AND a.profile_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    status = 'CANCELED'
+    AND EXISTS (
+      SELECT 1 FROM events e 
+      WHERE e.id = event_registrations.event_id 
+        AND e.status IN ('REGISTRATION_OPEN', 'REGISTRATION_CLOSED')
+        AND e.deleted_at IS NULL
+    )
   );
 ```
 
-### 8. Adicionar i18n para `CANCELLED`
+### 2. Atualizar UI para diferenciar "Evento cancelado"
 
-**pt-BR.ts, en.ts, es.ts**:
+**Arquivo**: `src/components/events/EventRegistrationButton.tsx`
+
+Adicionar verificação para `eventStatus === 'CANCELLED'`:
+
 ```typescript
-'events.status.cancelled': 'Cancelado' / 'Cancelled' / 'Cancelado',
-'events.status.cancelledDesc': 'Evento foi cancelado' / 'Event was cancelled' / 'Evento fue cancelado',
+// Após a verificação de login (linha 138)
+
+// Event cancelled - read-only
+if (eventStatus === 'CANCELLED') {
+  return (
+    <Button disabled variant="outline" className="text-destructive border-destructive/50">
+      {t('events.eventCancelled') || 'Evento Cancelado'}
+    </Button>
+  );
+}
 ```
 
-### 9. Atualizar helpers de comportamento
+### 3. Adicionar i18n key para "Evento cancelado"
 
-**Arquivo**: `src/types/event.ts`
+**Arquivos**: `pt-BR.ts`, `en.ts`, `es.ts`
 
 ```typescript
-// Atualizar canCancelRegistration para incluir CANCELLED
-export function canCancelRegistration(eventStatus: EventStatus): boolean {
-  return eventStatus === 'REGISTRATION_OPEN' || eventStatus === 'REGISTRATION_CLOSED';
-  // CANCELLED não permite mais cancelamentos de inscrição
-}
-
-// Nova função: verificar se evento pode ser deletado
-export function canDeleteEvent(eventStatus: EventStatus): boolean {
-  return eventStatus === 'DRAFT' || eventStatus === 'CANCELLED';
-}
+'events.eventCancelled': 'Evento Cancelado',
+'events.eventCancelledDesc': 'Este evento foi cancelado',
 ```
 
 ---
@@ -319,52 +223,50 @@ export function canDeleteEvent(eventStatus: EventStatus): boolean {
 
 | Arquivo | Ação | Impacto |
 |---------|------|---------|
-| Migration SQL | CRIAR | Enum, coluna, triggers, função |
-| `src/types/event.ts` | EDITAR | Tipo, config, transições, helpers |
+| Migration SQL | CRIAR | Atualizar RLS com `deleted_at IS NULL` |
+| `src/components/events/EventRegistrationButton.tsx` | EDITAR | ~10 linhas |
 | `src/locales/pt-BR.ts` | EDITAR | +2 chaves |
 | `src/locales/en.ts` | EDITAR | +2 chaves |
 | `src/locales/es.ts` | EDITAR | +2 chaves |
 
-**Total**: ~100 linhas de alteração
+**Total**: ~30 linhas de alteração
 
 ---
 
 ## FORA DE ESCOPO (CONFIRMADO)
 
-- Inscrição detalhada (existente e funcional)
-- Pagamentos
-- Cancelamento com refund
-- Chaves / brackets
-- Ranking
-- Súmula
+- Pagamento (existente mas não alterado)
+- Taxa de inscrição
+- Refund
 - Automação
+- E-mail
 - Analytics
-- UI de deleção (por design)
+- Ranking
+- Chaves
+- Súmula
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
-| Critério | Esperado |
-|----------|----------|
-| Estado `CANCELLED` existe no enum | OK |
-| Transições para `CANCELLED` funcionam | OK |
-| Transições inválidas são bloqueadas no DB | OK |
-| Soft delete funciona para DRAFT/CANCELLED | OK |
-| Soft delete bloqueado se há inscrições | OK |
-| RLS exclui eventos deletados | OK |
-| i18n completo para CANCELLED | OK |
-| Zero impacto em funcionalidades existentes | OK |
+| Critério | Estado Esperado |
+|----------|-----------------|
+| Inscrição só em REGISTRATION_OPEN | ✅ Já implementado |
+| Evento deletado bloqueia inscrição | ⚠️ Precisa RLS |
+| Duplicidade bloqueada | ✅ Constraint existe |
+| Cancelamento preserva histórico | ✅ Soft cancel |
+| Evento CANCELLED = read-only | ⚠️ Precisa UI |
+| Backend valida tudo | ✅ RLS completo |
+| UI diferencia estados | ⚠️ Precisa "Evento cancelado" |
 
 ---
 
 ## RESULTADO ESPERADO
 
-Após P2.1:
-- Evento possui lifecycle claro e imutável
-- Estados governam comportamento (validado no backend)
-- Estado `CANCELLED` disponível para cancelamento de eventos
-- Soft delete seguro com validações
-- Nenhuma ação ocorre fora de regra
-- Sistema pronto para FASE 2 (Inscrições) e FASE 3 (Pagamentos)
+Após P2.2:
+- Inscrição 100% governada por estado
+- `deleted_at` validado no backend
+- UI diferencia "Evento cancelado" de outros bloqueios
+- Zero inconsistência de dados
+- Sistema pronto para P3 (Pagamentos)
 
