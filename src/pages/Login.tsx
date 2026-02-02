@@ -201,13 +201,31 @@ export default function Login() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="relative z-10 text-center p-8"
+          className="relative z-10 text-center p-8 max-w-md"
         >
           <div className="w-24 h-24 rounded-2xl mx-auto flex items-center justify-center mb-8 glow-primary overflow-hidden">
             <img src={iconLogo} alt="TATAME" className="max-h-full max-w-full rounded-2xl object-contain" />
           </div>
-          <h2 className="font-display text-3xl font-bold mb-4">{t("auth.manageOrganization")}</h2>
-          <p className="text-muted-foreground max-w-sm">{t("auth.manageOrganizationDesc")}</p>
+          <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            {t("login.institutional.title")}
+          </h2>
+          <p className="text-muted-foreground leading-relaxed mb-6">
+            {t("login.institutional.description")}
+          </p>
+          <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>{t("login.institutional.point1")}</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>{t("login.institutional.point2")}</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>{t("login.institutional.point3")}</span>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>

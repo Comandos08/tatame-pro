@@ -542,6 +542,13 @@ export const es: Record<string, string> = {
   'auth.manageOrganization': 'Gestione su federación',
   'auth.manageOrganizationDesc': 'Sistema completo para organizaciones de deportes de combate. BJJ, Judo, Wrestling, Muay Thai y más.',
 
+  // Login institutional block
+  'login.institutional.title': 'Infraestructura institucional para deportes de combate',
+  'login.institutional.description': 'Tatame organiza, registra y preserva la historia deportiva de federaciones, academias y atletas en un entorno verificable y confiable.',
+  'login.institutional.point1': 'Gobernanza y organización institucional',
+  'login.institutional.point2': 'Trazabilidad e historial verificable',
+  'login.institutional.point3': 'Neutralidad y colaboración en el ecosistema',
+
   // Reset Password page
   'auth.validatingLink': 'Validando enlace...',
   'auth.invalidLink': 'Enlace Inválido',
