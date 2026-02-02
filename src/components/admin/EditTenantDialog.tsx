@@ -25,7 +25,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const SPORT_TYPES = ['BJJ', 'Judo', 'MuayThai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA'];
+const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
 const LOCALES = [
   { code: 'pt-BR', label: 'Português (BR)' },
   { code: 'en', label: 'English' },

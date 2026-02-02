@@ -393,7 +393,7 @@ export default function VerifyCard() {
                       {verification.hashVerified ? t('verification.integrityVerified') : t('verification.integrityFailed')}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      SHA-256: {verification.storedHash.substring(0, 16)}...
+                      ID: {verification.storedHash.substring(0, 16)}...
                     </p>
                   </div>
                 </div>

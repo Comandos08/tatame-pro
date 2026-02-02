@@ -325,7 +325,7 @@ export default function VerifyMembership() {
                     {/* Hash verification indicator */}
                     {data.content_hash_sha256 && (
                       <div className="text-center text-xs text-muted-foreground">
-                        <span className="font-mono">SHA-256: {data.content_hash_sha256.substring(0, 12)}...</span>
+                        <span className="font-mono">ID: {data.content_hash_sha256.substring(0, 12)}...</span>
                       </div>
                     )}
 
