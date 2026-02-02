@@ -78,6 +78,7 @@ function isTenantRoute(pathname: string): { isTenant: boolean; tenantSlug: strin
 function isPublicPath(pathname: string) {
   const rootPublic = new Set([
     "/",
+    "/about",
     "/login",
     "/forgot-password",
     "/reset-password",
