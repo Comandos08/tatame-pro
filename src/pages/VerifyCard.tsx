@@ -16,25 +16,13 @@ interface CardVerification {
   issuedAt: string | null;
   tenantName: string;
   sportType: string;
-  // Grading info
   gradingLevel: string | null;
   gradingScheme: string | null;
-  // Academy and Coach
   academyName: string | null;
   coachName: string | null;
-  // Integrity
   hashVerified: boolean | null;
   storedHash: string | null;
   pdfUrl: string | null;
-}
-
-// Calculate SHA-256 hash in browser
-async function calculateSHA256(data: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export default function VerifyCard() {
@@ -53,144 +41,23 @@ export default function VerifyCard() {
       }
 
       try {
-        // Step 1: Fetch digital card basic info (RLS: Public can verify digital cards)
-        const { data: card, error: cardError } = await supabase
-          .from("digital_cards")
-          .select("id, valid_until, content_hash_sha256, pdf_url, tenant_id, membership_id, created_at")
-          .eq("id", cardId)
-          .maybeSingle();
+        // Call Edge Function for secure verification (no direct PostgREST)
+        const { data, error: fnError } = await supabase.functions.invoke("verify-digital-card", {
+          body: { cardId, tenantSlug },
+        });
 
-        if (cardError) {
-          console.error("Card verification query error:", cardError);
-          setError(t('verification.cardNotFound'));
-          setLoading(false);
-          return;
-        }
-        
-        if (!card) {
-          console.error("Card not found for ID:", cardId);
-          setError(t('verification.cardNotFound'));
+        if (fnError) {
+          console.error("Edge function error:", fnError);
+          setError(t('verification.cardError'));
           setLoading(false);
           return;
         }
 
-        // Step 2: Fetch membership with related coach and academy
-        const { data: membership, error: membershipError } = await supabase
-          .from("memberships")
-          .select("id, status, end_date, start_date, type, athlete_id, tenant_id, preferred_coach_id, academy_id")
-          .eq("id", card.membership_id)
-          .maybeSingle();
-
-        if (membershipError || !membership) {
-          console.error("Membership query error:", membershipError);
-          setError(t('verification.cardNotFound'));
+        if (!data || !data.found) {
+          setError(data?.error || t('verification.cardNotFound'));
           setLoading(false);
           return;
         }
-
-        // Fetch coach if exists
-        let coachName: string | null = null;
-        if (membership.preferred_coach_id) {
-          const { data: coach } = await supabase
-            .from("coaches")
-            .select("full_name")
-            .eq("id", membership.preferred_coach_id)
-            .maybeSingle();
-          if (coach) {
-            const parts = coach.full_name.split(" ");
-            coachName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
-          }
-        }
-
-        // Fetch academy if exists
-        let academyName: string | null = null;
-        if (membership.academy_id) {
-          const { data: academy } = await supabase
-            .from("academies")
-            .select("name")
-            .eq("id", membership.academy_id)
-            .maybeSingle();
-          academyName = academy?.name || null;
-        }
-
-        // Step 3: Fetch athlete
-        const { data: athlete, error: athleteError } = await supabase
-          .from("athletes")
-          .select("id, full_name")
-          .eq("id", membership.athlete_id)
-          .maybeSingle();
-
-        if (athleteError || !athlete) {
-          console.error("Athlete query error:", athleteError);
-          setError(t('verification.cardNotFound'));
-          setLoading(false);
-          return;
-        }
-
-        // Fetch athlete's current grading level
-        let gradingLevel: string | null = null;
-        let gradingScheme: string | null = null;
-        const { data: latestGrading } = await supabase
-          .from("athlete_gradings")
-          .select(`
-            grading_level:grading_levels(
-              display_name,
-              grading_scheme:grading_schemes(name)
-            )
-          `)
-          .eq("athlete_id", athlete.id)
-          .eq("tenant_id", membership.tenant_id)
-          .order("promotion_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestGrading?.grading_level) {
-          const level = latestGrading.grading_level as any;
-          gradingLevel = level.display_name;
-          gradingScheme = level.grading_scheme?.name || null;
-        }
-
-        // Step 4: Fetch tenant (RLS: Public can view active tenants)
-        const { data: tenant, error: tenantError } = await supabase
-          .from("tenants")
-          .select("id, name, slug, sport_types")
-          .eq("id", membership.tenant_id)
-          .maybeSingle();
-
-        if (tenantError || !tenant) {
-          console.error("Tenant query error:", tenantError);
-          setError(t('verification.cardNotFound'));
-          setLoading(false);
-          return;
-        }
-
-        // Verify tenant slug matches
-        if (tenant.slug !== tenantSlug) {
-          setError(t('verification.documentNotFound'));
-          setLoading(false);
-          return;
-        }
-
-        // Extract issue date
-        const issuedAt = card.created_at ? card.created_at.split('T')[0] : null;
-
-        // Note: Hash verification requires exact payload match
-        // We display the stored hash but mark verification as null since 
-        // payload reconstruction may differ slightly due to coach/academy lookups
-        const hashVerified: boolean | null = card.content_hash_sha256 ? null : null;
-
-        // Mask athlete name for LGPD compliance
-        const maskName = (name: string): string => {
-          const parts = name.split(" ");
-          return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
-        };
-        const maskedName = maskName(athlete.full_name);
-
-        // Determine if card is valid
-        const endDate = card.valid_until || membership.end_date;
-        const isExpired = endDate ? new Date(endDate) < new Date() : false;
-        const isActive = membership.status === "ACTIVE" || membership.status === "APPROVED";
-        const isValid = isActive && !isExpired;
 
         // Map status for display
         const statusMap: Record<string, string> = {
@@ -204,21 +71,25 @@ export default function VerifyCard() {
           DRAFT: t('verification.statusDraft'),
         };
 
+        // Determine if expired based on validUntil
+        const endDate = data.validUntil;
+        const isExpired = endDate ? new Date(endDate) < new Date() : false;
+
         setVerification({
-          isValid,
-          athleteName: maskedName,
-          status: isExpired ? t('verification.statusExpired') : (statusMap[membership.status] || membership.status),
-          validUntil: endDate,
-          issuedAt,
-          tenantName: tenant.name,
-          sportType: tenant.sport_types?.[0] || t('verification.combatSport'),
-          gradingLevel,
-          gradingScheme,
-          academyName,
-          coachName,
-          hashVerified,
-          storedHash: card.content_hash_sha256,
-          pdfUrl: card.pdf_url,
+          isValid: data.isValid,
+          athleteName: data.athleteName,
+          status: isExpired ? t('verification.statusExpired') : (statusMap[data.status] || data.status),
+          validUntil: data.validUntil,
+          issuedAt: data.issuedAt,
+          tenantName: data.tenantName,
+          sportType: data.sportType || t('verification.combatSport'),
+          gradingLevel: data.gradingLevel,
+          gradingScheme: data.gradingScheme,
+          academyName: data.academyName,
+          coachName: data.coachName,
+          hashVerified: data.hashVerified,
+          storedHash: data.storedHash,
+          pdfUrl: data.pdfUrl,
         });
       } catch (err) {
         console.error("Verification error:", err);
