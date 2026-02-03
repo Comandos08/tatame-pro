@@ -1,200 +1,476 @@
 
 
-# P-HOME-HEADER-01.1 — REINTRODUÇÃO DE IDIOMA + TEMA (APROVADO)
+# P-REG-VIS-01 — RESTRIÇÃO DE VISIBILIDADE DE EVENTOS POR ORGANIZAÇÃO
 
-## SAFE MODE · VISUAL ONLY · ZERO AUTH · ZERO REGRESSÃO
-
----
-
-## RESUMO DAS MUDANÇAS
-
-Reintroduzir controles de **Idioma** (Globe) e **Tema** (Sun/Moon) no header público modo TATAME Home, com os seguintes ajustes obrigatórios aplicados:
-
-| Ajuste Obrigatório | Implementação |
-|--------------------|---------------|
-| Reuso de HeaderSettingsDropdown | ✅ Mesmo padrão de languages array + checkmark |
-| Theme toggle light/dark only | ✅ Sem opção "system" no header público |
-| Tooltip obrigatório | ✅ Tooltip em ambos os controles |
-| Escopo rigoroso | ✅ Apenas bloco `if (!tenant)` afetado |
+## SAFE MODE · FRONTEND-FIRST · BACKEND-COMPATIBLE · ZERO BREAKING CHANGES
 
 ---
 
-## ARQUIVO A MODIFICAR
+## RESUMO DOS AJUSTES OBRIGATÓRIOS APLICADOS
 
-| Arquivo | Ação |
-|---------|------|
-| `src/components/PublicHeader.tsx` | EDITAR |
+| Ajuste | Implementação |
+|--------|---------------|
+| **A) Hook compartilhado** | Novo `useHasAthleteInTenant` hook reutilizável |
+| **B) Estado diferenciado** | Mensagens específicas: "sem vínculo neste tenant" vs "sem vínculo em nenhuma org" |
+| **C) Loading composto** | Combinação de auth + athlete check + event antes de qualquer decisão |
 
 ---
 
-## MUDANÇAS ESPECÍFICAS
+## ARQUIVOS A CRIAR/MODIFICAR
 
-### 1. Imports Adicionais (linhas 3, 12-18, 20)
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/hooks/useHasAthleteInTenant.ts` | **CRIAR** | Hook compartilhado (Ajuste A) |
+| `src/pages/PublicEventsList.tsx` | EDITAR | Adicionar verificação de acesso |
+| `src/pages/PublicEventDetails.tsx` | EDITAR | Adicionar verificação de acesso |
+| `src/locales/pt-BR.ts` | EDITAR | 4 novas chaves i18n |
+| `src/locales/en.ts` | EDITAR | 4 novas chaves i18n |
+| `src/locales/es.ts` | EDITAR | 4 novas chaves i18n |
 
-```typescript
-// ADICIONAR aos imports
-import { Globe, Sun, Moon, Check } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Locale } from '@/contexts/I18nContext';
-```
+---
 
-### 2. Hooks Atualizados (linha 25-26)
+## FASE 1 — HOOK COMPARTILHADO (Ajuste A)
+
+### Novo Arquivo: `src/hooks/useHasAthleteInTenant.ts`
 
 ```typescript
-// DE:
-const { resolvedTheme } = useTheme();
-const { t } = useI18n();
+/**
+ * Hook para verificar se o usuário logado possui athlete em um tenant específico.
+ * Também verifica se o usuário possui athlete em QUALQUER tenant (para mensagens diferenciadas).
+ * 
+ * Retorna:
+ * - hasAthleteInTenant: boolean | undefined (undefined = loading)
+ * - hasAthleteAnywhere: boolean | undefined (undefined = loading)
+ * - isLoading: boolean
+ */
 
-// PARA:
-const { resolvedTheme, setTheme } = useTheme();
-const { t, locale, setLocale } = useI18n();
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useCurrentUser } from '@/contexts/AuthContext';
+
+interface UseHasAthleteInTenantResult {
+  /** Se o usuário tem athlete neste tenant específico */
+  hasAthleteInTenant: boolean | undefined;
+  /** Se o usuário tem athlete em algum tenant (qualquer um) */
+  hasAthleteAnywhere: boolean | undefined;
+  /** Se a verificação ainda está carregando */
+  isLoading: boolean;
+}
+
+export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthleteInTenantResult {
+  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
+
+  // Query 1: Verificar athlete neste tenant específico
+  const { data: hasAthleteInTenant, isLoading: tenantCheckLoading } = useQuery({
+    queryKey: ['athlete-tenant-check', currentUser?.id, tenantId],
+    queryFn: async () => {
+      if (!currentUser?.id || !tenantId) return false;
+      const { data, error } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('profile_id', currentUser.id)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!currentUser?.id && !!tenantId && isAuthenticated,
+  });
+
+  // Query 2: Verificar se tem athlete em QUALQUER tenant (para Ajuste B)
+  const { data: hasAthleteAnywhere, isLoading: anywhereCheckLoading } = useQuery({
+    queryKey: ['athlete-anywhere-check', currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser?.id) return false;
+      const { data, error } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('profile_id', currentUser.id)
+        .limit(1);
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    enabled: !!currentUser?.id && isAuthenticated,
+  });
+
+  // Loading composto (Ajuste C)
+  const isLoading = authLoading || 
+    (isAuthenticated && (tenantCheckLoading || anywhereCheckLoading));
+
+  return {
+    hasAthleteInTenant: isAuthenticated ? hasAthleteInTenant : undefined,
+    hasAthleteAnywhere: isAuthenticated ? hasAthleteAnywhere : undefined,
+    isLoading,
+  };
+}
 ```
 
-### 3. Languages Array (após linha 29)
+---
 
+## FASE 2 — PUBLICEVENTLIST.TSX
+
+### Mudanças Necessárias
+
+**1. Imports adicionais:**
 ```typescript
-// ADICIONAR dentro do bloco if (!tenant)
-const languages: { code: Locale; label: string }[] = [
-  { code: 'pt-BR', label: t('language.ptBR') },
-  { code: 'en', label: t('language.en') },
-  { code: 'es', label: t('language.es') },
-];
+import { AlertCircle, UserX } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
 ```
 
-### 4. Substituir Bloco de Navegação (linhas 43-61)
+**2. Hooks no componente (logo após tenant guard):**
+```typescript
+const { isAuthenticated, isLoading: authLoading } = useCurrentUser();
+const { 
+  hasAthleteInTenant, 
+  hasAthleteAnywhere, 
+  isLoading: athleteCheckLoading 
+} = useHasAthleteInTenant(tenant?.id);
+```
 
-**REMOVER** o link "Sobre":
+**3. Lógica de bloqueio (Ajustes B e C):**
+```typescript
+// Loading composto: aguardar auth + athlete check (Ajuste C)
+const isPageLoading = isLoading || (isAuthenticated && athleteCheckLoading);
+
+// Condições de bloqueio (apenas para usuários logados)
+const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
+  hasAthleteAnywhere === true && hasAthleteInTenant === false;
+
+const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
+  hasAthleteAnywhere === false;
+```
+
+**4. Renderização condicional (antes do return principal):**
 ```tsx
-{/* Link: Sobre (desktop only) */}
-<Button variant="ghost" size="sm" className="hidden md:flex" asChild>
-  <Link to="/about">{t('nav.about')}</Link>
-</Button>
+// Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
+if (isBlockedNoAffiliation) {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+            <h3 className="mt-4 text-lg font-medium">
+              {t('events.noAffiliation')}
+            </h3>
+            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              {t('events.noAffiliationDesc')}
+            </p>
+            <Button asChild className="mt-6">
+              <Link to={`/${tenant.slug}/membership`}>
+                {t('portal.startMembership')}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
+
+// Usuário logado COM vínculo, mas em OUTRA organização
+if (isBlockedWrongTenant) {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+            <h3 className="mt-4 text-lg font-medium">
+              {t('events.notAvailable')}
+            </h3>
+            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              {t('events.notAvailableForYourOrganization')}
+            </p>
+            <Button asChild variant="outline" className="mt-6">
+              <Link to="/portal">
+                {t('portal.title')}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
 ```
 
-**ADICIONAR** utilities + CTAs:
+**5. Ajustar loading (Ajuste C):**
 ```tsx
-{/* Utilities — Language & Theme (secondary, icons only) */}
-<div className="flex items-center gap-1">
-  {/* Language Dropdown — same UX as HeaderSettingsDropdown */}
-  <DropdownMenu>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Globe className="h-4 w-4" />
-            <span className="sr-only">{t('language.select')}</span>
-          </Button>
-        </DropdownMenuTrigger>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">
-        {t('language.select')}
-      </TooltipContent>
-    </Tooltip>
-    <DropdownMenuContent align="end">
-      {languages.map((lang) => (
-        <DropdownMenuItem
-          key={lang.code}
-          onClick={() => setLocale(lang.code)}
-          className="flex items-center justify-between cursor-pointer"
-        >
-          {lang.label}
-          {locale === lang.code && <Check className="h-4 w-4 text-primary" />}
-        </DropdownMenuItem>
-      ))}
-    </DropdownMenuContent>
-  </DropdownMenu>
-
-  {/* Theme Toggle — light/dark only (no system in public header) */}
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      >
-        {resolvedTheme === 'dark' ? (
-          <Sun className="h-4 w-4" />
-        ) : (
-          <Moon className="h-4 w-4" />
-        )}
-        <span className="sr-only">{t('theme.select')}</span>
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent side="bottom">
-      {t('theme.select')}
-    </TooltipContent>
-  </Tooltip>
-</div>
-
-{/* CTA: Entrar (ALWAYS visible - mobile-first) */}
-<Button variant="outline" size="sm" asChild>
-  <Link to="/login">{t('auth.login')}</Link>
-</Button>
-
-{/* CTA: Acessar Plataforma (primary, desktop) */}
-<Button size="sm" className="hidden sm:flex" asChild>
-  <Link to="/login">
-    {t('landing.accessPlatform')}
-    <ArrowRight className="ml-2 h-4 w-4" />
-  </Link>
-</Button>
+{/* Loading composto */}
+{isPageLoading && (
+  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    {[1, 2, 3].map((i) => (
+      <Card key={i}>
+        <CardContent className="pt-6">
+          <Skeleton className="h-32 w-full mb-4" />
+          <Skeleton className="h-6 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+)}
 ```
 
 ---
 
-## LAYOUT FINAL
+## FASE 3 — PUBLICEVENTDETAILS.TSX
+
+### Mudanças Necessárias
+
+**1. Imports adicionais:**
+```typescript
+import { AlertCircle, UserX } from 'lucide-react';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
+```
+
+**2. Hooks no componente:**
+```typescript
+const { isAuthenticated, isLoading: authLoading } = useCurrentUser();
+const { 
+  hasAthleteInTenant, 
+  hasAthleteAnywhere, 
+  isLoading: athleteCheckLoading 
+} = useHasAthleteInTenant(tenant?.id);
+```
+
+**3. Loading composto e lógica de bloqueio:**
+```typescript
+// Loading composto: event + auth + athlete check (Ajuste C)
+const isPageLoading = eventLoading || (isAuthenticated && athleteCheckLoading);
+
+// Condições de bloqueio
+const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
+  hasAthleteAnywhere === true && hasAthleteInTenant === false;
+
+const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
+  hasAthleteAnywhere === false;
+```
+
+**4. Renderização condicional (após loading, antes do return principal):**
+```tsx
+// Loading composto (Ajuste C)
+if (isPageLoading) {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader />
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <Skeleton className="h-8 w-64 mb-4" />
+        <Skeleton className="h-48 w-full" />
+      </main>
+    </div>
+  );
+}
+
+// Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
+if (isBlockedNoAffiliation) {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader />
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+            <h3 className="mt-4 text-lg font-medium">
+              {t('events.noAffiliation')}
+            </h3>
+            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              {t('events.noAffiliationDesc')}
+            </p>
+            <Button asChild className="mt-6">
+              <Link to={`/${tenant?.slug}/membership`}>
+                {t('portal.startMembership')}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
+
+// Usuário logado COM vínculo, mas em OUTRA organização
+if (isBlockedWrongTenant) {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader />
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+            <h3 className="mt-4 text-lg font-medium">
+              {t('events.notAvailable')}
+            </h3>
+            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              {t('events.notAvailableForYourOrganization')}
+            </p>
+            <Button asChild variant="outline" className="mt-6">
+              <Link to="/portal">
+                {t('portal.title')}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+## FASE 4 — I18N KEYS
+
+### Novas Chaves (4 em cada locale)
+
+**pt-BR.ts:**
+```typescript
+// Events - Access Control (P-REG-VIS-01)
+'events.notAvailable': 'Evento não disponível',
+'events.notAvailableForYourOrganization': 'Este conteúdo é exclusivo para atletas filiados a esta organização. Acesse o portal da sua organização para ver seus eventos.',
+'events.noAffiliation': 'Sem filiação ativa',
+'events.noAffiliationDesc': 'Você ainda não possui filiação como atleta em nenhuma organização. Faça sua filiação para ter acesso aos eventos.',
+```
+
+**en.ts:**
+```typescript
+// Events - Access Control (P-REG-VIS-01)
+'events.notAvailable': 'Event not available',
+'events.notAvailableForYourOrganization': 'This content is exclusive to athletes affiliated with this organization. Access your organization\'s portal to view your events.',
+'events.noAffiliation': 'No active affiliation',
+'events.noAffiliationDesc': 'You don\'t have an athlete affiliation with any organization yet. Complete your membership to access events.',
+```
+
+**es.ts:**
+```typescript
+// Events - Access Control (P-REG-VIS-01)
+'events.notAvailable': 'Evento no disponible',
+'events.notAvailableForYourOrganization': 'Este contenido es exclusivo para atletas afiliados a esta organización. Accede al portal de tu organización para ver tus eventos.',
+'events.noAffiliation': 'Sin afiliación activa',
+'events.noAffiliationDesc': 'Aún no tienes afiliación como atleta en ninguna organización. Completa tu afiliación para acceder a los eventos.',
+```
+
+---
+
+## FLUXO DE DECISÃO (ATUALIZADO)
 
 ```text
-[Logo TATAME] ────────────────── [🌐] [🌓] [Entrar] [Acessar Plataforma →]
-                                   │     │     │            │
-                                   │     │     │            └── primary (hidden < sm)
-                                   │     │     └── outline (SEMPRE visível)
-                                   │     └── ghost icon (theme: light↔dark)
-                                   └── ghost icon (language dropdown)
+┌─────────────────────────────────────────────────────────────┐
+│                    USUÁRIO ACESSA                            │
+│              /{tenantSlug}/events                            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                   ┌──────────────────┐
+                   │  Está logado?    │
+                   └──────────────────┘
+                    │              │
+                   NÃO            SIM
+                    │              │
+                    ▼              ▼
+           ┌──────────────┐  ┌──────────────────────┐
+           │ Mostra       │  │ Aguardar loading     │
+           │ eventos      │  │ composto (Ajuste C)  │
+           │ normalmente  │  └──────────────────────┘
+           └──────────────┘             │
+                                        ▼
+                             ┌──────────────────────┐
+                             │ Tem athlete em       │
+                             │ ALGUM tenant?        │
+                             └──────────────────────┘
+                              │            │
+                             SIM          NÃO
+                              │            │
+                              ▼            ▼
+                   ┌──────────────────┐  ┌──────────────────┐
+                   │ Tem athlete      │  │ Bloqueio:        │
+                   │ NESTE tenant?    │  │ "Sem filiação    │
+                   └──────────────────┘  │  ativa"          │
+                    │            │       │ + CTA Filiar-se  │
+                   SIM          NÃO      └──────────────────┘
+                    │            │              (Ajuste B)
+                    ▼            ▼
+           ┌──────────────┐  ┌──────────────────┐
+           │ Mostra       │  │ Bloqueio:        │
+           │ eventos      │  │ "Não disponível  │
+           │ normalmente  │  │  para sua org"   │
+           └──────────────┘  │ + CTA Portal     │
+                             └──────────────────┘
 ```
 
 ---
 
-## RESPONSIVIDADE
+## CENÁRIOS DE TESTE
 
-| Elemento | Mobile | Desktop |
-|----------|--------|---------|
-| Language (🌐) | ✅ visível | ✅ visível |
-| Theme (🌓) | ✅ visível | ✅ visível |
-| "Entrar" | ✅ **SEMPRE** | ✅ visível |
-| "Acessar Plataforma" | ❌ hidden | ✅ visível (sm+) |
+| # | Cenário | Comportamento Esperado |
+|---|---------|------------------------|
+| 1 | Usuário NÃO logado acessa `/federacao-sp/events` | ✅ Vê eventos normalmente |
+| 2 | Atleta de `federacao-sp` acessa `/federacao-sp/events` | ✅ Vê eventos normalmente |
+| 3 | Atleta de `federacao-sp` acessa `/outra-federacao/events` | ❌ Bloqueio "Não disponível para sua org" |
+| 4 | Atleta de `federacao-sp` acessa `/outra-federacao/events/123` | ❌ Bloqueio "Não disponível para sua org" |
+| 5 | Usuário logado SEM nenhum athlete acessa eventos | ❌ Bloqueio "Sem filiação ativa" + CTA filiar-se |
+| 6 | Atleta com múltiplos tenants acessa evento de tenant válido | ✅ Vê eventos normalmente |
+| 7 | Loading entre páginas | ✅ Skeleton sem flicker |
 
 ---
 
-## O QUE NÃO MUDA
+## GARANTIAS DE SEGURANÇA
 
-- ❌ Modo Tenant — intocado
-- ❌ Nenhum AuthContext
-- ❌ Nenhum TenantContext  
-- ❌ Nenhuma nova key i18n
-- ❌ Nenhum backend
+| Garantia | Status |
+|----------|--------|
+| Nenhuma mudança em RLS | ✅ |
+| Nenhuma mudança em schema | ✅ |
+| Nenhuma mudança em Edge Functions | ✅ |
+| Regressão de inscrição | ✅ Não afetado |
+| Frontend-only | ✅ |
+| Reversível | ✅ |
+| Compatível com Modelo C futuro | ✅ |
+
+---
+
+## EDGE CASES TRATADOS
+
+| Caso | Tratamento |
+|------|------------|
+| Auth loading | Aguarda loading composto |
+| Athlete check loading | Aguarda loading composto |
+| Usuário logado sem athlete em NENHUM tenant | Bloqueio diferenciado (Ajuste B) |
+| Usuário logado com athlete em outro tenant | Bloqueio diferenciado (Ajuste B) |
+| Tenant inválido na URL | Fallback para 404 (já existente) |
+| Session expira durante visualização | Auth state change handled |
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
 ```text
-✅ Idioma visível (Globe + dropdown)
-✅ Tema visível (Sun/Moon toggle light↔dark)
-✅ Tooltips funcionais
-✅ "Sobre" removido
-✅ CTAs mantêm hierarquia
-✅ Zero regressão
+✅ Hook compartilhado useHasAthleteInTenant (Ajuste A)
+✅ Mensagens diferenciadas: "sem vínculo neste tenant" vs "sem filiação" (Ajuste B)
+✅ Loading composto sem flicker (Ajuste C)
+✅ Atleta só vê eventos da própria organização quando logado
+✅ Usuário não logado continua vendo eventos públicos
+✅ Acesso direto via URL bloqueado corretamente
+✅ Inscrição permanece consistente (não alterado)
+✅ Zero regressão em fluxos existentes
+✅ Zero alteração de backend
+```
+
+---
+
+## RESULTADO ESPERADO
+
+```text
+P-REG-VIS-01 = DONE
+Modelo A consolidado
+UX coerente com modelo de federação
+Expectativa do usuário alinhada
+Mensagens educacionais claras
+Escalável para Modelo C sem retrabalho
 ```
 
