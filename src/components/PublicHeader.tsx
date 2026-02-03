@@ -1,25 +1,12 @@
-import React, { forwardRef } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Monitor, Globe, ArrowLeft, ArrowRight, Trophy, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
-import { Button, ButtonProps } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n, Locale } from '@/contexts/I18nContext';
-import { InstitutionalSeal } from '@/components/institutional';
-
-// ForwardRef wrapper for Button to fix DropdownMenuTrigger ref warning
-const TriggerButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
-  <Button ref={ref} {...props} />
-));
-TriggerButton.displayName = 'TriggerButton';
+import { useI18n } from '@/contexts/I18nContext';
 
 interface Tenant {
   name: string;
@@ -34,186 +21,69 @@ interface PublicHeaderProps {
   backTo?: string;
 }
 
-const localeLabels: Record<Locale, string> = {
-  'pt-BR': 'Português',
-  'en': 'English',
-  'es': 'Español',
-};
-
 export default function PublicHeader({ tenant, showBackButton, backTo }: PublicHeaderProps) {
-  const { theme, resolvedTheme, setTheme } = useTheme();
-  const { locale, setLocale, t } = useI18n();
+  const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
 
-  // For IPPON main landing (no tenant)
+  // MODE 1: TATAME HOME (no tenant)
   if (!tenant) {
     return (
-      <header className="relative z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0">
-        <div className="container mx-auto flex items-center justify-between py-4 px-4">
+      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto flex h-full items-center justify-between px-4">
+          {/* LEFT — Brand */}
           <Link to="/" className="flex items-center">
             <img 
               src={resolvedTheme === 'dark' ? logoTatameDark : logoTatameLight} 
               alt="TATAME" 
-              className="h-10 w-auto object-contain" 
+              className="h-8 w-auto object-contain" 
             />
           </Link>
-          
-          <div className="flex items-center gap-2">
-            {/* Institutional Seal */}
-            <InstitutionalSeal />
 
-            {/* Language Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <TriggerButton variant="ghost" size="icon" title={t('language.select')}>
-                  <Globe className="h-5 w-5" />
-                </TriggerButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {(Object.keys(localeLabels) as Locale[]).map((loc) => (
-                  <DropdownMenuItem
-                    key={loc}
-                    onClick={() => setLocale(loc)}
-                    className={locale === loc ? 'bg-accent text-accent-foreground font-medium' : ''}
-                  >
-                    {localeLabels[loc]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Theme Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <TriggerButton variant="ghost" size="icon" title={t('theme.select')}>
-                  {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                </TriggerButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Sun className="h-4 w-4" />
-                    {t('theme.light')}
-                  </span>
-                  {theme === 'light' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Moon className="h-4 w-4" />
-                    {t('theme.dark')}
-                  </span>
-                  {theme === 'dark' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Monitor className="h-4 w-4" />
-                    {t('theme.system')}
-                  </span>
-                  {theme === 'system' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Institutional Link */}
-            <Link 
-              to="/about" 
-              className="hidden md:block text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {t('nav.about')}
-            </Link>
-
-            {/* Auth Links */}
-            <Link to="/login" className="hidden md:block text-muted-foreground hover:text-foreground transition-colors">
-              {t('auth.login')}
-            </Link>
-            <Button asChild>
-              <Link to="/login">{t('landing.accessPlatform')}</Link>
+          {/* RIGHT — Navigation + CTAs */}
+          <nav className="flex items-center gap-2">
+            {/* Link: Sobre (desktop only) */}
+            <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
+              <Link to="/about">{t('nav.about')}</Link>
             </Button>
-          </div>
+
+            {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/login">{t('auth.login')}</Link>
+            </Button>
+
+            {/* CTA: Acessar Plataforma (primary, desktop) */}
+            <Button size="sm" className="hidden sm:flex" asChild>
+              <Link to="/login">
+                {t('landing.accessPlatform')}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </nav>
         </div>
       </header>
     );
   }
 
-  // For tenant pages
+  // MODE 2: TENANT PAGES
   return (
-    <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-      <div className="container mx-auto flex items-center justify-between py-4 px-4">
-        <div className="flex items-center gap-3">
-          <Link to={`/${tenant.slug}`} className="flex items-center gap-2">
-            {tenant.logoUrl ? (
-              <img src={tenant.logoUrl} alt={tenant.name} className="h-10 w-10 rounded-lg object-cover" />
-            ) : (
-              <img src={iconLogo} alt={tenant.name} className="h-10 w-10 rounded-lg object-contain" />
-            )}
-            <span className="font-display text-lg font-bold">{tenant.name}</span>
-          </Link>
-        </div>
-        
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Rankings Link */}
-          {!showBackButton && (
-            <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
-              <Link to={`/${tenant.slug}/rankings`}>
-                <Trophy className="mr-2 h-4 w-4" />
-                Rankings
-              </Link>
-            </Button>
+    <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-full items-center justify-between px-4">
+        {/* LEFT — Brand */}
+        <Link to={`/${tenant.slug}`} className="flex items-center gap-2">
+          {tenant.logoUrl ? (
+            <img src={tenant.logoUrl} alt={tenant.name} className="h-8 w-8 rounded-lg object-cover" />
+          ) : (
+            <img src={iconLogo} alt={tenant.name} className="h-8 w-8 rounded-lg object-contain" />
           )}
+          <span className="font-display text-base font-semibold truncate max-w-[150px] sm:max-w-none">
+            {tenant.name}
+          </span>
+        </Link>
 
-          {/* Language Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <TriggerButton variant="ghost" size="icon" title={t('language.select')}>
-                <Globe className="h-5 w-5" />
-              </TriggerButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {(Object.keys(localeLabels) as Locale[]).map((loc) => (
-                <DropdownMenuItem
-                  key={loc}
-                  onClick={() => setLocale(loc)}
-                  className={locale === loc ? 'bg-accent text-accent-foreground font-medium' : ''}
-                >
-                  {localeLabels[loc]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Theme Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <TriggerButton variant="ghost" size="icon" title={t('theme.select')}>
-                {resolvedTheme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-              </TriggerButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Sun className="h-4 w-4" />
-                  {t('theme.light')}
-                </span>
-                {theme === 'light' && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Moon className="h-4 w-4" />
-                  {t('theme.dark')}
-                </span>
-                {theme === 'dark' && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4" />
-                  {t('theme.system')}
-                </span>
-                {theme === 'system' && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Back or CTA */}
+        {/* RIGHT — Navigation OR Back Button (MUTUALLY EXCLUSIVE) */}
+        <nav className="flex items-center gap-2">
           {showBackButton ? (
+            // BACK MODE: Only back button, NO other CTAs
             <Button variant="outline" size="sm" asChild>
               <Link to={backTo || `/${tenant.slug}`}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -221,14 +91,36 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
               </Link>
             </Button>
           ) : (
-            <Button size="sm" asChild>
-              <Link to={`/${tenant.slug}/portal`}>
-                {t('nav.accessPortal')}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            // NAVIGATION MODE: Full navigation
+            <>
+              {/* Link: Eventos (desktop) */}
+              <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
+                <Link to={`/${tenant.slug}/events`}>{t('nav.events')}</Link>
+              </Button>
+
+              {/* Link: Rankings (TENANT ONLY, ghost + icon) */}
+              <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
+                <Link to={`/${tenant.slug}/rankings`}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  Rankings
+                </Link>
+              </Button>
+
+              {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/${tenant.slug}/login`}>{t('auth.login')}</Link>
+              </Button>
+
+              {/* CTA: Acessar Portal (primary) */}
+              <Button size="sm" className="hidden sm:flex" asChild>
+                <Link to={`/${tenant.slug}/portal`}>
+                  {t('nav.accessPortal')}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </>
           )}
-        </div>
+        </nav>
       </div>
     </header>
   );
