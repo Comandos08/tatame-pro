@@ -1,476 +1,411 @@
 
-
-# P-REG-VIS-01 — RESTRIÇÃO DE VISIBILIDADE DE EVENTOS POR ORGANIZAÇÃO
-
-## SAFE MODE · FRONTEND-FIRST · BACKEND-COMPATIBLE · ZERO BREAKING CHANGES
+# PLANO DE BLINDAGEM — TATAME PRO
+## SAFE MODE · GOLD STANDARD · AJUSTES A1, A2, A3 APLICADOS
 
 ---
 
-## RESUMO DOS AJUSTES OBRIGATÓRIOS APLICADOS
+## CONFIRMAÇÃO DOS AJUSTES OBRIGATÓRIOS
 
-| Ajuste | Implementação |
-|--------|---------------|
-| **A) Hook compartilhado** | Novo `useHasAthleteInTenant` hook reutilizável |
-| **B) Estado diferenciado** | Mensagens específicas: "sem vínculo neste tenant" vs "sem vínculo em nenhuma org" |
-| **C) Loading composto** | Combinação de auth + athlete check + event antes de qualquer decisão |
-
----
-
-## ARQUIVOS A CRIAR/MODIFICAR
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/hooks/useHasAthleteInTenant.ts` | **CRIAR** | Hook compartilhado (Ajuste A) |
-| `src/pages/PublicEventsList.tsx` | EDITAR | Adicionar verificação de acesso |
-| `src/pages/PublicEventDetails.tsx` | EDITAR | Adicionar verificação de acesso |
-| `src/locales/pt-BR.ts` | EDITAR | 4 novas chaves i18n |
-| `src/locales/en.ts` | EDITAR | 4 novas chaves i18n |
-| `src/locales/es.ts` | EDITAR | 4 novas chaves i18n |
+| Ajuste | Requisito | Como Será Implementado |
+|--------|-----------|------------------------|
+| **A1** | Hook reativo via Context (não sessionStorage) | `useImpersonationClient()` dependerá de `session?.impersonationId` do `ImpersonationContext` |
+| **A2** | Limpar cache ao encerrar impersonation | `clearImpersonationClientCache()` será chamado dentro de `clearSession()` |
+| **A3** | Keys devem existir antes de usar | Todas as keys serão adicionadas aos locales ANTES de usar nos componentes |
 
 ---
 
-## FASE 1 — HOOK COMPARTILHADO (Ajuste A)
+## ARQUIVOS A CRIAR
 
-### Novo Arquivo: `src/hooks/useHasAthleteInTenant.ts`
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/integrations/supabase/impersonation-client.ts` | Client wrapper reativo via Context |
+
+---
+
+## ARQUIVOS A MODIFICAR
+
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/contexts/ImpersonationContext.tsx` | 1) Corrigir deps useCallback (linha 133); 2) Chamar `clearImpersonationClientCache()` em `clearSession()` |
+| `src/components/auth/RequireRoles.tsx` | 1) Adicionar log diagnóstico; 2) Internacionalizar "Verificando permissões..." |
+| `src/layouts/TenantLayout.tsx` | Internacionalizar 3 strings hardcoded |
+| `src/components/events/EventImageUpload.tsx` | Eliminar 8x `as any` e usar keys corretas |
+| `src/components/admin/CreateTenantDialog.tsx` | Internacionalizar ~15 strings |
+| `src/components/admin/PlatformHealthCard.tsx` | Internacionalizar ~40 strings |
+| `src/locales/pt-BR.ts` | Adicionar ~60 novas keys |
+| `src/locales/en.ts` | Adicionar ~60 novas keys |
+| `src/locales/es.ts` | Adicionar ~60 novas keys |
+
+---
+
+## FASE 1 — IMPERSONATION CLIENT COM REATIVIDADE CORRETA (A1, A2)
+
+### 1.1. Criar `src/integrations/supabase/impersonation-client.ts`
 
 ```typescript
 /**
- * Hook para verificar se o usuário logado possui athlete em um tenant específico.
- * Também verifica se o usuário possui athlete em QUALQUER tenant (para mensagens diferenciadas).
+ * 🔐 Impersonation-Aware Supabase Client
  * 
- * Retorna:
- * - hasAthleteInTenant: boolean | undefined (undefined = loading)
- * - hasAthleteAnywhere: boolean | undefined (undefined = loading)
- * - isLoading: boolean
+ * Cria clients Supabase com header x-impersonation-id injetado
+ * automaticamente quando há sessão de impersonation ativa.
+ * 
+ * AJUSTE A1: Depende do state do ImpersonationContext (reativo)
+ * AJUSTE A2: Cache limpo via clearImpersonationClientCache()
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useCurrentUser } from '@/contexts/AuthContext';
+import { useMemo } from 'react';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './types';
 
-interface UseHasAthleteInTenantResult {
-  /** Se o usuário tem athlete neste tenant específico */
-  hasAthleteInTenant: boolean | undefined;
-  /** Se o usuário tem athlete em algum tenant (qualquer um) */
-  hasAthleteAnywhere: boolean | undefined;
-  /** Se a verificação ainda está carregando */
-  isLoading: boolean;
-}
+// Cache de clients por impersonationId
+const clientCache = new Map<string, SupabaseClient<Database>>();
 
-export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthleteInTenantResult {
-  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
-
-  // Query 1: Verificar athlete neste tenant específico
-  const { data: hasAthleteInTenant, isLoading: tenantCheckLoading } = useQuery({
-    queryKey: ['athlete-tenant-check', currentUser?.id, tenantId],
-    queryFn: async () => {
-      if (!currentUser?.id || !tenantId) return false;
-      const { data, error } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('profile_id', currentUser.id)
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
+/**
+ * Cria um client Supabase com header x-impersonation-id opcional.
+ * Memoizado por impersonationId para evitar recriação desnecessária.
+ */
+export function createImpersonationAwareClient(
+  impersonationId: string | null
+): SupabaseClient<Database> {
+  const cacheKey = impersonationId || 'default';
+  
+  // Retorna do cache se existir
+  const cached = clientCache.get(cacheKey);
+  if (cached) return cached;
+  
+  // Configuração base
+  const options: Parameters<typeof createClient>[2] = {
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
     },
-    enabled: !!currentUser?.id && !!tenantId && isAuthenticated,
-  });
-
-  // Query 2: Verificar se tem athlete em QUALQUER tenant (para Ajuste B)
-  const { data: hasAthleteAnywhere, isLoading: anywhereCheckLoading } = useQuery({
-    queryKey: ['athlete-anywhere-check', currentUser?.id],
-    queryFn: async () => {
-      if (!currentUser?.id) return false;
-      const { data, error } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('profile_id', currentUser.id)
-        .limit(1);
-      if (error) throw error;
-      return (data?.length ?? 0) > 0;
-    },
-    enabled: !!currentUser?.id && isAuthenticated,
-  });
-
-  // Loading composto (Ajuste C)
-  const isLoading = authLoading || 
-    (isAuthenticated && (tenantCheckLoading || anywhereCheckLoading));
-
-  return {
-    hasAthleteInTenant: isAuthenticated ? hasAthleteInTenant : undefined,
-    hasAthleteAnywhere: isAuthenticated ? hasAthleteAnywhere : undefined,
-    isLoading,
   };
+  
+  // Injeta header se houver impersonation ativa
+  if (impersonationId) {
+    options.global = {
+      headers: { 'x-impersonation-id': impersonationId },
+    };
+  }
+  
+  const client = createClient<Database>(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    options
+  );
+  
+  // Limita tamanho do cache para evitar memory leak
+  if (clientCache.size > 10) {
+    const defaultClient = clientCache.get('default');
+    clientCache.clear();
+    if (defaultClient) clientCache.set('default', defaultClient);
+  }
+  
+  clientCache.set(cacheKey, client);
+  return client;
+}
+
+/**
+ * Hook para uso em componentes React.
+ * AJUSTE A1: Recebe impersonationId do Context (fonte reativa).
+ */
+export function useImpersonationClient(
+  impersonationId: string | null | undefined
+): SupabaseClient<Database> {
+  return useMemo(
+    () => createImpersonationAwareClient(impersonationId ?? null),
+    [impersonationId]
+  );
+}
+
+/**
+ * Limpa o cache de clients (exceto default).
+ * AJUSTE A2: Deve ser chamado ao encerrar impersonation.
+ */
+export function clearImpersonationClientCache(): void {
+  const defaultClient = clientCache.get('default');
+  clientCache.clear();
+  if (defaultClient) clientCache.set('default', defaultClient);
+  console.log('[IMPERSONATION-CLIENT] Cache cleared');
 }
 ```
 
 ---
 
-## FASE 2 — PUBLICEVENTLIST.TSX
+### 1.2. Modificar `ImpersonationContext.tsx`
 
-### Mudanças Necessárias
+**Mudança 1 — Linha 133 (corrigir deps do useCallback):**
 
-**1. Imports adicionais:**
 ```typescript
-import { AlertCircle, UserX } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useCurrentUser } from '@/contexts/AuthContext';
-import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
+// DE:
+}, [session, isGlobalSuperadmin, navigate, t]);
+
+// PARA:
+}, [session, isGlobalSuperadmin, navigate, t, clearSession]);
 ```
 
-**2. Hooks no componente (logo após tenant guard):**
+**Mudança 2 — Importar função de limpeza de cache (topo do arquivo):**
+
 ```typescript
-const { isAuthenticated, isLoading: authLoading } = useCurrentUser();
-const { 
-  hasAthleteInTenant, 
-  hasAthleteAnywhere, 
-  isLoading: athleteCheckLoading 
-} = useHasAthleteInTenant(tenant?.id);
+import { clearImpersonationClientCache } from '@/integrations/supabase/impersonation-client';
 ```
 
-**3. Lógica de bloqueio (Ajustes B e C):**
+**Mudança 3 — Adicionar chamada em `clearSession()` (linha ~165):**
+
 ```typescript
-// Loading composto: aguardar auth + athlete check (Ajuste C)
-const isPageLoading = isLoading || (isAuthenticated && athleteCheckLoading);
-
-// Condições de bloqueio (apenas para usuários logados)
-const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
-  hasAthleteAnywhere === true && hasAthleteInTenant === false;
-
-const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
-  hasAthleteAnywhere === false;
-```
-
-**4. Renderização condicional (antes do return principal):**
-```tsx
-// Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
-if (isBlockedNoAffiliation) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
-      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-            <h3 className="mt-4 text-lg font-medium">
-              {t('events.noAffiliation')}
-            </h3>
-            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-              {t('events.noAffiliationDesc')}
-            </p>
-            <Button asChild className="mt-6">
-              <Link to={`/${tenant.slug}/membership`}>
-                {t('portal.startMembership')}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
-}
-
-// Usuário logado COM vínculo, mas em OUTRA organização
-if (isBlockedWrongTenant) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
-      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-            <h3 className="mt-4 text-lg font-medium">
-              {t('events.notAvailable')}
-            </h3>
-            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-              {t('events.notAvailableForYourOrganization')}
-            </p>
-            <Button asChild variant="outline" className="mt-6">
-              <Link to="/portal">
-                {t('portal.title')}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
-}
-```
-
-**5. Ajustar loading (Ajuste C):**
-```tsx
-{/* Loading composto */}
-{isPageLoading && (
-  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-    {[1, 2, 3].map((i) => (
-      <Card key={i}>
-        <CardContent className="pt-6">
-          <Skeleton className="h-32 w-full mb-4" />
-          <Skeleton className="h-6 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-1/2" />
-        </CardContent>
-      </Card>
-    ))}
-  </div>
-)}
+// clearSession atualizado
+const clearSession = useCallback(() => {
+  setSession(null);
+  setRemainingMinutes(null);
+  sessionStorage.removeItem(STORAGE_KEY);
+  if (validationInterval.current) clearInterval(validationInterval.current);
+  if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
+  // AJUSTE A2: Limpar cache de clients Supabase
+  clearImpersonationClientCache();
+}, []);
 ```
 
 ---
 
-## FASE 3 — PUBLICEVENTDETAILS.TSX
+### 1.3. Adicionar diagnóstico em `RequireRoles.tsx`
 
-### Mudanças Necessárias
+**Após linha 66 (antes do if !hasAccess):**
 
-**1. Imports adicionais:**
 ```typescript
-import { AlertCircle, UserX } from 'lucide-react';
-import { useCurrentUser } from '@/contexts/AuthContext';
-import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
+// 📊 DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
+if (isSuperadminAccessingTenant && !hasValidImpersonation) {
+  console.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
+    isImpersonating,
+    impersonatedTenantId,
+    requiredTenantId: tenant?.id,
+    mismatch: impersonatedTenantId !== tenant?.id,
+  });
+}
 ```
 
-**2. Hooks no componente:**
+**Linha 54 — Internacionalizar string:**
+
 ```typescript
-const { isAuthenticated, isLoading: authLoading } = useCurrentUser();
-const { 
-  hasAthleteInTenant, 
-  hasAthleteAnywhere, 
-  isLoading: athleteCheckLoading 
-} = useHasAthleteInTenant(tenant?.id);
+// DE:
+<p className="text-muted-foreground">Verificando permissões...</p>
+
+// PARA:
+<p className="text-muted-foreground">{t('common.verifyingPermissions')}</p>
 ```
 
-**3. Loading composto e lógica de bloqueio:**
+**Adicionar import e hook:**
+
 ```typescript
-// Loading composto: event + auth + athlete check (Ajuste C)
-const isPageLoading = eventLoading || (isAuthenticated && athleteCheckLoading);
+import { useI18n } from '@/contexts/I18nContext';
 
-// Condições de bloqueio
-const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
-  hasAthleteAnywhere === true && hasAthleteInTenant === false;
-
-const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
-  hasAthleteAnywhere === false;
-```
-
-**4. Renderização condicional (após loading, antes do return principal):**
-```tsx
-// Loading composto (Ajuste C)
-if (isPageLoading) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <PublicHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
-        <Skeleton className="h-8 w-64 mb-4" />
-        <Skeleton className="h-48 w-full" />
-      </main>
-    </div>
-  );
-}
-
-// Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
-if (isBlockedNoAffiliation) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <PublicHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-            <h3 className="mt-4 text-lg font-medium">
-              {t('events.noAffiliation')}
-            </h3>
-            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-              {t('events.noAffiliationDesc')}
-            </p>
-            <Button asChild className="mt-6">
-              <Link to={`/${tenant?.slug}/membership`}>
-                {t('portal.startMembership')}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
-}
-
-// Usuário logado COM vínculo, mas em OUTRA organização
-if (isBlockedWrongTenant) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <PublicHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-            <h3 className="mt-4 text-lg font-medium">
-              {t('events.notAvailable')}
-            </h3>
-            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-              {t('events.notAvailableForYourOrganization')}
-            </p>
-            <Button asChild variant="outline" className="mt-6">
-              <Link to="/portal">
-                {t('portal.title')}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
-}
+// Dentro do componente:
+const { t } = useI18n();
 ```
 
 ---
 
-## FASE 4 — I18N KEYS
+## FASE 2 — I18N KEYS (AJUSTE A3 — ADICIONAR ANTES DE USAR)
 
-### Novas Chaves (4 em cada locale)
+### Novas Keys para pt-BR.ts, en.ts, es.ts
 
-**pt-BR.ts:**
-```typescript
-// Events - Access Control (P-REG-VIS-01)
-'events.notAvailable': 'Evento não disponível',
-'events.notAvailableForYourOrganization': 'Este conteúdo é exclusivo para atletas filiados a esta organização. Acesse o portal da sua organização para ver seus eventos.',
-'events.noAffiliation': 'Sem filiação ativa',
-'events.noAffiliationDesc': 'Você ainda não possui filiação como atleta em nenhuma organização. Faça sua filiação para ter acesso aos eventos.',
+Serão adicionadas ~60 keys em cada arquivo, organizadas por namespace:
+
+#### Common (P1)
+```
+common.next
+common.loadMore
+common.refresh
+common.verifyingPermissions
+common.createNew
 ```
 
-**en.ts:**
-```typescript
-// Events - Access Control (P-REG-VIS-01)
-'events.notAvailable': 'Event not available',
-'events.notAvailableForYourOrganization': 'This content is exclusive to athletes affiliated with this organization. Access your organization\'s portal to view your events.',
-'events.noAffiliation': 'No active affiliation',
-'events.noAffiliationDesc': 'You don\'t have an athlete affiliation with any organization yet. Complete your membership to access events.',
+#### Portal (P1)
+```
+portal.downloadDiploma
+portal.verifyDiploma
+portal.digitalCardDescription
 ```
 
-**es.ts:**
-```typescript
-// Events - Access Control (P-REG-VIS-01)
-'events.notAvailable': 'Evento no disponible',
-'events.notAvailableForYourOrganization': 'Este contenido es exclusivo para atletas afiliados a esta organización. Accede al portal de tu organización para ver tus eventos.',
-'events.noAffiliation': 'Sin afiliación activa',
-'events.noAffiliationDesc': 'Aún no tienes afiliación como atleta en ninguna organización. Completa tu afiliación para acceder a los eventos.',
+#### Membership (P1)
+```
+membership.renewal
+```
+
+#### Trial (P1)
+```
+trial.pendingDeleteDesc
+```
+
+#### Nav (P1)
+```
+nav.toggleTheme
+```
+
+#### Events - Image Upload (P1)
+```
+events.coverImage
+events.coverImageDesc
+events.imageTypeError
+events.imageSizeError
+events.imageUploadSuccess
+events.imageUploadError
+events.imageRemoveSuccess
+events.imageRemoveError
+events.replaceImage
+events.uploadImage
+events.removeImage
+```
+
+#### Tenant Layout (P1)
+```
+tenant.loading
+tenant.notFound
+tenant.notFoundDesc
+```
+
+#### Admin - Create Tenant Dialog (P1)
+```
+admin.newOrganization
+admin.createOrganization
+admin.createOrganizationDesc
+admin.organizationNameLabel
+admin.organizationNamePlaceholder
+admin.slugLabel
+admin.slugPlaceholder
+admin.slugHint
+admin.modalities
+admin.defaultLanguage
+admin.primaryColor
+admin.descriptionLabel
+admin.descriptionPlaceholder
+admin.creating
+admin.create
+admin.organizationCreatedSuccess
+admin.organizationCreateError
+admin.sessionSyncError
+admin.nameSlugRequired
+admin.selectModality
+admin.slugInUse
+```
+
+#### Admin - Platform Health (P1)
+```
+admin.platformHealth
+admin.platformHealthError
+admin.platformHealthDesc
+admin.platformHealthNote
+admin.operational
+admin.attentionNeeded
+admin.verifying
+admin.automaticJobs
+admin.expireMemberships
+admin.cleanAbandoned
+admin.checkTrials
+admin.metrics7days
+admin.expiredMemberships
+admin.cleanedAbandoned
+admin.webhookErrors24h
+admin.paymentFailures
+admin.tenantsWithIssues
+admin.blocked
+admin.overduePayment
+admin.neverRan
+admin.lessThan1h
+admin.hoursAgo
+admin.in24h
+admin.jobStatus.ok
+admin.jobStatus.delayed
+admin.jobStatus.error
+admin.jobStatus.noData
+admin.jobTooltip.ok
+admin.jobTooltip.delayed
+admin.jobTooltip.error
+admin.jobTooltip.noData
 ```
 
 ---
 
-## FLUXO DE DECISÃO (ATUALIZADO)
+## FASE 3 — INTERNACIONALIZAR COMPONENTES
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    USUÁRIO ACESSA                            │
-│              /{tenantSlug}/events                            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                   ┌──────────────────┐
-                   │  Está logado?    │
-                   └──────────────────┘
-                    │              │
-                   NÃO            SIM
-                    │              │
-                    ▼              ▼
-           ┌──────────────┐  ┌──────────────────────┐
-           │ Mostra       │  │ Aguardar loading     │
-           │ eventos      │  │ composto (Ajuste C)  │
-           │ normalmente  │  └──────────────────────┘
-           └──────────────┘             │
-                                        ▼
-                             ┌──────────────────────┐
-                             │ Tem athlete em       │
-                             │ ALGUM tenant?        │
-                             └──────────────────────┘
-                              │            │
-                             SIM          NÃO
-                              │            │
-                              ▼            ▼
-                   ┌──────────────────┐  ┌──────────────────┐
-                   │ Tem athlete      │  │ Bloqueio:        │
-                   │ NESTE tenant?    │  │ "Sem filiação    │
-                   └──────────────────┘  │  ativa"          │
-                    │            │       │ + CTA Filiar-se  │
-                   SIM          NÃO      └──────────────────┘
-                    │            │              (Ajuste B)
-                    ▼            ▼
-           ┌──────────────┐  ┌──────────────────┐
-           │ Mostra       │  │ Bloqueio:        │
-           │ eventos      │  │ "Não disponível  │
-           │ normalmente  │  │  para sua org"   │
-           └──────────────┘  │ + CTA Portal     │
-                             └──────────────────┘
-```
+### 3.1. TenantLayout.tsx
+
+**Mudanças:**
+- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
+- Adicionar `const { t } = useI18n();` no início de TenantContent
+- Substituir 3 strings hardcoded por `t()`
+
+### 3.2. EventImageUpload.tsx
+
+**Mudanças:**
+- Eliminar 8 ocorrências de `as any`
+- Usar keys corretas (já existentes após Fase 2)
+
+### 3.3. CreateTenantDialog.tsx
+
+**Mudanças:**
+- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
+- Adicionar `const { t } = useI18n();`
+- Substituir ~15 strings hardcoded por `t()`
+
+### 3.4. PlatformHealthCard.tsx
+
+**Mudanças:**
+- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
+- Adicionar `const { t } = useI18n();`
+- Substituir ~40 strings hardcoded por `t()`
 
 ---
 
-## CENÁRIOS DE TESTE
+## ORDEM DE EXECUÇÃO
 
-| # | Cenário | Comportamento Esperado |
-|---|---------|------------------------|
-| 1 | Usuário NÃO logado acessa `/federacao-sp/events` | ✅ Vê eventos normalmente |
-| 2 | Atleta de `federacao-sp` acessa `/federacao-sp/events` | ✅ Vê eventos normalmente |
-| 3 | Atleta de `federacao-sp` acessa `/outra-federacao/events` | ❌ Bloqueio "Não disponível para sua org" |
-| 4 | Atleta de `federacao-sp` acessa `/outra-federacao/events/123` | ❌ Bloqueio "Não disponível para sua org" |
-| 5 | Usuário logado SEM nenhum athlete acessa eventos | ❌ Bloqueio "Sem filiação ativa" + CTA filiar-se |
-| 6 | Atleta com múltiplos tenants acessa evento de tenant válido | ✅ Vê eventos normalmente |
-| 7 | Loading entre páginas | ✅ Skeleton sem flicker |
+1. **Criar** `src/integrations/supabase/impersonation-client.ts`
+2. **Editar** `src/contexts/ImpersonationContext.tsx` (2 mudanças)
+3. **Editar** `src/locales/pt-BR.ts` (adicionar ~60 keys)
+4. **Editar** `src/locales/en.ts` (adicionar ~60 keys)
+5. **Editar** `src/locales/es.ts` (adicionar ~60 keys)
+6. **Editar** `src/components/auth/RequireRoles.tsx` (log + i18n)
+7. **Editar** `src/layouts/TenantLayout.tsx` (i18n)
+8. **Editar** `src/components/events/EventImageUpload.tsx` (eliminar `as any`)
+9. **Editar** `src/components/admin/CreateTenantDialog.tsx` (i18n)
+10. **Editar** `src/components/admin/PlatformHealthCard.tsx` (i18n)
 
 ---
 
 ## GARANTIAS DE SEGURANÇA
 
-| Garantia | Status |
-|----------|--------|
-| Nenhuma mudança em RLS | ✅ |
-| Nenhuma mudança em schema | ✅ |
-| Nenhuma mudança em Edge Functions | ✅ |
-| Regressão de inscrição | ✅ Não afetado |
-| Frontend-only | ✅ |
-| Reversível | ✅ |
-| Compatível com Modelo C futuro | ✅ |
-
----
-
-## EDGE CASES TRATADOS
-
-| Caso | Tratamento |
-|------|------------|
-| Auth loading | Aguarda loading composto |
-| Athlete check loading | Aguarda loading composto |
-| Usuário logado sem athlete em NENHUM tenant | Bloqueio diferenciado (Ajuste B) |
-| Usuário logado com athlete em outro tenant | Bloqueio diferenciado (Ajuste B) |
-| Tenant inválido na URL | Fallback para 404 (já existente) |
-| Session expira durante visualização | Auth state change handled |
+| Garantia | Como Garantido |
+|----------|----------------|
+| ❌ Não altera rotas/guards | ✅ Apenas adiciona funcionalidade |
+| ❌ Não modifica RLS/policies | ✅ Frontend-only |
+| ❌ Não remove código funcional | ✅ Apenas estende |
+| ❌ Sem efeitos colaterais | ✅ Cache controlado |
+| ❌ Client memoizado | ✅ useMemo por impersonationId |
+| ✅ A1 — Reatividade via Context | ✅ Depende de session?.impersonationId |
+| ✅ A2 — Cache limpo ao encerrar | ✅ clearSession() chama clearImpersonationClientCache() |
+| ✅ A3 — Keys existem antes de usar | ✅ Locales editados ANTES dos componentes |
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
-```text
-✅ Hook compartilhado useHasAthleteInTenant (Ajuste A)
-✅ Mensagens diferenciadas: "sem vínculo neste tenant" vs "sem filiação" (Ajuste B)
-✅ Loading composto sem flicker (Ajuste C)
-✅ Atleta só vê eventos da própria organização quando logado
-✅ Usuário não logado continua vendo eventos públicos
-✅ Acesso direto via URL bloqueado corretamente
-✅ Inscrição permanece consistente (não alterado)
-✅ Zero regressão em fluxos existentes
-✅ Zero alteração de backend
-```
+| Critério | Verificação |
+|----------|-------------|
+| Impersonation funciona em queries PostgREST | Client injeta x-impersonation-id |
+| Encerrar impersonation limpa contexto | clearSession() limpa cache |
+| Nenhuma key retorna undefined | Todas as keys criadas |
+| Nenhuma regressão funcional | Zero breaking changes |
+| Build limpo | Sem erros de TypeScript |
 
 ---
 
 ## RESULTADO ESPERADO
 
 ```text
-P-REG-VIS-01 = DONE
-Modelo A consolidado
-UX coerente com modelo de federação
-Expectativa do usuário alinhada
-Mensagens educacionais claras
-Escalável para Modelo C sem retrabalho
+TATAME PRO = 100% BLINDADO
+✅ Impersonation reativa (A1)
+✅ Cache limpo corretamente (A2)
+✅ i18n completo (A3)
+✅ Zero "funciona por sorte"
+✅ Zero regressão
 ```
-
