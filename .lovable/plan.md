@@ -1,113 +1,97 @@
-# P0.1 — ENCERRAMENTO FORMAL
-## STATUS: ⏸️ PAUSADO (CRITÉRIO DE PARADA TÉCNICO)
+
+
+# P0.2 — RLS HOTFIX memberships · PRONTO PARA EXECUÇÃO
 
 ---
 
-## DECLARAÇÃO DE ENCERRAMENTO
+## STATUS
 
-| Item | Status |
+| Item | Estado |
 |------|--------|
-| PRÉ-CHECK executado | ✅ Completo |
-| Impedimento técnico validado | ✅ RLS não suporta "lookup-only" sem discriminador |
-| SQL aplicado | ❌ ZERO (conforme esperado) |
-| Policies alteradas | ❌ ZERO |
-| Escopo respeitado | ✅ Somente digital_cards analisado |
-
-### Motivo Técnico do Impedimento
-
-PostgreSQL RLS avalia policies **linha-a-linha**, não **query-a-query**. Não há como:
-- Permitir `SELECT ... WHERE id = 'X'` (1 resultado)
-- Bloquear `SELECT *` (todos os resultados)
-
-...usando apenas `USING(...)` sem um discriminador adicional.
+| Pré-check executado | ✅ `with_check = false` confirmado |
+| SQL validado | ✅ Pronto |
+| Aprovação recebida | ✅ APROVADO SEM RESSALVAS |
+| Modo atual | ⚠️ READ-ONLY (Plan Mode) |
 
 ---
 
-# P1 — VERIFICAÇÃO PÚBLICA SEGURA
-## STATUS: ✅ CONCLUÍDO (2026-02-03)
+## AÇÃO NECESSÁRIA
 
----
+**Após aprovação deste plano**, o sistema entrará em modo de implementação e executará:
 
-## RESULTADO
-
-| Item | Status |
-|------|--------|
-| Edge Function `verify-digital-card` criada | ✅ |
-| Frontend `VerifyCard.tsx` atualizado | ✅ |
-| Policy `Public can verify digital cards` removida | ✅ |
-| Verificação E2E funcionando | ✅ |
-
----
-
-## ANTES (VULNERÁVEL)
+### Migration SQL
 
 ```sql
--- Policy com qual: true expunha TODOS os cards
-CREATE POLICY "Public can verify digital cards"
-ON public.digital_cards FOR SELECT
-USING (true);  -- ⚠️ Qualquer um podia listar todos
+-- P0.2: Add WITH CHECK to memberships UPDATE policy
+
+DROP POLICY IF EXISTS "Staff and admins can update memberships"
+ON public.memberships;
+
+CREATE POLICY "Staff and admins can update memberships"
+ON public.memberships
+FOR UPDATE
+USING (
+  is_superadmin() 
+  OR is_tenant_admin(tenant_id) 
+  OR has_role(auth.uid(), 'STAFF_ORGANIZACAO'::app_role, tenant_id) 
+  OR ((academy_id IS NOT NULL) AND is_head_coach_of_academy(academy_id))
+)
+WITH CHECK (
+  is_superadmin() 
+  OR is_tenant_admin(tenant_id) 
+  OR has_role(auth.uid(), 'STAFF_ORGANIZACAO'::app_role, tenant_id) 
+  OR ((academy_id IS NOT NULL) AND is_head_coach_of_academy(academy_id))
+);
 ```
 
 ---
 
-## DEPOIS (SEGURO)
+## VALIDAÇÃO PÓS-EXECUÇÃO
 
-### Policies Atuais em `digital_cards`
-
-| Policy | CMD | Descrição |
-|--------|-----|-----------|
-| `Athletes can view own digital cards` | SELECT | Atleta vê próprio card via profile_id |
-| `Superadmin full access to digital_cards` | ALL | Superadmin com is_superadmin() |
-| `Tenant admin can manage digital_cards` | ALL | Admin com is_tenant_admin(tenant_id) |
-
-### Verificação Pública
-
-- Movida para Edge Function `verify-digital-card`
-- Usa `service_role` para lookup interno
-- UUID validado via regex
-- Nome do atleta mascarado (LGPD)
-- Sem exposição de enumeração
-
----
-
-## ARQUIVOS MODIFICADOS
-
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/verify-digital-card/index.ts` | CRIADO - Edge Function segura |
-| `src/pages/VerifyCard.tsx` | ATUALIZADO - Usa Edge Function |
-
----
-
-## GARANTIAS DE SEGURANÇA
-
-| Garantia | Implementação |
-|----------|--------------|
-| Sem enumeração | Edge Function aceita apenas 1 cardId por request |
-| UUID validado | Regex antes de query |
-| Dados mascarados | Nome do atleta truncado (LGPD) |
-| Tenant validado | tenantSlug verificado contra tenant.slug |
-| Policy pública removida | `qual: true` não existe mais |
-
----
-
-## PRÓXIMOS PIs (BACKLOG)
-
-| PI | Escopo | Status |
-|----|--------|--------|
-| P0.2 | Adicionar `with_check` em `memberships` UPDATE | 🔜 Pendente |
-| P2 | Rate limiting na Edge Function | 🔜 Opcional |
-| P3 | Documentar modelo RLS vs Edge Functions | 🔜 Opcional |
-
----
-
+```sql
+SELECT policyname, cmd, 
+       qual IS NOT NULL as has_qual, 
+       with_check IS NOT NULL as has_with_check
+FROM pg_policies
+WHERE tablename = 'memberships'
+  AND policyname = 'Staff and admins can update memberships';
 ```
-P1 — VERIFICAÇÃO PÚBLICA SEGURA
+
+**Esperado**: `has_with_check = true`
+
+---
+
+## DOCUMENTAÇÃO
+
+Atualizar `.lovable/plan.md` com:
+
+```text
+## P0.2 — RLS HOTFIX memberships
 STATUS: ✅ CONCLUÍDO
 DATA: 2026-02-03
-RESULTADO: 
-  - Policy pública `qual: true` REMOVIDA
-  - Edge Function implementada e deployed
-  - Zero exposição de dados
-  - Verificação pública preservada
+RESULTADO: WITH CHECK adicionado à policy de UPDATE
 ```
+
+---
+
+## CRITÉRIOS DE ACEITE
+
+| Critério | Verificação |
+|----------|-------------|
+| WITH CHECK adicionado | Query de validação |
+| USING preservado | Mesma lógica |
+| Nenhuma tabela alterada | Apenas memberships |
+| Superadmin preservado | is_superadmin() em ambos |
+
+---
+
+## RESULTADO ESPERADO
+
+```text
+P0.2 — RLS HOTFIX memberships
+STATUS: ✅ CONCLUÍDO
+ALTERAÇÃO: UPDATE policy hardened
+RISCO: ELIMINADO
+BASELINE: ATUALIZADO
+```
+
