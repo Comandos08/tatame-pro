@@ -1,307 +1,200 @@
 
 
-# P-HOME-HEADER-01 — REORGANIZAÇÃO DO HEADER PÚBLICO
+# P-HOME-HEADER-01.1 — REINTRODUÇÃO DE IDIOMA + TEMA (APROVADO)
 
-## SAFE MODE · VISUAL ONLY · ZERO AUTH CONTEXT
-
----
-
-## RESUMO DOS AJUSTES OBRIGATÓRIOS CONFIRMADOS
-
-| Requisito | Status | Implementação |
-|-----------|--------|---------------|
-| Separação rígida (sem AuthContext/TenantContext) | ✅ | Nenhuma importação de contexts de auth/tenant/guards |
-| Back button substitui totalmente a navegação | ✅ | `showBackButton ? <BackOnly /> : <FullNav />` |
-| Altura h-14 fixa | ✅ | `className="h-14"` + `flex h-full` interno |
-| Rankings apenas em modo tenant | ✅ | Só aparece no bloco `{!showBackButton && ...}` do tenant |
-| Tema/idioma fora do header | ✅ | Removidos os DropdownMenus de Globe/Moon |
-| Mobile-first: "Entrar" sempre visível | ✅ | Sem `hidden` no botão Entrar |
-| CTA principal nunca escondido em mobile | ✅ | `hidden sm:flex` apenas no CTA secundário |
+## SAFE MODE · VISUAL ONLY · ZERO AUTH · ZERO REGRESSÃO
 
 ---
 
-## MUDANÇAS NO ARQUIVO
+## RESUMO DAS MUDANÇAS
 
-### Arquivo: `src/components/PublicHeader.tsx`
+Reintroduzir controles de **Idioma** (Globe) e **Tema** (Sun/Moon) no header público modo TATAME Home, com os seguintes ajustes obrigatórios aplicados:
 
-**ANTES (234 linhas):**
-```text
-- InstitutionalSeal no header
-- DropdownMenu de idioma (Globe)
-- DropdownMenu de tema (Sun/Moon)
-- TriggerButton forwardRef
-- localeLabels map
-- py-4 variável
-- Rankings visível mesmo com showBackButton
-- 7+ elementos à direita no modo TATAME
+| Ajuste Obrigatório | Implementação |
+|--------------------|---------------|
+| Reuso de HeaderSettingsDropdown | ✅ Mesmo padrão de languages array + checkmark |
+| Theme toggle light/dark only | ✅ Sem opção "system" no header público |
+| Tooltip obrigatório | ✅ Tooltip em ambos os controles |
+| Escopo rigoroso | ✅ Apenas bloco `if (!tenant)` afetado |
+
+---
+
+## ARQUIVO A MODIFICAR
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/PublicHeader.tsx` | EDITAR |
+
+---
+
+## MUDANÇAS ESPECÍFICAS
+
+### 1. Imports Adicionais (linhas 3, 12-18, 20)
+
+```typescript
+// ADICIONAR aos imports
+import { Globe, Sun, Moon, Check } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Locale } from '@/contexts/I18nContext';
 ```
 
-**DEPOIS (~130 linhas):**
-```text
-- Sem InstitutionalSeal
-- Sem DropdownMenus
-- Sem TriggerButton
-- Sem localeLabels
-- h-14 fixo
-- Rankings nunca coexiste com showBackButton
-- 4 elementos à direita no modo TATAME
-- 5 elementos à direita no modo Tenant (ou 1 se back)
+### 2. Hooks Atualizados (linha 25-26)
+
+```typescript
+// DE:
+const { resolvedTheme } = useTheme();
+const { t } = useI18n();
+
+// PARA:
+const { resolvedTheme, setTheme } = useTheme();
+const { t, locale, setLocale } = useI18n();
 ```
 
----
+### 3. Languages Array (após linha 29)
 
-## CÓDIGO FINAL
+```typescript
+// ADICIONAR dentro do bloco if (!tenant)
+const languages: { code: Locale; label: string }[] = [
+  { code: 'pt-BR', label: t('language.ptBR') },
+  { code: 'en', label: t('language.en') },
+  { code: 'es', label: t('language.es') },
+];
+```
 
+### 4. Substituir Bloco de Navegação (linhas 43-61)
+
+**REMOVER** o link "Sobre":
 ```tsx
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
-import iconLogo from '@/assets/iconLogo.png';
-import logoTatameLight from '@/assets/logoTatameLight.png';
-import logoTatameDark from '@/assets/logoTatameDark.png';
-import { Button } from '@/components/ui/button';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n } from '@/contexts/I18nContext';
+{/* Link: Sobre (desktop only) */}
+<Button variant="ghost" size="sm" className="hidden md:flex" asChild>
+  <Link to="/about">{t('nav.about')}</Link>
+</Button>
+```
 
-interface Tenant {
-  name: string;
-  slug: string;
-  logoUrl?: string | null;
-  primaryColor: string;
-}
+**ADICIONAR** utilities + CTAs:
+```tsx
+{/* Utilities — Language & Theme (secondary, icons only) */}
+<div className="flex items-center gap-1">
+  {/* Language Dropdown — same UX as HeaderSettingsDropdown */}
+  <DropdownMenu>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Globe className="h-4 w-4" />
+            <span className="sr-only">{t('language.select')}</span>
+          </Button>
+        </DropdownMenuTrigger>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {t('language.select')}
+      </TooltipContent>
+    </Tooltip>
+    <DropdownMenuContent align="end">
+      {languages.map((lang) => (
+        <DropdownMenuItem
+          key={lang.code}
+          onClick={() => setLocale(lang.code)}
+          className="flex items-center justify-between cursor-pointer"
+        >
+          {lang.label}
+          {locale === lang.code && <Check className="h-4 w-4 text-primary" />}
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuContent>
+  </DropdownMenu>
 
-interface PublicHeaderProps {
-  tenant?: Tenant | null;
-  showBackButton?: boolean;
-  backTo?: string;
-}
+  {/* Theme Toggle — light/dark only (no system in public header) */}
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      >
+        {resolvedTheme === 'dark' ? (
+          <Sun className="h-4 w-4" />
+        ) : (
+          <Moon className="h-4 w-4" />
+        )}
+        <span className="sr-only">{t('theme.select')}</span>
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent side="bottom">
+      {t('theme.select')}
+    </TooltipContent>
+  </Tooltip>
+</div>
 
-export default function PublicHeader({ tenant, showBackButton, backTo }: PublicHeaderProps) {
-  const { resolvedTheme } = useTheme();
-  const { t } = useI18n();
+{/* CTA: Entrar (ALWAYS visible - mobile-first) */}
+<Button variant="outline" size="sm" asChild>
+  <Link to="/login">{t('auth.login')}</Link>
+</Button>
 
-  // MODE 1: TATAME HOME (no tenant)
-  if (!tenant) {
-    return (
-      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-full items-center justify-between px-4">
-          {/* LEFT — Brand */}
-          <Link to="/" className="flex items-center">
-            <img 
-              src={resolvedTheme === 'dark' ? logoTatameDark : logoTatameLight} 
-              alt="TATAME" 
-              className="h-8 w-auto object-contain" 
-            />
-          </Link>
-
-          {/* RIGHT — Navigation + CTAs */}
-          <nav className="flex items-center gap-2">
-            {/* Link: Sobre (desktop only) */}
-            <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
-              <Link to="/about">{t('nav.about')}</Link>
-            </Button>
-
-            {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/login">{t('auth.login')}</Link>
-            </Button>
-
-            {/* CTA: Acessar Plataforma (primary, desktop) */}
-            <Button size="sm" className="hidden sm:flex" asChild>
-              <Link to="/login">
-                {t('landing.accessPlatform')}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
-    );
-  }
-
-  // MODE 2: TENANT PAGES
-  return (
-    <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-full items-center justify-between px-4">
-        {/* LEFT — Brand */}
-        <Link to={`/${tenant.slug}`} className="flex items-center gap-2">
-          {tenant.logoUrl ? (
-            <img src={tenant.logoUrl} alt={tenant.name} className="h-8 w-8 rounded-lg object-cover" />
-          ) : (
-            <img src={iconLogo} alt={tenant.name} className="h-8 w-8 rounded-lg object-contain" />
-          )}
-          <span className="font-display text-base font-semibold truncate max-w-[150px] sm:max-w-none">
-            {tenant.name}
-          </span>
-        </Link>
-
-        {/* RIGHT — Navigation OR Back Button (MUTUALLY EXCLUSIVE) */}
-        <nav className="flex items-center gap-2">
-          {showBackButton ? (
-            // BACK MODE: Only back button, NO other CTAs
-            <Button variant="outline" size="sm" asChild>
-              <Link to={backTo || `/${tenant.slug}`}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {t('common.back')}
-              </Link>
-            </Button>
-          ) : (
-            // NAVIGATION MODE: Full navigation
-            <>
-              {/* Link: Eventos (desktop) */}
-              <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
-                <Link to={`/${tenant.slug}/events`}>{t('nav.events')}</Link>
-              </Button>
-
-              {/* Link: Rankings (TENANT ONLY, ghost + icon) */}
-              <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
-                <Link to={`/${tenant.slug}/rankings`}>
-                  <Trophy className="mr-2 h-4 w-4" />
-                  Rankings
-                </Link>
-              </Button>
-
-              {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
-              <Button variant="outline" size="sm" asChild>
-                <Link to={`/${tenant.slug}/login`}>{t('auth.login')}</Link>
-              </Button>
-
-              {/* CTA: Acessar Portal (primary, uses tenant variant) */}
-              <Button size="sm" variant="tenant" className="hidden sm:flex" asChild>
-                <Link to={`/${tenant.slug}/portal`}>
-                  {t('nav.accessPortal')}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </>
-          )}
-        </nav>
-      </div>
-    </header>
-  );
-}
+{/* CTA: Acessar Plataforma (primary, desktop) */}
+<Button size="sm" className="hidden sm:flex" asChild>
+  <Link to="/login">
+    {t('landing.accessPlatform')}
+    <ArrowRight className="ml-2 h-4 w-4" />
+  </Link>
+</Button>
 ```
 
 ---
 
-## IMPORTS REMOVIDOS
+## LAYOUT FINAL
 
-```diff
-- import { forwardRef } from 'react';
-- import { Sun, Moon, Monitor, Globe, Check } from 'lucide-react';
-- import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-- import { InstitutionalSeal } from '@/components/institutional';
+```text
+[Logo TATAME] ────────────────── [🌐] [🌓] [Entrar] [Acessar Plataforma →]
+                                   │     │     │            │
+                                   │     │     │            └── primary (hidden < sm)
+                                   │     │     └── outline (SEMPRE visível)
+                                   │     └── ghost icon (theme: light↔dark)
+                                   └── ghost icon (language dropdown)
 ```
 
 ---
 
-## COMPARAÇÃO VISUAL
+## RESPONSIVIDADE
 
-### MODO TATAME HOME
-
-**Antes:**
-```text
-[Logo] │ <─────────────────────> │ [🏛️] [🌐] [🌙] [Sobre] [Entrar] [Acessar →]
-        py-4                       7 elementos
-```
-
-**Depois:**
-```text
-[Logo] │ <─────────────────────> │ [Sobre] [Entrar] [Acessar →]
-        h-14                       3 elementos
-```
-
-### MODO TENANT (navegação)
-
-**Antes:**
-```text
-[Logo] TenantName │ <────> │ [🏆 Rankings] [🌐] [🌙] [Portal →]
-        py-4                  4 elementos + toggles
-```
-
-**Depois:**
-```text
-[Logo] TenantName │ <────> │ [Eventos] [🏆 Rankings] [Entrar] [Portal →]
-        h-14                  4 elementos, hierarquia clara
-```
-
-### MODO TENANT (back button)
-
-**Antes:**
-```text
-[Logo] TenantName │ <────> │ [🏆 Rankings] [🌐] [🌙] [← Voltar]
-                            Rankings ainda visível ❌
-```
-
-**Depois:**
-```text
-[Logo] TenantName │ <────> │ [← Voltar]
-                            APENAS back button ✅
-```
+| Elemento | Mobile | Desktop |
+|----------|--------|---------|
+| Language (🌐) | ✅ visível | ✅ visível |
+| Theme (🌓) | ✅ visível | ✅ visível |
+| "Entrar" | ✅ **SEMPRE** | ✅ visível |
+| "Acessar Plataforma" | ❌ hidden | ✅ visível (sm+) |
 
 ---
 
-## GARANTIAS DE MOBILE-FIRST
+## O QUE NÃO MUDA
 
-| Elemento | Mobile (< 640px) | Desktop |
-|----------|------------------|---------|
-| Logo | ✅ Visível | ✅ Visível |
-| Tenant Name | ✅ Truncado (150px) | ✅ Completo |
-| "Entrar" | ✅ **SEMPRE visível** | ✅ Visível |
-| "Sobre" | ❌ Hidden | ✅ Visível (md+) |
-| "Eventos" | ❌ Hidden | ✅ Visível (sm+) |
-| "Rankings" | ❌ Hidden | ✅ Visível (md+) |
-| "Acessar Portal" | ❌ Hidden | ✅ Visível (sm+) |
-| "Voltar" | ✅ **SEMPRE visível** | ✅ Visível |
-
----
-
-## CONFIRMAÇÕES DOS AJUSTES OBRIGATÓRIOS
-
-| Ajuste | Confirmação |
-|--------|-------------|
-| Nenhum AuthContext | ✅ Nenhuma importação de AuthContext |
-| Nenhum TenantContext | ✅ Nenhuma importação de TenantContext |
-| Nenhum guard | ✅ Zero guards |
-| Back button exclusivo | ✅ `showBackButton ? <Back /> : <Nav />` |
-| h-14 fixo | ✅ `className="h-14"` em ambos os modos |
-| Proibido py-* | ✅ Removido `py-4`, usando `h-full` |
-| Rankings só em tenant | ✅ Só aparece no bloco de tenant + navegação |
-| Tema/idioma removidos | ✅ Nenhum DropdownMenu |
-| "Entrar" sempre visível | ✅ Sem `hidden` no botão Entrar |
-| CTA nunca escondido em mobile | ✅ "Entrar" sempre visível |
-
----
-
-## ARQUIVOS A MODIFICAR
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/PublicHeader.tsx` | EDITAR | Refatoração completa |
-
----
-
-## O QUE NÃO SERÁ ALTERADO
-
+- ❌ Modo Tenant — intocado
 - ❌ Nenhum AuthContext
-- ❌ Nenhum TenantContext
-- ❌ Nenhum guard
-- ❌ Nenhuma rota
-- ❌ Nenhum AppShell
-- ❌ Nenhuma Edge Function
-- ❌ Nenhum banco
+- ❌ Nenhum TenantContext  
+- ❌ Nenhuma nova key i18n
+- ❌ Nenhum backend
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
 ```text
-✅ Header h-14 fixo
-✅ Tema/idioma removidos do header
-✅ "Entrar" sempre visível (mobile-first)
-✅ Back button substitui totalmente navegação
-✅ Rankings apenas em modo tenant (nunca TATAME Home)
-✅ Zero importação de AuthContext/TenantContext/guards
-✅ Zero regressão visual
+✅ Idioma visível (Globe + dropdown)
+✅ Tema visível (Sun/Moon toggle light↔dark)
+✅ Tooltips funcionais
+✅ "Sobre" removido
+✅ CTAs mantêm hierarquia
+✅ Zero regressão
 ```
 
