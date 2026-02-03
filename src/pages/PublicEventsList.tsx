@@ -2,16 +2,19 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, Search } from 'lucide-react';
+import { Calendar, Search, AlertCircle, UserX } from 'lucide-react';
 
 import PublicHeader from '@/components/PublicHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EventCard } from '@/components/events/EventCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
 import { Event } from '@/types/event';
 
 export default function PublicEventsList() {
@@ -21,6 +24,13 @@ export default function PublicEventsList() {
 
   // Guard clause - tenant required
   if (!tenant) return null;
+
+  const { isAuthenticated } = useCurrentUser();
+  const { 
+    hasAthleteInTenant, 
+    hasAthleteAnywhere, 
+    isLoading: athleteCheckLoading 
+  } = useHasAthleteInTenant(tenant?.id);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['public-events', tenant.slug],
@@ -38,6 +48,70 @@ export default function PublicEventsList() {
     },
     enabled: !!tenant.id,
   });
+
+  // Loading composto: aguardar auth + athlete check (Ajuste C)
+  const isPageLoading = isLoading || (isAuthenticated && athleteCheckLoading);
+
+  // Condições de bloqueio (apenas para usuários logados)
+  const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
+    hasAthleteAnywhere === true && hasAthleteInTenant === false;
+
+  const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
+    hasAthleteAnywhere === false;
+
+  // Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
+  if (isBlockedNoAffiliation) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
+        <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <h3 className="mt-4 text-lg font-medium">
+                {t('events.noAffiliation')}
+              </h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                {t('events.noAffiliationDesc')}
+              </p>
+              <Button asChild className="mt-6">
+                <Link to={`/${tenant.slug}/membership`}>
+                  {t('portal.startMembership')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  // Usuário logado COM vínculo, mas em OUTRA organização
+  if (isBlockedWrongTenant) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <PublicHeader tenant={tenant} showBackButton backTo={`/${tenant.slug}`} />
+        <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <h3 className="mt-4 text-lg font-medium">
+                {t('events.notAvailable')}
+              </h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                {t('events.notAvailableForYourOrganization')}
+              </p>
+              <Button asChild variant="outline" className="mt-6">
+                <Link to="/portal">
+                  {t('portal.title')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   const filteredEvents = events.filter(event =>
     event.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -90,8 +164,8 @@ export default function PublicEventsList() {
             </CardContent>
           </Card>
 
-          {/* Loading */}
-          {isLoading && (
+          {/* Loading composto */}
+          {isPageLoading && (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
                 <Card key={i}>
@@ -106,7 +180,7 @@ export default function PublicEventsList() {
           )}
 
           {/* Results counter */}
-          {!isLoading && filteredEvents.length > 0 && (
+          {!isPageLoading && filteredEvents.length > 0 && (
             <p className="text-sm text-muted-foreground">
               {filteredEvents.length} {filteredEvents.length === 1 
                 ? t('events.eventFound') 
@@ -115,7 +189,7 @@ export default function PublicEventsList() {
           )}
 
           {/* No events */}
-          {!isLoading && events.length === 0 && (
+          {!isPageLoading && events.length === 0 && (
             <Card>
               <CardContent className="py-12 text-center">
                 <Calendar className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
@@ -130,7 +204,7 @@ export default function PublicEventsList() {
           )}
 
           {/* Upcoming Events */}
-          {upcomingEvents.length > 0 && (
+          {!isPageLoading && upcomingEvents.length > 0 && (
             <section>
               <h2 className="text-xl font-semibold mb-4">
                 {t('events.upcomingEvents')}
@@ -149,7 +223,7 @@ export default function PublicEventsList() {
           )}
 
           {/* Past Events */}
-          {pastEvents.length > 0 && (
+          {!isPageLoading && pastEvents.length > 0 && (
             <section>
               <h2 className="text-xl font-semibold mb-4 text-muted-foreground">
                 {t('events.pastEvents')}

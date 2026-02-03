@@ -986,6 +986,12 @@ export const en: Record<string, string> = {
   'events.eventFound': 'event found',
   'events.eventsFound': 'events found',
   
+  // Events - Access Control (P-REG-VIS-01)
+  'events.notAvailable': 'Event not available',
+  'events.notAvailableForYourOrganization': 'This content is exclusive to athletes affiliated with this organization. Access your organization\'s portal to view your events.',
+  'events.noAffiliation': 'No active affiliation',
+  'events.noAffiliationDesc': 'You don\'t have an athlete affiliation with any organization yet. Complete your membership to access events.',
+  
   // Events - Public Details
   'events.details.title': 'Event Details',
   'events.details.categories': 'Categories',
