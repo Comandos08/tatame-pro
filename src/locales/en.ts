@@ -2025,4 +2025,82 @@ export const en: Record<string, string> = {
   'events.brackets.bothAthletesMustBeDefined': 'Both athletes must be defined',
   'events.brackets.matchAlreadyCompleted': 'This match is already completed',
 
+  // =====================================================
+  // P1 — BLINDAGEM I18N (SAFE MODE)
+  // Keys added to eliminate hardcoded strings
+  // =====================================================
+
+  // Common - Missing keys (P1)
+  'common.next': 'Next',
+  'common.loadMore': 'Load more',
+  'common.refresh': 'Refresh',
+  'common.verifyingPermissions': 'Verifying permissions...',
+  'common.createNew': 'Create New',
+
+  // Portal - Missing keys (P1)
+  'portal.downloadDiploma': 'Download Diploma',
+  'portal.verifyDiploma': 'Verify Diploma',
+  'portal.digitalCardDescription': 'Your digital athlete membership card',
+
+  // Membership - Missing keys (P1)
+  'membership.renewal': 'Renewal',
+
+  // Trial - Missing keys (P1)
+  'trial.pendingDeleteDesc': 'This organization will be deleted if payment is not regularized.',
+
+  // Nav - Missing keys (P1)
+  'nav.toggleTheme': 'Toggle theme',
+
+  // Tenant Layout keys (P1) - NOTE: events.* and some admin.* keys already exist elsewhere
+  'tenant.notFoundDesc': 'The organization you are looking for does not exist or is not active at the moment.',
+
+  // Admin - Create Tenant Dialog keys (P1) - Only truly new keys
+  'admin.createOrganizationDesc': 'Fill in the details to create a new organization on the platform.',
+  'admin.organizationNameLabel': 'Organization name',
+  'admin.organizationNamePlaceholder': 'E.g.: State Jiu-Jitsu Federation',
+  'admin.slugLabel': 'Slug (URL)',
+  'admin.slugPlaceholder': 'state-federation',
+  'admin.slugHint': 'Access URL: https://tatame.pro/{slug}',
+  'admin.descriptionLabel': 'Description (optional)',
+  'admin.create': 'Create Organization',
+  'admin.organizationCreatedSuccess': 'Organization "{name}" created successfully!',
+  'admin.organizationCreateError': 'Error creating organization',
+  'admin.sessionSyncError': 'Waiting for session sync. Please try again.',
+  'admin.nameSlugRequired': 'Name and slug are required',
+  'admin.selectModality': 'Select at least one modality',
+  'admin.slugInUse': 'This slug is already in use. Choose another.',
+
+  // Admin - Platform Health keys (P1)
+  'admin.platformHealth': 'Platform Health',
+  'admin.platformHealthError': 'Error loading health metrics',
+  'admin.platformHealthDesc': 'Automatic jobs status and error metrics.',
+  'admin.platformHealthNote': 'Note: Absence of events indicates possible technical issue with jobs, not direct user impact.',
+  'admin.operational': 'Operational',
+  'admin.attentionNeeded': 'Attention Needed',
+  'admin.verifying': 'Verifying',
+  'admin.automaticJobs': 'Automatic Jobs',
+  'admin.expireMemberships': 'Expire Memberships',
+  'admin.cleanAbandoned': 'Clean Abandoned',
+  'admin.checkTrials': 'Check Trials',
+  'admin.metrics7days': 'Metrics (7 days)',
+  'admin.expiredMemberships': 'Expired memberships',
+  'admin.cleanedAbandoned': 'Abandoned cleaned',
+  'admin.webhookErrors24h': 'Webhook errors (24h)',
+  'admin.paymentFailures': 'Payment failures',
+  'admin.tenantsWithProblems': 'Tenants with Problems',
+  'admin.blocked': 'blocked',
+  'admin.overduePayment': 'with overdue payment',
+  'admin.neverRan': 'Never ran',
+  'admin.lessThan1h': 'Less than 1h ago',
+  'admin.hoursAgo': '{n}h ago',
+  'admin.in24h': 'in 24h',
+  'admin.jobStatus.ok': 'OK',
+  'admin.jobStatus.delayed': 'Delayed',
+  'admin.jobStatus.error': 'Error',
+  'admin.jobStatus.noData': 'No data',
+  'admin.jobTooltip.ok': 'Job ran in the last 24h. Working normally.',
+  'admin.jobTooltip.delayed': 'Job hasn\'t run in over 24h. Check cron/pg_net.',
+  'admin.jobTooltip.error': 'Job hasn\'t run in over 48h. Technical action required.',
+  'admin.jobTooltip.noData': 'No execution recorded. Check if cron jobs are configured.',
+
 };
