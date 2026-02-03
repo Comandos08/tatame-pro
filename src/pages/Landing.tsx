@@ -10,109 +10,100 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { TranslationKey } from '@/locales/pt-BR';
 import { InstitutionalSeal } from '@/components/institutional';
-
 const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 },
+  initial: {
+    opacity: 0,
+    y: 20
+  },
+  animate: {
+    opacity: 1,
+    y: 0
+  },
+  transition: {
+    duration: 0.5
+  }
 };
-
 const stagger = {
   animate: {
     transition: {
-      staggerChildren: 0.1,
-    },
-  },
+      staggerChildren: 0.1
+    }
+  }
 };
-
-const featureItems: { icon: typeof Users; titleKey: TranslationKey; descKey: TranslationKey }[] = [
-  {
-    icon: Users,
-    titleKey: 'landing.featureAthletes',
-    descKey: 'landing.featureAthletesDesc',
-  },
-  {
-    icon: Award,
-    titleKey: 'landing.featureGradings',
-    descKey: 'landing.featureGradingsDesc',
-  },
-  {
-    icon: Shield,
-    titleKey: 'landing.featureMultiSport',
-    descKey: 'landing.featureMultiSportDesc',
-  },
-  {
-    icon: Zap,
-    titleKey: 'landing.featurePayments',
-    descKey: 'landing.featurePaymentsDesc',
-  },
-];
-
-const ctaItems: TranslationKey[] = [
-  'landing.ctaFreeSignup',
-  'landing.ctaSupport',
-  'landing.ctaStripe',
-];
-
+const featureItems: {
+  icon: typeof Users;
+  titleKey: TranslationKey;
+  descKey: TranslationKey;
+}[] = [{
+  icon: Users,
+  titleKey: 'landing.featureAthletes',
+  descKey: 'landing.featureAthletesDesc'
+}, {
+  icon: Award,
+  titleKey: 'landing.featureGradings',
+  descKey: 'landing.featureGradingsDesc'
+}, {
+  icon: Shield,
+  titleKey: 'landing.featureMultiSport',
+  descKey: 'landing.featureMultiSportDesc'
+}, {
+  icon: Zap,
+  titleKey: 'landing.featurePayments',
+  descKey: 'landing.featurePaymentsDesc'
+}];
+const ctaItems: TranslationKey[] = ['landing.ctaFreeSignup', 'landing.ctaSupport', 'landing.ctaStripe'];
 export default function Landing() {
-  const { t } = useI18n();
+  const {
+    t
+  } = useI18n();
 
   // Fetch landing config (hero banner)
-  const { data: landingConfig } = useQuery({
+  const {
+    data: landingConfig
+  } = useQuery({
     queryKey: ['platform-landing-config'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('platform_landing_config')
-        .select('hero_image_url, hero_enabled')
-        .single();
+      const {
+        data,
+        error
+      } = await supabase.from('platform_landing_config').select('hero_image_url, hero_enabled').single();
       if (error) return null;
       return data;
     },
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 5 * 60 * 1000 // 5 min cache
   });
 
   // Fetch active partners
-  const { data: partners } = useQuery({
+  const {
+    data: partners
+  } = useQuery({
     queryKey: ['platform-partners'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('platform_partners')
-        .select('id, name, logo_url')
-        .eq('is_active', true)
-        .order('display_order');
+      const {
+        data,
+        error
+      } = await supabase.from('platform_partners').select('id, name, logo_url').eq('is_active', true).order('display_order');
       if (error) return [];
       return data;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000
   });
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         {/* Background: Hero image if enabled, otherwise gradient */}
-        {landingConfig?.hero_enabled && landingConfig?.hero_image_url ? (
-          <div 
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${landingConfig.hero_image_url})` }}
-          >
+        {landingConfig?.hero_enabled && landingConfig?.hero_image_url ? <div className="absolute inset-0 bg-cover bg-center" style={{
+        backgroundImage: `url(${landingConfig.hero_image_url})`
+      }}>
             <div className="absolute inset-0 bg-background/80" />
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-glow opacity-50" />
-        )}
+          </div> : <div className="absolute inset-0 bg-gradient-glow opacity-50" />}
         
         {/* Header */}
         <PublicHeader />
 
         {/* Hero content */}
         <div className="relative z-10 container mx-auto px-4 py-24 lg:py-32">
-          <motion.div
-            initial="initial"
-            animate="animate"
-            variants={stagger}
-            className="max-w-4xl mx-auto text-center"
-          >
+          <motion.div initial="initial" animate="animate" variants={stagger} className="max-w-4xl mx-auto text-center">
             <motion.div variants={fadeInUp}>
               <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm text-primary mb-6">
                 <Zap className="h-4 w-4" />
@@ -120,20 +111,14 @@ export default function Landing() {
               </span>
             </motion.div>
             
-            <motion.h1
-              variants={fadeInUp}
-              className="font-display text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6"
-            >
+            <motion.h1 variants={fadeInUp} className="font-display text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
               {t('landing.heroTitle')}{' '}
               <span className="text-gradient-primary">{t('landing.heroTitleHighlight')}</span>
               <br />
               {t('landing.heroTitleEnd')}
             </motion.h1>
             
-            <motion.p
-              variants={fadeInUp}
-              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8"
-            >
+            <motion.p variants={fadeInUp} className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
               {t('landing.heroDescription')}
             </motion.p>
             
@@ -158,100 +143,57 @@ export default function Landing() {
       {/* Features Section */}
       <section className="py-24 lg:py-32">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeInUp}
-              className="font-display text-3xl md:text-4xl font-bold mb-4"
-            >
+          <motion.div initial="initial" whileInView="animate" viewport={{
+          once: true,
+          margin: "-100px"
+        }} variants={stagger} className="text-center mb-16">
+            <motion.h2 variants={fadeInUp} className="font-display text-3xl md:text-4xl font-bold mb-4">
               {t('landing.featuresTitle')}
             </motion.h2>
-            <motion.p
-              variants={fadeInUp}
-              className="text-muted-foreground text-lg max-w-2xl mx-auto"
-            >
+            <motion.p variants={fadeInUp} className="text-muted-foreground text-lg max-w-2xl mx-auto">
               {t('landing.featuresDescription')}
             </motion.p>
           </motion.div>
 
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={stagger}
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {featureItems.map((feature) => (
-              <motion.div
-                key={feature.titleKey}
-                variants={fadeInUp}
-                className="group p-6 rounded-2xl bg-card border border-border card-hover"
-              >
+          <motion.div initial="initial" whileInView="animate" viewport={{
+          once: true,
+          margin: "-100px"
+        }} variants={stagger} className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featureItems.map(feature => <motion.div key={feature.titleKey} variants={fadeInUp} className="group p-6 rounded-2xl bg-card border border-border card-hover">
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                   <feature.icon className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="font-display text-lg font-semibold mb-2">{t(feature.titleKey)}</h3>
                 <p className="text-muted-foreground text-sm">{t(feature.descKey)}</p>
-              </motion.div>
-            ))}
+              </motion.div>)}
           </motion.div>
         </div>
       </section>
 
       {/* Partners Section */}
-      {partners && partners.length > 0 && (
-        <section className="py-16 border-t border-border">
+      {partners && partners.length > 0 && <section className="py-16 border-t border-border">
           <div className="container mx-auto px-4">
-            <motion.div
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              variants={stagger}
-              className="text-center"
-            >
-              <motion.h3 
-                variants={fadeInUp}
-                className="text-muted-foreground text-sm uppercase tracking-wider mb-8"
-              >
+            <motion.div initial="initial" whileInView="animate" viewport={{
+          once: true
+        }} variants={stagger} className="text-center">
+              <motion.h3 variants={fadeInUp} className="text-muted-foreground text-sm uppercase tracking-wider mb-8">
                 {t('landing.partnersTitle')}
               </motion.h3>
-              <motion.div 
-                variants={fadeInUp}
-                className="flex flex-wrap items-center justify-center gap-8 md:gap-12"
-              >
-                {partners.map((partner) => (
-                  <div 
-                    key={partner.id}
-                    className="h-12 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
-                  >
-                    <img 
-                      src={partner.logo_url} 
-                      alt={partner.name}
-                      className="h-full w-auto object-contain"
-                    />
-                  </div>
-                ))}
+              <motion.div variants={fadeInUp} className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
+                {partners.map(partner => <div key={partner.id} className="h-12 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100">
+                    <img src={partner.logo_url} alt={partner.name} className="h-full w-auto object-contain" />
+                  </div>)}
               </motion.div>
             </motion.div>
           </div>
-        </section>
-      )}
+        </section>}
 
       {/* Institutional FAQ Section */}
       <section className="py-16 lg:py-24 border-t border-border">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="max-w-4xl mx-auto"
-          >
+          <motion.div initial="initial" whileInView="animate" viewport={{
+          once: true
+        }} variants={stagger} className="max-w-4xl mx-auto">
             <motion.div variants={fadeInUp} className="text-center mb-12">
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
                 {t('landing.faqTitle')}
@@ -262,16 +204,14 @@ export default function Landing() {
             </motion.div>
 
             <motion.div variants={fadeInUp} className="space-y-8">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="border-b border-border pb-6 last:border-0">
+              {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="border-b border-border pb-6 last:border-0">
                   <h3 className="font-medium text-lg mb-2">
                     {t(`landing.faq.q${i}` as TranslationKey)}
                   </h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
                     {t(`landing.faq.a${i}` as TranslationKey)}
                   </p>
-                </div>
-              ))}
+                </div>)}
             </motion.div>
           </motion.div>
         </div>
@@ -280,28 +220,19 @@ export default function Landing() {
       {/* CTA Section */}
       <section className="py-24 lg:py-32 border-t border-border">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="max-w-3xl mx-auto text-center"
-          >
-            <motion.h2
-              variants={fadeInUp}
-              className="font-display text-3xl md:text-4xl font-bold mb-6"
-            >
+          <motion.div initial="initial" whileInView="animate" viewport={{
+          once: true
+        }} variants={stagger} className="max-w-3xl mx-auto text-center">
+            <motion.h2 variants={fadeInUp} className="font-display text-3xl md:text-4xl font-bold mb-6">
               {t('landing.ctaTitle')}
             </motion.h2>
             <motion.div variants={fadeInUp} className="flex flex-col gap-3 mb-8 text-left max-w-md mx-auto">
-              {ctaItems.map((itemKey) => (
-                <div key={itemKey} className="flex items-center gap-3">
+              {ctaItems.map(itemKey => <div key={itemKey} className="flex items-center gap-3">
                   <div className="h-5 w-5 rounded-full bg-success/20 flex items-center justify-center">
                     <Check className="h-3 w-3 text-success" />
                   </div>
                   <span className="text-muted-foreground">{t(itemKey)}</span>
-                </div>
-              ))}
+                </div>)}
             </motion.div>
             <motion.div variants={fadeInUp}>
               <Button size="lg" className="text-lg h-12 px-8" asChild>
@@ -325,12 +256,7 @@ export default function Landing() {
                 <span className="font-display font-bold">TATAME</span>
               </div>
               <InstitutionalSeal />
-              <Link 
-                to="/about" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t('nav.about')}
-              </Link>
+              
             </div>
             <p className="text-sm text-muted-foreground">
               {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
@@ -338,6 +264,5 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 }
