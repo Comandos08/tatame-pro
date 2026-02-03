@@ -1,29 +1,25 @@
+# P0.2 — RLS HOTFIX memberships
 
-
-# P0.2 — RLS HOTFIX memberships · PRONTO PARA EXECUÇÃO
+## STATUS: ✅ CONCLUÍDO
+**DATA:** 2026-02-03  
+**RESULTADO:** WITH CHECK adicionado à policy de UPDATE
 
 ---
 
-## STATUS
+## RESUMO DA EXECUÇÃO
 
 | Item | Estado |
 |------|--------|
 | Pré-check executado | ✅ `with_check = false` confirmado |
-| SQL validado | ✅ Pronto |
-| Aprovação recebida | ✅ APROVADO SEM RESSALVAS |
-| Modo atual | ⚠️ READ-ONLY (Plan Mode) |
+| SQL executado | ✅ Concluído |
+| Validação pós-execução | ✅ `has_with_check = true` |
+| Baseline atualizado | ✅ |
 
 ---
 
-## AÇÃO NECESSÁRIA
-
-**Após aprovação deste plano**, o sistema entrará em modo de implementação e executará:
-
-### Migration SQL
+## ALTERAÇÃO APLICADA
 
 ```sql
--- P0.2: Add WITH CHECK to memberships UPDATE policy
-
 DROP POLICY IF EXISTS "Staff and admins can update memberships"
 ON public.memberships;
 
@@ -46,48 +42,32 @@ WITH CHECK (
 
 ---
 
-## VALIDAÇÃO PÓS-EXECUÇÃO
-
-```sql
-SELECT policyname, cmd, 
-       qual IS NOT NULL as has_qual, 
-       with_check IS NOT NULL as has_with_check
-FROM pg_policies
-WHERE tablename = 'memberships'
-  AND policyname = 'Staff and admins can update memberships';
-```
-
-**Esperado**: `has_with_check = true`
-
----
-
-## DOCUMENTAÇÃO
-
-Atualizar `.lovable/plan.md` com:
-
-```text
-## P0.2 — RLS HOTFIX memberships
-STATUS: ✅ CONCLUÍDO
-DATA: 2026-02-03
-RESULTADO: WITH CHECK adicionado à policy de UPDATE
-```
-
----
-
 ## CRITÉRIOS DE ACEITE
 
 | Critério | Verificação |
 |----------|-------------|
-| WITH CHECK adicionado | Query de validação |
-| USING preservado | Mesma lógica |
-| Nenhuma tabela alterada | Apenas memberships |
-| Superadmin preservado | is_superadmin() em ambos |
+| WITH CHECK adicionado | ✅ Confirmado |
+| USING preservado | ✅ Mesma lógica |
+| Nenhuma tabela alterada | ✅ Apenas memberships |
+| Superadmin preservado | ✅ is_superadmin() em ambos |
 
 ---
 
-## RESULTADO ESPERADO
+## GARANTIAS DE SEGURANÇA
 
-```text
+| Garantia | Estado |
+|----------|--------|
+| Nenhuma alteração de dados | ✅ |
+| Escopo restrito a memberships | ✅ |
+| Superadmin preservado | ✅ |
+| Tenant isolation reforçado | ✅ |
+| RLS consistente (USING = WITH CHECK) | ✅ |
+
+---
+
+## RESULTADO FINAL
+
+```
 P0.2 — RLS HOTFIX memberships
 STATUS: ✅ CONCLUÍDO
 ALTERAÇÃO: UPDATE policy hardened
@@ -95,3 +75,13 @@ RISCO: ELIMINADO
 BASELINE: ATUALIZADO
 ```
 
+---
+
+## WARNINGS PRÉ-EXISTENTES (NÃO RELACIONADOS)
+
+Os seguintes warnings foram detectados pelo linter, mas **NÃO são relacionados a esta migração** e já existiam anteriormente:
+
+1. **Security Definer Views** (2x) - Views com SECURITY DEFINER
+2. **Leaked Password Protection Disabled** - Proteção de senhas vazadas desabilitada
+
+Estes itens devem ser tratados em PIs separados.
