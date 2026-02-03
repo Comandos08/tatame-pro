@@ -1,12 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trophy, Globe, Sun, Moon, Check } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import logoTatameLight from '@/assets/logoTatameLight.png';
 import logoTatameDark from '@/assets/logoTatameDark.png';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n } from '@/contexts/I18nContext';
+import { useI18n, Locale } from '@/contexts/I18nContext';
 
 interface Tenant {
   name: string;
@@ -22,11 +33,17 @@ interface PublicHeaderProps {
 }
 
 export default function PublicHeader({ tenant, showBackButton, backTo }: PublicHeaderProps) {
-  const { resolvedTheme } = useTheme();
-  const { t } = useI18n();
+  const { resolvedTheme, setTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
 
   // MODE 1: TATAME HOME (no tenant)
   if (!tenant) {
+    const languages: { code: Locale; label: string }[] = [
+      { code: 'pt-BR', label: t('language.ptBR') },
+      { code: 'en', label: t('language.en') },
+      { code: 'es', label: t('language.es') },
+    ];
+
     return (
       <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-full items-center justify-between px-4">
@@ -39,12 +56,61 @@ export default function PublicHeader({ tenant, showBackButton, backTo }: PublicH
             />
           </Link>
 
-          {/* RIGHT — Navigation + CTAs */}
+          {/* RIGHT — Utilities + CTAs */}
           <nav className="flex items-center gap-2">
-            {/* Link: Sobre (desktop only) */}
-            <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
-              <Link to="/about">{t('nav.about')}</Link>
-            </Button>
+            {/* Utilities — Language & Theme (secondary, icons only) */}
+            <div className="flex items-center gap-1">
+              {/* Language Dropdown — same UX as HeaderSettingsDropdown */}
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Globe className="h-4 w-4" />
+                        <span className="sr-only">{t('language.select')}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {t('language.select')}
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  {languages.map((lang) => (
+                    <DropdownMenuItem
+                      key={lang.code}
+                      onClick={() => setLocale(lang.code)}
+                      className="flex items-center justify-between cursor-pointer"
+                    >
+                      {lang.label}
+                      {locale === lang.code && <Check className="h-4 w-4 text-primary" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Theme Toggle — light/dark only (no system in public header) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                  >
+                    {resolvedTheme === 'dark' ? (
+                      <Sun className="h-4 w-4" />
+                    ) : (
+                      <Moon className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">{t('theme.select')}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {t('theme.select')}
+                </TooltipContent>
+              </Tooltip>
+            </div>
 
             {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
             <Button variant="outline" size="sm" asChild>
