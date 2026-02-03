@@ -1,223 +1,275 @@
 
-# P-REG-01 — CORREÇÃO DE INSCRIÇÃO DE ATLETA EM EVENTOS
 
-## SAFE MODE · FRONTEND-ONLY · ZERO REGRESSÃO
+# P-HOME-HEADER-01 — REORGANIZAÇÃO DO HEADER PÚBLICO
 
----
-
-## RESUMO EXECUTIVO
-
-Corrigir o fluxo de inscrição de atleta em eventos públicos, garantindo:
-1. Integração do componente `EventRegistrationButton` na página pública
-2. Hierarquia de estados correta (auth → profile → athlete → elegibilidade)
-3. CTAs específicos para cada estado do usuário
+## SAFE MODE · VISUAL ONLY · ZERO AUTH CONTEXT
 
 ---
 
-## FASE 1 — CORRIGIR HIERARQUIA DE ESTADOS
+## RESUMO DOS AJUSTES OBRIGATÓRIOS CONFIRMADOS
 
-### Arquivo: `src/components/events/EventRegistrationButton.tsx`
+| Requisito | Status | Implementação |
+|-----------|--------|---------------|
+| Separação rígida (sem AuthContext/TenantContext) | ✅ | Nenhuma importação de contexts de auth/tenant/guards |
+| Back button substitui totalmente a navegação | ✅ | `showBackButton ? <BackOnly /> : <FullNav />` |
+| Altura h-14 fixa | ✅ | `className="h-14"` + `flex h-full` interno |
+| Rankings apenas em modo tenant | ✅ | Só aparece no bloco `{!showBackButton && ...}` do tenant |
+| Tema/idioma fora do header | ✅ | Removidos os DropdownMenus de Globe/Moon |
+| Mobile-first: "Entrar" sempre visível | ✅ | Sem `hidden` no botão Entrar |
+| CTA principal nunca escondido em mobile | ✅ | `hidden sm:flex` apenas no CTA secundário |
 
-**Mudanças Necessárias:**
+---
 
-1. Importar estados de auth corretamente:
-```typescript
-const { currentUser, isLoading: isAuthLoading, isAuthenticated } = useCurrentUser();
-```
+## MUDANÇAS NO ARQUIVO
 
-2. Adicionar tracking de loading do perfil de atleta:
-```typescript
-const { data: athlete, isLoading: isAthleteLoading } = useQuery({...});
-```
+### Arquivo: `src/components/PublicHeader.tsx`
 
-3. Nova hierarquia de decisão (prioridade de cima para baixo):
-
+**ANTES (234 linhas):**
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    NOVA HIERARQUIA DE ESTADOS                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. isAuthLoading?                                                          │
-│     → Skeleton/Loader (estado transitório)                                  │
-│                                                                             │
-│  2. !isAuthenticated?                                                       │
-│     → "Faça login para se inscrever"                                        │
-│       Link para: /{tenantSlug}/login                                        │
-│                                                                             │
-│  3. isAthleteLoading?                                                       │
-│     → Loader (estado transitório)                                           │
-│                                                                             │
-│  4. !athlete (logado mas sem perfil de atleta)?                             │
-│     → "Complete sua filiação para se inscrever"                             │
-│       Link para: /{tenantSlug}/membership/new                               │
-│                                                                             │
-│  5. eventStatus === 'CANCELLED'?                                            │
-│     → "Evento Cancelado" (disabled, destructive)                            │
-│                                                                             │
-│  6. activeRegistration?                                                     │
-│     → "Inscrito em: {categoria}" + botão cancelar                           │
-│                                                                             │
-│  7. !canRegisterForEvent(eventStatus)?                                      │
-│     → "Inscrições encerradas"                                               │
-│                                                                             │
-│  8. categories.length === 0?                                                │
-│     → "Nenhuma categoria disponível"                                        │
-│                                                                             │
-│  9. Elegível                                                                │
-│     → Select de categoria + "Inscrever-se"                                  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+- InstitutionalSeal no header
+- DropdownMenu de idioma (Globe)
+- DropdownMenu de tema (Sun/Moon)
+- TriggerButton forwardRef
+- localeLabels map
+- py-4 variável
+- Rankings visível mesmo com showBackButton
+- 7+ elementos à direita no modo TATAME
 ```
 
-### Código Refatorado (Seção de Decisão)
-
-```typescript
-// Estado 1: Auth carregando
-if (isAuthLoading) {
-  return (
-    <div className="flex items-center justify-center py-4">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  );
-}
-
-// Estado 2: Não autenticado
-if (!isAuthenticated) {
-  return (
-    <Button asChild variant="default" className="w-full">
-      <Link to={`/${tenantSlug}/login?next=/${tenantSlug}/events/${eventId}`}>
-        {t('events.loginToRegister')}
-      </Link>
-    </Button>
-  );
-}
-
-// Estado 3: Atleta carregando
-if (isAthleteLoading) {
-  return (
-    <div className="flex items-center justify-center py-4">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  );
-}
-
-// Estado 4: Logado mas sem perfil de atleta (NOVO!)
-if (!athlete) {
-  return (
-    <div className="space-y-2 text-center">
-      <p className="text-sm text-muted-foreground">
-        {t('events.completeMembershipToRegister')}
-      </p>
-      <Button asChild variant="default" className="w-full">
-        <Link to={`/${tenantSlug}/membership/new`}>
-          {t('events.startMembership')}
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
-// Estados 5-9: Lógica existente (evento cancelado, já inscrito, etc.)
+**DEPOIS (~130 linhas):**
+```text
+- Sem InstitutionalSeal
+- Sem DropdownMenus
+- Sem TriggerButton
+- Sem localeLabels
+- h-14 fixo
+- Rankings nunca coexiste com showBackButton
+- 4 elementos à direita no modo TATAME
+- 5 elementos à direita no modo Tenant (ou 1 se back)
 ```
 
 ---
 
-## FASE 2 — INTEGRAR BOTÃO NA PÁGINA PÚBLICA
-
-### Arquivo: `src/pages/PublicEventDetails.tsx`
-
-**Mudanças:**
-
-1. Importar o componente:
-```typescript
-import { EventRegistrationButton } from '@/components/events/EventRegistrationButton';
-```
-
-2. Substituir o CTA estático (linhas 306-329) pelo componente real:
+## CÓDIGO FINAL
 
 ```tsx
-{/* Registration CTA - INTEGRADO */}
-<Card className="border-2 border-primary/20">
-  <CardHeader className="pb-2">
-    <CardTitle className="text-lg">
-      {t('events.registerForEvent')}
-    </CardTitle>
-  </CardHeader>
-  <CardContent>
-    <EventRegistrationButton
-      eventId={event.id}
-      eventStatus={event.status as EventStatus}
-      tenantId={tenant?.id || ''}
-      categories={categories}
-      tenantSlug={tenant?.slug || ''}
-    />
-  </CardContent>
-</Card>
-```
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import iconLogo from '@/assets/iconLogo.png';
+import logoTatameLight from '@/assets/logoTatameLight.png';
+import logoTatameDark from '@/assets/logoTatameDark.png';
+import { Button } from '@/components/ui/button';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useI18n } from '@/contexts/I18nContext';
 
-3. Adicionar prop `tenantSlug` ao componente para suportar links de redirecionamento.
+interface Tenant {
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+  primaryColor: string;
+}
 
----
+interface PublicHeaderProps {
+  tenant?: Tenant | null;
+  showBackButton?: boolean;
+  backTo?: string;
+}
 
-## FASE 3 — ATUALIZAR INTERFACE DO COMPONENTE
+export default function PublicHeader({ tenant, showBackButton, backTo }: PublicHeaderProps) {
+  const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
 
-### Arquivo: `src/components/events/EventRegistrationButton.tsx`
+  // MODE 1: TATAME HOME (no tenant)
+  if (!tenant) {
+    return (
+      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto flex h-full items-center justify-between px-4">
+          {/* LEFT — Brand */}
+          <Link to="/" className="flex items-center">
+            <img 
+              src={resolvedTheme === 'dark' ? logoTatameDark : logoTatameLight} 
+              alt="TATAME" 
+              className="h-8 w-auto object-contain" 
+            />
+          </Link>
 
-**Adicionar nova prop:**
+          {/* RIGHT — Navigation + CTAs */}
+          <nav className="flex items-center gap-2">
+            {/* Link: Sobre (desktop only) */}
+            <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
+              <Link to="/about">{t('nav.about')}</Link>
+            </Button>
 
-```typescript
-interface EventRegistrationButtonProps {
-  eventId: string;
-  eventStatus: EventStatus;
-  tenantId: string;
-  categories: EventCategory[];
-  tenantSlug?: string; // NOVO — para links de redirecionamento
+            {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/login">{t('auth.login')}</Link>
+            </Button>
+
+            {/* CTA: Acessar Plataforma (primary, desktop) */}
+            <Button size="sm" className="hidden sm:flex" asChild>
+              <Link to="/login">
+                {t('landing.accessPlatform')}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  // MODE 2: TENANT PAGES
+  return (
+    <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-full items-center justify-between px-4">
+        {/* LEFT — Brand */}
+        <Link to={`/${tenant.slug}`} className="flex items-center gap-2">
+          {tenant.logoUrl ? (
+            <img src={tenant.logoUrl} alt={tenant.name} className="h-8 w-8 rounded-lg object-cover" />
+          ) : (
+            <img src={iconLogo} alt={tenant.name} className="h-8 w-8 rounded-lg object-contain" />
+          )}
+          <span className="font-display text-base font-semibold truncate max-w-[150px] sm:max-w-none">
+            {tenant.name}
+          </span>
+        </Link>
+
+        {/* RIGHT — Navigation OR Back Button (MUTUALLY EXCLUSIVE) */}
+        <nav className="flex items-center gap-2">
+          {showBackButton ? (
+            // BACK MODE: Only back button, NO other CTAs
+            <Button variant="outline" size="sm" asChild>
+              <Link to={backTo || `/${tenant.slug}`}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {t('common.back')}
+              </Link>
+            </Button>
+          ) : (
+            // NAVIGATION MODE: Full navigation
+            <>
+              {/* Link: Eventos (desktop) */}
+              <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
+                <Link to={`/${tenant.slug}/events`}>{t('nav.events')}</Link>
+              </Button>
+
+              {/* Link: Rankings (TENANT ONLY, ghost + icon) */}
+              <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
+                <Link to={`/${tenant.slug}/rankings`}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  Rankings
+                </Link>
+              </Button>
+
+              {/* CTA: Entrar (ALWAYS visible - mobile-first) */}
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/${tenant.slug}/login`}>{t('auth.login')}</Link>
+              </Button>
+
+              {/* CTA: Acessar Portal (primary, uses tenant variant) */}
+              <Button size="sm" variant="tenant" className="hidden sm:flex" asChild>
+                <Link to={`/${tenant.slug}/portal`}>
+                  {t('nav.accessPortal')}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </>
+          )}
+        </nav>
+      </div>
+    </header>
+  );
 }
 ```
 
-**Fallback para tenantSlug:**
-```typescript
-// Se não fornecido via prop, extrair da URL
-const { tenantSlug: urlTenantSlug } = useParams<{ tenantSlug: string }>();
-const resolvedTenantSlug = tenantSlug || urlTenantSlug || '';
+---
+
+## IMPORTS REMOVIDOS
+
+```diff
+- import { forwardRef } from 'react';
+- import { Sun, Moon, Monitor, Globe, Check } from 'lucide-react';
+- import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+- import { InstitutionalSeal } from '@/components/institutional';
 ```
 
 ---
 
-## FASE 4 — NOVAS CHAVES i18n
+## COMPARAÇÃO VISUAL
 
-### Chaves a Adicionar
+### MODO TATAME HOME
 
-| Chave | pt-BR | en | es |
-|-------|-------|----|----|
-| `events.completeMembershipToRegister` | Complete sua filiação para se inscrever | Complete your membership to register | Complete su afiliación para inscribirse |
-| `events.startMembership` | Iniciar Filiação | Start Membership | Iniciar Afiliación |
-| `events.registerForEvent` | Inscrição no Evento | Event Registration | Inscripción al Evento |
-
----
-
-## FASE 5 — AJUSTES FINAIS
-
-### Remover lógica problemática
-
-**Antes (linha 138):**
-```typescript
-if (!currentUser || !athlete) {
-  return <Button disabled>{t('events.loginToRegister')}</Button>
-}
+**Antes:**
+```text
+[Logo] │ <─────────────────────> │ [🏛️] [🌐] [🌙] [Sobre] [Entrar] [Acessar →]
+        py-4                       7 elementos
 ```
 
 **Depois:**
-```typescript
-// Removido — substituído por hierarquia explícita acima
+```text
+[Logo] │ <─────────────────────> │ [Sobre] [Entrar] [Acessar →]
+        h-14                       3 elementos
 ```
 
-### Garantir imports necessários
+### MODO TENANT (navegação)
 
-```typescript
-import { Link, useParams } from 'react-router-dom';
-import { Skeleton } from '@/components/ui/skeleton';
+**Antes:**
+```text
+[Logo] TenantName │ <────> │ [🏆 Rankings] [🌐] [🌙] [Portal →]
+        py-4                  4 elementos + toggles
 ```
+
+**Depois:**
+```text
+[Logo] TenantName │ <────> │ [Eventos] [🏆 Rankings] [Entrar] [Portal →]
+        h-14                  4 elementos, hierarquia clara
+```
+
+### MODO TENANT (back button)
+
+**Antes:**
+```text
+[Logo] TenantName │ <────> │ [🏆 Rankings] [🌐] [🌙] [← Voltar]
+                            Rankings ainda visível ❌
+```
+
+**Depois:**
+```text
+[Logo] TenantName │ <────> │ [← Voltar]
+                            APENAS back button ✅
+```
+
+---
+
+## GARANTIAS DE MOBILE-FIRST
+
+| Elemento | Mobile (< 640px) | Desktop |
+|----------|------------------|---------|
+| Logo | ✅ Visível | ✅ Visível |
+| Tenant Name | ✅ Truncado (150px) | ✅ Completo |
+| "Entrar" | ✅ **SEMPRE visível** | ✅ Visível |
+| "Sobre" | ❌ Hidden | ✅ Visível (md+) |
+| "Eventos" | ❌ Hidden | ✅ Visível (sm+) |
+| "Rankings" | ❌ Hidden | ✅ Visível (md+) |
+| "Acessar Portal" | ❌ Hidden | ✅ Visível (sm+) |
+| "Voltar" | ✅ **SEMPRE visível** | ✅ Visível |
+
+---
+
+## CONFIRMAÇÕES DOS AJUSTES OBRIGATÓRIOS
+
+| Ajuste | Confirmação |
+|--------|-------------|
+| Nenhum AuthContext | ✅ Nenhuma importação de AuthContext |
+| Nenhum TenantContext | ✅ Nenhuma importação de TenantContext |
+| Nenhum guard | ✅ Zero guards |
+| Back button exclusivo | ✅ `showBackButton ? <Back /> : <Nav />` |
+| h-14 fixo | ✅ `className="h-14"` em ambos os modos |
+| Proibido py-* | ✅ Removido `py-4`, usando `h-full` |
+| Rankings só em tenant | ✅ Só aparece no bloco de tenant + navegação |
+| Tema/idioma removidos | ✅ Nenhum DropdownMenu |
+| "Entrar" sempre visível | ✅ Sem `hidden` no botão Entrar |
+| CTA nunca escondido em mobile | ✅ "Entrar" sempre visível |
 
 ---
 
@@ -225,78 +277,31 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/events/EventRegistrationButton.tsx` | EDITAR | Refatorar hierarquia de estados + nova prop |
-| `src/pages/PublicEventDetails.tsx` | EDITAR | Integrar componente real |
-| `src/locales/pt-BR.ts` | EDITAR | +3 chaves |
-| `src/locales/en.ts` | EDITAR | +3 chaves |
-| `src/locales/es.ts` | EDITAR | +3 chaves |
-
----
-
-## COMPARAÇÃO VISUAL
-
-### Antes
-
-```text
-Estado: Usuário logado sem perfil de atleta
-CTA: "Faça login para se inscrever" ❌
-```
-
-### Depois
-
-```text
-Estado: Usuário logado sem perfil de atleta
-CTA: "Complete sua filiação para se inscrever"
-     [Iniciar Filiação] → /{tenant}/membership/new ✅
-```
-
----
-
-## CENÁRIOS DE TESTE
-
-| # | Estado do Usuário | CTA Esperado | Link |
-|---|-------------------|--------------|------|
-| 1 | Não autenticado | "Faça login para se inscrever" | /{tenant}/login |
-| 2 | Auth loading | Spinner | - |
-| 3 | Autenticado, athlete loading | Spinner | - |
-| 4 | Autenticado, sem atleta | "Complete sua filiação..." + Botão | /{tenant}/membership/new |
-| 5 | Autenticado, atleta, já inscrito | "Inscrito em: X" + Cancelar | - |
-| 6 | Autenticado, atleta, evento fechado | "Inscrições encerradas" | - |
-| 7 | Autenticado, atleta, evento cancelado | "Evento Cancelado" | - |
-| 8 | Autenticado, atleta, elegível | Select + "Inscrever-se" | - |
+| `src/components/PublicHeader.tsx` | EDITAR | Refatoração completa |
 
 ---
 
 ## O QUE NÃO SERÁ ALTERADO
 
-- ❌ Nenhuma Edge Function
-- ❌ Nenhuma RLS policy
-- ❌ Nenhum schema de banco
-- ❌ Nenhum Context (Auth, Tenant, etc.)
-- ❌ Nenhuma lógica de eligibilidade (eventEligibility.ts)
+- ❌ Nenhum AuthContext
+- ❌ Nenhum TenantContext
+- ❌ Nenhum guard
 - ❌ Nenhuma rota
+- ❌ Nenhum AppShell
+- ❌ Nenhuma Edge Function
+- ❌ Nenhum banco
 
 ---
 
 ## CRITÉRIOS DE ACEITE
 
 ```text
-✅ Componente integrado na página pública
-✅ Estados de loading explícitos
-✅ "Faça login" APENAS para não autenticados
-✅ "Complete filiação" para logados sem atleta
-✅ CTAs com links funcionais
-✅ Zero regressão em fluxos existentes
-✅ i18n completo (pt/en/es)
+✅ Header h-14 fixo
+✅ Tema/idioma removidos do header
+✅ "Entrar" sempre visível (mobile-first)
+✅ Back button substitui totalmente navegação
+✅ Rankings apenas em modo tenant (nunca TATAME Home)
+✅ Zero importação de AuthContext/TenantContext/guards
+✅ Zero regressão visual
 ```
 
----
-
-## RESULTADO ESPERADO
-
-```text
-P-REG-01 = DONE
-Inscrição de atleta funcional
-Hierarquia de estados correta
-UX clara e institucional
-```
