@@ -1,411 +1,250 @@
 
-# PLANO DE BLINDAGEM — TATAME PRO
-## SAFE MODE · GOLD STANDARD · AJUSTES A1, A2, A3 APLICADOS
+
+# P0 — AUDITORIA COMPLETA DE RLS
+## TATAME PRO · RELATÓRIO CONSOLIDADO
 
 ---
 
-## CONFIRMAÇÃO DOS AJUSTES OBRIGATÓRIOS
+## SUMÁRIO EXECUTIVO
 
-| Ajuste | Requisito | Como Será Implementado |
-|--------|-----------|------------------------|
-| **A1** | Hook reativo via Context (não sessionStorage) | `useImpersonationClient()` dependerá de `session?.impersonationId` do `ImpersonationContext` |
-| **A2** | Limpar cache ao encerrar impersonation | `clearImpersonationClientCache()` será chamado dentro de `clearSession()` |
-| **A3** | Keys devem existir antes de usar | Todas as keys serão adicionadas aos locales ANTES de usar nos componentes |
-
----
-
-## ARQUIVOS A CRIAR
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/integrations/supabase/impersonation-client.ts` | Client wrapper reativo via Context |
+| Métrica | Valor |
+|---------|-------|
+| **Total de Tabelas com RLS Habilitado** | 33 |
+| **Total de Policies RLS** | 119 |
+| **Tabelas com tenant_id** | 30 |
+| **Views Públicas (sem RLS)** | 4 |
+| **Policies usando is_superadmin()** | 31 |
+| **Policies usando x-impersonation-id** | **0** ⚠️ |
 
 ---
 
-## ARQUIVOS A MODIFICAR
+## 🚨 ACHADO CRÍTICO #1: ZERO IMPERSONATION NO RLS
 
-| Arquivo | Mudanças |
-|---------|----------|
-| `src/contexts/ImpersonationContext.tsx` | 1) Corrigir deps useCallback (linha 133); 2) Chamar `clearImpersonationClientCache()` em `clearSession()` |
-| `src/components/auth/RequireRoles.tsx` | 1) Adicionar log diagnóstico; 2) Internacionalizar "Verificando permissões..." |
-| `src/layouts/TenantLayout.tsx` | Internacionalizar 3 strings hardcoded |
-| `src/components/events/EventImageUpload.tsx` | Eliminar 8x `as any` e usar keys corretas |
-| `src/components/admin/CreateTenantDialog.tsx` | Internacionalizar ~15 strings |
-| `src/components/admin/PlatformHealthCard.tsx` | Internacionalizar ~40 strings |
-| `src/locales/pt-BR.ts` | Adicionar ~60 novas keys |
-| `src/locales/en.ts` | Adicionar ~60 novas keys |
-| `src/locales/es.ts` | Adicionar ~60 novas keys |
+**Nenhuma policy RLS usa `x-impersonation-id`.**
 
----
+Isso significa que:
+- O header `x-impersonation-id` enviado pelo frontend **NÃO É CONSIDERADO** nas queries PostgREST
+- Superadmins usando impersonation **dependem exclusivamente** da função `is_superadmin()` que verifica apenas `auth.uid()`
+- O sistema de impersonation funciona **apenas em Edge Functions** (onde o header é verificado manualmente)
+- Operações via PostgREST direto (queries, updates, etc.) **NÃO respeitam impersonation**
 
-## FASE 1 — IMPERSONATION CLIENT COM REATIVIDADE CORRETA (A1, A2)
-
-### 1.1. Criar `src/integrations/supabase/impersonation-client.ts`
-
-```typescript
-/**
- * 🔐 Impersonation-Aware Supabase Client
- * 
- * Cria clients Supabase com header x-impersonation-id injetado
- * automaticamente quando há sessão de impersonation ativa.
- * 
- * AJUSTE A1: Depende do state do ImpersonationContext (reativo)
- * AJUSTE A2: Cache limpo via clearImpersonationClientCache()
- */
-
-import { useMemo } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from './types';
-
-// Cache de clients por impersonationId
-const clientCache = new Map<string, SupabaseClient<Database>>();
-
-/**
- * Cria um client Supabase com header x-impersonation-id opcional.
- * Memoizado por impersonationId para evitar recriação desnecessária.
- */
-export function createImpersonationAwareClient(
-  impersonationId: string | null
-): SupabaseClient<Database> {
-  const cacheKey = impersonationId || 'default';
-  
-  // Retorna do cache se existir
-  const cached = clientCache.get(cacheKey);
-  if (cached) return cached;
-  
-  // Configuração base
-  const options: Parameters<typeof createClient>[2] = {
-    auth: {
-      storage: localStorage,
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  };
-  
-  // Injeta header se houver impersonation ativa
-  if (impersonationId) {
-    options.global = {
-      headers: { 'x-impersonation-id': impersonationId },
-    };
-  }
-  
-  const client = createClient<Database>(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    options
-  );
-  
-  // Limita tamanho do cache para evitar memory leak
-  if (clientCache.size > 10) {
-    const defaultClient = clientCache.get('default');
-    clientCache.clear();
-    if (defaultClient) clientCache.set('default', defaultClient);
-  }
-  
-  clientCache.set(cacheKey, client);
-  return client;
-}
-
-/**
- * Hook para uso em componentes React.
- * AJUSTE A1: Recebe impersonationId do Context (fonte reativa).
- */
-export function useImpersonationClient(
-  impersonationId: string | null | undefined
-): SupabaseClient<Database> {
-  return useMemo(
-    () => createImpersonationAwareClient(impersonationId ?? null),
-    [impersonationId]
-  );
-}
-
-/**
- * Limpa o cache de clients (exceto default).
- * AJUSTE A2: Deve ser chamado ao encerrar impersonation.
- */
-export function clearImpersonationClientCache(): void {
-  const defaultClient = clientCache.get('default');
-  clientCache.clear();
-  if (defaultClient) clientCache.set('default', defaultClient);
-  console.log('[IMPERSONATION-CLIENT] Cache cleared');
-}
-```
+### Impacto:
+- Superadmin consegue acessar dados de QUALQUER tenant via `is_superadmin()` mesmo SEM impersonation ativa
+- Audit trail fica incompleto — não há como rastrear qual tenant estava sendo "impersonado" em operações PostgREST
+- Modelo de responsabilidade fica comprometido
 
 ---
 
-### 1.2. Modificar `ImpersonationContext.tsx`
+## 🚨 ACHADO CRÍTICO #2: POLICIES PÚBLICAS (TIPO D)
 
-**Mudança 1 — Linha 133 (corrigir deps do useCallback):**
+| Tabela | Policy | Risco |
+|--------|--------|-------|
+| `digital_cards` | `Public can verify digital cards` → `qual: true` | ⚠️ **LEITURA TOTAL** |
+| `platform_landing_config` | `Public read platform_landing_config` → `qual: true` | 🔶 Baixo (config pública) |
 
-```typescript
-// DE:
-}, [session, isGlobalSuperadmin, navigate, t]);
-
-// PARA:
-}, [session, isGlobalSuperadmin, navigate, t, clearSession]);
-```
-
-**Mudança 2 — Importar função de limpeza de cache (topo do arquivo):**
-
-```typescript
-import { clearImpersonationClientCache } from '@/integrations/supabase/impersonation-client';
-```
-
-**Mudança 3 — Adicionar chamada em `clearSession()` (linha ~165):**
-
-```typescript
-// clearSession atualizado
-const clearSession = useCallback(() => {
-  setSession(null);
-  setRemainingMinutes(null);
-  sessionStorage.removeItem(STORAGE_KEY);
-  if (validationInterval.current) clearInterval(validationInterval.current);
-  if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
-  // AJUSTE A2: Limpar cache de clients Supabase
-  clearImpersonationClientCache();
-}, []);
-```
+**Policy `Public can verify digital cards` com `qual: true`** significa que QUALQUER pessoa (autenticada ou não) pode ler TODOS os digital_cards. Isso é intencional para verificação pública, mas expõe dados sensíveis.
 
 ---
 
-### 1.3. Adicionar diagnóstico em `RequireRoles.tsx`
+## 📊 INVENTÁRIO COMPLETO DE POLICIES
 
-**Após linha 66 (antes do if !hasAccess):**
+### Classificação por Tipo
 
-```typescript
-// 📊 DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
-if (isSuperadminAccessingTenant && !hasValidImpersonation) {
-  console.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
-    isImpersonating,
-    impersonatedTenantId,
-    requiredTenantId: tenant?.id,
-    mismatch: impersonatedTenantId !== tenant?.id,
-  });
-}
-```
-
-**Linha 54 — Internacionalizar string:**
-
-```typescript
-// DE:
-<p className="text-muted-foreground">Verificando permissões...</p>
-
-// PARA:
-<p className="text-muted-foreground">{t('common.verifyingPermissions')}</p>
-```
-
-**Adicionar import e hook:**
-
-```typescript
-import { useI18n } from '@/contexts/I18nContext';
-
-// Dentro do componente:
-const { t } = useI18n();
-```
+| Tipo | Definição | Quantidade |
+|------|-----------|------------|
+| **A** | Usa impersonation corretamente | **0** |
+| **B** | Usa apenas `is_superadmin()` | 31 |
+| **C** | Usa `auth.uid()` + `tenant_id` | ~70 |
+| **D** | Pública, genérica ou perigosa | 18 |
 
 ---
 
-## FASE 2 — I18N KEYS (AJUSTE A3 — ADICIONAR ANTES DE USAR)
+## DETALHAMENTO POR TABELA
 
-### Novas Keys para pt-BR.ts, en.ts, es.ts
+### 1. TABELAS CRÍTICAS — SUPERADMIN-ONLY
 
-Serão adicionadas ~60 keys em cada arquivo, organizadas por namespace:
+| Tabela | Policies | Risco Identificado |
+|--------|----------|-------------------|
+| `superadmin_impersonations` | 2 | ✅ OK - service_role + superadmin próprio |
+| `deleted_tenants` | 1 | ✅ OK - somente superadmin |
+| `webhook_events` | 1 | ✅ OK - somente superadmin |
+| `platform_landing_config` | 2 | 🔶 `qual: true` para SELECT público |
+| `platform_partners` | 2 | ✅ OK - público apenas is_active |
 
-#### Common (P1)
-```
-common.next
-common.loadMore
-common.refresh
-common.verifyingPermissions
-common.createNew
-```
+### 2. TABELAS TENANT-SCOPED — ALTO RISCO
 
-#### Portal (P1)
-```
-portal.downloadDiploma
-portal.verifyDiploma
-portal.digitalCardDescription
-```
+| Tabela | Policies | SELECT | INSERT | UPDATE | DELETE | Riscos |
+|--------|----------|--------|--------|--------|--------|--------|
+| **memberships** | 8 | 4 | 1 | 1 | 0 | ⚠️ UPDATE sem with_check |
+| **athletes** | 8 | 4 | 1 | 1 | 0 | ✅ OK |
+| **profiles** | 5 | 3 | 1 | 1 | 0 | ✅ OK |
+| **user_roles** | 4 | 2 | 0 | 0 | 0 | ⚠️ Não bloqueia SUPERADMIN_GLOBAL |
+| **tenant_billing** | 3 | 2 | 0 | 0 | 0 | ⚠️ Sem policy de escrita para tenant admin |
+| **audit_logs** | 7 | 2 | 2 | 1 | 1 | ✅ OK - imutável |
+| **decision_logs** | 4 | 1 | 1 | 1 | 1 | ✅ OK - imutável |
+| **security_events** | 4 | 2 | 0 | 1 | 1 | ⚠️ Sem INSERT para tenant |
 
-#### Membership (P1)
-```
-membership.renewal
-```
+### 3. TABELAS DE EVENTOS — RISCO MÉDIO
 
-#### Trial (P1)
-```
-trial.pendingDeleteDesc
-```
+| Tabela | Policies | Risco |
+|--------|----------|-------|
+| **events** | 2 | ✅ OK - público filtra is_public |
+| **event_brackets** | 2 | ✅ OK - público filtra PUBLISHED |
+| **event_bracket_matches** | 2 | ✅ OK - público filtra bracket PUBLISHED |
+| **event_categories** | 2 | ✅ OK - público filtra evento publicado |
+| **event_registrations** | 4 | ✅ OK - athlete + admin |
+| **event_results** | 3 | ✅ OK - imutável via trigger |
 
-#### Nav (P1)
-```
-nav.toggleTheme
-```
+### 4. TABELAS DE GRADUAÇÃO — RISCO BAIXO
 
-#### Events - Image Upload (P1)
-```
-events.coverImage
-events.coverImageDesc
-events.imageTypeError
-events.imageSizeError
-events.imageUploadSuccess
-events.imageUploadError
-events.imageRemoveSuccess
-events.imageRemoveError
-events.replaceImage
-events.uploadImage
-events.removeImage
-```
+| Tabela | Policies | Risco |
+|--------|----------|-------|
+| **grading_schemes** | 4 | ✅ OK - público is_active |
+| **grading_levels** | 4 | ✅ OK - público is_active |
+| **athlete_gradings** | 5 | ✅ OK |
+| **diplomas** | 6 | 🔶 Público vê ISSUED sem auth |
 
-#### Tenant Layout (P1)
-```
-tenant.loading
-tenant.notFound
-tenant.notFoundDesc
-```
+### 5. TABELAS AUXILIARES
 
-#### Admin - Create Tenant Dialog (P1)
-```
-admin.newOrganization
-admin.createOrganization
-admin.createOrganizationDesc
-admin.organizationNameLabel
-admin.organizationNamePlaceholder
-admin.slugLabel
-admin.slugPlaceholder
-admin.slugHint
-admin.modalities
-admin.defaultLanguage
-admin.primaryColor
-admin.descriptionLabel
-admin.descriptionPlaceholder
-admin.creating
-admin.create
-admin.organizationCreatedSuccess
-admin.organizationCreateError
-admin.sessionSyncError
-admin.nameSlugRequired
-admin.selectModality
-admin.slugInUse
-```
-
-#### Admin - Platform Health (P1)
-```
-admin.platformHealth
-admin.platformHealthError
-admin.platformHealthDesc
-admin.platformHealthNote
-admin.operational
-admin.attentionNeeded
-admin.verifying
-admin.automaticJobs
-admin.expireMemberships
-admin.cleanAbandoned
-admin.checkTrials
-admin.metrics7days
-admin.expiredMemberships
-admin.cleanedAbandoned
-admin.webhookErrors24h
-admin.paymentFailures
-admin.tenantsWithIssues
-admin.blocked
-admin.overduePayment
-admin.neverRan
-admin.lessThan1h
-admin.hoursAgo
-admin.in24h
-admin.jobStatus.ok
-admin.jobStatus.delayed
-admin.jobStatus.error
-admin.jobStatus.noData
-admin.jobTooltip.ok
-admin.jobTooltip.delayed
-admin.jobTooltip.error
-admin.jobTooltip.noData
-```
+| Tabela | Policies | Risco |
+|--------|----------|-------|
+| **academies** | 4 | ✅ OK - público is_active |
+| **academy_coaches** | 4 | ✅ OK |
+| **coaches** | 6 | ✅ OK |
+| **documents** | 4 | ✅ OK |
+| **guardians** | 4 | ✅ OK |
+| **guardian_links** | 4 | ✅ OK |
+| **digital_cards** | 4 | ⚠️ `qual: true` para SELECT |
 
 ---
 
-## FASE 3 — INTERNACIONALIZAR COMPONENTES
+## VIEWS PÚBLICAS (SEM RLS)
 
-### 3.1. TenantLayout.tsx
-
-**Mudanças:**
-- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
-- Adicionar `const { t } = useI18n();` no início de TenantContent
-- Substituir 3 strings hardcoded por `t()`
-
-### 3.2. EventImageUpload.tsx
-
-**Mudanças:**
-- Eliminar 8 ocorrências de `as any`
-- Usar keys corretas (já existentes após Fase 2)
-
-### 3.3. CreateTenantDialog.tsx
-
-**Mudanças:**
-- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
-- Adicionar `const { t } = useI18n();`
-- Substituir ~15 strings hardcoded por `t()`
-
-### 3.4. PlatformHealthCard.tsx
-
-**Mudanças:**
-- Adicionar `import { useI18n } from '@/contexts/I18nContext';`
-- Adicionar `const { t } = useI18n();`
-- Substituir ~40 strings hardcoded por `t()`
+| View | Propósito | Risco |
+|------|-----------|-------|
+| `athlete_current_grading` | Graduação atual do atleta | 🔶 Verifica via função? |
+| `athletes_public_verification` | Verificação pública | ✅ Intencional |
+| `membership_verification` | Verificação de filiação | ✅ Intencional |
+| `security_timeline` | Timeline de segurança | ⚠️ Deveria ter RLS? |
 
 ---
 
-## ORDEM DE EXECUÇÃO
+## ANÁLISE DE PADRÕES
 
-1. **Criar** `src/integrations/supabase/impersonation-client.ts`
-2. **Editar** `src/contexts/ImpersonationContext.tsx` (2 mudanças)
-3. **Editar** `src/locales/pt-BR.ts` (adicionar ~60 keys)
-4. **Editar** `src/locales/en.ts` (adicionar ~60 keys)
-5. **Editar** `src/locales/es.ts` (adicionar ~60 keys)
-6. **Editar** `src/components/auth/RequireRoles.tsx` (log + i18n)
-7. **Editar** `src/layouts/TenantLayout.tsx` (i18n)
-8. **Editar** `src/components/events/EventImageUpload.tsx` (eliminar `as any`)
-9. **Editar** `src/components/admin/CreateTenantDialog.tsx` (i18n)
-10. **Editar** `src/components/admin/PlatformHealthCard.tsx` (i18n)
+### Padrão Positivo ✅
+- Todas as tabelas tenant-scoped usam `is_tenant_admin(tenant_id)` ou `has_role(..., tenant_id)`
+- Tabelas imutáveis (audit_logs, decision_logs) têm policies `qual: false` para UPDATE/DELETE
+- Superadmin tem acesso via `is_superadmin()` em todas as tabelas críticas
 
----
+### Padrão Problemático ⚠️
+1. **Superadmin SEM Impersonation Context**
+   - `is_superadmin()` verifica apenas se usuário tem role SUPERADMIN_GLOBAL
+   - NÃO verifica se há impersonation ativa
+   - NÃO limita acesso ao tenant impersonado
+   
+2. **with_check Ausente**
+   - `Staff and admins can update memberships` - UPDATE sem with_check
+   - Permite atualizar campos arbitrariamente
 
-## GARANTIAS DE SEGURANÇA
-
-| Garantia | Como Garantido |
-|----------|----------------|
-| ❌ Não altera rotas/guards | ✅ Apenas adiciona funcionalidade |
-| ❌ Não modifica RLS/policies | ✅ Frontend-only |
-| ❌ Não remove código funcional | ✅ Apenas estende |
-| ❌ Sem efeitos colaterais | ✅ Cache controlado |
-| ❌ Client memoizado | ✅ useMemo por impersonationId |
-| ✅ A1 — Reatividade via Context | ✅ Depende de session?.impersonationId |
-| ✅ A2 — Cache limpo ao encerrar | ✅ clearSession() chama clearImpersonationClientCache() |
-| ✅ A3 — Keys existem antes de usar | ✅ Locales editados ANTES dos componentes |
+3. **Policies Públicas Amplas**
+   - `digital_cards`: SELECT com `qual: true` expõe dados de todos os cards
 
 ---
 
-## CRITÉRIOS DE ACEITE
+## 🎯 CANDIDATOS A CORREÇÃO (PRÓXIMO PI)
 
-| Critério | Verificação |
-|----------|-------------|
-| Impersonation funciona em queries PostgREST | Client injeta x-impersonation-id |
-| Encerrar impersonation limpa contexto | clearSession() limpa cache |
-| Nenhuma key retorna undefined | Todas as keys criadas |
-| Nenhuma regressão funcional | Zero breaking changes |
-| Build limpo | Sem erros de TypeScript |
+### P0.1 — Correções Cirúrgicas Imediatas
+
+| # | Tabela | Policy | Problema | Correção Sugerida |
+|---|--------|--------|----------|-------------------|
+| 1 | `digital_cards` | `Public can verify digital cards` | `qual: true` | Adicionar filtro por id específico |
+| 2 | `memberships` | `Staff and admins can update memberships` | `with_check: null` | Adicionar with_check = qual |
+| 3 | Todas com `is_superadmin()` | 31 policies | Não considera impersonation | Avaliar se impersonation é necessário em RLS |
+
+### P1 — Padronização Backend
+
+| # | Escopo | Descrição |
+|---|--------|-----------|
+| 1 | **Impersonation-Aware RLS** | Criar função `is_superadmin_in_tenant(tenant_id)` que valida impersonation |
+| 2 | **Audit Trail** | Garantir que operações via impersonation loguem corretamente |
+| 3 | **Views Seguras** | Avaliar se `security_timeline` precisa de RLS adicional |
 
 ---
 
-## RESULTADO ESPERADO
+## ANÁLISE DA FUNÇÃO `is_superadmin()`
 
-```text
-TATAME PRO = 100% BLINDADO
-✅ Impersonation reativa (A1)
-✅ Cache limpo corretamente (A2)
-✅ i18n completo (A3)
-✅ Zero "funciona por sorte"
-✅ Zero regressão
+```sql
+CREATE OR REPLACE FUNCTION public.is_superadmin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid()
+      AND role = 'SUPERADMIN_GLOBAL'
+      AND tenant_id IS NULL
+  )
+$$;
 ```
+
+**Problema**: Esta função retorna `true` para QUALQUER superadmin, independente de:
+- Haver impersonation ativa
+- Qual tenant está sendo acessado
+- Header `x-impersonation-id` estar presente
+
+**Resultado**: Superadmin pode acessar TODOS os dados de TODOS os tenants diretamente via PostgREST, sem passar por Edge Functions.
+
+---
+
+## RESUMO DE RISCOS
+
+| Prioridade | Risco | Impacto | Recomendação |
+|------------|-------|---------|--------------|
+| **P0** | Superadmin sem escopo de tenant em RLS | Acesso irrestrito a todos os dados | Avaliar necessidade de impersonation-aware RLS |
+| **P0** | `digital_cards` SELECT público | Exposição de todos os cards | Restringir a lookup por ID |
+| **P1** | `memberships` UPDATE sem with_check | Alteração irrestrita de campos | Adicionar with_check |
+| **P2** | `security_timeline` view sem RLS | Possível vazamento de eventos | Avaliar se precisa proteção |
+
+---
+
+## CONCLUSÃO
+
+### Status: ✅ AUDITORIA COMPLETA
+
+A auditoria identificou que o modelo de RLS do TATAME PRO segue um padrão **Tipo B/C** (auth.uid + tenant_id), com **ZERO suporte a impersonation** no nível de RLS.
+
+O sistema de impersonation atual funciona **exclusivamente em Edge Functions**, onde o header `x-impersonation-id` é validado manualmente. Queries diretas via PostgREST (SDK Supabase) **NÃO respeitam impersonation**.
+
+### Decisão Necessária:
+
+1. **Aceitar o modelo atual**: Impersonation apenas via Edge Functions. Superadmin tem acesso total via RLS. Audit trail via Edge Functions.
+
+2. **Evoluir para impersonation-aware RLS**: Criar função `is_superadmin_for_tenant(tenant_id)` que valida header de impersonation. Todas as 31 policies com `is_superadmin()` precisariam ser atualizadas.
+
+**Recomendação**: Manter modelo atual (opção 1) é mais seguro operacionalmente, desde que:
+- Operações sensíveis passem por Edge Functions
+- Frontend force Edge Functions para operações de escrita
+- Audit trail seja feito em Edge Functions
+
+---
+
+## PRÓXIMOS PASSOS
+
+| PI | Escopo | Esforço |
+|----|--------|---------|
+| **P0.1** | Corrigir `digital_cards` SELECT público | 1h |
+| **P0.2** | Adicionar with_check em `memberships` UPDATE | 30min |
+| **P1** | Documentar modelo de segurança (RLS vs Edge Functions) | 2h |
+| **P2** | Avaliar impersonation-aware RLS (se necessário) | 8h+ |
+
+---
+
+```
+P0 – BACKEND RLS AUDIT = ✅ CONCLUÍDO
+✅ Visibilidade total das policies (119)
+✅ Riscos mapeados (4 críticos, 2 médios)
+✅ Nenhuma alteração em produção
+✅ Base sólida para correção cirúrgica
+```
+
