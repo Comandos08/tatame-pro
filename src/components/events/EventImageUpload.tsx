@@ -38,13 +38,13 @@ export function EventImageUpload({
     // Validate file type
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error(t('events.imageTypeError' as any) || 'Use PNG, JPG ou WebP');
+      toast.error(t('events.imageTypeError'));
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error(t('events.imageSizeError' as any) || 'Máximo 5MB');
+      toast.error(t('events.imageSizeError'));
       return;
     }
 
@@ -73,11 +73,11 @@ export function EventImageUpload({
 
       setPreviewUrl(publicUrl);
       onUploaded(publicUrl);
-      toast.success(t('events.imageUploadSuccess' as any) || 'Imagem enviada!');
+      toast.success(t('events.imageUploadSuccess'));
     } catch (error) {
       console.error('Upload error:', error);
       setPreviewUrl(currentUrl);
-      toast.error(t('events.imageUploadError' as any) || 'Erro ao enviar imagem');
+      toast.error(t('events.imageUploadError'));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -95,10 +95,10 @@ export function EventImageUpload({
 
       setPreviewUrl(null);
       onUploaded(null);
-      toast.success(t('events.imageRemoveSuccess' as any) || 'Imagem removida');
+      toast.success(t('events.imageRemoveSuccess'));
     } catch (error) {
       console.error('Remove error:', error);
-      toast.error(t('events.imageRemoveError' as any) || 'Erro ao remover');
+      toast.error(t('events.imageRemoveError'));
     } finally {
       setUploading(false);
     }
@@ -108,10 +108,10 @@ export function EventImageUpload({
     <div className="space-y-3">
       <div>
         <Label className="text-sm font-medium">
-          {t('events.coverImage' as any) || 'Imagem do Evento'}
+          {t('events.coverImage')}
         </Label>
         <p className="text-xs text-muted-foreground">
-          {t('events.coverImageDesc' as any) || 'Imagem de capa (16:9)'}
+          {t('events.coverImageDesc')}
         </p>
       </div>
 
@@ -128,7 +128,7 @@ export function EventImageUpload({
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt={t('events.coverImage' as any) || 'Imagem do Evento'}
+              alt={t('events.coverImage')}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -159,9 +159,7 @@ export function EventImageUpload({
             ) : (
               <Upload className="h-4 w-4 mr-2" />
             )}
-            {previewUrl
-              ? (t('events.replaceImage' as any) || 'Substituir')
-              : (t('events.uploadImage' as any) || 'Enviar')}
+            {previewUrl ? t('events.replaceImage') : t('events.uploadImage')}
           </Button>
           {previewUrl && (
             <Button
@@ -173,7 +171,7 @@ export function EventImageUpload({
               className="text-destructive hover:text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              {t('events.removeImage' as any) || 'Remover'}
+              {t('events.removeImage')}
             </Button>
           )}
         </div>

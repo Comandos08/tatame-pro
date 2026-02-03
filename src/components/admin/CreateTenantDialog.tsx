@@ -25,6 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { toast } from 'sonner';
 
 const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
@@ -40,7 +41,7 @@ interface CreateTenantDialogProps {
 
 export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
   const { isSessionReady } = useCurrentUser();
-  
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -77,15 +78,15 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
     mutationFn: async () => {
       // ✅ GUARD ESTRUTURAL: Garantir sessão pronta antes de qualquer operação
       if (!isSessionReady) {
-        throw new Error('Aguardando sincronização de sessão. Tente novamente.');
+        throw new Error(t('admin.sessionSyncError'));
       }
 
       if (!name.trim() || !slug.trim()) {
-        throw new Error('Nome e slug são obrigatórios');
+        throw new Error(t('admin.nameSlugRequired'));
       }
 
       if (selectedSports.length === 0) {
-        throw new Error('Selecione pelo menos uma modalidade');
+        throw new Error(t('admin.selectModality'));
       }
 
       // Check if slug is unique
@@ -96,7 +97,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
         .maybeSingle();
 
       if (existing) {
-        throw new Error('Este slug já está em uso. Escolha outro.');
+        throw new Error(t('admin.slugInUse'));
       }
 
       const { data, error } = await supabase
@@ -119,13 +120,13 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast.success(`Organização "${data.name}" criada com sucesso!`);
+      toast.success(t('admin.organizationCreatedSuccess').replace('{name}', data.name));
       setOpen(false);
       resetForm();
       onSuccess?.(data);
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Erro ao criar organização');
+      toast.error(error instanceof Error ? error.message : t('admin.organizationCreateError'));
     },
   });
 
@@ -143,47 +144,47 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
-          Nova Organização
+          {t('admin.newOrganization')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Criar Nova Organização</DialogTitle>
+          <DialogTitle>{t('admin.createOrganization')}</DialogTitle>
           <DialogDescription>
-            Preencha os dados para criar uma nova organização na plataforma.
+            {t('admin.createOrganizationDesc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="tenant-name">Nome da organização *</Label>
+            <Label htmlFor="tenant-name">{t('admin.organizationNameLabel')} *</Label>
             <Input
               id="tenant-name"
-              placeholder="Ex: Federação Paulista de Jiu-Jitsu"
+              placeholder={t('admin.organizationNamePlaceholder')}
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tenant-slug">Slug (URL) *</Label>
+            <Label htmlFor="tenant-slug">{t('admin.slugLabel')} *</Label>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">tatame.pro/</span>
               <Input
                 id="tenant-slug"
-                placeholder="federacao-paulista"
+                placeholder={t('admin.slugPlaceholder')}
                 value={slug}
                 onChange={(e) => setSlug(generateSlug(e.target.value))}
                 className="flex-1"
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              URL de acesso: https://tatame.pro/{slug || 'exemplo'}
+              {t('admin.slugHint').replace('{slug}', slug || 'exemplo')}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Modalidades *</Label>
+            <Label>{t('admin.modalities')} *</Label>
             <div className="flex flex-wrap gap-2">
               {SPORT_TYPES.map((sport) => (
                 <Badge
@@ -203,7 +204,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="default-locale">Idioma padrão</Label>
+              <Label htmlFor="default-locale">{t('admin.defaultLanguage')}</Label>
               <Select value={defaultLocale} onValueChange={setDefaultLocale}>
                 <SelectTrigger id="default-locale">
                   <SelectValue />
@@ -219,7 +220,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="primary-color">Cor primária</Label>
+              <Label htmlFor="primary-color">{t('admin.primaryColor')}</Label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -239,10 +240,10 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição (opcional)</Label>
+            <Label htmlFor="description">{t('admin.descriptionLabel')}</Label>
             <Textarea
               id="description"
-              placeholder="Breve descrição da organização..."
+              placeholder={t('admin.descriptionPlaceholder')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -252,7 +253,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={() => createMutation.mutate()} 
@@ -261,10 +262,10 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
             {createMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Criando...
+                {t('admin.creating')}
               </>
             ) : (
-              'Criar Organização'
+              t('admin.createButton')
             )}
           </Button>
         </DialogFooter>

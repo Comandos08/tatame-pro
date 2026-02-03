@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Activity, 
   AlertTriangle, 
   CheckCircle, 
   Clock, 
@@ -12,6 +11,7 @@ import {
   Zap
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useI18n } from "@/contexts/I18nContext";
 import { format, subHours, subDays } from "date-fns";
 
 interface PlatformMetrics {
@@ -44,6 +44,8 @@ interface PlatformMetrics {
  * - Tenant billing health summary
  */
 export function PlatformHealthCard() {
+  const { t } = useI18n();
+  
   const { data: metrics, isLoading, error } = useQuery({
     queryKey: ['platform-health-metrics'],
     queryFn: async (): Promise<PlatformMetrics> => {
@@ -143,14 +145,14 @@ export function PlatformHealthCard() {
   });
 
   const formatTime = (dateStr: string | null) => {
-    if (!dateStr) return 'Nunca executou';
+    if (!dateStr) return t('platformHealth.neverRan');
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / 3600000);
     
-    if (diffHours < 1) return 'Há menos de 1h';
-    if (diffHours < 24) return `Há ${diffHours}h`;
+    if (diffHours < 1) return t('platformHealth.lessThan1h');
+    if (diffHours < 24) return t('platformHealth.hoursAgo').replace('{h}', String(diffHours));
     return format(date, 'dd/MM HH:mm');
   };
 
@@ -158,8 +160,8 @@ export function PlatformHealthCard() {
     if (!lastRun) return { 
       status: 'unknown', 
       color: 'secondary', 
-      label: 'Sem dados',
-      tooltip: 'Nenhuma execução registrada. Verifique se os cron jobs estão configurados.'
+      label: t('platformHealth.noData'),
+      tooltip: t('platformHealth.noDataTooltip')
     };
     
     const hoursSinceRun = (Date.now() - new Date(lastRun).getTime()) / 3600000;
@@ -167,20 +169,20 @@ export function PlatformHealthCard() {
     if (hoursSinceRun < 25) return { 
       status: 'ok', 
       color: 'default',
-      label: 'OK',
-      tooltip: 'Job executado nas últimas 24h. Funcionando normalmente.'
+      label: t('platformHealth.ok'),
+      tooltip: t('platformHealth.okTooltip')
     };
     if (hoursSinceRun < 48) return { 
       status: 'warning', 
       color: 'secondary',
-      label: 'Atrasado',
-      tooltip: 'Job não executou há mais de 24h. Investigar cron/pg_net.'
+      label: t('platformHealth.delayed'),
+      tooltip: t('platformHealth.delayedTooltip')
     };
     return { 
       status: 'error', 
       color: 'destructive',
-      label: 'Erro',
-      tooltip: 'Job não executou há mais de 48h. Ação técnica necessária.'
+      label: t('platformHealth.error'),
+      tooltip: t('platformHealth.errorTooltip')
     };
   };
 
@@ -200,7 +202,7 @@ export function PlatformHealthCard() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            <span>Erro ao carregar métricas de saúde</span>
+            <span>{t('platformHealth.loadError')}</span>
           </div>
         </CardContent>
       </Card>
@@ -213,31 +215,31 @@ export function PlatformHealthCard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Server className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Saúde da Plataforma</CardTitle>
+            <CardTitle className="text-base">{t('platformHealth.title')}</CardTitle>
           </div>
           <Badge variant={allJobsHealthy && !hasIssues ? 'default' : hasIssues ? 'destructive' : 'secondary'}>
             {allJobsHealthy && !hasIssues ? (
               <>
                 <CheckCircle className="h-3 w-3 mr-1" />
-                Operacional
+                {t('platformHealth.operational')}
               </>
             ) : hasIssues ? (
               <>
                 <AlertTriangle className="h-3 w-3 mr-1" />
-                Atenção Necessária
+                {t('platformHealth.attentionNeeded')}
               </>
             ) : (
               <>
                 <Clock className="h-3 w-3 mr-1" />
-                Verificando
+                {t('platformHealth.checking')}
               </>
             )}
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Status dos jobs automáticos e métricas de erros.
+          {t('platformHealth.statusDesc')}
           <span className="block mt-1 text-muted-foreground/70">
-            Nota: Ausência de eventos indica possível problema técnico nos jobs, não impacto direto nos usuários.
+            {t('platformHealth.technicalNote')}
           </span>
         </CardDescription>
       </CardHeader>
@@ -252,12 +254,12 @@ export function PlatformHealthCard() {
             <div>
               <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                 <Zap className="h-4 w-4 text-primary" />
-                Jobs Automáticos
+                {t('platformHealth.automaticJobs')}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                   <div>
-                    <p className="text-xs text-muted-foreground">Expirar Filiações</p>
+                    <p className="text-xs text-muted-foreground">{t('platformHealth.expireMemberships')}</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastExpireMembershipsRun)}</p>
                   </div>
                   <Badge 
@@ -271,7 +273,7 @@ export function PlatformHealthCard() {
                 
                 <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                   <div>
-                    <p className="text-xs text-muted-foreground">Limpar Abandonados</p>
+                    <p className="text-xs text-muted-foreground">{t('platformHealth.cleanAbandoned')}</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastCleanupAbandonedRun)}</p>
                   </div>
                   <Badge 
@@ -285,7 +287,7 @@ export function PlatformHealthCard() {
                 
                 <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                   <div>
-                    <p className="text-xs text-muted-foreground">Checar Trials</p>
+                    <p className="text-xs text-muted-foreground">{t('platformHealth.checkTrials')}</p>
                     <p className="text-sm font-medium">{formatTime(metrics.lastTrialCheckRun)}</p>
                   </div>
                   <Badge 
@@ -303,33 +305,33 @@ export function PlatformHealthCard() {
             <div>
               <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                Métricas (7 dias)
+                {t('platformHealth.metrics7d')}
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="text-center p-2 bg-muted/50 rounded-md">
                   <p className="text-lg font-semibold">{metrics.expiredLast7d}</p>
-                  <p className="text-xs text-muted-foreground">Filiações expiradas</p>
-                  <p className="text-xs text-muted-foreground/70">({metrics.expiredLast24h} em 24h)</p>
+                  <p className="text-xs text-muted-foreground">{t('platformHealth.expiredMemberships')}</p>
+                  <p className="text-xs text-muted-foreground/70">{t('platformHealth.in24h').replace('{n}', String(metrics.expiredLast24h))}</p>
                 </div>
                 
                 <div className="text-center p-2 bg-muted/50 rounded-md">
                   <p className="text-lg font-semibold">{metrics.cleanedLast7d}</p>
-                  <p className="text-xs text-muted-foreground">Abandonados limpos</p>
-                  <p className="text-xs text-muted-foreground/70">({metrics.cleanedLast24h} em 24h)</p>
+                  <p className="text-xs text-muted-foreground">{t('platformHealth.abandonedCleaned')}</p>
+                  <p className="text-xs text-muted-foreground/70">{t('platformHealth.in24h').replace('{n}', String(metrics.cleanedLast24h))}</p>
                 </div>
                 
                 <div className={`text-center p-2 rounded-md ${metrics.webhookErrorsLast24h > 0 ? 'bg-destructive/10' : 'bg-muted/50'}`}>
                   <p className={`text-lg font-semibold ${metrics.webhookErrorsLast24h > 0 ? 'text-destructive' : ''}`}>
                     {metrics.webhookErrorsLast24h}
                   </p>
-                  <p className="text-xs text-muted-foreground">Erros webhook (24h)</p>
+                  <p className="text-xs text-muted-foreground">{t('platformHealth.webhookErrors24h')}</p>
                 </div>
                 
                 <div className={`text-center p-2 rounded-md ${metrics.billingErrorsLast7d > 0 ? 'bg-warning/10' : 'bg-muted/50'}`}>
                   <p className={`text-lg font-semibold ${metrics.billingErrorsLast7d > 0 ? 'text-warning' : ''}`}>
                     {metrics.billingErrorsLast7d}
                   </p>
-                  <p className="text-xs text-muted-foreground">Falhas pagamento</p>
+                  <p className="text-xs text-muted-foreground">{t('platformHealth.paymentFailures')}</p>
                 </div>
               </div>
             </div>
@@ -339,13 +341,13 @@ export function PlatformHealthCard() {
               <div>
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                   <AlertTriangle className="h-4 w-4 text-warning" />
-                  Tenants com Problemas
+                  {t('platformHealth.tenantsWithIssues')}
                 </h4>
                 <div className="flex gap-4">
                   {metrics.tenantsBlocked > 0 && (
                     <div className="flex items-center gap-2 text-destructive">
                       <Badge variant="destructive">{metrics.tenantsBlocked}</Badge>
-                      <span className="text-sm">bloqueados</span>
+                      <span className="text-sm">{t('platformHealth.blocked')}</span>
                     </div>
                   )}
                   {metrics.tenantsPastDue > 0 && (
@@ -353,7 +355,7 @@ export function PlatformHealthCard() {
                       <Badge variant="secondary" className="bg-warning/20 text-warning-foreground">
                         {metrics.tenantsPastDue}
                       </Badge>
-                      <span className="text-sm">com pagamento atrasado</span>
+                      <span className="text-sm">{t('platformHealth.latePayment')}</span>
                     </div>
                   )}
                 </div>

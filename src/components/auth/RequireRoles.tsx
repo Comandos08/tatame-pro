@@ -18,6 +18,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { AccessDenied } from './AccessDenied';
 import { AppRole } from '@/types/auth';
 
@@ -42,6 +43,7 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
   const { roles, isLoading: rolesLoading, isFetched } = useTenantRoles(tenant?.id);
   const { isImpersonating, impersonatedTenantId, isLoading: impersonationLoading } = useImpersonation();
   const { isGlobalSuperadmin } = useCurrentUser();
+  const { t } = useI18n();
 
   // Only show loader while fetching roles - NOT auth (IdentityGate handles that)
   const isLoading = tenantLoading || impersonationLoading || (!isFetched && rolesLoading);
@@ -51,7 +53,7 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verificando permissões...</p>
+          <p className="text-muted-foreground">{t('common.verifyingPermissions')}</p>
         </div>
       </div>
     );
@@ -64,6 +66,16 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
   // Superadmin accessing tenant routes MUST have active impersonation for that tenant
   const isSuperadminAccessingTenant = isGlobalSuperadmin && tenant;
   const hasValidImpersonation = isSuperadminAccessingTenant && isImpersonating && impersonatedTenantId === tenant.id;
+  
+  // 📊 DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
+  if (isSuperadminAccessingTenant && !hasValidImpersonation) {
+    console.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
+      isImpersonating,
+      impersonatedTenantId,
+      requiredTenantId: tenant?.id,
+      mismatch: impersonatedTenantId !== tenant?.id,
+    });
+  }
   
   // Final access decision
   const hasAccess = hasValidImpersonation || hasAllowedRole;
