@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
+import { useI18n } from '@/contexts/I18nContext';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { hexToHsl } from '@/lib/colorUtils';
@@ -10,6 +11,7 @@ import { hexToHsl } from '@/lib/colorUtils';
 function TenantContent() {
   const { tenant, isLoading, error, billingInfo } = useTenant();
   const location = useLocation();
+  const { t } = useI18n();
 
   // Inject tenant primary color as CSS variable
   useEffect(() => {
@@ -35,7 +37,7 @@ function TenantContent() {
           className="flex flex-col items-center gap-4"
         >
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Carregando organização...</p>
+          <p className="text-muted-foreground">{t('tenant.loading')}</p>
         </motion.div>
       </div>
     );
@@ -52,9 +54,9 @@ function TenantContent() {
           <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
             <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
-          <h1 className="text-2xl font-display font-bold">Organização não encontrada</h1>
+          <h1 className="text-2xl font-display font-bold">{t('tenant.notFound')}</h1>
           <p className="text-muted-foreground max-w-md">
-            A organização que você está procurando não existe ou não está ativa no momento.
+            {t('tenant.notFoundDesc')}
           </p>
         </motion.div>
       </div>

@@ -2051,56 +2051,25 @@ export const es: Record<string, string> = {
   // Nav - Missing keys (P1)
   'nav.toggleTheme': 'Cambiar tema',
 
-  // Tenant Layout keys (P1) - NOTE: events.* and some admin.* keys already exist elsewhere
+  // Tenant Layout keys (P1)
+  'tenant.loading': 'Cargando organización...',
+  'tenant.notFound': 'Organización no encontrada',
   'tenant.notFoundDesc': 'La organización que busca no existe o no está activa en este momento.',
 
-  // Admin - Create Tenant Dialog keys (P1) - Only truly new keys
-  'admin.createOrganizationDesc': 'Complete los datos para crear una nueva organización en la plataforma.',
+  // Admin - Create Tenant Dialog keys (P1) - Only truly new keys (non-duplicates)
   'admin.organizationNameLabel': 'Nombre de la organización',
   'admin.organizationNamePlaceholder': 'Ej: Federación Paulista de Jiu-Jitsu',
   'admin.slugLabel': 'Slug (URL)',
   'admin.slugPlaceholder': 'federacion-paulista',
   'admin.slugHint': 'URL de acceso: https://tatame.pro/{slug}',
   'admin.descriptionLabel': 'Descripción (opcional)',
-  'admin.create': 'Crear Organización',
+  'admin.createButton': 'Crear Organización',
   'admin.organizationCreatedSuccess': '¡Organización "{name}" creada con éxito!',
   'admin.organizationCreateError': 'Error al crear organización',
   'admin.sessionSyncError': 'Esperando sincronización de sesión. Intente de nuevo.',
   'admin.nameSlugRequired': 'Nombre y slug son obligatorios',
   'admin.selectModality': 'Seleccione al menos una modalidad',
   'admin.slugInUse': 'Este slug ya está en uso. Elija otro.',
-
-  // Admin - Platform Health keys (P1)
-  'admin.platformHealth': 'Salud de la Plataforma',
-  'admin.platformHealthError': 'Error al cargar métricas de salud',
-  'admin.platformHealthDesc': 'Estado de jobs automáticos y métricas de errores.',
-  'admin.platformHealthNote': 'Nota: La ausencia de eventos indica posible problema técnico en los jobs, no impacto directo en usuarios.',
-  'admin.operational': 'Operacional',
-  'admin.attentionNeeded': 'Atención Necesaria',
-  'admin.verifying': 'Verificando',
-  'admin.automaticJobs': 'Jobs Automáticos',
-  'admin.expireMemberships': 'Expirar Afiliaciones',
-  'admin.cleanAbandoned': 'Limpiar Abandonados',
-  'admin.checkTrials': 'Verificar Trials',
-  'admin.metrics7days': 'Métricas (7 días)',
-  'admin.expiredMemberships': 'Afiliaciones expiradas',
-  'admin.cleanedAbandoned': 'Abandonados limpiados',
-  'admin.webhookErrors24h': 'Errores webhook (24h)',
-  'admin.paymentFailures': 'Fallos de pago',
   'admin.tenantsWithProblems': 'Tenants con Problemas',
-  'admin.blocked': 'bloqueados',
-  'admin.overduePayment': 'con pago atrasado',
-  'admin.neverRan': 'Nunca ejecutó',
-  'admin.lessThan1h': 'Hace menos de 1h',
-  'admin.hoursAgo': 'Hace {n}h',
-  'admin.in24h': 'en 24h',
-  'admin.jobStatus.ok': 'OK',
-  'admin.jobStatus.delayed': 'Atrasado',
-  'admin.jobStatus.error': 'Error',
-  'admin.jobStatus.noData': 'Sin datos',
-  'admin.jobTooltip.ok': 'Job ejecutado en las últimas 24h. Funcionando normalmente.',
-  'admin.jobTooltip.delayed': 'Job no ejecutó hace más de 24h. Verificar cron/pg_net.',
-  'admin.jobTooltip.error': 'Job no ejecutó hace más de 48h. Acción técnica necesaria.',
-  'admin.jobTooltip.noData': 'Ninguna ejecución registrada. Verifique si los cron jobs están configurados.',
 
 };
