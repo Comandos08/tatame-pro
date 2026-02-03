@@ -2005,6 +2005,84 @@ export const ptBR = {
   'events.brackets.bothAthletesMustBeDefined': 'Ambos os atletas devem estar definidos',
   'events.brackets.matchAlreadyCompleted': 'Esta luta já foi finalizada',
 
+  // =====================================================
+  // P1 — BLINDAGEM I18N (SAFE MODE)
+  // Keys adicionadas para eliminar strings hardcoded
+  // =====================================================
+
+  // Common - Missing keys (P1)
+  'common.next': 'Próximo',
+  'common.loadMore': 'Carregar mais',
+  'common.refresh': 'Atualizar',
+  'common.verifyingPermissions': 'Verificando permissões...',
+  'common.createNew': 'Criar Novo',
+
+  // Portal - Missing keys (P1)
+  'portal.downloadDiploma': 'Baixar Diploma',
+  'portal.verifyDiploma': 'Verificar Diploma',
+  'portal.digitalCardDescription': 'Sua carteira digital de atleta filiado',
+
+  // Membership - Missing keys (P1)
+  'membership.renewal': 'Renovação',
+
+  // Trial - Missing keys (P1)
+  'trial.pendingDeleteDesc': 'Esta organização será excluída se não regularizar o pagamento.',
+
+  // Nav - Missing keys (P1)
+  'nav.toggleTheme': 'Alternar tema',
+
+  // Tenant Layout keys (P1) - NOTE: events.* and some admin.* keys already exist elsewhere
+  'tenant.notFoundDesc': 'A organização que você está procurando não existe ou não está ativa no momento.',
+
+  // Admin - Create Tenant Dialog keys (P1) - Only truly new keys
+  'admin.createOrganizationDesc': 'Preencha os dados para criar uma nova organização na plataforma.',
+  'admin.organizationNameLabel': 'Nome da organização',
+  'admin.organizationNamePlaceholder': 'Ex: Federação Paulista de Jiu-Jitsu',
+  'admin.slugLabel': 'Slug (URL)',
+  'admin.slugPlaceholder': 'federacao-paulista',
+  'admin.slugHint': 'URL de acesso: https://tatame.pro/{slug}',
+  'admin.descriptionLabel': 'Descrição (opcional)',
+  'admin.create': 'Criar Organização',
+  'admin.organizationCreatedSuccess': 'Organização "{name}" criada com sucesso!',
+  'admin.organizationCreateError': 'Erro ao criar organização',
+  'admin.sessionSyncError': 'Aguardando sincronização de sessão. Tente novamente.',
+  'admin.nameSlugRequired': 'Nome e slug são obrigatórios',
+  'admin.selectModality': 'Selecione pelo menos uma modalidade',
+  'admin.slugInUse': 'Este slug já está em uso. Escolha outro.',
+
+  // Admin - Platform Health keys (P1)
+  'admin.platformHealth': 'Saúde da Plataforma',
+  'admin.platformHealthError': 'Erro ao carregar métricas de saúde',
+  'admin.platformHealthDesc': 'Status dos jobs automáticos e métricas de erros.',
+  'admin.platformHealthNote': 'Nota: Ausência de eventos indica possível problema técnico nos jobs, não impacto direto nos usuários.',
+  'admin.operational': 'Operacional',
+  'admin.attentionNeeded': 'Atenção Necessária',
+  'admin.verifying': 'Verificando',
+  'admin.automaticJobs': 'Jobs Automáticos',
+  'admin.expireMemberships': 'Expirar Filiações',
+  'admin.cleanAbandoned': 'Limpar Abandonados',
+  'admin.checkTrials': 'Checar Trials',
+  'admin.metrics7days': 'Métricas (7 dias)',
+  'admin.expiredMemberships': 'Filiações expiradas',
+  'admin.cleanedAbandoned': 'Abandonados limpos',
+  'admin.webhookErrors24h': 'Erros webhook (24h)',
+  'admin.paymentFailures': 'Falhas pagamento',
+  'admin.tenantsWithProblems': 'Tenants com Problemas',
+  'admin.blocked': 'bloqueados',
+  'admin.overduePayment': 'com pagamento atrasado',
+  'admin.neverRan': 'Nunca executou',
+  'admin.lessThan1h': 'Há menos de 1h',
+  'admin.hoursAgo': 'Há {n}h',
+  'admin.in24h': 'em 24h',
+  'admin.jobStatus.ok': 'OK',
+  'admin.jobStatus.delayed': 'Atrasado',
+  'admin.jobStatus.error': 'Erro',
+  'admin.jobStatus.noData': 'Sem dados',
+  'admin.jobTooltip.ok': 'Job executado nas últimas 24h. Funcionando normalmente.',
+  'admin.jobTooltip.delayed': 'Job não executou há mais de 24h. Investigar cron/pg_net.',
+  'admin.jobTooltip.error': 'Job não executou há mais de 48h. Ação técnica necessária.',
+  'admin.jobTooltip.noData': 'Nenhuma execução registrada. Verifique se os cron jobs estão configurados.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

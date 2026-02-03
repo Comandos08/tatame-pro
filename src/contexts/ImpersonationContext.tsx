@@ -15,6 +15,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { clearImpersonationClientCache } from '@/integrations/supabase/impersonation-client';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from './AuthContext';
@@ -106,6 +107,18 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     return () => clearInterval(interval);
   }, [session]);
 
+  // Clear session state and storage
+  // IMPORTANT: Defined before validateSession to avoid hoisting issues
+  const clearSession = useCallback(() => {
+    setSession(null);
+    setRemainingMinutes(null);
+    sessionStorage.removeItem(STORAGE_KEY);
+    if (validationInterval.current) clearInterval(validationInterval.current);
+    if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
+    // AJUSTE A2: Limpar cache de clients Supabase ao encerrar impersonation
+    clearImpersonationClientCache();
+  }, []);
+
   // Validate session with backend
   const validateSession = useCallback(async () => {
     if (!session || !isGlobalSuperadmin) return;
@@ -130,7 +143,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     } catch (err) {
       console.error('[IMPERSONATION] Validation error:', err);
     }
-  }, [session, isGlobalSuperadmin, navigate, t]);
+  }, [session, isGlobalSuperadmin, navigate, t, clearSession]);
 
   // Set up validation interval
   useEffect(() => {
@@ -156,16 +169,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       if (validationInterval.current) clearInterval(validationInterval.current);
       if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
     };
-  }, [session, validateSession, navigate, t]);
-
-  // Clear session state and storage
-  const clearSession = useCallback(() => {
-    setSession(null);
-    setRemainingMinutes(null);
-    sessionStorage.removeItem(STORAGE_KEY);
-    if (validationInterval.current) clearInterval(validationInterval.current);
-    if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
-  }, []);
+  }, [session, validateSession, navigate, t, clearSession]);
 
   // Start impersonation
   const startImpersonation = useCallback(async (targetTenantId: string, reason?: string): Promise<boolean> => {
