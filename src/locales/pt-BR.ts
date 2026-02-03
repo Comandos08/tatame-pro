@@ -984,6 +984,12 @@ export const ptBR = {
   'events.eventFound': 'evento encontrado',
   'events.eventsFound': 'eventos encontrados',
   
+  // Events - Access Control (P-REG-VIS-01)
+  'events.notAvailable': 'Evento não disponível',
+  'events.notAvailableForYourOrganization': 'Este conteúdo é exclusivo para atletas filiados a esta organização. Acesse o portal da sua organização para ver seus eventos.',
+  'events.noAffiliation': 'Sem filiação ativa',
+  'events.noAffiliationDesc': 'Você ainda não possui filiação como atleta em nenhuma organização. Faça sua filiação para ter acesso aos eventos.',
+  
   // Eventos - Detalhes Públicos
   'events.details.title': 'Detalhes do Evento',
   'events.details.categories': 'Categorias',

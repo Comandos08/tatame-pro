@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle, AlertCircle, UserX } from 'lucide-react';
 
 import PublicHeader from '@/components/PublicHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,12 +16,21 @@ import { EventRegistrationButton } from '@/components/events/EventRegistrationBu
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
 import { Event, EventCategory, EventStatus } from '@/types/event';
 
 export default function PublicEventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
   const { tenant } = useTenant();
   const { t } = useI18n();
+
+  const { isAuthenticated } = useCurrentUser();
+  const { 
+    hasAthleteInTenant, 
+    hasAthleteAnywhere, 
+    isLoading: athleteCheckLoading 
+  } = useHasAthleteInTenant(tenant?.id);
 
   const { data: event, isLoading: eventLoading } = useQuery({
     queryKey: ['public-event', eventId],
@@ -75,13 +84,78 @@ export default function PublicEventDetails() {
     enabled: !!eventId,
   });
 
-  if (eventLoading) {
+  // Loading composto: event + auth + athlete check (Ajuste C)
+  const isPageLoading = eventLoading || (isAuthenticated && athleteCheckLoading);
+
+  // Condições de bloqueio
+  const isBlockedWrongTenant = isAuthenticated && !athleteCheckLoading && 
+    hasAthleteAnywhere === true && hasAthleteInTenant === false;
+
+  const isBlockedNoAffiliation = isAuthenticated && !athleteCheckLoading && 
+    hasAthleteAnywhere === false;
+
+  // Loading composto (Ajuste C)
+  if (isPageLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <PublicHeader />
         <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
           <Skeleton className="h-8 w-64 mb-4" />
           <Skeleton className="h-48 w-full" />
+        </main>
+      </div>
+    );
+  }
+
+  // Usuário logado sem vínculo em NENHUMA organização (Ajuste B)
+  if (isBlockedNoAffiliation) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <PublicHeader />
+        <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <UserX className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <h3 className="mt-4 text-lg font-medium">
+                {t('events.noAffiliation')}
+              </h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                {t('events.noAffiliationDesc')}
+              </p>
+              <Button asChild className="mt-6">
+                <Link to={`/${tenant?.slug}/membership`}>
+                  {t('portal.startMembership')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  // Usuário logado COM vínculo, mas em OUTRA organização
+  if (isBlockedWrongTenant) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <PublicHeader />
+        <main className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <h3 className="mt-4 text-lg font-medium">
+                {t('events.notAvailable')}
+              </h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                {t('events.notAvailableForYourOrganization')}
+              </p>
+              <Button asChild variant="outline" className="mt-6">
+                <Link to="/portal">
+                  {t('portal.title')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </main>
       </div>
     );
