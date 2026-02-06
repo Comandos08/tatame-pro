@@ -116,8 +116,14 @@ Deno.serve(async (req) => {
 
     const tenantId = match.tenant_id;
 
-    // 4️⃣ P3.4: Check tenant ACTIVE + billing allows writes
-    const billingGate = await requireActiveTenantBillingWrite(supabaseAdmin, tenantId, 'record-match-result');
+    // 4️⃣ P3.4 + P3.5: Check tenant ACTIVE + billing allows writes (with audit)
+    const billingGate = await requireActiveTenantBillingWrite({
+      supabase: supabaseAdmin,
+      tenantId,
+      userId: user.id,
+      domain: 'EVENTS',
+      operation: 'record_match_result',
+    });
     if (!billingGate.ok) {
       console.warn('[RECORD-RESULT] Billing gate failed:', billingGate.code);
       return new Response(

@@ -100,8 +100,14 @@ Deno.serve(async (req) => {
 
     const tenantId = bracket.tenant_id;
 
-    // 4️⃣ P3.4: Check tenant ACTIVE + billing allows writes
-    const billingGate = await requireActiveTenantBillingWrite(supabaseAdmin, tenantId, 'publish-event-bracket');
+    // 4️⃣ P3.4 + P3.5: Check tenant ACTIVE + billing allows writes (with audit)
+    const billingGate = await requireActiveTenantBillingWrite({
+      supabase: supabaseAdmin,
+      tenantId,
+      userId: user.id,
+      domain: 'EVENTS',
+      operation: 'publish_event_bracket',
+    });
     if (!billingGate.ok) {
       console.warn('[PUBLISH-BRACKET] Billing gate failed:', billingGate.code);
       return new Response(
