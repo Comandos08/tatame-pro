@@ -21,6 +21,7 @@ export const es: Record<string, string> = {
 
   // Common
   'common.loading': 'Cargando...',
+  'common.verifyingAccess': 'Verificando su acceso...',
   'common.save': 'Guardar',
   'common.cancel': 'Cancelar',
   'common.delete': 'Eliminar',
@@ -1490,9 +1491,11 @@ export const es: Record<string, string> = {
   'blocked.manageSubscription': 'Gestionar Suscripción',
   'blocked.contactSupportBtn': 'Contactar Soporte',
   'blocked.afterRegularization': 'Después de la regularización, el acceso será restaurado automáticamente.',
-  'blocked.temporarilyUnavailable': 'Temporalmente No Disponible',
+  'blocked.temporarilyUnavailable': 'Organización en Mantenimiento',
+  'blocked.temporarilyUnavailableDesc': 'Esta organización está temporalmente no disponible. Por favor, intente de nuevo más tarde.',
   'blocked.orgTemporarilyUnavailable': 'Esta organización está temporalmente no disponible.',
   'blocked.tryLaterOrContact': 'Por favor, intente de nuevo más tarde o contacte al administrador de su organización.',
+  'blocked.contactOrg': 'Contacte a la organización para más información.',
   'blocked.tryAgain': 'Intentar de nuevo',
   'blocked.portalError': 'Error al abrir el portal de pago. Contacte con soporte.',
 
@@ -1712,8 +1715,9 @@ export const es: Record<string, string> = {
   // Identity Gate (F0.2)
   'identity.error': 'Error de Identidad',
   'identity.unknownError': 'Error desconocido al verificar identidad',
-  'identity.noContext': 'Contexto no encontrado',
-  'identity.noContextDesc': 'No se pudo determinar tu organización. Por favor, intenta de nuevo o cierra sesión.',
+  'identity.noContext': 'Organización no identificada',
+  'identity.noContextDesc': 'No fue posible identificar la organización. Verifique la dirección o seleccione una organización.',
+  'identity.resolvingContext': 'Identificando organización...',
   'identity.superadminTenantAccessHint': 'Para acceder a "{tenant}", inicia una sesión de impersonación desde el panel de administración.',
   'common.retry': 'Intentar de Nuevo',
 
@@ -1933,7 +1937,7 @@ export const es: Record<string, string> = {
   'diagnostics.dataFetchedAt': 'Datos obtenidos en',
 
   // Access Denied Context P1
-  'accessDenied.title': 'Acceso Denegado',
+  'accessDenied.title': 'Acceso Restringido',
   'accessDenied.adminArea': 'Esta área es exclusiva para administradores.',
   'accessDenied.adminSuggestion': 'Si debería tener acceso, contacte a un administrador.',
   'accessDenied.portalArea': 'Necesita una afiliación activa para acceder a esta área.',
@@ -1945,6 +1949,14 @@ export const es: Record<string, string> = {
   'accessDenied.default': 'No tiene permiso para acceder a esta página.',
   'accessDenied.defaultSuggestion': 'Contacte al soporte si cree que esto es un error.',
   'accessDenied.contactAdmin': 'Contactar Administrador',
+
+  // Impersonation UX P0.4
+  'impersonation.actionRequired': 'Acción Necesaria',
+  'impersonation.sessionRequiredTitle': 'Sesión de Contexto Requerida',
+  'impersonation.sessionRequiredDesc': 'Para acceder a esta área, inicie una sesión de contexto seleccionando una organización.',
+  'impersonation.startSession': 'Iniciar Sesión',
+  'impersonation.backToAdmin': 'Volver al Panel',
+
 
   // Recovery Guide P1
   'recovery.pending.title': 'Esperando Aprobación',

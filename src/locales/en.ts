@@ -21,6 +21,7 @@ export const en: Record<string, string> = {
 
   // Common
   'common.loading': 'Loading...',
+  'common.verifyingAccess': 'Verifying your access...',
   'common.save': 'Save',
   'common.cancel': 'Cancel',
   'common.delete': 'Delete',
@@ -1490,9 +1491,11 @@ export const en: Record<string, string> = {
   'blocked.manageSubscription': 'Manage Subscription',
   'blocked.contactSupportBtn': 'Contact Support',
   'blocked.afterRegularization': 'After regularization, access will be automatically restored.',
-  'blocked.temporarilyUnavailable': 'Temporarily Unavailable',
+  'blocked.temporarilyUnavailable': 'Organization Under Maintenance',
+  'blocked.temporarilyUnavailableDesc': 'This organization is temporarily unavailable. Please try again later.',
   'blocked.orgTemporarilyUnavailable': 'This organization is temporarily unavailable.',
   'blocked.tryLaterOrContact': 'Please try again later or contact your organization\'s administrator.',
+  'blocked.contactOrg': 'Contact the organization for more information.',
   'blocked.tryAgain': 'Try again',
   'blocked.portalError': 'Error opening payment portal. Contact support.',
 
@@ -1712,8 +1715,9 @@ export const en: Record<string, string> = {
   // Identity Gate (F0.2)
   'identity.error': 'Identity Error',
   'identity.unknownError': 'Unknown error verifying identity',
-  'identity.noContext': 'Context not found',
-  'identity.noContextDesc': 'Could not determine your organization. Please try again or log out.',
+  'identity.noContext': 'Organization not identified',
+  'identity.noContextDesc': 'Could not identify the organization. Check the address or select an organization.',
+  'identity.resolvingContext': 'Identifying organization...',
   'identity.superadminTenantAccessHint': 'To access "{tenant}", start an impersonation session from the admin panel.',
   'common.retry': 'Try Again',
 
@@ -1933,7 +1937,7 @@ export const en: Record<string, string> = {
   'diagnostics.dataFetchedAt': 'Data fetched at',
 
   // Access Denied Context P1
-  'accessDenied.title': 'Access Denied',
+  'accessDenied.title': 'Access Restricted',
   'accessDenied.adminArea': 'This area is exclusive to administrators.',
   'accessDenied.adminSuggestion': 'If you should have access, contact an administrator.',
   'accessDenied.portalArea': 'You need an active membership to access this area.',
@@ -1945,6 +1949,14 @@ export const en: Record<string, string> = {
   'accessDenied.default': 'You do not have permission to access this page.',
   'accessDenied.defaultSuggestion': 'Contact support if you believe this is an error.',
   'accessDenied.contactAdmin': 'Contact Administrator',
+
+  // Impersonation UX P0.4
+  'impersonation.actionRequired': 'Action Required',
+  'impersonation.sessionRequiredTitle': 'Context Session Required',
+  'impersonation.sessionRequiredDesc': 'To access this area, start a context session by selecting an organization.',
+  'impersonation.startSession': 'Start Session',
+  'impersonation.backToAdmin': 'Back to Dashboard',
+
 
   // Recovery Guide P1
   'recovery.pending.title': 'Awaiting Approval',

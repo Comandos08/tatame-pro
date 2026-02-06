@@ -21,6 +21,7 @@ export const ptBR = {
 
   // Common
   'common.loading': 'Carregando...',
+  'common.verifyingAccess': 'Verificando seu acesso...',
   'common.save': 'Salvar',
   'common.cancel': 'Cancelar',
   'common.delete': 'Excluir',
@@ -1488,9 +1489,11 @@ export const ptBR = {
   'blocked.manageSubscription': 'Gerenciar Assinatura',
   'blocked.contactSupportBtn': 'Contatar Suporte',
   'blocked.afterRegularization': 'Após a regularização, o acesso será restaurado automaticamente.',
-  'blocked.temporarilyUnavailable': 'Temporariamente Indisponível',
+  'blocked.temporarilyUnavailable': 'Organização em Manutenção',
+  'blocked.temporarilyUnavailableDesc': 'Esta organização está temporariamente indisponível. Por favor, tente novamente mais tarde.',
   'blocked.orgTemporarilyUnavailable': 'Esta organização está temporariamente indisponível.',
   'blocked.tryLaterOrContact': 'Por favor, tente novamente mais tarde ou entre em contato com o administrador da sua organização.',
+  'blocked.contactOrg': 'Entre em contato com a organização para mais informações.',
   'blocked.tryAgain': 'Tentar novamente',
   'blocked.portalError': 'Erro ao abrir portal de pagamento. Entre em contato com o suporte.',
 
@@ -1696,8 +1699,9 @@ export const ptBR = {
   // Identity Gate (F0.2)
   'identity.error': 'Erro de Identidade',
   'identity.unknownError': 'Erro desconhecido ao verificar identidade',
-  'identity.noContext': 'Contexto não encontrado',
-  'identity.noContextDesc': 'Não foi possível determinar sua organização. Por favor, tente novamente ou faça logout.',
+  'identity.noContext': 'Organização não identificada',
+  'identity.noContextDesc': 'Não foi possível identificar a organização. Verifique o endereço ou selecione uma organização.',
+  'identity.resolvingContext': 'Identificando organização...',
   'identity.superadminTenantAccessHint': 'Para acessar "{tenant}", inicie uma sessão de impersonation pelo painel de administração.',
   'common.retry': 'Tentar Novamente',
 
@@ -1913,7 +1917,7 @@ export const ptBR = {
   'diagnostics.dataFetchedAt': 'Dados obtidos em',
 
   // Access Denied Context P1
-  'accessDenied.title': 'Acesso Negado',
+  'accessDenied.title': 'Acesso Restrito',
   'accessDenied.adminArea': 'Esta área é exclusiva para administradores.',
   'accessDenied.adminSuggestion': 'Se você deveria ter acesso, entre em contato com um administrador.',
   'accessDenied.portalArea': 'Você precisa de uma filiação ativa para acessar esta área.',
@@ -1925,6 +1929,14 @@ export const ptBR = {
   'accessDenied.default': 'Você não tem permissão para acessar esta página.',
   'accessDenied.defaultSuggestion': 'Entre em contato com o suporte se acredita que isso é um erro.',
   'accessDenied.contactAdmin': 'Contatar Administrador',
+
+  // Impersonation UX P0.4
+  'impersonation.actionRequired': 'Ação Necessária',
+  'impersonation.sessionRequiredTitle': 'Sessão de Contexto Necessária',
+  'impersonation.sessionRequiredDesc': 'Para acessar esta área, inicie uma sessão de contexto selecionando uma organização.',
+  'impersonation.startSession': 'Iniciar Sessão',
+  'impersonation.backToAdmin': 'Voltar ao Painel',
+
 
   // Recovery Guide P1
   'recovery.pending.title': 'Aguardando Aprovação',
