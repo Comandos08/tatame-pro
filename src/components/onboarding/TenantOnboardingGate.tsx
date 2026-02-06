@@ -47,12 +47,17 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     
     if (isComplete) return; // Onboarding done, allow access
 
+    // ✅ P2.HOTFIX — Check if tenant is in SETUP mode (created via wizard)
+    // Tenants in SETUP mode MUST complete onboarding
+    const isSetupMode = tenant?.status === 'SETUP';
+
     // ✅ UX/02 — DEFENSIVE: Check if tenant has actual configured data
     // (handles case where flag is false but tenant already has data)
     // This prevents loops when DB flag wasn't properly updated
     const hasRealConfiguration = Boolean(
       tenant?.isActive &&
-      tenant?.sportTypes?.length > 0
+      tenant?.sportTypes?.length > 0 &&
+      !isSetupMode // ✅ P2.HOTFIX — SETUP mode always requires onboarding
     );
     
     // If impersonating and tenant has real data, skip onboarding redirect
@@ -110,10 +115,15 @@ export function useOnboardingStatus() {
   // Check both flag AND real tenant configuration
   const isComplete = tenant?.onboardingCompleted === true;
   
+  // ✅ P2.HOTFIX — Check if tenant is in SETUP mode
+  const isSetupMode = tenant?.status === 'SETUP';
+  
   // Defensive: also consider tenant "complete" if it has real data
+  // BUT NOT if it's in SETUP mode (created via wizard)
   const hasRealConfiguration = Boolean(
     tenant?.isActive &&
-    tenant?.sportTypes?.length > 0
+    tenant?.sportTypes?.length > 0 &&
+    !isSetupMode // ✅ P2.HOTFIX — SETUP mode always requires onboarding
   );
 
   return {
