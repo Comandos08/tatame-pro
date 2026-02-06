@@ -2129,10 +2129,18 @@ export const en: Record<string, string> = {
   // P2.3 — Event Status & Expectation (Athlete Awareness)
   'events.expectation.pending.title': 'Registration received',
   'events.expectation.pending.desc': 'Your registration has been submitted and is awaiting validation from the organization.',
+  'events.expectation.pending.reassurance': 'You will be notified when there is an update.',
   'events.expectation.confirmed.title': 'You are confirmed',
   'events.expectation.confirmed.desc': 'Your participation has been approved. Attend on the event date and time.',
+  'events.expectation.confirmed.reassurance': 'Attend as per the date and location provided.',
   'events.expectation.canceled.title': 'Registration canceled',
   'events.expectation.canceled.desc': 'This registration has been canceled. You can register again if the event allows.',
+  'events.expectation.canceled.reassurance': 'If you have questions, contact the organizer.',
   'events.registration.canceled': 'Canceled',
+
+  // P2.3.1 — Tooltips de ajuda para badges de inscrição
+  'events.registration.pending.help': 'Your registration has been received and is awaiting review by the organizer.',
+  'events.registration.confirmed.help': 'Your participation is guaranteed. Attend on the event day.',
+  'events.registration.canceled.help': 'This registration has been canceled and will not proceed.',
 
 };
