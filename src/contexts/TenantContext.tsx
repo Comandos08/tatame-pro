@@ -41,8 +41,17 @@ export function TenantProvider({ children }: TenantProviderProps) {
     setRefetchTrigger(prev => prev + 1);
   }, []);
 
+  // ✅ P-IMP-FIX — Separate mount/unmount tracking from fetch effect
+  // This ensures isMountedRef only changes on TRUE mount/unmount, not effect re-runs
   useEffect(() => {
     isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []); // Empty deps = only mount/unmount
+
+  // ✅ P-IMP-FIX — Fetch effect (separate from mount tracking)
+  useEffect(() => {
     // 🔐 HARDENING: AbortController for cancellable fetch
     const abortController = new AbortController();
 
@@ -163,9 +172,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
     fetchTenant();
     
-    // 🔐 Cleanup
+    // 🔐 Cleanup — Only abort request, DO NOT touch isMountedRef
+    // isMountedRef is managed by the separate mount/unmount effect above
     return () => {
-      isMountedRef.current = false;
       abortController.abort();
     };
   }, [tenantSlug, refetchTrigger]); // ✅ UX/02 — Add refetchTrigger dependency

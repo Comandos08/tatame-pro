@@ -116,7 +116,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   const { t } = useI18n();
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
-  const { isImpersonating, session: impersonationSession } = useImpersonation();
+  const { isImpersonating, session: impersonationSession, resolutionStatus } = useImpersonation();
 
   // ===== P3: DEV-ONLY OBSERVABILITY (hooks must be unconditional) =====
   const prevStateRef = useRef<IdentityState | null>(null);
@@ -218,6 +218,17 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
   if (isPublic) {
     return <>{children}</>;
+  }
+
+  // ✅ P-IMP-FIX — Block during impersonation resolution to prevent race conditions
+  if (isImpersonating && resolutionStatus === 'RESOLVING') {
+    console.log('[IDENTITY-GATE] Waiting for impersonation resolution');
+    return (
+      <IdentityLoadingScreen 
+        onRetry={refreshIdentity} 
+        onLogout={() => signOut()} 
+      />
+    );
   }
 
   // ===== DEV GUARDRAIL: OBSERVABILITY ONLY =====

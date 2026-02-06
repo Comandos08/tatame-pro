@@ -4,9 +4,12 @@
  * If tenant.onboarding_completed is false, redirects to /app/onboarding
  * except for allowed routes (academies, coaches, grading-schemes, onboarding itself).
  * 
- * ✅ P-IMP-01 — Fixed infinite loop on impersonation with single-refetch guard
+ * ✅ P-IMP-FIX — Fixed infinite loop via resolutionStatus state machine
+ * - Removed refetchTenant useEffect (caused the loop)
+ * - Now respects ImpersonationContext.resolutionStatus
+ * - Only renders after impersonation is RESOLVED (if active)
  */
-import React, { ReactNode, useEffect, useRef } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -26,39 +29,17 @@ const ALLOWED_ROUTES = [
 ];
 
 export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
-  const { tenant, isLoading, refetchTenant } = useTenant();
-  const { isImpersonating } = useImpersonation();
+  const { tenant, isLoading } = useTenant();
+  const { isImpersonating, resolutionStatus } = useImpersonation();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ P-IMP-01 — Single-refetch guard per impersonation session
-  const hasRefetchedForImpersonationRef = useRef(false);
-
-  // ✅ P-IMP-01 — Refetch tenant data ONCE when impersonation starts
+  // ✅ P-IMP-FIX — Onboarding redirect effect
+  // All hooks are called unconditionally above, before any returns
   useEffect(() => {
-    // Reset guard when impersonation ends
-    if (!isImpersonating) {
-      hasRefetchedForImpersonationRef.current = false;
-      return;
-    }
-
-    // Already refetched for this session? Skip
-    if (hasRefetchedForImpersonationRef.current) {
-      return;
-    }
-
-    // Wait for initial loading to complete
-    if (isLoading) {
-      return;
-    }
-
-    // Execute ONCE
-    hasRefetchedForImpersonationRef.current = true;
-    console.log('[ONBOARDING-GATE] Refetching tenant for impersonation (once)');
-    refetchTenant();
-  }, [isImpersonating, isLoading, refetchTenant]);
-
-  useEffect(() => {
+    // Don't run during impersonation resolution
+    if (isImpersonating && resolutionStatus !== 'RESOLVED') return;
+    
     if (isLoading || !tenant) return;
 
     // Check if onboarding is complete via flag
@@ -93,7 +74,18 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
       // Redirect to onboarding wizard
       navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
     }
-  }, [tenant, isLoading, location.pathname, navigate, isImpersonating]);
+  }, [tenant, isLoading, location.pathname, navigate, isImpersonating, resolutionStatus]);
+
+  // ✅ P-IMP-FIX — Block rendering during impersonation resolution
+  // This prevents any re-renders or effects from firing during the transition
+  if (isImpersonating && resolutionStatus !== 'RESOLVED') {
+    console.log('[ONBOARDING-GATE] Waiting for impersonation resolution:', resolutionStatus);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

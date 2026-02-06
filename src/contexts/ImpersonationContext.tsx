@@ -25,6 +25,14 @@ import { useI18n } from './I18nContext';
 const STORAGE_KEY = 'tatame_impersonation_session';
 const VALIDATION_INTERVAL = 60000; // Validate every minute
 
+/**
+ * ✅ P-IMP-FIX — State machine for impersonation resolution
+ * IDLE: No impersonation in progress
+ * RESOLVING: Starting impersonation (edge function call in progress)
+ * RESOLVED: Impersonation successfully started and stable
+ */
+type ImpersonationResolutionStatus = 'IDLE' | 'RESOLVING' | 'RESOLVED';
+
 interface ImpersonationSession {
   impersonationId: string;
   targetTenantId: string;
@@ -45,6 +53,8 @@ interface ImpersonationContextType {
   impersonatedTenantId: string | null;
   /** Remaining time in minutes before session expires */
   remainingMinutes: number | null;
+  /** ✅ P-IMP-FIX — Resolution status for gates to respect */
+  resolutionStatus: ImpersonationResolutionStatus;
   /** Start a new impersonation session */
   startImpersonation: (targetTenantId: string, reason?: string) => Promise<boolean>;
   /** End the current impersonation session */
@@ -64,6 +74,9 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   const [isLoading, setIsLoading] = useState(true);
   const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
   
+  // ✅ P-IMP-FIX — Explicit resolution status state machine
+  const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>('IDLE');
+  
   const validationInterval = useRef<NodeJS.Timeout | null>(null);
   const expirationTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -75,9 +88,12 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         const parsed = JSON.parse(stored) as ImpersonationSession;
         // Quick local expiration check before validation
         if (new Date(parsed.expiresAt) > new Date()) {
+          console.log('[IMPERSONATION] Restored session from storage, status → RESOLVED');
           setSession(parsed);
+          setResolutionStatus('RESOLVED'); // ✅ P-IMP-FIX — Restored sessions are already resolved
         } else {
           // Already expired locally, clear it
+          console.log('[IMPERSONATION] Session expired in storage, clearing');
           sessionStorage.removeItem(STORAGE_KEY);
         }
       } catch {
@@ -110,8 +126,10 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // Clear session state and storage
   // IMPORTANT: Defined before validateSession to avoid hoisting issues
   const clearSession = useCallback(() => {
+    console.log('[IMPERSONATION] Clearing session, status → IDLE');
     setSession(null);
     setRemainingMinutes(null);
+    setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset to IDLE on clear
     sessionStorage.removeItem(STORAGE_KEY);
     if (validationInterval.current) clearInterval(validationInterval.current);
     if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
@@ -178,6 +196,10 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       return false;
     }
 
+    // ✅ P-IMP-FIX — Set RESOLVING before edge function call
+    console.log('[IMPERSONATION] Starting, status → RESOLVING');
+    setResolutionStatus('RESOLVING');
+
     try {
       const { data, error } = await supabase.functions.invoke('start-impersonation', {
         body: { targetTenantId, reason },
@@ -185,12 +207,14 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
       if (error) {
         console.error('[IMPERSONATION] Start failed:', error);
+        setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on failure
         toast.error(t('impersonation.startFailed'));
         return false;
       }
 
       if (data.error) {
         console.error('[IMPERSONATION] Start failed:', data.error);
+        setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on failure
         toast.error(data.error);
         return false;
       }
@@ -206,11 +230,16 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
       setSession(newSession);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+      
+      // ✅ P-IMP-FIX — Mark as RESOLVED only after session is set
+      console.log('[IMPERSONATION] Success, status → RESOLVED');
+      setResolutionStatus('RESOLVED');
 
       toast.success(`${t('impersonation.started')}: ${data.targetTenantName}`);
       return true;
     } catch (err) {
       console.error('[IMPERSONATION] Start error:', err);
+      setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on error
       toast.error(t('impersonation.startFailed'));
       return false;
     }
@@ -248,6 +277,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     isImpersonating: !!session && session.status === 'ACTIVE',
     impersonatedTenantId: session?.targetTenantId || null,
     remainingMinutes,
+    resolutionStatus, // ✅ P-IMP-FIX — Expose resolution status
     startImpersonation,
     endImpersonation,
     isImpersonatingTenant,
