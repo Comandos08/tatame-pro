@@ -4,7 +4,6 @@
  * ============================================================================
  * 
  * IMMUTABLE CONTRACT:
- * -------------------
  * This function creates time-limited impersonation sessions for SUPERADMIN_GLOBAL
  * users to access tenant resources with full audit trail.
  * 
@@ -13,7 +12,7 @@
  * - Enforces rate limiting (10 sessions/hour per superadmin)
  * - Ends any existing ACTIVE sessions for the caller
  * - Creates a new session with 60-minute TTL
- * - Logs all actions to audit_logs
+ * - Logs session creation to audit_logs
  * 
  * WHAT THIS FUNCTION DOES NOT DO:
  * - Does NOT grant any roles or permissions
@@ -32,19 +31,11 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createAuditLog } from "../_shared/audit-logger.ts";
 import {
   SecureRateLimitPresets,
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
-import {
-  logSecurityEvent,
-  SECURITY_EVENTS,
-} from "../_shared/security-logger.ts";
-import {
-  logRateLimitBlock,
-  logPermissionDenied,
-} from "../_shared/decision-logger.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -110,8 +101,8 @@ Deno.serve(async (req) => {
     // ========================================================================
     // STEP 3: Caller Identity Verification
     // ========================================================================
-    const { data: { user: callerUser }, error: authError } = await supabaseUser.auth.getUser();
-    if (authError || !callerUser) {
+    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -119,28 +110,14 @@ Deno.serve(async (req) => {
     }
 
     // ========================================================================
-    // STEP 4: Rate Limiting (BEFORE permission check - BY DESIGN)
+    // STEP 4: Rate Limiting
+    // BY DESIGN: Applied BEFORE permission check to prevent enumeration
     // ========================================================================
     const rateLimiter = SecureRateLimitPresets.startImpersonation();
-    const rateLimitCtx = buildRateLimitContext(req, callerUser.id, null);
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin);
 
     if (!rateLimitResult.allowed) {
-      console.warn(`[START-IMPERSONATION] Rate limit exceeded for ${callerUser.id}`);
-      
-      // Log decision BEFORE responding (REQUIRED for audit trail)
-      const clientIp = req.headers.get('cf-connecting-ip') || 
-                 req.headers.get('x-real-ip') || 
-                 req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                 'unknown';
-      await logRateLimitBlock(supabaseAdmin, {
-        operation: 'start-impersonation',
-        user_id: callerUser.id,
-        tenant_id: null,
-        ip_address: clientIp,
-        count: rateLimitResult.count,
-      });
-      
       return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
     }
 
@@ -148,26 +125,15 @@ Deno.serve(async (req) => {
     // STEP 5: SUPERADMIN_GLOBAL Role Verification
     // INTENTIONAL: Only global superadmins (tenant_id IS NULL) can impersonate
     // ========================================================================
-    const { data: superadminRole, error: roleError } = await supabaseAdmin
+    const { data: superadmin, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('id')
-      .eq('user_id', callerUser.id)
+      .eq('user_id', user.id)
       .is('tenant_id', null)
       .eq('role', 'SUPERADMIN_GLOBAL')
       .maybeSingle();
 
-    if (roleError || !superadminRole) {
-      console.warn(`[START-IMPERSONATION] Unauthorized attempt by user ${callerUser.id}`);
-      
-      // Log permission denied decision BEFORE responding (REQUIRED)
-      await logPermissionDenied(supabaseAdmin, {
-        operation: 'start-impersonation',
-        user_id: callerUser.id,
-        tenant_id: null,
-        required_roles: ['SUPERADMIN_GLOBAL'],
-        reason: 'NOT_SUPERADMIN',
-      });
-      
+    if (roleError || !superadmin) {
       return new Response(
         JSON.stringify({ error: 'Only SUPERADMIN_GLOBAL can start impersonation' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -212,9 +178,9 @@ Deno.serve(async (req) => {
       .update({ 
         status: 'ENDED', 
         ended_at: new Date().toISOString(),
-        ended_by_profile_id: callerUser.id
+        ended_by_profile_id: user.id
       })
-      .eq('superadmin_user_id', callerUser.id)
+      .eq('superadmin_user_id', user.id)
       .eq('status', 'ACTIVE');
 
     // ========================================================================
@@ -225,7 +191,7 @@ Deno.serve(async (req) => {
     const { data: newSession, error: insertError } = await supabaseAdmin
       .from('superadmin_impersonations')
       .insert({
-        superadmin_user_id: callerUser.id,
+        superadmin_user_id: user.id,
         target_tenant_id: targetTenantId,
         expires_at: expiresAt.toISOString(),
         status: 'ACTIVE',
@@ -234,13 +200,12 @@ Deno.serve(async (req) => {
           user_agent: req.headers.get('user-agent') || 'unknown',
           started_from: 'admin_dashboard',
         },
-        created_by_profile_id: callerUser.id,
+        created_by_profile_id: user.id,
       })
       .select('id, target_tenant_id, expires_at, status')
       .single();
 
     if (insertError || !newSession) {
-      console.error('[START-IMPERSONATION] Failed to create session:', insertError);
       return new Response(
         JSON.stringify({ error: 'Failed to create impersonation session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -248,15 +213,16 @@ Deno.serve(async (req) => {
     }
 
     // ========================================================================
-    // STEP 10: Audit Logging (REQUIRED - Immutable Record)
+    // STEP 10: Audit Logging
+    // REQUIRED: Immutable record of session creation
     // ========================================================================
     await createAuditLog(supabaseAdmin, {
       event_type: 'IMPERSONATION_STARTED',
       tenant_id: targetTenantId,
-      profile_id: callerUser.id,
+      profile_id: user.id,
       metadata: {
         impersonation_id: newSession.id,
-        superadmin_user_id: callerUser.id,
+        superadmin_user_id: user.id,
         target_tenant_id: targetTenantId,
         target_tenant_name: targetTenant.name,
         target_tenant_slug: targetTenant.slug,
@@ -265,8 +231,6 @@ Deno.serve(async (req) => {
         automatic: false,
       },
     });
-
-    console.log(`[START-IMPERSONATION] Session ${newSession.id} created for superadmin ${callerUser.id} -> tenant ${targetTenant.slug}`);
 
     // ========================================================================
     // STEP 11: Success Response
@@ -283,8 +247,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('[START-IMPERSONATION] Unexpected error:', error);
+  } catch (_error) {
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
