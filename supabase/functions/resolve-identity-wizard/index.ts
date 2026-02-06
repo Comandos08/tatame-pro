@@ -477,15 +477,36 @@ async function handleWizardCompletion(
     .single();
 
   if (tenantError || !newTenant) {
-    console.error("[resolve-identity-wizard] Failed to create tenant:", tenantError);
+    console.error("[resolve-identity-wizard] Failed to create tenant:", {
+      error: tenantError,
+      code: tenantError?.code,
+      message: tenantError?.message,
+      details: tenantError?.details,
+      hint: tenantError?.hint,
+    });
     
-    // Check for specific constraint violation (sport_types)
+    // ✅ P2.HOTFIX — Log detalhado para debugging
+    // O trigger validate_tenant_sport_types foi atualizado para permitir status=SETUP
+    // Se esse erro ocorrer, significa que há um problema de sincronização
     if (tenantError?.message?.includes("sport_types")) {
+      console.error("[resolve-identity-wizard] CRITICAL: sport_types validation failed for SETUP tenant. Trigger may not be updated.");
       return {
         status: "ERROR",
         error: {
-          code: "VALIDATION_ERROR",
-          message: "Falha na validação: modalidade esportiva será definida no próximo passo.",
+          code: "TENANT_CREATION_FAILED",
+          message: "Erro ao criar organização. Tente novamente ou contate o suporte.",
+        },
+      };
+    }
+    
+    // RLS policy violation
+    if (tenantError?.code === "42501" || tenantError?.message?.includes("row-level security")) {
+      console.error("[resolve-identity-wizard] RLS policy violation - check service role key");
+      return {
+        status: "ERROR",
+        error: {
+          code: "TENANT_CREATION_FAILED",
+          message: "Erro de permissão ao criar organização.",
         },
       };
     }
