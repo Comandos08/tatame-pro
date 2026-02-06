@@ -117,7 +117,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
             description: data.description,
             logoUrl: data.logo_url,
             primaryColor: data.primary_color || '#dc2626',
-            sportTypes: (data.sport_types || ['BJJ']) as Tenant['sportTypes'],
+            sportTypes: (data.sport_types || []) as Tenant['sportTypes'],
             stripeCustomerId: data.stripe_customer_id,
             isActive: data.is_active,
             createdAt: data.created_at,

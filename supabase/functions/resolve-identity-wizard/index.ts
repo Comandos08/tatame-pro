@@ -332,16 +332,18 @@ async function handleCompleteWizard(
   }
 
   /* 5️⃣ CREATE TENANT */
-  const { data: newTenant, error: tenantError } = await supabase
-    .from("tenants")
-    .insert({
-      name: orgName,
-      slug: finalSlug,
-      onboarding_completed: false,
-      sport_types: ["BJJ"],
-    })
-    .select("id, slug, name")
-    .single();
+  // ⛔ sport_types is intentionally omitted.
+  // The database trigger will reject this insert, blocking tenant creation.
+  // This is expected behavior: Identity Wizard cannot create tenants for P0.
+  // New tenants must be created via Admin Dashboard with explicit modality selection.
+  console.error("[resolve-identity-wizard] BLOCKED: Tenant creation via wizard is disabled. Use Admin Dashboard.");
+  return {
+    status: "ERROR",
+    error: {
+      code: "WIZARD_TENANT_CREATION_DISABLED",
+      message: "Criação de organização via wizard está desabilitada. Use o painel administrativo.",
+    },
+  };
 
   if (tenantError || !newTenant) {
     console.error("[resolve-identity-wizard] TENANT_CREATE_FAILED:", tenantError);

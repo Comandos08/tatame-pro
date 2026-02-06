@@ -46,7 +46,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedSports, setSelectedSports] = useState<string[]>(['Jiu-Jitsu']);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [defaultLocale, setDefaultLocale] = useState('pt-BR');
   const [primaryColor, setPrimaryColor] = useState('#dc2626');
   
@@ -134,7 +134,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
     setName('');
     setSlug('');
     setDescription('');
-    setSelectedSports(['Jiu-Jitsu']);
+    setSelectedSports([]);
     setDefaultLocale('pt-BR');
     setPrimaryColor('#dc2626');
   };
