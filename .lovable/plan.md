@@ -1,158 +1,231 @@
 
-
-# P2.6 — UX de Empty States Inteligentes (SAFE GOLD)
+# P2.H1 — Hardening i18n & Legacy UX Cleanup (SAFE GOLD)
 
 ## Auditoria Realizada
 
-### Estado Atual do Sistema
+### Estado Atual — Achados Confirmados
 
-| Item | Status |
-|------|--------|
-| `BlockedStateCard` existe | ✅ Disponível em `src/components/ux/` |
-| `LoadingState` existe | ✅ Padrão de variantes (fullscreen, card, inline) |
-| `TemporaryErrorCard` existe | ✅ Usa BlockedStateCard internamente |
-| Chaves `empty.*` i18n | ❌ Não existem — serão criadas |
-| Componente `EmptyStateCard` | ❌ Não existe — será criado |
-
-### Padrões de Empty State Atuais (Inconsistentes)
-
-| Componente | Empty State Atual | Problema |
-|------------|------------------|----------|
-| `MyEventsCard` | `<div>` genérico com ícone + texto + botão | Estilo inconsistente, CTA pode causar ansiedade |
-| `AthletesList` | `<Card>` com ícone Users + texto filtro | Mensagem só fala de filtros, não de estado vazio geral |
-| `EventsList` | `<Card>` com ícone + texto + botão Create | CTA agressivo no centro da página |
-| `PortalEvents` | `<Card>` com ícone + texto + botão | Estilo similar mas sem hint de próximos passos |
-| `TenantDashboard` | `<div>` com borda dashed + texto | Só para atividades, sem pattern geral |
+| Arquivo | Linha(s) | Tipo | Descrição |
+|---------|----------|------|-----------|
+| `ForgotPassword.tsx` | 22-48, 69, 76-77, 85, 92, 113-115, 122, 142, 145, 153 | VIOLAÇÃO | Toasts e textos hardcoded PT |
+| `GradingSchemesList.tsx` | 165, 169 | VIOLAÇÃO | Empty state hardcoded |
+| `AthleteGradingsPage.tsx` | 325-330 | VIOLAÇÃO | Empty state hardcoded |
+| `MembershipDetails.tsx` | 421 | VIOLAÇÃO | Empty state hardcoded |
+| `ManageAdminsDialog.tsx` | 286 | VIOLAÇÃO | Empty admin state hardcoded |
+| `MembershipList.tsx` | 250-257 | VIOLAÇÃO | Empty memberships hardcoded |
+| `PublicAcademies.tsx` | 134, 143 | VIOLAÇÃO | Empty academies e contador |
+| `InternalRankings.tsx` | 249, 332-333 | CABELINHO | Hint e empty state parcial |
+| `TrialStatusBanner.tsx` | 80, 88 | CABELINHO | `.replace()` manual |
+| `TenantBlockedScreen.tsx` | 86, 114 | CABELINHO | `.replace()` manual |
+| `ExportCsvButton.tsx` | 40 | CABELINHO | `.replace()` manual |
+| `BracketMatchCard.tsx` | 180 | CABELINHO | `.replace()` manual |
+| `TenantDashboard.tsx` | 198, 206 | CABELINHO | `.replace()` manual |
+| `TenantContext.tsx` | 61, 75, 168 | CABELINHO | `console.log` sem guard DEV |
+| `PortalRouter.tsx` | ~26 | CABELINHO | Loader2 genérico (não LoadingState) |
+| `AdminDashboard.tsx` | 247 | CABELINHO | Loader2 genérico (não LoadingState) |
 
 ---
 
-## Arquivos a Criar
+## Arquivos a Modificar
 
-### 1. `src/components/ux/EmptyStateCard.tsx`
+### P2.H1.1 — Migração de Strings Hardcoded → i18n
 
-Componente wrapper SAFE GOLD que usa `BlockedStateCard` internamente, mas **SEM ações**.
-
-```text
-PASSO 1 — Estrutura do Componente
+#### 1. `src/pages/ForgotPassword.tsx`
+**Ação**: Migrar ~15 strings PT hardcoded para i18n
+**Keys a criar**:
+```
+auth.forgot.title
+auth.forgot.description
+auth.forgot.email.label
+auth.forgot.email.placeholder
+auth.forgot.submit
+auth.forgot.sending
+auth.forgot.backToLogin
+auth.forgot.emailRequired
+auth.forgot.emailRequiredDesc
+auth.forgot.error
+auth.forgot.errorDesc
+auth.forgot.successTitle
+auth.forgot.successDesc
+auth.forgot.linkExpiry
+auth.forgot.linkWarning
+auth.forgot.tryAgain
 ```
 
-**Props (FECHADAS):**
+#### 2. `src/pages/GradingSchemesList.tsx`
+**Ação**: Migrar empty state (linhas 164-170)
+**Keys a criar**:
+```
+empty.gradingSchemes.title
+empty.gradingSchemes.createFirst
+```
+
+#### 3. `src/pages/AthleteGradingsPage.tsx`
+**Ação**: Migrar empty state (linhas 325-330)
+**Keys a criar**:
+```
+empty.gradings.title
+empty.gradings.registerFirst
+```
+
+#### 4. `src/pages/MembershipDetails.tsx`
+**Ação**: Migrar empty gradings state (linha 421)
+**Key a criar**:
+```
+empty.athleteGradings.desc
+```
+
+#### 5. `src/components/admin/ManageAdminsDialog.tsx`
+**Ação**: Migrar empty admins state (linha 286)
+**Keys a criar**:
+```
+empty.admins.title
+```
+
+#### 6. `src/pages/MembershipList.tsx`
+**Ação**: Migrar empty memberships state (linhas 250-257)
+**Keys a criar**:
+```
+empty.memberships.title
+empty.memberships.desc
+empty.memberships.cta
+```
+
+#### 7. `src/pages/PublicAcademies.tsx`
+**Ação**: Migrar empty academies e contador (linhas 134, 143)
+**Keys a criar**:
+```
+empty.publicAcademies.title
+empty.publicAcademies.countSingular
+empty.publicAcademies.countPlural
+```
+
+#### 8. `src/pages/InternalRankings.tsx`
+**Ação**: Migrar hint de metodologia e hint de empty (linhas 249, 332-333)
+**Keys a criar**:
+```
+rankings.methodologyHint
+rankings.adjustFilters
+rankings.noActiveAcademies
+```
+
+---
+
+### P2.H1.2 — Padronização de Interpolação i18n
+
+#### Padrão: `.replace('{x}', val)` → `t(key, { x: val })`
+
+| Arquivo | Linha | Antes | Depois |
+|---------|-------|-------|--------|
+| `TrialStatusBanner.tsx` | 80 | `t('trial.expiringSoon').replace('{days}', ...)` | `t('trial.expiringSoon', { days: String(daysRemaining) })` |
+| `TrialStatusBanner.tsx` | 88 | `t('trial.daysRemaining').replace('{days}', ...)` | `t('trial.daysRemaining', { days: String(daysRemaining) })` |
+| `TenantBlockedScreen.tsx` | 86 | `t('...').replace('{days}', ...)` | `t('billing.pendingDelete.title', { days: String(daysUntilDeletion ?? 0) })` |
+| `ExportCsvButton.tsx` | 40 | `t('export.success').replace('{count}', ...)` | `t('export.success', { count: String(data.length) })` |
+| `BracketMatchCard.tsx` | 180 | `t('events.brackets.match').replace('{match}', ...)` | `t('events.brackets.match', { match: String(match.position) })` |
+| `TenantDashboard.tsx` | 198 | `.replace('{count}', ...)` | `t('dashboard.pendingCount', { count: String(...) })` |
+| `TenantDashboard.tsx` | 206 | `.replace('{count}', ...)` | `t('dashboard.expiringCount', { count: String(...) })` |
+
+---
+
+### P2.H1.3 — Higiene DEV-only (Logs)
+
+#### `src/contexts/TenantContext.tsx`
+
+**Linhas afetadas**: 61, 75, 168
+
+**Ação**: Envolver console.log em guard DEV
+
 ```typescript
-interface EmptyStateCardProps {
-  /** Lucide icon component */
-  icon: LucideIcon;
-  /** i18n key for title */
-  titleKey: string;
-  /** i18n key for description */
-  descriptionKey: string;
-  /** Optional i18n key for hint/orientation text */
-  hintKey?: string;
-  /** Visual variant: inline (inside cards), standalone (centered) */
-  variant?: 'inline' | 'standalone';
-  /** Optional className */
-  className?: string;
+// ❌ Antes
+console.log('[TENANT] Fetch already in progress, skipping');
+
+// ✅ Depois
+if (import.meta.env.DEV) {
+  console.log('[TENANT] Fetch already in progress, skipping');
 }
 ```
 
-**Comportamento SAFE GOLD:**
-- ❌ NÃO aceita `actions`
-- ❌ NÃO aceita `onClick`
-- ❌ NÃO faz fetch
-- ❌ NÃO cria estado
-- ✅ Usa `iconVariant="muted"` (tom neutro, não-bloqueante)
-- ✅ Variante `inline` para uso dentro de Cards existentes (sem min-h-screen)
-- ✅ Variante `standalone` para uso centralizado (mantém min-h-screen)
-
-**Diferença do `BlockedStateCard`:**
-| Aspecto | BlockedStateCard | EmptyStateCard |
-|---------|-----------------|----------------|
-| Propósito | Bloquear/Erro | Informar ausência |
-| Tom visual | Destructive/Warning | Muted (neutro) |
-| Ações | Suportadas | Não suportadas |
-| Layout | Sempre fullscreen | inline ou standalone |
-
 ---
 
-### 2. Atualizar `src/components/ux/index.ts`
+### P2.H1.4 — UX Loading Consistency
 
-Adicionar export:
-```typescript
-// P2.6 — Empty State Card (informative absence UX)
-export { EmptyStateCard, type EmptyStateCardProps } from './EmptyStateCard';
-```
+#### 1. `src/pages/PortalRouter.tsx` (linha ~26)
 
----
+**Ação**: Substituir `<Loader2>` por `<LoadingState>`
 
-## Arquivos de i18n a Atualizar
-
-### 3. `src/locales/pt-BR.ts`, `en.ts`, `es.ts`
-
-Adicionar 9 novas chaves no grupo `empty.*`:
-
-| Chave | pt-BR | en | es |
-|-------|-------|----|----|
-| `empty.events.title` | Nenhum evento encontrado | No events found | Ningún evento encontrado |
-| `empty.events.desc` | Você ainda não está inscrito em nenhum evento. | You are not registered for any events yet. | Aún no estás inscrito en ningún evento. |
-| `empty.events.hint` | Quando houver eventos disponíveis, eles aparecerão aqui. | When events are available, they will appear here. | Cuando haya eventos disponibles, aparecerán aquí. |
-| `empty.athletes.title` | Nenhum atleta cadastrado | No athletes registered | Ningún atleta registrado |
-| `empty.athletes.desc` | Ainda não há atletas vinculados a esta organização. | No athletes are linked to this organization yet. | Aún no hay atletas vinculados a esta organización. |
-| `empty.athletes.hint` | Cadastros aparecerão aqui assim que forem criados. | Registrations will appear here once created. | Los registros aparecerán aquí una vez creados. |
-| `empty.dashboard.title` | Sem dados no momento | No data at the moment | Sin datos por el momento |
-| `empty.dashboard.desc` | Ainda não há informações suficientes para exibir métricas. | There is not enough information to display metrics yet. | Aún no hay información suficiente para mostrar métricas. |
-| `empty.dashboard.hint` | Os dados aparecerão conforme o uso do sistema. | Data will appear as the system is used. | Los datos aparecerán según el uso del sistema. |
-
----
-
-## Integração (Pontual, NÃO GLOBAL)
-
-O componente será criado e exportado, mas a **integração nos componentes existentes não será feita automaticamente** para manter o princípio SAFE GOLD.
-
-```text
-PASSO 4 — Uso Recomendado (Documentado, Não Aplicado)
-```
-
-**Exemplo de uso futuro em `MyEventsCard`:**
 ```tsx
-// ANTES (inline genérico)
-<div className="text-center py-6 text-muted-foreground">
-  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-  <p>{t('portal.noEvents')}</p>
-  ...
+// ❌ Antes
+<div className="min-h-screen flex items-center justify-center">
+  <Loader2 className="h-8 w-8 animate-spin" />
 </div>
 
-// DEPOIS (padronizado)
-<EmptyStateCard
-  icon={Calendar}
-  titleKey="empty.events.title"
-  descriptionKey="empty.events.desc"
-  hintKey="empty.events.hint"
-  variant="inline"
-/>
+// ✅ Depois
+<LoadingState titleKey="common.verifyingAccess" variant="fullscreen" />
 ```
 
-**Locais recomendados para integração futura:**
-- `MyEventsCard` → `empty.events.*`
-- `AthletesList` → `empty.athletes.*`
-- `EventsList` → `empty.events.*` (admin context)
-- `PortalEvents` → `empty.events.*`
-- `TenantDashboard` (recentActivity) → `empty.dashboard.*`
+**Import necessário**:
+```tsx
+import { LoadingState } from '@/components/ux';
+```
+
+#### 2. `src/pages/AdminDashboard.tsx` (linha 247)
+
+**Ação**: Substituir loader genérico por `<LoadingState>`
+
+```tsx
+// ❌ Antes
+<div className="min-h-screen flex items-center justify-center bg-background">
+  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+</div>
+
+// ✅ Depois
+<LoadingState titleKey="common.loading" variant="fullscreen" />
+```
 
 ---
 
-## Checklist SAFE GOLD
+## Chaves i18n a Adicionar
 
-| Critério | Status |
-|----------|--------|
-| Nenhuma regra de domínio alterada | ✅ |
-| Nenhum fetch novo | ✅ |
-| Nenhuma ação/callback adicionada | ✅ |
-| Nenhum retry | ✅ |
-| Nenhum estado novo | ✅ |
-| Componente usa padrão existente (BlockedStateCard base) | ✅ |
-| iconVariant="muted" (não-bloqueante) | ✅ |
-| i18n completo nos 3 idiomas | ✅ |
-| Build limpo esperado | ✅ |
-| Totalmente reversível (remover não quebra nada) | ✅ |
+### pt-BR.ts, en.ts, es.ts
+
+```typescript
+// === P2.H1.1 — ForgotPassword ===
+'auth.forgot.title': 'Esqueceu sua senha?',
+'auth.forgot.description': 'Digite seu e-mail e enviaremos um link para redefinir sua senha.',
+'auth.forgot.email.label': 'E-mail',
+'auth.forgot.email.placeholder': 'seu@email.com',
+'auth.forgot.submit': 'Enviar link de recuperação',
+'auth.forgot.sending': 'Enviando...',
+'auth.forgot.backToLogin': 'Voltar para o login',
+'auth.forgot.emailRequired': 'E-mail obrigatório',
+'auth.forgot.emailRequiredDesc': 'Por favor, insira seu e-mail.',
+'auth.forgot.error': 'Erro ao solicitar recuperação',
+'auth.forgot.errorDesc': 'Tente novamente mais tarde.',
+'auth.forgot.successTitle': 'Verifique seu e-mail',
+'auth.forgot.successDesc': 'Se o e-mail {email} estiver cadastrado, você receberá um link para redefinir sua senha.',
+'auth.forgot.linkExpiry': '📧 O link expira em 1 hora',
+'auth.forgot.linkWarning': '🔒 Não compartilhe este link com ninguém',
+'auth.forgot.tryAgain': 'Não recebeu? Tentar novamente',
+
+// === P2.H1.1 — Empty States ===
+'empty.gradingSchemes.title': 'Nenhum esquema de graduação configurado.',
+'empty.gradingSchemes.createFirst': 'Criar primeiro esquema',
+'empty.gradings.title': 'Nenhuma graduação registrada para este atleta.',
+'empty.gradings.registerFirst': 'Registrar primeira graduação',
+'empty.athleteGradings.desc': 'Nenhuma graduação registrada para este atleta ainda.',
+'empty.admins.title': 'Nenhum admin cadastrado ainda.',
+'empty.memberships.title': 'Nenhuma filiação encontrada',
+'empty.memberships.desc': 'Você ainda não possui filiações registradas na {tenantName}. Comece agora mesmo e faça parte da nossa comunidade!',
+'empty.memberships.cta': 'Fazer minha filiação',
+'empty.publicAcademies.title': 'Nenhuma academia credenciada no momento.',
+'empty.publicAcademies.countSingular': '{count} academia encontrada',
+'empty.publicAcademies.countPlural': '{count} academias encontradas',
+
+// === P2.H1.1 — Rankings ===
+'rankings.methodologyHint': 'Academias são ranqueadas por filiações ativas. Atletas são ranqueados por número de graduações registradas.',
+'rankings.adjustFilters': 'Tente ajustar os filtros para ver mais resultados.',
+'rankings.noActiveAcademies': 'Nenhuma academia com atletas ativos ainda.',
+```
 
 ---
 
@@ -160,26 +233,54 @@ PASSO 4 — Uso Recomendado (Documentado, Não Aplicado)
 
 | Operação | Arquivo |
 |----------|---------|
-| **CRIAR** | `src/components/ux/EmptyStateCard.tsx` |
-| **EDITAR** | `src/components/ux/index.ts` (adicionar export) |
-| **EDITAR** | `src/locales/pt-BR.ts` (adicionar 9 chaves) |
-| **EDITAR** | `src/locales/en.ts` (adicionar 9 chaves) |
-| **EDITAR** | `src/locales/es.ts` (adicionar 9 chaves) |
+| EDITAR | `src/pages/ForgotPassword.tsx` |
+| EDITAR | `src/pages/GradingSchemesList.tsx` |
+| EDITAR | `src/pages/AthleteGradingsPage.tsx` |
+| EDITAR | `src/pages/MembershipDetails.tsx` |
+| EDITAR | `src/components/admin/ManageAdminsDialog.tsx` |
+| EDITAR | `src/pages/MembershipList.tsx` |
+| EDITAR | `src/pages/PublicAcademies.tsx` |
+| EDITAR | `src/pages/InternalRankings.tsx` |
+| EDITAR | `src/components/billing/TrialStatusBanner.tsx` |
+| EDITAR | `src/components/billing/TenantBlockedScreen.tsx` |
+| EDITAR | `src/components/export/ExportCsvButton.tsx` |
+| EDITAR | `src/components/events/BracketMatchCard.tsx` |
+| EDITAR | `src/pages/TenantDashboard.tsx` |
+| EDITAR | `src/contexts/TenantContext.tsx` |
+| EDITAR | `src/pages/PortalRouter.tsx` |
+| EDITAR | `src/pages/AdminDashboard.tsx` |
+| EDITAR | `src/locales/pt-BR.ts` |
+| EDITAR | `src/locales/en.ts` |
+| EDITAR | `src/locales/es.ts` |
 
 ---
 
-## Declaração Final
+## Checklist SAFE GOLD
 
-Após implementação:
+| Critério | Status |
+|----------|--------|
+| Zero impacto em lógica de domínio | ✅ |
+| Zero fetch novo | ✅ |
+| Zero estado novo | ✅ |
+| Zero automação nova | ✅ |
+| Todas as mudanças são mecânicas | ✅ |
+| i18n completo nos 3 idiomas | ✅ |
+| Build limpo esperado | ✅ |
+| Totalmente reversível | ✅ |
+
+---
+
+## Declaração Final Esperada
 
 ```
-P2.6 — UX de Empty States Inteligentes SAFE GOLD concluído.
+P2.H1 — Hardening i18n & Legacy UX Cleanup concluído.
 
-- Empty states claros e não-bloqueantes
-- Nenhuma ansiedade gerada ao usuário
-- Nenhuma lógica nova introduzida
-- UX consistente em todo o sistema
-- i18n completo
+- Nenhuma feature alterada
+- Nenhum comportamento modificado  
+- i18n 100% consistente
+- UX states padronizados
+- Código legado alinhado ao padrão P2
+- 16 violações/cabelinhos corrigidos
+- 19 arquivos atualizados
 - Build limpo
 ```
-
