@@ -2189,4 +2189,41 @@ export const es: Record<string, string> = {
   'transition.error.title': 'Algo salió mal',
   'transition.error.desc': 'No se pudo completar la acción.',
 
+  // P2.H1 — ForgotPassword i18n
+  'auth.forgot.title': '¿Olvidaste tu contraseña?',
+  'auth.forgot.description': 'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+  'auth.forgot.email.label': 'Correo',
+  'auth.forgot.email.placeholder': 'tu@correo.com',
+  'auth.forgot.submit': 'Enviar enlace de recuperación',
+  'auth.forgot.sending': 'Enviando...',
+  'auth.forgot.backToLogin': 'Volver al inicio de sesión',
+  'auth.forgot.emailRequired': 'Correo requerido',
+  'auth.forgot.emailRequiredDesc': 'Por favor, ingresa tu correo.',
+  'auth.forgot.error': 'Error al solicitar recuperación',
+  'auth.forgot.errorDesc': 'Por favor, inténtalo más tarde.',
+  'auth.forgot.successTitle': 'Revisa tu correo',
+  'auth.forgot.successDesc': 'Si el correo {email} está registrado, recibirás un enlace para restablecer tu contraseña.',
+  'auth.forgot.linkExpiry': '📧 El enlace expira en 1 hora',
+  'auth.forgot.linkWarning': '🔒 No compartas este enlace con nadie',
+  'auth.forgot.tryAgain': '¿No lo recibiste? Intentar de nuevo',
+  'auth.forgot.emailSent': '¡Correo enviado!',
+
+  // P2.H1 — Empty States adicionales
+  'empty.gradingSchemes.title': 'Ningún esquema de graduación configurado.',
+  'empty.gradingSchemes.createFirst': 'Crear primer esquema',
+  'empty.gradings.title': 'Ninguna graduación registrada para este atleta.',
+  'empty.gradings.registerFirst': 'Registrar primera graduación',
+  'empty.athleteGradings.desc': 'Ninguna graduación registrada para este atleta aún.',
+  'empty.admins.title': 'Ningún admin registrado aún.',
+  'empty.memberships.title': 'Ninguna afiliación encontrada',
+  'empty.memberships.desc': 'Aún no tienes afiliaciones registradas en {tenantName}. ¡Comienza ahora y sé parte de nuestra comunidad!',
+  'empty.memberships.cta': 'Hacer mi afiliación',
+  'empty.publicAcademies.title': 'Ninguna academia acreditada en este momento.',
+  'empty.publicAcademies.count': '{count} academia(s) encontrada(s)',
+
+  // P2.H1 — Rankings
+  'rankings.methodologyHint': 'Las academias se clasifican por afiliaciones activas. Los atletas se clasifican por número de graduaciones registradas.',
+  'rankings.adjustFilters': 'Intenta ajustar los filtros para ver más resultados.',
+  'rankings.noActiveAcademies': 'Ninguna academia con atletas activos aún.',
+
 };

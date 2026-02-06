@@ -83,7 +83,7 @@ export function TenantBlockedScreen({
                 <Trash2 className="h-10 w-10 text-destructive" />
               </motion.div>
               <CardTitle className="text-2xl font-display text-destructive">
-                {t('billing.pendingDelete.title').replace('{days}', String(daysUntilDeletion ?? 0))}
+                {t('billing.pendingDelete.title', { days: String(daysUntilDeletion ?? 0) })}
               </CardTitle>
               <CardDescription className="text-base mt-2 font-semibold">
                 {tenantName}

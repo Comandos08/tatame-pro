@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { LoadingState } from "@/components/ux";
 
 /**
  * 🔐 PORTAL ROUTER — Passthrough Puro
@@ -25,11 +25,7 @@ export default function PortalRouter() {
 
   // ÚNICO loading permitido: auth
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <LoadingState titleKey="common.verifyingAccess" variant="fullscreen" />;
   }
 
   // NÃO autenticado → login

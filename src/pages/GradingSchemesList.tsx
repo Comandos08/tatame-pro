@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Plus, Settings, ChevronRight, Award, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,7 @@ import type { GradingScheme } from '@/types/grading';
 
 export default function GradingSchemesList() {
   const { tenant } = useTenant();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<GradingScheme | null>(null);
@@ -162,11 +164,11 @@ export default function GradingSchemesList() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Award className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhum esquema de graduação configurado.
+                {t('empty.gradingSchemes.title')}
               </p>
               <Button onClick={openCreateDialog} variant="outline" className="mt-4">
                 <Plus className="mr-2 h-4 w-4" />
-                Criar primeiro esquema
+                {t('empty.gradingSchemes.createFirst')}
               </Button>
             </CardContent>
           </Card>

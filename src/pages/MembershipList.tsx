@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { useI18n } from '@/contexts/I18nContext';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -52,6 +53,7 @@ const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgCo
 export default function MembershipList() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
 
@@ -247,13 +249,12 @@ export default function MembershipList() {
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <FileText className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="font-display font-bold text-xl mb-2">Nenhuma filiação encontrada</h3>
+              <h3 className="font-display font-bold text-xl mb-2">{t('empty.memberships.title')}</h3>
               <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                Você ainda não possui filiações registradas na {tenant.name}. 
-                Comece agora mesmo e faça parte da nossa comunidade!
+                {t('empty.memberships.desc', { tenantName: tenant.name })}
               </p>
               <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)} size="lg">
-                Fazer minha filiação
+                {t('empty.memberships.cta')}
               </Button>
             </CardContent>
           </Card>

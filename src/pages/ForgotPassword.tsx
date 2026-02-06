@@ -8,20 +8,22 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
+  const { t } = useI18n();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email.trim()) {
       toast({
-        title: "E-mail obrigatório",
-        description: "Por favor, insira seu e-mail.",
+        title: t('auth.forgot.emailRequired'),
+        description: t('auth.forgot.emailRequiredDesc'),
         variant: "destructive",
       });
       return;
@@ -38,14 +40,14 @@ export default function ForgotPassword() {
 
       setIsSuccess(true);
       toast({
-        title: "E-mail enviado!",
+        title: t('auth.forgot.emailSent'),
         description: data.message,
       });
     } catch (error) {
       console.error("Password reset error:", error);
       toast({
-        title: "Erro ao solicitar recuperação",
-        description: "Tente novamente mais tarde.",
+        title: t('auth.forgot.error'),
+        description: t('auth.forgot.errorDesc'),
         variant: "destructive",
       });
     } finally {
@@ -66,22 +68,22 @@ export default function ForgotPassword() {
               <div className="mx-auto bg-success/10 rounded-full p-4 w-fit">
                 <CheckCircle className="h-12 w-12 text-success" />
               </div>
-              <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+              <CardTitle className="text-2xl">{t('auth.forgot.successTitle')}</CardTitle>
               <CardDescription className="text-base">
-                Se o e-mail <strong>{email}</strong> estiver cadastrado, você receberá um link para redefinir sua senha.
+                {t('auth.forgot.successDesc', { email })}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                <p className="mb-2">📧 O link expira em 1 hora</p>
-                <p>🔒 Não compartilhe este link com ninguém</p>
+                <p className="mb-2">{t('auth.forgot.linkExpiry')}</p>
+                <p>{t('auth.forgot.linkWarning')}</p>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/login">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Voltar para o login
+                  {t('auth.forgot.backToLogin')}
                 </Link>
               </Button>
               <button
@@ -89,7 +91,7 @@ export default function ForgotPassword() {
                 onClick={() => setIsSuccess(false)}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Não recebeu? Tentar novamente
+                {t('auth.forgot.tryAgain')}
               </button>
             </CardFooter>
           </Card>
@@ -110,21 +112,21 @@ export default function ForgotPassword() {
             <div className="mx-auto bg-primary/10 rounded-full p-4 w-fit mb-2">
               <Mail className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Esqueceu sua senha?</CardTitle>
+            <CardTitle className="text-2xl">{t('auth.forgot.title')}</CardTitle>
             <CardDescription>
-              Digite seu e-mail e enviaremos um link para redefinir sua senha.
+              {t('auth.forgot.description')}
             </CardDescription>
           </CardHeader>
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email">{t('auth.forgot.email.label')}</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="seu@email.com"
+                  placeholder={t('auth.forgot.email.placeholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
@@ -139,17 +141,17 @@ export default function ForgotPassword() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando...
+                    {t('auth.forgot.sending')}
                   </>
                 ) : (
-                  "Enviar link de recuperação"
+                  t('auth.forgot.submit')
                 )}
               </Button>
 
               <Button variant="ghost" className="w-full" asChild>
                 <Link to="/login">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Voltar para o login
+                  {t('auth.forgot.backToLogin')}
                 </Link>
               </Button>
             </CardFooter>

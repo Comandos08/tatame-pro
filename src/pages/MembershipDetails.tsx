@@ -35,6 +35,7 @@ import {
 } from '@/types/membership';
 import type { AthleteGrading, GradingLevel, GradingScheme, Diploma } from '@/types/grading';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
+import { useI18n } from '@/contexts/I18nContext';
 
 interface MembershipDetails {
   id: string;
@@ -75,6 +76,7 @@ interface MembershipDetails {
 export default function MembershipDetailsPage() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { tenantSlug, membershipId } = useParams();
 
@@ -418,7 +420,7 @@ export default function MembershipDetailsPage() {
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Award className="h-10 w-10 text-muted-foreground mb-3" />
                       <p className="text-muted-foreground text-sm">
-                        Nenhuma graduação registrada para este atleta ainda.
+                        {t('empty.athleteGradings.desc')}
                       </p>
                     </div>
                   ) : (

@@ -2189,4 +2189,41 @@ export const en: Record<string, string> = {
   'transition.error.title': 'Something went wrong',
   'transition.error.desc': 'The action could not be completed.',
 
+  // P2.H1 — ForgotPassword i18n
+  'auth.forgot.title': 'Forgot your password?',
+  'auth.forgot.description': 'Enter your email and we will send you a link to reset your password.',
+  'auth.forgot.email.label': 'Email',
+  'auth.forgot.email.placeholder': 'your@email.com',
+  'auth.forgot.submit': 'Send recovery link',
+  'auth.forgot.sending': 'Sending...',
+  'auth.forgot.backToLogin': 'Back to login',
+  'auth.forgot.emailRequired': 'Email required',
+  'auth.forgot.emailRequiredDesc': 'Please enter your email.',
+  'auth.forgot.error': 'Error requesting recovery',
+  'auth.forgot.errorDesc': 'Please try again later.',
+  'auth.forgot.successTitle': 'Check your email',
+  'auth.forgot.successDesc': 'If the email {email} is registered, you will receive a link to reset your password.',
+  'auth.forgot.linkExpiry': '📧 The link expires in 1 hour',
+  'auth.forgot.linkWarning': '🔒 Do not share this link with anyone',
+  'auth.forgot.tryAgain': 'Didn\'t receive it? Try again',
+  'auth.forgot.emailSent': 'Email sent!',
+
+  // P2.H1 — Additional Empty States
+  'empty.gradingSchemes.title': 'No grading scheme configured.',
+  'empty.gradingSchemes.createFirst': 'Create first scheme',
+  'empty.gradings.title': 'No gradings recorded for this athlete.',
+  'empty.gradings.registerFirst': 'Register first grading',
+  'empty.athleteGradings.desc': 'No gradings recorded for this athlete yet.',
+  'empty.admins.title': 'No admins registered yet.',
+  'empty.memberships.title': 'No memberships found',
+  'empty.memberships.desc': 'You don\'t have any memberships registered with {tenantName} yet. Start now and become part of our community!',
+  'empty.memberships.cta': 'Start my membership',
+  'empty.publicAcademies.title': 'No accredited academies at the moment.',
+  'empty.publicAcademies.count': '{count} academy(ies) found',
+
+  // P2.H1 — Rankings
+  'rankings.methodologyHint': 'Academies are ranked by active memberships. Athletes are ranked by number of recorded gradings.',
+  'rankings.adjustFilters': 'Try adjusting the filters to see more results.',
+  'rankings.noActiveAcademies': 'No academies with active athletes yet.',
+
 };

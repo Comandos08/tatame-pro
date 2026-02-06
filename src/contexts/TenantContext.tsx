@@ -58,7 +58,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
     async function fetchTenant() {
       // ✅ P-IMP-01 — Prevent concurrent fetches
       if (isFetchingRef.current) {
-        console.log('[TENANT] Fetch already in progress, skipping');
+        if (import.meta.env.DEV) {
+          console.log('[TENANT] Fetch already in progress, skipping');
+        }
         return;
       }
       
@@ -72,7 +74,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
       }
 
       isFetchingRef.current = true;
-      console.log('[TENANT] Fetch started for slug:', tenantSlug);
+      if (import.meta.env.DEV) {
+        console.log('[TENANT] Fetch started for slug:', tenantSlug);
+      }
 
       if (isMountedRef.current) {
         setIsLoading(true);
@@ -165,7 +169,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
         isFetchingRef.current = false;
         if (!abortController.signal.aborted && isMountedRef.current) {
           setIsLoading(false);
-          console.log('[TENANT] Fetch completed');
+          if (import.meta.env.DEV) {
+            console.log('[TENANT] Fetch completed');
+          }
         }
       }
     }

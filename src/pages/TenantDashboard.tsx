@@ -194,32 +194,32 @@ export default function TenantDashboard() {
 
   const quickActions = [
     { 
-      label: t('dashboard.approveMembers') || 'Aprovar Filiações', 
-      description: (t('dashboard.pendingCount') || '{count} pendentes').replace('{count}', String(stats?.pendingMemberships || 0)),
+      label: t('dashboard.approveMembers'), 
+      description: t('dashboard.pendingCount', { count: String(stats?.pendingMemberships || 0) }),
       href: `/${tenantSlug}/app/approvals`, 
       icon: CheckCircle,
       variant: stats?.pendingMemberships ? 'default' : 'outline' as const,
       highlight: (stats?.pendingMemberships || 0) > 0,
     },
     { 
-      label: t('dashboard.expiringMemberships') || 'Filiações Expirando', 
-      description: (t('dashboard.expiringCount') || '{count} em 30 dias').replace('{count}', String(stats?.expiringMemberships || 0)),
+      label: t('dashboard.expiringMemberships'), 
+      description: t('dashboard.expiringCount', { count: String(stats?.expiringMemberships || 0) }),
       href: `/${tenantSlug}/app/athletes`, 
       icon: Calendar,
       variant: stats?.expiringMemberships ? 'warning' : 'outline' as const,
       highlight: (stats?.expiringMemberships || 0) > 0,
     },
-    { 
-      label: t('dashboard.issueDiploma') || 'Emitir Diploma', 
-      description: t('dashboard.newGrading') || 'Nova graduação',
+    {
+      label: t('dashboard.issueDiploma'), 
+      description: t('dashboard.newGrading'),
       href: `/${tenantSlug}/app/grading-schemes`, 
       icon: Award,
       variant: 'outline' as const,
       highlight: false,
     },
     { 
-      label: t('dashboard.registerAcademy') || 'Cadastrar Academia', 
-      description: t('dashboard.newAcademy') || 'Nova academia',
+      label: t('dashboard.registerAcademy'), 
+      description: t('dashboard.newAcademy'),
       href: `/${tenantSlug}/app/academies`, 
       icon: Building2,
       variant: 'outline' as const,
@@ -363,7 +363,7 @@ export default function TenantDashboard() {
                         to={`/${tenantSlug}/app/audit-log`}
                         className="block text-center text-sm text-primary hover:underline pt-2"
                       >
-                        {t('dashboard.viewFullHistory') || 'Ver todo o histórico'} →
+                        {t('dashboard.viewFullHistory')} →
                       </Link>
                     </div>
                   )}
