@@ -102,7 +102,7 @@ export default function GradingSchemesList() {
     setEditingScheme(null);
     setFormData({
       name: '',
-      sport_type: tenant?.sportTypes?.[0] || 'BJJ',
+      sport_type: tenant?.sportTypes?.[0] || '',
       is_default: false,
     });
     setIsDialogOpen(true);
@@ -133,7 +133,7 @@ export default function GradingSchemesList() {
     }
   };
 
-  const sportTypes = tenant?.sportTypes || ['BJJ'];
+  const sportTypes = tenant?.sportTypes || [];
 
   return (
     <AppShell>
