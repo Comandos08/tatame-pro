@@ -2114,4 +2114,15 @@ export const es: Record<string, string> = {
   'identityError.default.title': 'Error de identidad',
   'identityError.default.desc': 'Ocurrió un error al verificar su identidad. Por favor, inténtelo de nuevo.',
 
+  // Onboarding Progress (P2.1)
+  'onboarding.progress': 'Progreso del Registro',
+  'onboarding.identity': 'Identidad',
+  'onboarding.profile': 'Perfil',
+  'onboarding.tenant': 'Organización',
+  'onboarding.roles': 'Permisos',
+  'onboarding.identity.done': 'Identidad verificada',
+  'onboarding.profile.done': 'Perfil configurado',
+  'onboarding.tenant.current': 'Organización seleccionada',
+  'onboarding.roles.pending': 'Permisos',
+
 };

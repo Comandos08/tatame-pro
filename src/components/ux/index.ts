@@ -14,5 +14,14 @@ export { LoadingState, type LoadingStateProps } from './LoadingState';
 export { TableSkeleton, type TableSkeletonProps } from './TableSkeleton';
 export { CardGridSkeleton, type CardGridSkeletonProps } from './CardGridSkeleton';
 
+// P2.1 — Onboarding Progress (visual awareness)
+export { 
+  OnboardingProgress, 
+  type OnboardingProgressProps, 
+  type OnboardingProgressStep,
+  type OnboardingStepKey,
+  type OnboardingStepStatus 
+} from './OnboardingProgress';
+
 // Existing
 export { RecoveryGuide } from './RecoveryGuide';
