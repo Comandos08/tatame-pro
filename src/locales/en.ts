@@ -2179,4 +2179,14 @@ export const en: Record<string, string> = {
   'empty.dashboard.desc': 'There is not enough information to display metrics yet.',
   'empty.dashboard.hint': 'Data will appear as the system is used.',
 
+  // P2.7 — Transition Feedback (async state communication)
+  'transition.inProgress.title': 'Processing your request',
+  'transition.inProgress.desc': 'This may take a few moments.',
+  'transition.success.title': 'All done!',
+  'transition.success.desc': 'The action was completed successfully.',
+  'transition.warning.title': 'Attention',
+  'transition.warning.desc': 'The action was completed with some caveats.',
+  'transition.error.title': 'Something went wrong',
+  'transition.error.desc': 'The action could not be completed.',
+
 };
