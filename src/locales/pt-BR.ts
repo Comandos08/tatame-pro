@@ -44,6 +44,7 @@ export const ptBR = {
   'common.goToHome': 'Ir para Início',
   'common.goBack': 'Voltar',
   'common.goHome': 'Ir para Início',
+  'common.unknown': 'Desconhecido',
 
   // Theme
   'theme.select': 'Tema',

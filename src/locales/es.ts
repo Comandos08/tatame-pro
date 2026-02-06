@@ -44,6 +44,7 @@ export const es: Record<string, string> = {
   'common.goToHome': 'Ir al Inicio',
   'common.goBack': 'Volver',
   'common.goHome': 'Ir al Inicio',
+  'common.unknown': 'Desconocido',
 
   // Theme
   'theme.select': 'Tema',

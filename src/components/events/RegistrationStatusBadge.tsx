@@ -22,6 +22,16 @@ const sizeVariants = {
   lg: 'text-base px-3 py-1',
 };
 
+/**
+ * RegistrationStatusBadge
+ * 
+ * Componente UX puro que traduz status técnico de inscrição → badge visual.
+ * 
+ * REGRAS P2.3:
+ * - Usa SOMENTE i18n (sem fallback hardcoded)
+ * - Status desconhecido → Badge neutro com t('common.unknown')
+ * - Nenhum side effect
+ */
 export function RegistrationStatusBadge({ 
   status, 
   size = 'default', 
@@ -30,18 +40,22 @@ export function RegistrationStatusBadge({
   const { t } = useI18n();
   const config = EVENT_REGISTRATION_STATUS_CONFIG[status];
   
+  // Status desconhecido: Badge neutro sem mostrar status cru
   if (!config) {
     return (
-      <Badge variant="outline" className={className}>
-        {status}
+      <Badge 
+        variant="outline" 
+        className={cn(
+          'font-medium border',
+          colorVariants.muted,
+          sizeVariants[size],
+          className
+        )}
+      >
+        {t('common.unknown')}
       </Badge>
     );
   }
-
-  // Get translated label
-  const label = t(config.labelKey as any) !== config.labelKey 
-    ? t(config.labelKey as any) 
-    : config.label;
 
   return (
     <Badge 
@@ -53,7 +67,7 @@ export function RegistrationStatusBadge({
         className
       )}
     >
-      {label}
+      {t(config.labelKey as any)}
     </Badge>
   );
 }
