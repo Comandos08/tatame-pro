@@ -26,5 +26,8 @@ export {
   type OnboardingStepStatus 
 } from './OnboardingProgress';
 
+// P2.6 — Empty State Card (informative absence UX)
+export { EmptyStateCard, type EmptyStateCardProps } from './EmptyStateCard';
+
 // Existing
 export { RecoveryGuide } from './RecoveryGuide';

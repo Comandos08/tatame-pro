@@ -2168,4 +2168,15 @@ export const en: Record<string, string> = {
   'events.change.canceled.title': 'Event canceled',
   'events.change.canceled.desc': 'Unfortunately, this event has been canceled by the organization.',
 
+  // P2.6 — Smart Empty States
+  'empty.events.title': 'No events found',
+  'empty.events.desc': 'You are not registered for any events yet.',
+  'empty.events.hint': 'When events are available, they will appear here.',
+  'empty.athletes.title': 'No athletes registered',
+  'empty.athletes.desc': 'No athletes are linked to this organization yet.',
+  'empty.athletes.hint': 'Registrations will appear here once created.',
+  'empty.dashboard.title': 'No data at the moment',
+  'empty.dashboard.desc': 'There is not enough information to display metrics yet.',
+  'empty.dashboard.hint': 'Data will appear as the system is used.',
+
 };
