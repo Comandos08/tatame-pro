@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, CheckCircle, XCircle, UserCheck } from 'lucide-react';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { EventRegistrationStatus } from '@/types/event';
@@ -52,7 +52,11 @@ const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
  * Componente UX puro que responde a pergunta do atleta:
  * "Ok, e agora... o que acontece?"
  * 
- * SEM side effects, SEM ações, APENAS informação.
+ * REGRAS P2.3:
+ * - SEM side effects
+ * - SEM ações/botões
+ * - Status desconhecido → return null
+ * - Usa SOMENTE i18n
  */
 export function EventExpectationCard({ 
   registrationStatus, 
@@ -61,6 +65,7 @@ export function EventExpectationCard({
   const { t } = useI18n();
   const config = expectationConfigs[registrationStatus];
 
+  // Status desconhecido: não renderizar
   if (!config) return null;
 
   const Icon = config.icon;

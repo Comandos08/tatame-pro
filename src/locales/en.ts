@@ -44,6 +44,7 @@ export const en: Record<string, string> = {
   'common.goToHome': 'Go to Home',
   'common.goBack': 'Go Back',
   'common.goHome': 'Go to Home',
+  'common.unknown': 'Unknown',
 
   // Theme
   'theme.select': 'Theme',
