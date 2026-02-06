@@ -1,13 +1,14 @@
 /**
- * 🔐 TenantOnboardingGate — Block access until onboarding is complete
+ * 🔐 TenantOnboardingGate — Block access until tenant is ACTIVE
  * 
- * If tenant.onboarding_completed is false, redirects to /app/onboarding
- * except for allowed routes (academies, coaches, grading-schemes, onboarding itself).
+ * P3.1 — SIMPLIFIED GATE CONTRACT
  * 
- * ✅ P-IMP-FIX — Fixed infinite loop via resolutionStatus state machine
- * - Removed refetchTenant useEffect (caused the loop)
- * - Now respects ImpersonationContext.resolutionStatus
- * - Only renders after impersonation is RESOLVED (if active)
+ * Rule: If tenant.status === 'SETUP', redirect to /app/onboarding
+ * 
+ * ❌ No heuristics
+ * ❌ No sport_types checks
+ * ❌ No hasRealConfiguration inference
+ * ✅ Only obeys the tenant status
  */
 import React, { ReactNode, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -19,7 +20,7 @@ interface TenantOnboardingGateProps {
   children: ReactNode;
 }
 
-// Routes that are allowed during onboarding
+// Routes that are allowed during onboarding (SETUP status)
 const ALLOWED_ROUTES = [
   '/app/onboarding',
   '/app/academies',
@@ -34,37 +35,17 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ P-IMP-FIX — Onboarding redirect effect
-  // All hooks are called unconditionally above, before any returns
+  // P3.1 — Simple status-based redirect
   useEffect(() => {
     // Don't run during impersonation resolution
     if (isImpersonating && resolutionStatus !== 'RESOLVED') return;
     
     if (isLoading || !tenant) return;
 
-    // Check if onboarding is complete via flag
-    const isComplete = tenant?.onboardingCompleted === true;
+    // P3.1 — ONLY check status, nothing else
+    const isSetupMode = tenant.status === 'SETUP';
     
-    if (isComplete) return; // Onboarding done, allow access
-
-    // ✅ P2.HOTFIX — Check if tenant is in SETUP mode (created via wizard)
-    // Tenants in SETUP mode MUST complete onboarding
-    const isSetupMode = tenant?.status === 'SETUP';
-
-    // ✅ UX/02 — DEFENSIVE: Check if tenant has actual configured data
-    // (handles case where flag is false but tenant already has data)
-    // This prevents loops when DB flag wasn't properly updated
-    const hasRealConfiguration = Boolean(
-      tenant?.isActive &&
-      tenant?.sportTypes?.length > 0 &&
-      !isSetupMode // ✅ P2.HOTFIX — SETUP mode always requires onboarding
-    );
-    
-    // If impersonating and tenant has real data, skip onboarding redirect
-    if (isImpersonating && hasRealConfiguration) {
-      console.log('[ONBOARDING-GATE] Skipping for impersonation with configured tenant');
-      return;
-    }
+    if (!isSetupMode) return; // Tenant is ACTIVE or other, allow access
 
     // Check if current route is allowed during onboarding
     const currentPath = location.pathname;
@@ -77,12 +58,12 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
 
     if (!isAllowed) {
       // Redirect to onboarding wizard
+      console.log('[ONBOARDING-GATE] Tenant in SETUP mode, redirecting to onboarding');
       navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
     }
   }, [tenant, isLoading, location.pathname, navigate, isImpersonating, resolutionStatus]);
 
-  // ✅ P-IMP-FIX — Block rendering during impersonation resolution
-  // This prevents any re-renders or effects from firing during the transition
+  // Block rendering during impersonation resolution
   if (isImpersonating && resolutionStatus !== 'RESOLVED') {
     console.log('[ONBOARDING-GATE] Waiting for impersonation resolution:', resolutionStatus);
     return (
@@ -105,29 +86,18 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
 
 /**
  * Hook to check if tenant onboarding is complete.
- * Use this for conditional UI rendering.
- * 
- * ✅ UX/02 — Enhanced with defensive real-configuration check
+ * P3.1 — Simplified: just checks status === 'ACTIVE'
  */
 export function useOnboardingStatus() {
   const { tenant, isLoading, refetchTenant } = useTenant();
   
-  // Check both flag AND real tenant configuration
-  const isComplete = tenant?.onboardingCompleted === true;
-  
-  // ✅ P2.HOTFIX — Check if tenant is in SETUP mode
+  // P3.1 — Simple: tenant is "complete" when status is ACTIVE
+  const isComplete = tenant?.status === 'ACTIVE';
   const isSetupMode = tenant?.status === 'SETUP';
-  
-  // Defensive: also consider tenant "complete" if it has real data
-  // BUT NOT if it's in SETUP mode (created via wizard)
-  const hasRealConfiguration = Boolean(
-    tenant?.isActive &&
-    tenant?.sportTypes?.length > 0 &&
-    !isSetupMode // ✅ P2.HOTFIX — SETUP mode always requires onboarding
-  );
 
   return {
-    isComplete: isComplete || hasRealConfiguration,
+    isComplete,
+    isSetupMode,
     isLoading,
     tenant,
     refetchTenant,

@@ -135,8 +135,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
             isActive: data.is_active,
             createdAt: data.created_at,
             updatedAt: data.updated_at,
-            // ✅ P0.1 — load onboarding flag from database
+            // P3.1 — Load all lifecycle fields
             onboardingCompleted: data.onboarding_completed,
+            status: data.status as Tenant['status'],
+            creationSource: data.creation_source as Tenant['creationSource'],
           };
           setTenant(tenantData);
 

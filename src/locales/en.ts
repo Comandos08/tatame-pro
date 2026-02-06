@@ -1599,6 +1599,14 @@ export const en: Record<string, string> = {
   'onboarding.welcomeTitle': 'Welcome!',
   'onboarding.welcomeDesc': 'Let\'s set up {name} in a few steps.',
   'onboarding.welcomeAlert': 'Complete the required items to unlock full access.',
+  // P3.1 — Sport Types
+  'onboarding.sportTypesTitle': 'Sport Types',
+  'onboarding.sportTypesDesc': 'Select the sport types for your organization.',
+  'onboarding.sportTypesSelected': 'sport type(s) selected',
+  'onboarding.sportTypesRequired': 'Select at least one sport type.',
+  'onboarding.sportTypesSaved': 'Sport types saved successfully!',
+  'onboarding.sportTypesError': 'Error saving sport types.',
+  'onboarding.saveSportTypes': 'Save Sport Types',
   'onboarding.academiesTitle': 'Academies',
   'onboarding.academiesDesc': 'Register at least one academy.',
   'onboarding.coachesTitle': 'Coaches',
@@ -1606,7 +1614,7 @@ export const en: Record<string, string> = {
   'onboarding.gradingTitle': 'Grading System',
   'onboarding.gradingDesc': 'Set up at least one grading system.',
   'onboarding.reviewTitle': 'Final Review',
-  'onboarding.reviewDesc': 'Confirm that everything is ready.',
+  'onboarding.reviewDesc': 'Confirm that everything is ready to activate your organization.',
   'onboarding.stepComplete': 'Complete!',
   'onboarding.stepPending': 'Pending',
   'onboarding.requiredStep': 'This step is required.',
@@ -1616,6 +1624,9 @@ export const en: Record<string, string> = {
   'onboarding.completeSetup': 'Complete Setup',
   'onboarding.completedSuccess': 'Setup completed!',
   'onboarding.completedError': 'Error completing setup.',
+  // P3.1 — Activation
+  'onboarding.activateOrganization': 'Activate Organization',
+  'onboarding.activatedSuccess': 'Organization activated successfully!',
   
   // Role Management
   'roles.management': 'Role Management',

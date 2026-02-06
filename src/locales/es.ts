@@ -1599,6 +1599,14 @@ export const es: Record<string, string> = {
   'onboarding.welcomeTitle': '¡Bienvenido!',
   'onboarding.welcomeDesc': 'Vamos a configurar {name} en pocos pasos.',
   'onboarding.welcomeAlert': 'Complete los elementos obligatorios para desbloquear el acceso completo.',
+  // P3.1 — Sport Types
+  'onboarding.sportTypesTitle': 'Modalidades',
+  'onboarding.sportTypesDesc': 'Seleccione las modalidades deportivas de su organización.',
+  'onboarding.sportTypesSelected': 'modalidad(es) seleccionada(s)',
+  'onboarding.sportTypesRequired': 'Seleccione al menos una modalidad.',
+  'onboarding.sportTypesSaved': '¡Modalidades guardadas con éxito!',
+  'onboarding.sportTypesError': 'Error al guardar modalidades.',
+  'onboarding.saveSportTypes': 'Guardar Modalidades',
   'onboarding.academiesTitle': 'Academias',
   'onboarding.academiesDesc': 'Registre al menos una academia.',
   'onboarding.coachesTitle': 'Entrenadores',
@@ -1606,7 +1614,7 @@ export const es: Record<string, string> = {
   'onboarding.gradingTitle': 'Sistema de Graduación',
   'onboarding.gradingDesc': 'Configure al menos un sistema de graduación.',
   'onboarding.reviewTitle': 'Revisión Final',
-  'onboarding.reviewDesc': 'Confirme que todo está listo.',
+  'onboarding.reviewDesc': 'Confirme que todo está listo para activar su organización.',
   'onboarding.stepComplete': '¡Completado!',
   'onboarding.stepPending': 'Pendiente',
   'onboarding.requiredStep': 'Este paso es obligatorio.',
@@ -1616,6 +1624,9 @@ export const es: Record<string, string> = {
   'onboarding.completeSetup': 'Completar Configuración',
   'onboarding.completedSuccess': '¡Configuración completada!',
   'onboarding.completedError': 'Error al completar configuración.',
+  // P3.1 — Activation
+  'onboarding.activateOrganization': 'Activar Organización',
+  'onboarding.activatedSuccess': '¡Organización activada con éxito!',
   
   // Role Management
   'roles.management': 'Gestión de Roles',

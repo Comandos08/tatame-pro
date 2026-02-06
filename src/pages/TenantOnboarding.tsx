@@ -1,9 +1,15 @@
 /**
  * 🚀 TENANT ONBOARDING — First Run Wizard
  * 
- * Guides new tenant admins through initial setup.
- * Required steps: Academy, Grading Scheme
- * Optional: Coaches, Staff
+ * P3.1 — COMPLETE ONBOARDING FLOW WITH SPORT TYPE SELECTION
+ * 
+ * Required steps:
+ * 1. Welcome
+ * 2. Sport Types (REQUIRED - at least 1)
+ * 3. Academies (REQUIRED - at least 1)
+ * 4. Grading Schemes (REQUIRED - at least 1)
+ * 5. Coaches (optional)
+ * 6. Review & Activate
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, Users, Award, Settings, 
   CheckCircle2, Circle, ArrowRight, ArrowLeft,
-  Loader2, AlertCircle, PartyPopper
+  Loader2, AlertCircle, PartyPopper, Medal
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -19,25 +25,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SportType } from '@/types/tenant';
+
+// Available sport types
+const AVAILABLE_SPORT_TYPES: SportType[] = [
+  'Jiu-Jitsu',
+  'Judo',
+  'Muay Thai',
+  'Wrestling',
+  'Boxing',
+  'Karate',
+  'Taekwondo',
+  'MMA',
+  'Sambo',
+  'Krav Maga',
+];
 
 interface OnboardingStatus {
+  hasSportTypes: boolean;
   hasAcademy: boolean;
   hasCoach: boolean;
   hasGradingScheme: boolean;
+  sportTypesCount: number;
   academyCount: number;
   coachCount: number;
   gradingSchemeCount: number;
+  selectedSportTypes: string[];
 }
 
-type Step = 'welcome' | 'academies' | 'coaches' | 'grading' | 'review';
+type Step = 'welcome' | 'sport-types' | 'academies' | 'coaches' | 'grading' | 'review';
 
-const STEPS: Step[] = ['welcome', 'academies', 'coaches', 'grading', 'review'];
+const STEPS: Step[] = ['welcome', 'sport-types', 'academies', 'coaches', 'grading', 'review'];
 
 export default function TenantOnboarding() {
   const navigate = useNavigate();
@@ -48,6 +74,8 @@ export default function TenantOnboarding() {
   const queryClient = useQueryClient();
   
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
+  const [selectedSportTypes, setSelectedSportTypes] = useState<SportType[]>([]);
+  const [isSavingSports, setIsSavingSports] = useState(false);
 
   // Fetch onboarding status
   const { data: status, isLoading, refetch } = useQuery({
@@ -55,30 +83,68 @@ export default function TenantOnboarding() {
     queryFn: async () => {
       if (!tenant?.id) return null;
 
-      const [academyResult, coachResult, gradingResult] = await Promise.all([
+      const [academyResult, coachResult, gradingResult, tenantData] = await Promise.all([
         supabase.from('academies').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('is_active', true),
         supabase.from('coaches').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('is_active', true),
         supabase.from('grading_schemes').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('is_active', true),
+        supabase.from('tenants').select('sport_types').eq('id', tenant.id).single(),
       ]);
 
+      const sportTypes = (tenantData.data?.sport_types || []) as string[];
+
       return {
+        hasSportTypes: sportTypes.length > 0,
         hasAcademy: (academyResult.count ?? 0) >= 1,
         hasCoach: (coachResult.count ?? 0) >= 1,
         hasGradingScheme: (gradingResult.count ?? 0) >= 1,
+        sportTypesCount: sportTypes.length,
         academyCount: academyResult.count ?? 0,
         coachCount: coachResult.count ?? 0,
         gradingSchemeCount: gradingResult.count ?? 0,
+        selectedSportTypes: sportTypes,
       } as OnboardingStatus;
     },
     enabled: !!tenant?.id,
-    refetchInterval: 5000, // Refresh every 5s to catch changes from other tabs
+    refetchInterval: 5000,
   });
 
-  // Complete onboarding mutation
+  // Initialize selected sport types from status
+  useEffect(() => {
+    if (status?.selectedSportTypes && status.selectedSportTypes.length > 0) {
+      setSelectedSportTypes(status.selectedSportTypes as SportType[]);
+    }
+  }, [status?.selectedSportTypes]);
+
+  // Save sport types mutation
+  const saveSportTypesMutation = useMutation({
+    mutationFn: async (sportTypes: SportType[]) => {
+      if (!tenant?.id) throw new Error('No tenant');
+      
+      const { error } = await supabase
+        .from('tenants')
+        .update({ 
+          sport_types: sportTypes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tenant.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t('onboarding.sportTypesSaved'));
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(t('onboarding.sportTypesError'));
+      console.error('[ONBOARDING] Sport types save error:', error);
+    },
+  });
+
+  // Complete onboarding mutation (SETUP → ACTIVE)
   const completeMutation = useMutation({
     mutationFn: async () => {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) throw new Error('Not authenticated');
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error('Not authenticated');
 
       const response = await supabase.functions.invoke('complete-tenant-onboarding', {
         body: { 
@@ -96,12 +162,12 @@ export default function TenantOnboarding() {
       return response.data;
     },
     onSuccess: () => {
-      toast.success(t('onboarding.completedSuccess'));
+      toast.success(t('onboarding.activatedSuccess'));
       
-      // ✅ UX/02 — Force TenantContext to reload data
+      // Force TenantContext to reload data
       refetchTenant();
       
-      // Invalidate React Query caches (for other components using queries)
+      // Invalidate React Query caches
       queryClient.invalidateQueries({ queryKey: ['onboarding-status', tenant?.id] });
       
       // Navigate with replace to prevent back-button loop
@@ -112,7 +178,28 @@ export default function TenantOnboarding() {
     },
   });
 
-  const canComplete = status?.hasAcademy && status?.hasGradingScheme;
+  const handleSportTypeToggle = (sportType: SportType) => {
+    setSelectedSportTypes(prev => 
+      prev.includes(sportType)
+        ? prev.filter(s => s !== sportType)
+        : [...prev, sportType]
+    );
+  };
+
+  const handleSaveSportTypes = async () => {
+    if (selectedSportTypes.length === 0) {
+      toast.error(t('onboarding.sportTypesRequired'));
+      return;
+    }
+    setIsSavingSports(true);
+    try {
+      await saveSportTypesMutation.mutateAsync(selectedSportTypes);
+    } finally {
+      setIsSavingSports(false);
+    }
+  };
+
+  const canComplete = status?.hasSportTypes && status?.hasAcademy && status?.hasGradingScheme;
   const stepIndex = STEPS.indexOf(currentStep);
   const progress = ((stepIndex + 1) / STEPS.length) * 100;
 
@@ -131,7 +218,6 @@ export default function TenantOnboarding() {
   };
 
   const handleNavigateToSetup = (path: string) => {
-    // Navigate to setup pages, they'll handle creating items
     navigate(`/${tenant?.slug}/app/${path}`);
   };
 
@@ -152,6 +238,14 @@ export default function TenantOnboarding() {
       icon: Settings,
       title: t('onboarding.welcomeTitle'),
       description: t('onboarding.welcomeDesc').replace('{name}', tenant.name),
+    },
+    'sport-types': {
+      icon: Medal,
+      title: t('onboarding.sportTypesTitle'),
+      description: t('onboarding.sportTypesDesc'),
+      required: true,
+      complete: status?.hasSportTypes,
+      count: status?.sportTypesCount,
     },
     academies: {
       icon: Building2,
@@ -272,6 +366,7 @@ export default function TenantOnboarding() {
                     </Alert>
                     <div className="grid gap-2">
                       {[
+                        { step: 'sport-types', required: true, complete: status?.hasSportTypes },
                         { step: 'academies', required: true, complete: status?.hasAcademy },
                         { step: 'coaches', required: false, complete: status?.hasCoach },
                         { step: 'grading', required: true, complete: status?.hasGradingScheme },
@@ -297,7 +392,64 @@ export default function TenantOnboarding() {
                   </div>
                 )}
 
-                {/* Setup steps */}
+                {/* Sport Types step */}
+                {currentStep === 'sport-types' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {AVAILABLE_SPORT_TYPES.map(sportType => (
+                        <div
+                          key={sportType}
+                          className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                            selectedSportTypes.includes(sportType)
+                              ? 'border-primary bg-primary/10'
+                              : 'border-muted bg-muted/30 hover:border-muted-foreground/30'
+                          }`}
+                          onClick={() => handleSportTypeToggle(sportType)}
+                        >
+                          <Checkbox
+                            id={sportType}
+                            checked={selectedSportTypes.includes(sportType)}
+                            onCheckedChange={() => handleSportTypeToggle(sportType)}
+                          />
+                          <Label 
+                            htmlFor={sportType} 
+                            className="flex-1 cursor-pointer font-medium"
+                          >
+                            {sportType}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="text-center text-sm text-muted-foreground">
+                      {selectedSportTypes.length} {t('onboarding.sportTypesSelected')}
+                    </div>
+
+                    {selectedSportTypes.length === 0 && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {t('onboarding.sportTypesRequired')}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button 
+                      className="w-full"
+                      disabled={selectedSportTypes.length === 0 || isSavingSports}
+                      onClick={handleSaveSportTypes}
+                    >
+                      {isSavingSports ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                      )}
+                      {t('onboarding.saveSportTypes')}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Setup steps (academies, coaches, grading) */}
                 {['academies', 'coaches', 'grading'].includes(currentStep) && (
                   <div className="space-y-4">
                     <div className="text-center p-6 bg-muted/30 rounded-lg">
@@ -341,13 +493,14 @@ export default function TenantOnboarding() {
                   <div className="space-y-4">
                     <div className="grid gap-2">
                       {[
+                        { key: 'sport-types', label: t('onboarding.sportTypesTitle'), count: status?.sportTypesCount, complete: status?.hasSportTypes, required: true },
                         { key: 'academies', label: t('onboarding.academiesTitle'), count: status?.academyCount, complete: status?.hasAcademy, required: true },
                         { key: 'coaches', label: t('onboarding.coachesTitle'), count: status?.coachCount, complete: status?.hasCoach, required: false },
                         { key: 'grading', label: t('onboarding.gradingTitle'), count: status?.gradingSchemeCount, complete: status?.hasGradingScheme, required: true },
                       ].map(item => (
                         <div 
                           key={item.key}
-                        className={`flex items-center gap-3 p-3 rounded-lg ${
+                          className={`flex items-center gap-3 p-3 rounded-lg ${
                             item.complete ? 'bg-primary/10' : item.required ? 'bg-destructive/10' : 'bg-muted/50'
                           }`}
                         >
@@ -382,7 +535,7 @@ export default function TenantOnboarding() {
                       ) : (
                         <PartyPopper className="h-4 w-4 mr-2" />
                       )}
-                      {t('onboarding.completeSetup')}
+                      {t('onboarding.activateOrganization')}
                     </Button>
                   </div>
                 )}
