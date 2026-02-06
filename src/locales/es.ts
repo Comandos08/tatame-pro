@@ -1167,6 +1167,48 @@ export const es: Record<string, string> = {
   'billing.overrideAt': 'Aplicado el',
   'billing.overrideReasonUnknown': 'No informado',
   'billing.stripeDisabled': 'Los pagos automáticos están desactivados.',
+
+  // P3.3 — Billing Overview Card
+
+  'billing.overview.title': 'Resumen del Plan',
+  'billing.overview.trialDaysLeft': '{days} días restantes de prueba',
+  'billing.overview.trialExpired': 'Período de prueba terminado',
+  'billing.overview.active': 'Suscripción activa - Plan {plan}',
+  'billing.overview.pastDue': 'Pago vencido',
+  'billing.overview.pendingDelete': 'La organización será eliminada pronto',
+  'billing.overview.canceled': 'Suscripción cancelada',
+  'billing.overview.unknown': 'Estado desconocido',
+  'billing.overview.currentPlan': 'Plan actual',
+
+  // P3.3 — Billing Status Labels
+  'billing.status.active': 'Activo',
+  'billing.status.trialing': 'En Prueba',
+  'billing.status.trial_expired': 'Prueba Expirada',
+  'billing.status.pending_delete': 'Pendiente Eliminación',
+  'billing.status.past_due': 'Vencido',
+  'billing.status.canceled': 'Cancelado',
+  'billing.status.unpaid': 'Sin Pagar',
+  'billing.status.incomplete': 'Incompleto',
+
+  // P3.3 — Billing Timeline
+  'billing.timeline.title': 'Línea de Tiempo',
+  'billing.timeline.description': 'Progresión del estado de tu suscripción',
+  'billing.timeline.activeDescription': 'Tu suscripción está activa y funcionando normalmente.',
+  'billing.timeline.subscriptionActive': 'Suscripción activa',
+  'billing.timeline.trial': 'Prueba',
+  'billing.timeline.expired': 'Expirado',
+  'billing.timeline.pendingDelete': 'Eliminación',
+  'billing.timeline.deleted': 'Eliminado',
+
+  // P3.3 — Billing CTAs
+  'billing.cta.upgrade': 'Hacer Upgrade',
+  'billing.cta.manage': 'Gestionar Plan',
+  'billing.cta.reactivate': 'Reactivar Ahora',
+  'billing.cta.contactSupport': 'Contactar Soporte',
+
+  // P3.3 — Billing Errors
+  'billing.error.checkoutFailed': 'Error al iniciar checkout. Intenta de nuevo.',
+  'billing.error.portalFailed': 'Error al abrir portal de gestión.',
   
   // SAFE GOLD P3 — Portal Card
   'portal.myCard': 'Mi Tarjeta',
