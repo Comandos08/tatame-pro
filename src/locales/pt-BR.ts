@@ -1793,6 +1793,7 @@ export const ptBR = {
   'billing.status.canceled': 'Cancelado',
   'billing.status.unpaid': 'Não Pago',
   'billing.status.incomplete': 'Incompleto',
+  'billing.status.unknown': 'Desconhecido',
 
   // P3.3 — Billing Timeline
   'billing.timeline.title': 'Linha do Tempo',

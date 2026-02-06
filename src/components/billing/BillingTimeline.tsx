@@ -73,35 +73,52 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
     });
   };
 
-  // Determine step statuses based on current billing status
+  // P3.3.P1.2: Explicit mapping, zero heuristics
+  // Timeline state is 100% declarative based on current status only
   const getStepStatus = (step: string): TimelineStep['status'] => {
-    const statusOrder = ['TRIALING', 'TRIAL_EXPIRED', 'PENDING_DELETE', 'DELETED'];
-    const currentIndex = statusOrder.indexOf(status || 'ACTIVE');
+    // Explicit mapping per billing status - no indexOf or implicit ordering
+    const stateMap: Record<string, Record<string, TimelineStep['status']>> = {
+      ACTIVE: {
+        trial: 'completed',
+        expired: 'upcoming',
+        pendingDelete: 'upcoming',
+        deleted: 'upcoming',
+      },
+      TRIALING: {
+        trial: 'current',
+        expired: 'upcoming',
+        pendingDelete: 'upcoming',
+        deleted: 'upcoming',
+      },
+      TRIAL_EXPIRED: {
+        trial: 'completed',
+        expired: 'current',
+        pendingDelete: 'upcoming',
+        deleted: 'upcoming',
+      },
+      PENDING_DELETE: {
+        trial: 'completed',
+        expired: 'completed',
+        pendingDelete: 'danger',
+        deleted: 'upcoming',
+      },
+      PAST_DUE: {
+        trial: 'completed',
+        expired: 'current',
+        pendingDelete: 'upcoming',
+        deleted: 'upcoming',
+      },
+      CANCELED: {
+        trial: 'completed',
+        expired: 'completed',
+        pendingDelete: 'danger',
+        deleted: 'upcoming',
+      },
+    };
 
-    // ACTIVE status means user has converted - show completed for trial and skip danger states
-    if (status === 'ACTIVE') {
-      if (step === 'trial') return 'completed';
-      return 'upcoming';
-    }
-
-    switch (step) {
-      case 'trial':
-        if (status === 'TRIALING') return 'current';
-        if (currentIndex > 0) return 'completed';
-        return 'upcoming';
-      case 'expired':
-        if (status === 'TRIAL_EXPIRED') return 'current';
-        if (currentIndex > 1) return 'completed';
-        return 'upcoming';
-      case 'pendingDelete':
-        if (status === 'PENDING_DELETE') return 'danger';
-        if (currentIndex > 2) return 'completed';
-        return 'upcoming';
-      case 'deleted':
-        return 'upcoming';
-      default:
-        return 'upcoming';
-    }
+    // P3.3.P1.3: Never invent status - use explicit null handling
+    const currentStatus = status ?? 'TRIALING';
+    return stateMap[currentStatus]?.[step] ?? 'upcoming';
   };
 
   const steps: TimelineStep[] = [
@@ -131,14 +148,15 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
     },
   ];
 
+  // P3.3.P1.1: Use guaranteed Tailwind tokens only
   const stepStyles = {
     completed: {
-      icon: 'bg-success/20 text-success border-success/30',
-      line: 'bg-success',
+      icon: 'bg-green-50 text-green-600 border-green-200',
+      line: 'bg-green-500',
       text: 'text-muted-foreground',
     },
     current: {
-      icon: 'bg-warning/20 text-warning border-warning/30 ring-2 ring-warning/20',
+      icon: 'bg-amber-50 text-amber-600 border-amber-200 ring-2 ring-amber-200',
       line: 'bg-border',
       text: 'text-foreground font-medium',
     },
@@ -148,25 +166,26 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
       text: 'text-muted-foreground',
     },
     danger: {
-      icon: 'bg-destructive/20 text-destructive border-destructive/30 ring-2 ring-destructive/20',
-      line: 'bg-destructive/50',
-      text: 'text-destructive font-medium',
+      icon: 'bg-red-50 text-red-600 border-red-200 ring-2 ring-red-200',
+      line: 'bg-red-300',
+      text: 'text-red-600 font-medium',
     },
   };
 
   // For ACTIVE users, show a simplified success state
+  // P3.3.P1.1: Use guaranteed Tailwind tokens
   if (status === 'ACTIVE') {
     return (
       <Card className={className}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <CheckCircle className="h-5 w-5 text-success" />
+            <CheckCircle className="h-5 w-5 text-green-600" />
             {t('billing.timeline.title')}
           </CardTitle>
           <CardDescription>{t('billing.timeline.activeDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 text-success">
+          <div className="flex items-center gap-2 text-green-600">
             <CheckCircle className="h-4 w-4" />
             <span className="text-sm">{t('billing.timeline.subscriptionActive')}</span>
           </div>
