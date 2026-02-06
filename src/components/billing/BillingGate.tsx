@@ -58,10 +58,9 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
 
   // P3.2.P1 FIX 1: Navigate via useEffect, never during render
   useEffect(() => {
-    // We intentionally do NOT auto-redirect to billing page
-    // The BlockedStateCard provides explicit CTAs for user action
-    // This avoids React anti-pattern and gives user control
-  }, [shouldBlock]);
+    if (!shouldBlock) return;
+    navigate('/app/billing', { replace: true });
+  }, [shouldBlock, navigate]);
 
   // Ignore billing for non-ACTIVE tenants (still in SETUP)
   if (!isTenantActive) {
