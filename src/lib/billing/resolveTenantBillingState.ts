@@ -62,41 +62,6 @@ const VALID_STATUSES: BillingStatus[] = [
   'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE'
 ];
 
-/**
- * BILLING TRANSITION MATRIX — DIAGNOSTIC ONLY
- * 
- * CRITICAL CONSTRAINT (per approval):
- * This matrix is ONLY for logging and diagnostics.
- * It does NOT enforce transitions.
- * It does NOT block execution.
- * Invalid transitions generate observable warning, never blocking.
- */
-const VALID_BILLING_TRANSITIONS: Record<BillingStatus, readonly BillingStatus[]> = {
-  TRIALING: ['ACTIVE', 'TRIAL_EXPIRED'],
-  TRIAL_EXPIRED: ['ACTIVE', 'PENDING_DELETE'],
-  PENDING_DELETE: ['ACTIVE'], // Reactivation only
-  ACTIVE: ['PAST_DUE', 'CANCELED', 'UNPAID'],
-  PAST_DUE: ['ACTIVE', 'UNPAID', 'CANCELED'],
-  UNPAID: ['ACTIVE', 'CANCELED'],
-  CANCELED: ['ACTIVE'], // Reactivation
-  INCOMPLETE: ['ACTIVE', 'TRIALING'],
-} as const;
-
-/**
- * Logs diagnostic warning for invalid status or transitions.
- * Does NOT block — this is for observability only.
- */
-function logBillingDiagnostic(
-  type: 'INVALID_STATUS' | 'UNEXPECTED_TRANSITION',
-  details: Record<string, unknown>
-): void {
-  console.warn(`[BILLING DIAGNOSTIC] ${type}`, {
-    ...details,
-    timestamp: new Date().toISOString(),
-    note: 'This is a diagnostic warning. No enforcement applied.',
-  });
-}
-
 export function resolveTenantBillingState(
   billing: RawBillingData | null,
   tenant: RawTenantData | null
