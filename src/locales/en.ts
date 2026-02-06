@@ -1722,9 +1722,26 @@ export const en: Record<string, string> = {
   'identity.superadminTenantAccessHint': 'To access "{tenant}", start an impersonation session from the admin panel.',
   'common.retry': 'Try Again',
   'common.retryNow': 'Try again now',
+  'common.waitAndRetry': 'Wait and try again',
+  'common.contactSupport': 'Contact support',
+
+  // Temporary Error Messages (P2.5)
+  'errors.network.title': 'Connection problem',
+  'errors.network.desc': 'Could not connect to server.',
+  'errors.network.reassurance': 'This is usually temporary.',
+  'errors.timeout.title': 'Response took longer than expected',
+  'errors.timeout.desc': 'The server took too long to respond.',
+  'errors.timeout.reassurance': 'You can safely try again.',
+  'errors.server.title': 'Service temporarily unavailable',
+  'errors.server.desc': 'We are experiencing instability at the moment.',
+  'errors.server.reassurance': 'Our team has been notified.',
+  'errors.rateLimit.title': 'Too many attempts',
+  'errors.rateLimit.desc': 'Please wait a moment before trying again.',
+  'errors.rateLimit.reassurance': 'This helps keep the system stable.',
+  'errors.generic.title': 'Something didn\'t go as expected',
+  'errors.generic.desc': 'An unexpected error occurred.',
   'common.backToDashboard': 'Back to dashboard',
   'common.backToHome': 'Back to home',
-  'common.contactSupport': 'Contact support',
   'auth.endSession': 'End session',
 
   // Trial Status (Growth Trial PI)

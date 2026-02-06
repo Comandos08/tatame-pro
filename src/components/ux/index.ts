@@ -10,6 +10,9 @@ export { BlockedStateCard, type BlockedStateCardProps, type BlockedStateAction }
 // P1.2 — Loading State (intentional loading messages)
 export { LoadingState, type LoadingStateProps } from './LoadingState';
 
+// P2.5 — Temporary Error Card (transient failure UX)
+export { TemporaryErrorCard, type TemporaryErrorCardProps } from './TemporaryErrorCard';
+
 // P1.4 — Skeletons (premium loading perception)
 export { TableSkeleton, type TableSkeletonProps } from './TableSkeleton';
 export { CardGridSkeleton, type CardGridSkeletonProps } from './CardGridSkeleton';
