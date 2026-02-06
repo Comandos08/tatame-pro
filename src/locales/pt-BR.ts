@@ -2094,6 +2094,17 @@ export const ptBR = {
   'identityError.default.title': 'Erro de identidade',
   'identityError.default.desc': 'Ocorreu um erro ao verificar sua identidade. Por favor, tente novamente.',
 
+  // Onboarding Progress (P2.1)
+  'onboarding.progress': 'Progresso do Cadastro',
+  'onboarding.identity': 'Identidade',
+  'onboarding.profile': 'Perfil',
+  'onboarding.tenant': 'Organização',
+  'onboarding.roles': 'Permissões',
+  'onboarding.identity.done': 'Identidade verificada',
+  'onboarding.profile.done': 'Perfil configurado',
+  'onboarding.tenant.current': 'Organização selecionada',
+  'onboarding.roles.pending': 'Permissões',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
