@@ -14,7 +14,7 @@ const translations: Record<Locale, Record<string, string>> = {
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string>) => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
@@ -79,14 +79,21 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string): string => {
-      const value = translations[locale]?.[key] ?? translations["pt-BR"]?.[key];
+    (key: string, params?: Record<string, string>): string => {
+      let value = translations[locale]?.[key] ?? translations["pt-BR"]?.[key];
 
       if (!value) {
         if (import.meta.env.DEV) {
           console.warn(`[i18n] Missing key "${key}" for locale "${locale}"`);
         }
         return key;
+      }
+
+      // Interpolação simples: substitui {placeholder} por params.placeholder
+      if (params) {
+        Object.entries(params).forEach(([paramKey, paramValue]) => {
+          value = value.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), paramValue);
+        });
       }
 
       return value;
@@ -105,7 +112,7 @@ export function useI18n() {
     return {
       locale: "pt-BR" as Locale,
       setLocale: () => {},
-      t: (key: string) => key,
+      t: (key: string, _params?: Record<string, string>) => key,
     };
   }
   return context;

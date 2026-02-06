@@ -60,18 +60,15 @@ export function EventChangeNoticeCard({
 
   const Icon = config.icon;
 
-  // Build description with interpolation
   const getDescription = (): string => {
     if (type === 'CANCELED') {
       return t(config.descKey);
     }
 
-    const descTemplate = t(config.descKey);
-    
-    // Simple interpolation: replace {from} and {to}
-    return descTemplate
-      .replace('{from}', previousValue || '—')
-      .replace('{to}', currentValue || '—');
+    return t(config.descKey, {
+      from: previousValue || '—',
+      to: currentValue || '—',
+    });
   };
 
   return (
