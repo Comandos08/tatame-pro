@@ -312,32 +312,98 @@ serve(async (req) => {
     });
 
     // ========================================================================
-    // AUDIT LOG (STRUCTURED)
+    // P3.2.2 — BILLING BOOTSTRAP (ATOMIC WITH ACTIVATION)
     // ========================================================================
-    await supabase.from("audit_logs").insert({
-      event_type: "TENANT_ONBOARDING_COMPLETED",
+    const TRIAL_PERIOD_DAYS = 7;
+    const now = new Date();
+    const trialExpiresAt = new Date();
+    trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_PERIOD_DAYS);
+
+    const { error: billingError } = await supabase
+      .from("tenant_billing")
+      .insert({
+        tenant_id: tenantId,
+        status: "TRIALING",
+        trial_started_at: now.toISOString(),
+        trial_expires_at: trialExpiresAt.toISOString(),
+        plan_name: "Growth Trial",
+      });
+
+    if (billingError) {
+      // ROLLBACK: Revert tenant to SETUP if billing fails
+      await supabase
+        .from("tenants")
+        .update({
+          status: "SETUP",
+          onboarding_completed: false,
+        })
+        .eq("id", tenantId);
+
+      logStep("Billing bootstrap failed, rolled back activation", {
+        error: billingError.message,
+      });
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "Failed to initialize billing",
+          code: "BILLING_INIT_FAILED",
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    logStep("Billing bootstrapped", {
       tenant_id: tenantId,
-      profile_id: user.id,
-      metadata: {
-        completed_by: user.id,
-        completed_at: new Date().toISOString(),
-        previous_status: "SETUP",
-        new_status: "ACTIVE",
-        activation_status: activationStatus,
-        impersonation_id: impersonationCheck.impersonationId || null,
-      },
+      status: "TRIALING",
+      trial_expires_at: trialExpiresAt.toISOString(),
     });
 
-    logStep("Audit log created");
+    // ========================================================================
+    // AUDIT LOG (STRUCTURED)
+    // ========================================================================
+    await supabase.from("audit_logs").insert([
+      {
+        event_type: "TENANT_ONBOARDING_COMPLETED",
+        tenant_id: tenantId,
+        profile_id: user.id,
+        metadata: {
+          completed_by: user.id,
+          completed_at: now.toISOString(),
+          previous_status: "SETUP",
+          new_status: "ACTIVE",
+          activation_status: activationStatus,
+          impersonation_id: impersonationCheck.impersonationId || null,
+        },
+      },
+      {
+        event_type: "TENANT_TRIAL_STARTED",
+        tenant_id: tenantId,
+        profile_id: user.id,
+        metadata: {
+          trial_started_at: now.toISOString(),
+          trial_expires_at: trialExpiresAt.toISOString(),
+          trial_days: TRIAL_PERIOD_DAYS,
+          source: "complete-tenant-onboarding",
+        },
+      },
+    ]);
+
+    logStep("Audit logs created");
 
     return new Response(
-      JSON.stringify({ 
-        ok: true, 
+      JSON.stringify({
+        ok: true,
         message: "Tenant activated successfully",
         status: {
           ...activationStatus,
           currentStatus: "ACTIVE",
           onboardingCompleted: true,
+        },
+        billing: {
+          status: "TRIALING",
+          trialStartedAt: now.toISOString(),
+          trialExpiresAt: trialExpiresAt.toISOString(),
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

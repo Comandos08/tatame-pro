@@ -1760,6 +1760,19 @@ export const ptBR = {
   'billing.reactivated': 'Assinatura ativada com sucesso!',
   'billing.reactivatedDesc': 'Todas as funcionalidades foram restauradas.',
 
+  // P3.2.3 — BillingGate Component
+  'billing.gate.blocked.title': 'Acesso Bloqueado',
+  'billing.gate.blocked.description': 'Sua organização não possui uma assinatura ativa. Ative sua conta para continuar usando a plataforma.',
+  'billing.gate.blocked.action': 'Ativar Assinatura',
+  'billing.gate.readonly.title': 'Acesso Limitado',
+  'billing.gate.readonly.description': 'Algumas funcionalidades estão restritas. Regularize sua assinatura para acesso completo.',
+  'billing.gate.readonly.action': 'Ver Opções',
+  'billing.gate.warning.title': 'Atenção',
+  'billing.gate.warning.trialExpired': 'Seu período de teste expirou. Ative sua assinatura para manter o acesso.',
+  'billing.gate.warning.pastDue': 'Seu pagamento está em atraso. Regularize para evitar suspensão.',
+  'billing.gate.warning.generic': 'Há um problema com sua assinatura.',
+  'billing.gate.warning.action': 'Resolver',
+
   // Admin Athletes (P4/4)
   'admin.athletes.title': 'Atletas',
   'admin.athletes.description': 'Gerencie os atletas cadastrados na organização',
