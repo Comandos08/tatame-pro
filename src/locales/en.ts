@@ -1189,6 +1189,7 @@ export const en: Record<string, string> = {
   'billing.status.canceled': 'Canceled',
   'billing.status.unpaid': 'Unpaid',
   'billing.status.incomplete': 'Incomplete',
+  'billing.status.unknown': 'Unknown',
 
   // P3.3 — Billing Timeline
   'billing.timeline.title': 'Timeline',

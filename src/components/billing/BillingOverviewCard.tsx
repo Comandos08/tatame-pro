@@ -39,21 +39,22 @@ const statusIcons: Record<BillingStatus, React.ElementType> = {
   INCOMPLETE: CreditCard,
 };
 
+// P3.3.P1.1: Use guaranteed Tailwind tokens only
 const variantStyles = {
   success: {
-    bg: 'bg-success/10',
-    text: 'text-success',
-    border: 'border-success/20',
+    bg: 'bg-green-50',
+    text: 'text-green-600',
+    border: 'border-green-200',
   },
   warning: {
-    bg: 'bg-warning/10',
-    text: 'text-warning',
-    border: 'border-warning/20',
+    bg: 'bg-amber-50',
+    text: 'text-amber-600',
+    border: 'border-amber-200',
   },
   destructive: {
-    bg: 'bg-destructive/10',
-    text: 'text-destructive',
-    border: 'border-destructive/20',
+    bg: 'bg-red-50',
+    text: 'text-red-600',
+    border: 'border-red-200',
   },
   muted: {
     bg: 'bg-muted',
@@ -73,6 +74,9 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     return null;
   }
 
+  // P3.3.P1.3: Never invent status - handle null explicitly
+  const status = billingState?.status ?? null;
+
   if (isLoading) {
     return (
       <Card className={cn('animate-pulse', className)}>
@@ -87,7 +91,11 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     );
   }
 
-  const status = billingState?.status || 'INCOMPLETE';
+  // P3.3.P1.3: Handle null status explicitly - don't invent INCOMPLETE
+  if (!status) {
+    return null; // No billing data available yet
+  }
+
   const variant = resolveBillingStatusVariant(status);
   const cta = resolveBillingCTA(status);
   const styles = variantStyles[variant];
@@ -169,7 +177,12 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
             </div>
           </div>
           <Badge variant={variant === 'success' ? 'default' : variant === 'destructive' ? 'destructive' : 'secondary'}>
-            {t(`billing.status.${status.toLowerCase()}`)}
+            {/* P3.3.P1.4: i18n with explicit fallback - never render raw key */}
+            {(() => {
+              const key = `billing.status.${status.toLowerCase()}`;
+              const label = t(key);
+              return label !== key ? label : t('billing.status.unknown');
+            })()}
           </Badge>
         </div>
       </CardHeader>
