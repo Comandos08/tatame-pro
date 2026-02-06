@@ -48,12 +48,14 @@ export interface BlockedStateCardProps {
   iconVariant?: 'destructive' | 'warning' | 'muted';
   /** i18n key for title */
   titleKey: string;
-  /** i18n key for description */
-  descriptionKey: string;
+  /** i18n key for description (mutually exclusive with descriptionNode) */
+  descriptionKey?: string;
+  /** Dynamic description content (takes precedence over descriptionKey) */
+  descriptionNode?: React.ReactNode;
   /** Optional i18n key for hint/explainer text */
   hintKey?: string;
-  /** Action buttons (max 3 recommended) */
-  actions: BlockedStateAction[];
+  /** Action buttons (max 3 recommended) - optional for info-only cards */
+  actions?: BlockedStateAction[];
   /** Optional className for outer container */
   className?: string;
 }
@@ -86,6 +88,7 @@ export function BlockedStateCard({
   iconVariant = 'destructive',
   titleKey,
   descriptionKey,
+  descriptionNode,
   hintKey,
   actions,
   className,
@@ -115,10 +118,16 @@ export function BlockedStateCard({
             {/* Title */}
             <CardTitle className="text-xl">{t(titleKey)}</CardTitle>
 
-            {/* Description */}
-            <CardDescription className="text-base mt-2">
-              {t(descriptionKey)}
-            </CardDescription>
+            {/* Description - supports both i18n key and dynamic node */}
+            {descriptionNode ? (
+              <CardDescription className="text-base mt-2">
+                {descriptionNode}
+              </CardDescription>
+            ) : descriptionKey ? (
+              <CardDescription className="text-base mt-2">
+                {t(descriptionKey)}
+              </CardDescription>
+            ) : null}
           </CardHeader>
 
           <CardContent className="flex flex-col gap-3">
@@ -129,8 +138,8 @@ export function BlockedStateCard({
               </p>
             )}
 
-            {/* Action Buttons */}
-            {actions.map((action, index) => {
+            {/* Action Buttons - only render if actions exist */}
+            {actions && actions.length > 0 && actions.map((action, index) => {
               const ActionIcon = action.icon;
               // Default variant based on position: first = default, second = outline, third+ = ghost
               const defaultVariant = index === 0 ? 'default' : index === 1 ? 'outline' : 'ghost';
