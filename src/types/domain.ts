@@ -3,7 +3,7 @@
 // SAFE MODE: Re-exports existing types, no files moved
 
 // Re-exports (NÃO mover arquivos existentes!)
-export type { Tenant, TenantContext, SportType } from './tenant';
+export type { Tenant, TenantContext, SportType, TenantStatus, TenantCreationSource } from './tenant';
 export type { MembershipStatus, PaymentStatus, MembershipType } from './membership';
 
 // Billing status types (aligned with Stripe)
