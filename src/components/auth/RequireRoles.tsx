@@ -1,15 +1,36 @@
 /**
- * 🔐 RequireRoles — Role-Based Permission Guard
+ * ============================================================================
+ * 🔐 REQUIRE ROLES — Role-Based Permission Guard
+ * ============================================================================
  * 
- * A permission guard that validates user roles ONLY.
- * Does NOT handle auth/redirect logic - that's IdentityGate's job.
+ * CONTRACT:
+ * This is the THIRD gate in the access hierarchy.
+ * It validates that the user has the required roles for a specific route.
  * 
- * RULES:
- * - NO Navigate - shows AccessDenied instead
- * - NO authLoading checks - IdentityGate handles that
- * - NO login/wizard decisions - IdentityGate handles that
- * - ONLY checks if user has required roles for this route
- * - Shows AccessDenied if not authorized
+ * HIERARCHY:
+ * IdentityGate (auth) → TenantLayout (tenant context) → RequireRoles (permissions)
+ * 
+ * RESPONSIBILITIES (what this gate DOES):
+ * ✔️ Validates user has at least one of the allowed roles
+ * ✔️ Handles superadmin impersonation access logic
+ * ✔️ Shows AccessDenied screen if unauthorized
+ * 
+ * BOUNDARIES (what this gate DOES NOT do):
+ * ❌ DOES NOT validate authentication — IdentityGate handles this
+ * ❌ DOES NOT resolve tenant context — TenantLayout handles this
+ * ❌ DOES NOT redirect to login — IdentityGate handles this
+ * ❌ DOES NOT redirect to wizard — IdentityGate handles this
+ * ❌ DOES NOT validate billing status — TenantLayout handles this
+ * 
+ * SECURITY MODEL:
+ * - FAIL-CLOSED: Missing roles show AccessDenied, not silent pass
+ * - NO Navigate: Never redirects, always shows denial screen
+ * - Superadmin MUST have active impersonation for tenant routes
+ * 
+ * ASSUMES:
+ * - User is already authenticated (IdentityGate ran first)
+ * - Tenant context is already resolved (TenantLayout ran first)
+ * ============================================================================
  */
 
 import React from 'react';
@@ -38,14 +59,26 @@ interface RequireRolesProps {
  *   <ApprovalDetails />
  * </RequireRoles>
  */
+// =============================================================================
+// REQUIRE ROLES COMPONENT
+// =============================================================================
+
 export function RequireRoles({ allowed, children }: RequireRolesProps) {
+  // =========================================================================
+  // STEP 1: Hook Initialization
+  // =========================================================================
+  // BY DESIGN: All hooks called unconditionally (React rules)
   const { tenant, isLoading: tenantLoading } = useTenant();
   const { roles, isLoading: rolesLoading, isFetched } = useTenantRoles(tenant?.id);
   const { isImpersonating, impersonatedTenantId, isLoading: impersonationLoading } = useImpersonation();
   const { isGlobalSuperadmin } = useCurrentUser();
   const { t } = useI18n();
 
-  // Only show loader while fetching roles - NOT auth (IdentityGate handles that)
+  // =========================================================================
+  // STEP 2: Loading State
+  // =========================================================================
+  // BY DESIGN: Only show loader while fetching roles
+  // DOES NOT check auth loading — IdentityGate handles that
   const isLoading = tenantLoading || impersonationLoading || (!isFetched && rolesLoading);
   
   if (isLoading) {
@@ -59,15 +92,23 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
     );
   }
 
-  // Check if user has any of the allowed roles in this tenant
+  // =========================================================================
+  // STEP 3: Role Evaluation
+  // =========================================================================
+  // BY DESIGN: Check if user has at least one of the allowed roles
   const hasAllowedRole = allowed.some(role => roles.includes(role));
   
-  // 🔐 SUPERADMIN IMPERSONATION LOGIC:
-  // Superadmin accessing tenant routes MUST have active impersonation for that tenant
+  // =========================================================================
+  // STEP 4: Superadmin Impersonation Logic
+  // =========================================================================
+  // SECURITY BOUNDARY: Superadmin accessing tenant routes MUST have active impersonation
+  // BY DESIGN: This prevents superadmin from accidentally accessing tenant data without context
+  // INTENTIONAL: Impersonation must match the current tenant exactly
   const isSuperadminAccessingTenant = isGlobalSuperadmin && tenant;
   const hasValidImpersonation = isSuperadminAccessingTenant && isImpersonating && impersonatedTenantId === tenant.id;
   
-  // 📊 DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
+  // DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
+  // BY DESIGN: Warn-only, does not affect behavior
   if (isSuperadminAccessingTenant && !hasValidImpersonation) {
     console.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
       isImpersonating,
@@ -77,15 +118,26 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
     });
   }
   
-  // Final access decision
+  // =========================================================================
+  // STEP 5: Final Access Decision
+  // =========================================================================
+  // BY DESIGN: Access granted if user has valid impersonation OR allowed role
+  // INTENTIONAL: Impersonation takes precedence (superadmin acting as tenant admin)
   const hasAccess = hasValidImpersonation || hasAllowedRole;
 
-  // 🔐 NO REDIRECT - Just show AccessDenied
+  // =========================================================================
+  // STEP 6: Access Denied Rendering
+  // =========================================================================
+  // FAIL-CLOSED: No redirect — show AccessDenied screen
+  // BY DESIGN: This gate NEVER redirects, it only blocks or allows
   if (!hasAccess) {
     return <AccessDenied />;
   }
 
-  // ✅ Access granted
+  // =========================================================================
+  // STEP 7: Access Granted
+  // =========================================================================
+  // ✅ SUCCESS: Render protected content
   return <>{children}</>;
 }
 

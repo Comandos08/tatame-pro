@@ -1,17 +1,43 @@
 /**
- * 🔐 IDENTITY GATE — Single Canonical Router/Guard
- *
- * P2 REFACTOR: All identity decisions delegated to identity-state-machine.
- * This component ONLY:
- * 1. Constructs IdentityResolutionInput from hooks
- * 2. Calls resolveIdentityState() ONCE
- * 3. Calls resolveIdentityRedirect() for navigation
- * 4. Renders UI based on state
- *
+ * ============================================================================
+ * 🔐 IDENTITY GATE — Primary Authentication Boundary
+ * ============================================================================
+ * 
+ * CONTRACT:
+ * This is the FIRST and ONLY gate responsible for authenticating users.
+ * It validates that a user has a valid session before allowing access
+ * to protected routes.
+ * 
+ * RESPONSIBILITIES (what this gate DOES):
+ * ✔️ Validates user authentication state (session exists)
+ * ✔️ Resolves identity state via backend (resolve-identity-wizard)
+ * ✔️ Handles wizard redirect for incomplete profiles
+ * ✔️ Handles superadmin routing decisions
+ * ✔️ Provides error recovery UI for identity failures
+ * ✔️ Blocks during impersonation resolution (race condition prevention)
+ * 
+ * BOUNDARIES (what this gate DOES NOT do):
+ * ❌ DOES NOT validate tenant context — TenantLayout handles this
+ * ❌ DOES NOT validate user roles — RequireRoles handles this
+ * ❌ DOES NOT validate billing status — TenantLayout handles this
+ * ❌ DOES NOT authorize business operations — feature-level guards handle this
+ * ❌ DOES NOT manage impersonation state — ImpersonationContext handles this
+ * 
+ * SECURITY MODEL:
+ * - FAIL-CLOSED: Unauthenticated users are redirected to /login
+ * - FAIL-CLOSED: Identity errors show escape hatch UI, not silent pass
+ * - Public routes bypass this gate entirely (isPublicPath whitelist)
+ * 
+ * ARCHITECTURE:
+ * - All identity decisions delegated to pure functions in identity-state-machine
+ * - This component is a RENDERER, not a DECIDER
+ * - State machine ensures deterministic, testable behavior
+ * 
  * P0 PRODUCT SAFETY:
  * - Uses IdentityLoadingScreen for UX-only timeout feedback (8s)
  * - Actual hard timeout (12s) is in IdentityContext
  * - All error states have explicit escape hatch via resolveErrorEscapeHatch
+ * ============================================================================
  */
 
 import React, { useRef, useEffect } from "react";
@@ -39,8 +65,14 @@ interface IdentityGateProps {
   children: React.ReactNode;
 }
 
+// =============================================================================
+// ROUTE CLASSIFICATION HELPERS
+// =============================================================================
+
 /**
  * Rotas globais reservadas (não são slugs de tenant).
+ * BY DESIGN: These segments are never treated as tenant slugs.
+ * INTENTIONAL: Prevents /admin, /portal, /login from being misinterpreted.
  */
 const RESERVED_ROUTE_SEGMENTS = new Set([
   "admin",
@@ -55,6 +87,9 @@ const RESERVED_ROUTE_SEGMENTS = new Set([
 
 /**
  * Detecta estruturalmente se uma rota é de tenant (/:tenantSlug/*).
+ * 
+ * BY DESIGN: This is a structural check only — it does NOT validate
+ * that the tenant exists or is active. TenantLayout handles validation.
  */
 function isTenantRoute(pathname: string): { isTenant: boolean; tenantSlug: string | null } {
   const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
@@ -74,8 +109,16 @@ function isTenantRoute(pathname: string): { isTenant: boolean; tenantSlug: strin
 
 /**
  * Public path rules - bypass auth/identity checks completely.
+ * 
+ * SECURITY BOUNDARY: These routes NEVER require authentication.
+ * BY DESIGN: Public routes must be explicitly whitelisted here.
+ * FAIL-CLOSED: Any route NOT listed here requires authentication.
+ * 
+ * INTENTIONAL: /identity/wizard is public because unauthenticated users
+ * may land here via magic link before session is fully established.
  */
 function isPublicPath(pathname: string) {
+  // STEP 1: Root-level public routes (no tenant context)
   const rootPublic = new Set([
     "/",
     "/about",
@@ -89,36 +132,54 @@ function isPublicPath(pathname: string) {
   ]);
   if (rootPublic.has(pathname)) return true;
 
+  // STEP 2: Tenant-scoped public routes (institutional pages, verification, etc.)
+  // INTENTIONAL: These allow public access to organization landing pages
   const tenantPublicPatterns: RegExp[] = [
-    /^\/[^/]+\/?$/,
-    /^\/[^/]+\/login\/?$/,
-    /^\/[^/]+\/verify\/?.*$/,
-    /^\/[^/]+\/academies\/?$/,
-    /^\/[^/]+\/rankings\/?$/,
-    /^\/[^/]+\/events\/?$/,
-    /^\/[^/]+\/events\/[^/]+\/?$/,
-    /^\/[^/]+\/membership\/?.*$/,
+    /^\/[^/]+\/?$/,                    // /{tenant} - org landing page
+    /^\/[^/]+\/login\/?$/,             // /{tenant}/login - org login
+    /^\/[^/]+\/verify\/?.*$/,          // /{tenant}/verify/* - public verification
+    /^\/[^/]+\/academies\/?$/,         // /{tenant}/academies - public academy list
+    /^\/[^/]+\/rankings\/?$/,          // /{tenant}/rankings - public rankings
+    /^\/[^/]+\/events\/?$/,            // /{tenant}/events - public events list
+    /^\/[^/]+\/events\/[^/]+\/?$/,     // /{tenant}/events/{id} - public event details
+    /^\/[^/]+\/membership\/?.*$/,      // /{tenant}/membership/* - public membership flow
   ];
 
   return tenantPublicPatterns.some((re) => re.test(pathname));
 }
 
+// =============================================================================
+// IDENTITY GATE COMPONENT
+// =============================================================================
+
 /**
  * Canonical gate that enforces identity resolution before rendering protected content.
- * Uses ONLY backend state - no client-side DB queries.
+ * 
+ * ARCHITECTURE:
+ * - Uses ONLY backend state (from resolve-identity-wizard Edge Function)
+ * - No client-side DB queries for identity decisions
+ * - All hooks called unconditionally (React rules compliance)
+ * - State machine produces deterministic output
  */
 export function IdentityGate({ children }: IdentityGateProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
 
-  // ✅ ALL HOOKS MUST BE CALLED UNCONDITIONALLY (React rules)
+  // =========================================================================
+  // STEP 1: Hook Initialization (unconditional — React rules)
+  // =========================================================================
+  // BY DESIGN: All hooks called before any early returns
   const { t } = useI18n();
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
   const { isImpersonating, session: impersonationSession, resolutionStatus } = useImpersonation();
 
-  // ===== P3: DEV-ONLY OBSERVABILITY (hooks must be unconditional) =====
+  // =========================================================================
+  // STEP 2: State Resolution (pure function delegation)
+  // =========================================================================
+  // BY DESIGN: This gate delegates ALL decisions to identity-state-machine
+  // DOES NOT make independent decisions about auth/redirect
   const prevStateRef = useRef<IdentityState | null>(null);
   const isPublic = isPublicPath(pathname);
 
@@ -215,12 +276,20 @@ export function IdentityGate({ children }: IdentityGateProps) {
     }
   }, [resolvedState, pathname, isPublic, redirectDecision?.shouldRedirect, redirectDecision?.destination]);
 
-  // ✅ HARD BYPASS: public routes must NEVER be blocked by auth/identity loaders
+  // =========================================================================
+  // STEP 3: Public Route Bypass
+  // =========================================================================
+  // SECURITY BOUNDARY: Public routes bypass ALL identity checks
+  // BY DESIGN: This is the ONLY early return that allows unauthenticated access
   if (isPublic) {
     return <>{children}</>;
   }
 
-  // ✅ P-IMP-FIX — Block during impersonation resolution to prevent race conditions
+  // =========================================================================
+  // STEP 4: Impersonation Resolution Guard
+  // =========================================================================
+  // INTENTIONAL: Block during impersonation resolution to prevent race conditions
+  // BY DESIGN: This ensures tenant context is stable before proceeding
   if (isImpersonating && resolutionStatus === 'RESOLVING') {
     console.log('[IDENTITY-GATE] Waiting for impersonation resolution');
     return (
@@ -231,7 +300,10 @@ export function IdentityGate({ children }: IdentityGateProps) {
     );
   }
 
-  // ===== DEV GUARDRAIL: OBSERVABILITY ONLY =====
+  // =========================================================================
+  // STEP 5: Dev Guardrail (observability only, no behavior change)
+  // =========================================================================
+  // BY DESIGN: This warning helps catch routing misconfigurations in development
   if (import.meta.env.DEV) {
     if (!isAuthenticated && pathname === '/identity/wizard') {
       console.warn('[IdentityGate] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
@@ -244,10 +316,18 @@ export function IdentityGate({ children }: IdentityGateProps) {
     }
   }
 
-  // ===== RENDER BY STATE =====
+  // =========================================================================
+  // STEP 6: State-Based Rendering
+  // =========================================================================
+  // BY DESIGN: Each state maps to exactly one UI outcome
+  // FAIL-CLOSED: Unknown states render children (fallback at end of switch)
   switch (resolvedState) {
+    // -----------------------------------------------------------------
+    // LOADING: Identity resolution in progress
+    // -----------------------------------------------------------------
     case 'LOADING':
-      // Use dedicated IdentityLoadingScreen with UX-only timeout warning
+      // INTENTIONAL: Uses dedicated IdentityLoadingScreen with UX-only timeout warning
+      // DOES NOT block indefinitely — hard timeout in IdentityContext (12s)
       return (
         <IdentityLoadingScreen 
           onRetry={refreshIdentity} 
@@ -255,18 +335,32 @@ export function IdentityGate({ children }: IdentityGateProps) {
         />
       );
 
+    // -----------------------------------------------------------------
+    // UNAUTHENTICATED: No valid session
+    // -----------------------------------------------------------------
+    // FAIL-CLOSED: Always redirect to login
     case 'UNAUTHENTICATED':
       return <Navigate to={redirectDecision.destination!} replace />;
 
+    // -----------------------------------------------------------------
+    // WIZARD_REQUIRED: Profile incomplete, needs setup
+    // -----------------------------------------------------------------
+    // BY DESIGN: Redirects to /identity/wizard for profile completion
     case 'WIZARD_REQUIRED':
       return <Navigate to={redirectDecision.destination!} replace />;
 
+    // -----------------------------------------------------------------
+    // SUPERADMIN: Global administrator access
+    // -----------------------------------------------------------------
+    // SECURITY BOUNDARY: Superadmin accessing tenant routes MUST impersonate
+    // BY DESIGN: Shows explanatory UI instead of silent redirect for tenant routes
     case 'SUPERADMIN':
       if (redirectDecision.shouldRedirect) {
-        // Check if superadmin is trying to access tenant route without impersonation
+        // INTENTIONAL: Check if superadmin is trying to access tenant route without impersonation
         const { isTenant, tenantSlug } = isTenantRoute(pathname);
         if (isTenant && tenantSlug) {
-          // Show explanatory UI instead of silent redirect
+          // BY DESIGN: Show explanatory UI instead of silent redirect
+          // SECURITY BOUNDARY: Superadmin must explicitly impersonate to access tenant data
           const hintText = t("identity.superadminTenantAccessHint").replace("{tenant}", tenantSlug);
           return (
             <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -294,9 +388,14 @@ export function IdentityGate({ children }: IdentityGateProps) {
       }
       return <>{children}</>;
 
+    // -----------------------------------------------------------------
+    // RESOLVED: Identity fully resolved, user authenticated
+    // -----------------------------------------------------------------
+    // BY DESIGN: This is the happy path — user can proceed to protected routes
     case 'RESOLVED':
+      // EDGE CASE: User at /portal but no redirect path resolved
+      // INTENTIONAL: Show error UI with recovery options
       if (!redirectPath && pathname === '/portal') {
-        // No context error UI
         return (
           <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <Card className="max-w-md w-full">
@@ -318,16 +417,23 @@ export function IdentityGate({ children }: IdentityGateProps) {
           </div>
         );
       }
+      // INTENTIONAL: Redirect if state machine decided so
       if (redirectDecision.shouldRedirect) {
         return <Navigate to={redirectDecision.destination!} replace />;
       }
+      // ✅ SUCCESS: Render protected content
       return <>{children}</>;
 
+    // -----------------------------------------------------------------
+    // ERROR: Identity resolution failed
+    // -----------------------------------------------------------------
+    // FAIL-CLOSED: Show escape hatch UI, never silent pass
+    // BY DESIGN: Error codes are mapped to user-friendly messages via resolveErrorEscapeHatch
     case 'ERROR': {
-      // Use explicit escape hatch with KEY-BASED i18n
+      // INTENTIONAL: Use explicit escape hatch with KEY-BASED i18n
       const escapeOptions = resolveErrorEscapeHatch(error);
       
-      // Translate keys to strings (translation happens HERE, not in escape hatch)
+      // BY DESIGN: Translation happens HERE, not in escape hatch (separation of concerns)
       const userMessage = t(escapeOptions.userMessageKey) || escapeOptions.fallbackMessage || t('identity.error');
       const suggestion = t(escapeOptions.suggestionKey);
       const retryLabel = escapeOptions.canRetry ? t(escapeOptions.retryLabelKey) : '';
@@ -364,6 +470,10 @@ export function IdentityGate({ children }: IdentityGateProps) {
       );
     }
 
+    // -----------------------------------------------------------------
+    // DEFAULT: Fallback for unknown states
+    // -----------------------------------------------------------------
+    // INTENTIONAL: Render children as fallback (should never reach here)
     default:
       return <>{children}</>;
   }
