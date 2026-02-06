@@ -2125,4 +2125,13 @@ export const en: Record<string, string> = {
   'onboarding.tenant.current': 'Organization selected',
   'onboarding.roles.pending': 'Permissions',
 
+  // P2.3 — Event Status & Expectation (Athlete Awareness)
+  'events.expectation.pending.title': 'Registration received',
+  'events.expectation.pending.desc': 'Your registration has been submitted and is awaiting validation from the organization.',
+  'events.expectation.confirmed.title': 'You are confirmed',
+  'events.expectation.confirmed.desc': 'Your participation has been approved. Attend on the event date and time.',
+  'events.expectation.canceled.title': 'Registration canceled',
+  'events.expectation.canceled.desc': 'This registration has been canceled. You can register again if the event allows.',
+  'events.registration.canceled': 'Canceled',
+
 };

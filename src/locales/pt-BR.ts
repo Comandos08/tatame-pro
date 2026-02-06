@@ -2105,6 +2105,15 @@ export const ptBR = {
   'onboarding.tenant.current': 'Organização selecionada',
   'onboarding.roles.pending': 'Permissões',
 
+  // P2.3 — Event Status & Expectation (Athlete Awareness)
+  'events.expectation.pending.title': 'Inscrição recebida',
+  'events.expectation.pending.desc': 'Sua inscrição foi enviada e está aguardando validação da organização.',
+  'events.expectation.confirmed.title': 'Você está confirmado',
+  'events.expectation.confirmed.desc': 'Sua participação foi aprovada. Compareça no dia e horário do evento.',
+  'events.expectation.canceled.title': 'Inscrição cancelada',
+  'events.expectation.canceled.desc': 'Esta inscrição foi cancelada. Você pode se inscrever novamente se o evento permitir.',
+  'events.registration.canceled': 'Cancelada',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

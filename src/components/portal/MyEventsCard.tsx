@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
-import { EventRegistrationStatus, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { EventRegistrationStatus } from '@/types/event';
+import { RegistrationStatusBadge } from '@/components/events/RegistrationStatusBadge';
 
 interface MyEventsCardProps {
   athleteId?: string;
@@ -120,20 +121,6 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
     );
   }
 
-  const getStatusBadge = (status: EventRegistrationStatus) => {
-    const config = EVENT_REGISTRATION_STATUS_CONFIG[status];
-    const colorClasses = {
-      warning: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-      success: 'bg-green-500/10 text-green-600 dark:text-green-400',
-      muted: 'bg-muted text-muted-foreground',
-    };
-    
-    return (
-      <Badge variant="outline" className={colorClasses[config.color]}>
-        {config.label}
-      </Badge>
-    );
-  };
 
   const getPaymentBadge = (status: string) => {
     const configs: Record<string, { label: string; className: string }> = {
@@ -218,7 +205,7 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
                       </p>
                     </div>
                     <div className="flex flex-col gap-1 items-end">
-                      {getStatusBadge(reg.status)}
+                      <RegistrationStatusBadge status={reg.status} size="sm" />
                       {getPaymentBadge(reg.payment_status)}
                     </div>
                   </div>
