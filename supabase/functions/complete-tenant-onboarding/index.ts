@@ -343,6 +343,19 @@ serve(async (req) => {
         error: billingError.message,
       });
 
+      // P3.2.P1 FIX 4: Audit log for billing init failure (observability)
+      await supabase.from("audit_logs").insert({
+        event_type: "TENANT_TRIAL_INIT_FAILED",
+        tenant_id: tenantId,
+        profile_id: user.id,
+        metadata: {
+          error: billingError.message,
+          source: "complete-tenant-onboarding",
+          rolled_back: true,
+          attempted_status: "TRIALING",
+        },
+      });
+
       return new Response(
         JSON.stringify({
           ok: false,

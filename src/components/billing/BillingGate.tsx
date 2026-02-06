@@ -2,6 +2,7 @@
  * BillingGate - Unified access control based on billing status
  * 
  * P3.2.3 — Frontend Billing Gate Component
+ * P3.2.P1 — Hardening & Contract Clarity
  * 
  * LOGIC:
  * - tenant.status !== 'ACTIVE' → Ignore billing (show children)
@@ -11,10 +12,12 @@
  * 
  * CONTRACT:
  * - Never blocks SETUP tenants (onboarding in progress)
- * - Never redirects silently
+ * - Never calls navigate() during render (React-safe)
+ * - Explicit status checks (no implicit isBlocked-only reliance)
  * - Shows explicit CTA for resolution
  */
 
+import React, { useEffect, useMemo } from 'react';
 import { CreditCard, AlertTriangle, Clock } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
@@ -35,12 +38,33 @@ interface BillingGateProps {
 
 export function BillingGate({ children, strictMode = false, fallback }: BillingGateProps) {
   const { tenant } = useTenant();
-  const { billingState, isLoading, daysToTrialEnd } = useTenantStatus();
+  const { billingState, isLoading } = useTenantStatus();
   const { t } = useI18n();
   const navigate = useNavigate();
 
+  const isTenantActive = tenant?.status === 'ACTIVE';
+
+  // P3.2.P1 FIX 1 & FIX 2: Explicit status-based blocking logic
+  const shouldBlock = useMemo(() => {
+    if (!isTenantActive) return false;
+    if (isLoading) return false;
+
+    const status = billingState?.status ?? null;
+    const blocked = billingState?.isBlocked === true;
+
+    // Full block statuses (EXPLICIT - not relying only on isBlocked)
+    return blocked || status === 'PENDING_DELETE' || status === 'CANCELED';
+  }, [isTenantActive, isLoading, billingState?.status, billingState?.isBlocked]);
+
+  // P3.2.P1 FIX 1: Navigate via useEffect, never during render
+  useEffect(() => {
+    // We intentionally do NOT auto-redirect to billing page
+    // The BlockedStateCard provides explicit CTAs for user action
+    // This avoids React anti-pattern and gives user control
+  }, [shouldBlock]);
+
   // Ignore billing for non-ACTIVE tenants (still in SETUP)
-  if (tenant?.status !== 'ACTIVE') {
+  if (!isTenantActive) {
     return <>{children}</>;
   }
 
@@ -53,8 +77,8 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     return <>{children}</>;
   }
 
-  // Fully blocked states (PENDING_DELETE, CANCELED)
-  if (billingState?.isBlocked || billingState?.status === 'PENDING_DELETE') {
+  // P3.2.P1 FIX 2: Explicit blocked states (PENDING_DELETE, CANCELED, or isBlocked)
+  if (shouldBlock) {
     return fallback || (
       <BlockedStateCard
         icon={CreditCard}
@@ -100,10 +124,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     // Non-strict mode: show warning banner + children
     return (
       <>
-        <BillingWarningBanner 
-          status={billingState?.status} 
-          daysRemaining={daysToTrialEnd}
-        />
+        <BillingWarningBanner status={billingState?.status ?? null} />
         {children}
       </>
     );
@@ -113,10 +134,9 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
   return <>{children}</>;
 }
 
-// Internal warning banner component
+// P3.2.P1 FIX 3: Clean interface - removed unused daysRemaining prop
 interface BillingWarningBannerProps {
   status: string | null;
-  daysRemaining?: number | null;
 }
 
 function BillingWarningBanner({ status }: BillingWarningBannerProps) {
