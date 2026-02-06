@@ -1597,6 +1597,14 @@ export const ptBR = {
   'onboarding.welcomeTitle': 'Bem-vindo!',
   'onboarding.welcomeDesc': 'Vamos configurar {name} em poucos passos.',
   'onboarding.welcomeAlert': 'Complete os itens obrigatórios para liberar o acesso completo.',
+  // P3.1 — Sport Types
+  'onboarding.sportTypesTitle': 'Modalidades',
+  'onboarding.sportTypesDesc': 'Selecione as modalidades esportivas da sua organização.',
+  'onboarding.sportTypesSelected': 'modalidade(s) selecionada(s)',
+  'onboarding.sportTypesRequired': 'Selecione pelo menos uma modalidade.',
+  'onboarding.sportTypesSaved': 'Modalidades salvas com sucesso!',
+  'onboarding.sportTypesError': 'Erro ao salvar modalidades.',
+  'onboarding.saveSportTypes': 'Salvar Modalidades',
   'onboarding.academiesTitle': 'Academias',
   'onboarding.academiesDesc': 'Cadastre pelo menos uma academia.',
   'onboarding.coachesTitle': 'Professores',
@@ -1604,7 +1612,7 @@ export const ptBR = {
   'onboarding.gradingTitle': 'Sistema de Graduação',
   'onboarding.gradingDesc': 'Configure pelo menos um sistema de graduação.',
   'onboarding.reviewTitle': 'Revisão Final',
-  'onboarding.reviewDesc': 'Confirme que tudo está pronto.',
+  'onboarding.reviewDesc': 'Confirme que tudo está pronto para ativar sua organização.',
   'onboarding.stepComplete': 'Concluído!',
   'onboarding.stepPending': 'Pendente',
   'onboarding.requiredStep': 'Esta etapa é obrigatória.',
@@ -1614,6 +1622,9 @@ export const ptBR = {
   'onboarding.completeSetup': 'Finalizar Configuração',
   'onboarding.completedSuccess': 'Configuração concluída!',
   'onboarding.completedError': 'Erro ao finalizar configuração.',
+  // P3.1 — Activation
+  'onboarding.activateOrganization': 'Ativar Organização',
+  'onboarding.activatedSuccess': 'Organização ativada com sucesso!',
 
   // Security Timeline
   'security.title': 'Segurança',
