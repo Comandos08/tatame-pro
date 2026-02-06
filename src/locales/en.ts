@@ -1776,6 +1776,19 @@ export const en: Record<string, string> = {
   'billing.reactivated': 'Subscription activated successfully!',
   'billing.reactivatedDesc': 'All features have been restored.',
 
+  // P3.2.3 — BillingGate Component
+  'billing.gate.blocked.title': 'Access Blocked',
+  'billing.gate.blocked.description': 'Your organization does not have an active subscription. Activate your account to continue using the platform.',
+  'billing.gate.blocked.action': 'Activate Subscription',
+  'billing.gate.readonly.title': 'Limited Access',
+  'billing.gate.readonly.description': 'Some features are restricted. Update your subscription for full access.',
+  'billing.gate.readonly.action': 'View Options',
+  'billing.gate.warning.title': 'Attention',
+  'billing.gate.warning.trialExpired': 'Your trial period has expired. Activate your subscription to maintain access.',
+  'billing.gate.warning.pastDue': 'Your payment is overdue. Update to avoid suspension.',
+  'billing.gate.warning.generic': 'There is an issue with your subscription.',
+  'billing.gate.warning.action': 'Resolve',
+
   // Admin Athletes (P4/4)
   'admin.athletes.title': 'Athletes',
   'admin.athletes.description': 'Manage registered athletes in the organization',

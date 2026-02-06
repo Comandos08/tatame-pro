@@ -40,6 +40,8 @@ export interface TenantBillingState {
   isTrialExpired: boolean;
   isPendingDelete: boolean;
   canPerformSensitiveActions: boolean;
+  // P3.2.6 — Explicit suspension flag
+  isSuspended: boolean;
 }
 
 // Raw types for input data
@@ -86,6 +88,8 @@ export function resolveTenantBillingState(
       isTrialExpired: false,
       isPendingDelete: false,
       canPerformSensitiveActions: false,
+      // P3.2.6 — Explicit suspension flag
+      isSuspended: true, // Restrictive fallback
     };
   }
 
@@ -118,6 +122,9 @@ export function resolveTenantBillingState(
   // Sensitive actions only allowed when fully active
   const canPerformSensitiveActions = ['ACTIVE', 'TRIALING'].includes(status) && !isBlocked;
 
+  // P3.2.6 — Explicit suspension mapping
+  const isSuspended = status === 'CANCELED' || status === 'PENDING_DELETE';
+
   return {
     status,
     isManualOverride,
@@ -133,5 +140,7 @@ export function resolveTenantBillingState(
     isTrialExpired,
     isPendingDelete,
     canPerformSensitiveActions,
+    // P3.2.6 — Explicit suspension flag
+    isSuspended,
   };
 }
