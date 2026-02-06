@@ -2148,6 +2148,17 @@ export const ptBR = {
   'events.change.canceled.title': 'Evento cancelado',
   'events.change.canceled.desc': 'Infelizmente este evento foi cancelado pela organização.',
 
+  // P2.6 — Empty States Inteligentes
+  'empty.events.title': 'Nenhum evento encontrado',
+  'empty.events.desc': 'Você ainda não está inscrito em nenhum evento.',
+  'empty.events.hint': 'Quando houver eventos disponíveis, eles aparecerão aqui.',
+  'empty.athletes.title': 'Nenhum atleta cadastrado',
+  'empty.athletes.desc': 'Ainda não há atletas vinculados a esta organização.',
+  'empty.athletes.hint': 'Cadastros aparecerão aqui assim que forem criados.',
+  'empty.dashboard.title': 'Sem dados no momento',
+  'empty.dashboard.desc': 'Ainda não há informações suficientes para exibir métricas.',
+  'empty.dashboard.hint': 'Os dados aparecerão conforme o uso do sistema.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
