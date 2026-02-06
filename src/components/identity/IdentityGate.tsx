@@ -361,20 +361,19 @@ export function IdentityGate({ children }: IdentityGateProps) {
         if (isTenant && tenantSlug) {
           // BY DESIGN: Show explanatory UI instead of silent redirect
           // SECURITY BOUNDARY: Superadmin must explicitly impersonate to access tenant data
-          const hintText = t("identity.superadminTenantAccessHint").replace("{tenant}", tenantSlug);
           return (
             <div className="min-h-screen flex items-center justify-center bg-background p-4">
               <Card className="max-w-md w-full">
                 <CardHeader>
                   <AlertCircle className="h-8 w-8 text-warning mx-auto mb-2" />
-                  <CardTitle className="text-center">{t("impersonation.accessDenied")}</CardTitle>
+                  <CardTitle className="text-center">{t("impersonation.actionRequired")}</CardTitle>
                   <CardDescription className="text-center">
-                    {t("impersonation.superadminMustImpersonate")}
+                    {t("impersonation.superadminContextRequired")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <p className="text-sm text-muted-foreground text-center">
-                    {hintText}
+                    {t("impersonation.superadminExplainer")}
                   </p>
                   <Button onClick={() => navigate("/admin")} className="w-full">
                     {t("impersonation.goToAdmin")}
