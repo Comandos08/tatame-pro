@@ -12,6 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
+import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,7 +100,17 @@ Deno.serve(async (req) => {
 
     const tenantId = bracket.tenant_id;
 
-    // 4️⃣ Check role
+    // 4️⃣ P3.4: Check tenant ACTIVE + billing allows writes
+    const billingGate = await requireActiveTenantBillingWrite(supabaseAdmin, tenantId, 'publish-event-bracket');
+    if (!billingGate.ok) {
+      console.warn('[PUBLISH-BRACKET] Billing gate failed:', billingGate.code);
+      return new Response(
+        JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
+        { status: billingGate.httpStatus ?? 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 5️⃣ Check role
     const roleCheck = await requireTenantRole(
       supabaseAdmin, 
       req.headers.get('Authorization'), 
@@ -114,7 +125,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5️⃣ Check impersonation if superadmin
+    // 6️⃣ Check impersonation if superadmin
     const impersonationCheck = await requireImpersonationIfSuperadmin(
       supabaseAdmin,
       user.id,
