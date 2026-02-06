@@ -2195,6 +2195,7 @@ export type Database = {
           billing_email: string | null
           card_template_url: string | null
           created_at: string | null
+          creation_source: string
           default_locale: string | null
           description: string | null
           diploma_template_url: string | null
@@ -2208,6 +2209,7 @@ export type Database = {
           primary_color: string | null
           slug: string
           sport_types: string[] | null
+          status: string
           stripe_customer_id: string | null
           updated_at: string | null
         }
@@ -2215,6 +2217,7 @@ export type Database = {
           billing_email?: string | null
           card_template_url?: string | null
           created_at?: string | null
+          creation_source?: string
           default_locale?: string | null
           description?: string | null
           diploma_template_url?: string | null
@@ -2228,6 +2231,7 @@ export type Database = {
           primary_color?: string | null
           slug: string
           sport_types?: string[] | null
+          status?: string
           stripe_customer_id?: string | null
           updated_at?: string | null
         }
@@ -2235,6 +2239,7 @@ export type Database = {
           billing_email?: string | null
           card_template_url?: string | null
           created_at?: string | null
+          creation_source?: string
           default_locale?: string | null
           description?: string | null
           diploma_template_url?: string | null
@@ -2248,6 +2253,7 @@ export type Database = {
           primary_color?: string | null
           slug?: string
           sport_types?: string[] | null
+          status?: string
           stripe_customer_id?: string | null
           updated_at?: string | null
         }
