@@ -1,27 +1,58 @@
 /**
- * 🔐 validate-impersonation — Validate an impersonation session
+ * ============================================================================
+ * 🔐 validate-impersonation — Impersonation Session Validator
+ * ============================================================================
  * 
- * Validates that an impersonation session is still active and not expired.
- * Used by frontend guards and backend functions to verify access.
+ * IMMUTABLE CONTRACT:
+ * -------------------
+ * This function validates that an impersonation session is still active
+ * and not expired. Used by frontend guards and backend functions.
  * 
- * Security Rules:
- * - Only the session owner can validate their session
- * - Expired sessions are automatically marked as EXPIRED
+ * WHAT THIS FUNCTION DOES:
+ * - Validates caller owns the session
+ * - Checks session status (ACTIVE, ENDED, EXPIRED)
+ * - Auto-expires sessions past their TTL
  * - Returns minimal data to prevent information leakage
+ * 
+ * WHAT THIS FUNCTION DOES NOT DO:
+ * - Does NOT create new sessions
+ * - Does NOT extend session TTL
+ * - Does NOT grant any permissions
+ * - Does NOT return sensitive tenant data
+ * 
+ * SECURITY INVARIANTS:
+ * - Only session owner can validate (BY DESIGN)
+ * - Expired sessions are automatically marked (INTENTIONAL)
+ * - Returns minimal response data (REQUIRED for security)
+ * - All expirations are logged (REQUIRED for audit)
+ * 
+ * ============================================================================
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog } from "../_shared/audit-logger.ts";
+
+// ============================================================================
+// CORS HEADERS
+// ============================================================================
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
 interface ValidateImpersonationRequest {
   impersonationId: string;
 }
 
+/**
+ * Response structure for validation.
+ * INTENTIONAL: Minimal data to prevent information leakage.
+ */
 interface ValidateResponse {
   valid: boolean;
   targetTenantId?: string;
@@ -31,14 +62,20 @@ interface ValidateResponse {
   remainingMinutes?: number;
 }
 
+// ============================================================================
+// ENTRYPOINT
+// ============================================================================
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
+  // --- CORS Preflight ---
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // 1️⃣ Validate Authorization
+    // ========================================================================
+    // STEP 1: Authorization Validation
+    // ========================================================================
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -47,7 +84,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2️⃣ Create Supabase clients
+    // ========================================================================
+    // STEP 2: Supabase Client Initialization
+    // ========================================================================
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -56,20 +95,25 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // 3️⃣ Get and verify caller
-    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-    if (authError || !user) {
+    // ========================================================================
+    // STEP 3: Caller Identity Verification
+    // ========================================================================
+    const { data: { user: callerUser }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !callerUser) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Invalid or expired token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 4️⃣ Verify SUPERADMIN_GLOBAL role
+    // ========================================================================
+    // STEP 4: SUPERADMIN_GLOBAL Role Verification
+    // INTENTIONAL: Only superadmins can validate impersonation sessions
+    // ========================================================================
     const { data: superadminRole, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', callerUser.id)
       .is('tenant_id', null)
       .eq('role', 'SUPERADMIN_GLOBAL')
       .maybeSingle();
@@ -81,7 +125,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5️⃣ Parse request body
+    // ========================================================================
+    // STEP 5: Request Body Validation
+    // ========================================================================
     const body: ValidateImpersonationRequest = await req.json();
     const { impersonationId } = body;
 
@@ -92,8 +138,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 6️⃣ Fetch session with tenant info
-    const { data: session, error: sessionError } = await supabaseAdmin
+    // ========================================================================
+    // STEP 6: Fetch Session with Tenant Info
+    // ========================================================================
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
       .from('superadmin_impersonations')
       .select(`
         id, 
@@ -108,26 +156,31 @@ Deno.serve(async (req) => {
       .eq('id', impersonationId)
       .maybeSingle();
 
-    if (sessionError || !session) {
+    if (sessionError || !sessionData) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Session not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 7️⃣ Verify ownership
-    if (session.superadmin_user_id !== user.id) {
+    // ========================================================================
+    // STEP 7: Ownership Verification
+    // BY DESIGN: Only session owner can validate their own session
+    // ========================================================================
+    if (sessionData.superadmin_user_id !== callerUser.id) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Session belongs to another user' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 8️⃣ Check if already ended
-    if (session.ended_at !== null || session.status !== 'ACTIVE') {
+    // ========================================================================
+    // STEP 8: Check if Already Ended
+    // ========================================================================
+    if (sessionData.ended_at !== null || sessionData.status !== 'ACTIVE') {
       const response: ValidateResponse = {
         valid: false,
-        status: session.status,
+        status: sessionData.status,
       };
       return new Response(
         JSON.stringify(response),
@@ -135,9 +188,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 9️⃣ Check if expired
+    // ========================================================================
+    // STEP 9: Expiration Check and Auto-Expire
+    // INTENTIONAL: Automatic expiration on validation
+    // ========================================================================
     const now = new Date();
-    const expiresAt = new Date(session.expires_at);
+    const expiresAt = new Date(sessionData.expires_at);
     
     if (now > expiresAt) {
       // Auto-expire the session
@@ -149,16 +205,16 @@ Deno.serve(async (req) => {
         })
         .eq('id', impersonationId);
 
-      // Log expiration
+      // Log expiration (REQUIRED for audit trail)
       await createAuditLog(supabaseAdmin, {
         event_type: 'IMPERSONATION_EXPIRED',
-        tenant_id: session.target_tenant_id,
-        profile_id: user.id,
+        tenant_id: sessionData.target_tenant_id,
+        profile_id: callerUser.id,
         metadata: {
           impersonation_id: impersonationId,
-          superadmin_user_id: user.id,
-          target_tenant_id: session.target_tenant_id,
-          started_at: session.created_at,
+          superadmin_user_id: callerUser.id,
+          target_tenant_id: sessionData.target_tenant_id,
+          started_at: sessionData.created_at,
           expired_at: now.toISOString(),
           automatic: true,
         },
@@ -176,18 +232,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 🔟 Session is valid
+    // ========================================================================
+    // STEP 10: Valid Session Response
+    // ========================================================================
     const remainingMs = expiresAt.getTime() - now.getTime();
     const remainingMinutes = Math.floor(remainingMs / 60000);
     
     // deno-lint-ignore no-explicit-any
-    const tenantData = session.tenants as any;
+    const tenantData = sessionData.tenants as any;
     
     const response: ValidateResponse = {
       valid: true,
-      targetTenantId: session.target_tenant_id,
+      targetTenantId: sessionData.target_tenant_id,
       targetTenantSlug: tenantData?.slug || undefined,
-      expiresAt: session.expires_at,
+      expiresAt: sessionData.expires_at,
       status: 'ACTIVE',
       remainingMinutes,
     };
