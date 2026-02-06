@@ -1706,9 +1706,26 @@ export const ptBR = {
   'identity.superadminTenantAccessHint': 'Para acessar "{tenant}", inicie uma sessão de impersonation pelo painel de administração.',
   'common.retry': 'Tentar Novamente',
   'common.retryNow': 'Tentar novamente agora',
+  'common.waitAndRetry': 'Aguardar e tentar novamente',
+  'common.contactSupport': 'Entrar em contato com suporte',
+
+  // Temporary Error Messages (P2.5)
+  'errors.network.title': 'Problema de conexão',
+  'errors.network.desc': 'Não foi possível se conectar ao servidor.',
+  'errors.network.reassurance': 'Isso costuma ser temporário.',
+  'errors.timeout.title': 'Resposta demorou mais que o esperado',
+  'errors.timeout.desc': 'O servidor demorou para responder.',
+  'errors.timeout.reassurance': 'Você pode tentar novamente com segurança.',
+  'errors.server.title': 'Serviço temporariamente indisponível',
+  'errors.server.desc': 'Estamos com uma instabilidade no momento.',
+  'errors.server.reassurance': 'Nossa equipe já foi notificada.',
+  'errors.rateLimit.title': 'Muitas tentativas em pouco tempo',
+  'errors.rateLimit.desc': 'Aguarde alguns instantes antes de tentar novamente.',
+  'errors.rateLimit.reassurance': 'Isso ajuda a manter o sistema estável.',
+  'errors.generic.title': 'Algo não saiu como esperado',
+  'errors.generic.desc': 'Ocorreu um erro inesperado.',
   'common.backToDashboard': 'Voltar ao painel',
   'common.backToHome': 'Voltar ao início',
-  'common.contactSupport': 'Falar com suporte',
   'auth.endSession': 'Encerrar sessão',
 
   // Trial Status (Growth Trial PI)
