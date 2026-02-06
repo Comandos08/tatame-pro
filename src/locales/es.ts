@@ -2143,4 +2143,12 @@ export const es: Record<string, string> = {
   'events.registration.confirmed.help': 'Tu participación está garantizada. Preséntate el día del evento.',
   'events.registration.canceled.help': 'Esta inscripción fue cancelada y no continuará.',
 
+  // P2.4 — Notificaciones de cambios raros en eventos
+  'events.change.dateChanged.title': 'Fecha del evento alterada',
+  'events.change.dateChanged.desc': 'La fecha fue cambiada de {from} a {to}.',
+  'events.change.locationChanged.title': 'Lugar del evento alterado',
+  'events.change.locationChanged.desc': 'El lugar fue cambiado de {from} a {to}.',
+  'events.change.canceled.title': 'Evento cancelado',
+  'events.change.canceled.desc': 'Lamentablemente, este evento fue cancelado por la organización.',
+
 };

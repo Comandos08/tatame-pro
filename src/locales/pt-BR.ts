@@ -2123,6 +2123,14 @@ export const ptBR = {
   'events.registration.confirmed.help': 'Sua participação está garantida. Compareça no dia do evento.',
   'events.registration.canceled.help': 'Esta inscrição foi cancelada e não seguirá adiante.',
 
+  // P2.4 — Notificações de mudanças raras em eventos
+  'events.change.dateChanged.title': 'Data do evento alterada',
+  'events.change.dateChanged.desc': 'A data foi alterada de {from} para {to}.',
+  'events.change.locationChanged.title': 'Local do evento alterado',
+  'events.change.locationChanged.desc': 'O local foi alterado de {from} para {to}.',
+  'events.change.canceled.title': 'Evento cancelado',
+  'events.change.canceled.desc': 'Infelizmente este evento foi cancelado pela organização.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
