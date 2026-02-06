@@ -2159,6 +2159,16 @@ export const ptBR = {
   'empty.dashboard.desc': 'Ainda não há informações suficientes para exibir métricas.',
   'empty.dashboard.hint': 'Os dados aparecerão conforme o uso do sistema.',
 
+  // P2.7 — Transition Feedback (async state communication)
+  'transition.inProgress.title': 'Processando sua solicitação',
+  'transition.inProgress.desc': 'Isso pode levar alguns instantes.',
+  'transition.success.title': 'Tudo certo!',
+  'transition.success.desc': 'A ação foi concluída com sucesso.',
+  'transition.warning.title': 'Atenção',
+  'transition.warning.desc': 'A ação foi concluída com ressalvas.',
+  'transition.error.title': 'Algo deu errado',
+  'transition.error.desc': 'Não foi possível concluir a ação.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

@@ -29,5 +29,13 @@ export {
 // P2.6 — Empty State Card (informative absence UX)
 export { EmptyStateCard, type EmptyStateCardProps } from './EmptyStateCard';
 
+// P2.7 — Transition Feedback (async state communication)
+export { 
+  TransitionFeedback, 
+  type TransitionFeedbackProps, 
+  type TransitionStatus,
+  TRANSITION_STATUSES 
+} from './TransitionFeedback';
+
 // Existing
 export { RecoveryGuide } from './RecoveryGuide';
