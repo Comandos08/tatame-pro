@@ -1,105 +1,174 @@
 
+# P2.5 — UX de Falhas Temporárias e Recuperação Inteligente (SAFE GOLD)
 
-# P2.4 CORREÇÃO — Suporte a Interpolação i18n (SAFE GOLD)
+## Auditoria Realizada
 
-## Problema Identificado
+### Estado Atual do Sistema
 
-O componente `EventChangeNoticeCard.tsx` usa interpolação manual (`replace('{from}', ...)`), violando o contrato i18n do projeto. No entanto, a função `t()` atual no `I18nContext.tsx` **não suporta interpolação com parâmetros**.
+| Item | Status |
+|------|--------|
+| Diretório `src/lib/errors/` | ❌ Não existe — será criado |
+| Componente `TemporaryErrorCard` | ❌ Não existe — será criado |
+| `BlockedStateCard` existe | ✅ Disponível em `src/components/ux/` |
+| `common.contactSupport` i18n | ✅ Já existe nos 3 idiomas |
+| `common.retryNow` i18n | ✅ Já existe nos 3 idiomas |
+| `common.waitAndRetry` i18n | ❌ Não existe — será adicionado |
 
-## Solução em 2 Passos
+### Padrões Existentes Identificados
 
-### PASSO 1 — Estender I18nContext para Suporte a Interpolação
+1. **BlockedStateCard** suporta:
+   - `icon` (LucideIcon)
+   - `iconVariant` ('destructive' | 'warning' | 'muted')
+   - `titleKey`, `descriptionKey`, `hintKey` (i18n keys)
+   - `actions[]` com `labelKey`, `onClick`, `variant`, `icon`
 
-**Arquivo:** `src/contexts/I18nContext.tsx`
+2. **Arquivos de Integração Permitidos:**
+   - `IdentityGate.tsx` → já usa `BlockedStateCard` no case `ERROR`
+   - `TenantDashboard.tsx` → usa estado `loading` básico, sem tratamento de erro visual
+   - `AthletesList.tsx` → usa `isLoading`, sem tratamento de erro visual
+   - `EventsList.tsx` → usa `toast.error()` para erros, sem card
+   - `PortalEvents.tsx` → usa `PortalAccessGate` com erro passado via prop
 
-**Mudança:**
-- Alterar a assinatura da função `t()` de `(key: string) => string` para `(key: string, params?: Record<string, string>) => string`
-- Adicionar lógica de interpolação simples que substitui `{placeholder}` pelos valores do objeto `params`
+---
 
-**Antes:**
+## Arquivos a Criar
+
+### 1. `src/lib/errors/temporaryErrorMap.ts`
+
+Mapa determinístico de tipos de erro para configuração UX:
+
+```text
+PASSO 1 — Estrutura do Arquivo
+```
+
+**Conteúdo:**
+- Type `TemporaryErrorType` com 5 valores: `NETWORK`, `TIMEOUT`, `SERVER`, `RATE_LIMIT`, `UNKNOWN`
+- Interface `TemporaryErrorConfig` com: `titleKey`, `descriptionKey`, `reassuranceKey?`, `primaryActionKey`, `secondaryActionKey?`
+- Const `TEMPORARY_ERROR_MAP` mapeando cada tipo para sua configuração
+
+**Chaves i18n utilizadas (a serem criadas):**
+- `errors.network.*`, `errors.timeout.*`, `errors.server.*`, `errors.rateLimit.*`, `errors.generic.*`
+- `common.waitAndRetry` (nova)
+
+---
+
+### 2. `src/components/ux/TemporaryErrorCard.tsx`
+
+Componente wrapper que usa `BlockedStateCard` internamente:
+
+```text
+PASSO 2 — Estrutura do Componente
+```
+
+**Props:**
 ```typescript
-interface I18nContextType {
-  locale: Locale;
-  setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+interface TemporaryErrorCardProps {
+  type: TemporaryErrorType;
+  onRetry: () => void;
+  onSecondaryAction?: () => void;
+  className?: string;
 }
 ```
 
-**Depois:**
+**Comportamento:**
+1. Busca config em `TEMPORARY_ERROR_MAP[type]`
+2. Se tipo desconhecido → usa config `UNKNOWN`
+3. Mapeia tipo → ícone (WifiOff, Clock, ServerCrash, AlertTriangle, AlertCircle)
+4. Renderiza `BlockedStateCard` com:
+   - `iconVariant="warning"` (erros temporários não são fatais)
+   - Ações montadas dinamicamente (primary + secondary opcional)
+5. **NÃO faz fetch**
+6. **NÃO tenta retry automático**
+7. **NÃO tem side effects**
+
+---
+
+### 3. Atualizar `src/components/ux/index.ts`
+
+Adicionar export do novo componente:
 ```typescript
-interface I18nContextType {
-  locale: Locale;
-  setLocale: (locale: Locale) => void;
-  t: (key: string, params?: Record<string, string>) => string;
-}
-```
-
-**Lógica de interpolação (dentro do `useCallback`):**
-```typescript
-const t = useCallback(
-  (key: string, params?: Record<string, string>): string => {
-    let value = translations[locale]?.[key] ?? translations["pt-BR"]?.[key];
-
-    if (!value) {
-      if (import.meta.env.DEV) {
-        console.warn(`[i18n] Missing key "${key}" for locale "${locale}"`);
-      }
-      return key;
-    }
-
-    // Interpolação simples: substitui {placeholder} por params.placeholder
-    if (params) {
-      Object.entries(params).forEach(([paramKey, paramValue]) => {
-        value = value.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), paramValue);
-      });
-    }
-
-    return value;
-  },
-  [locale],
-);
+export { TemporaryErrorCard, type TemporaryErrorCardProps } from './TemporaryErrorCard';
 ```
 
 ---
 
-### PASSO 2 — Corrigir EventChangeNoticeCard
+## Arquivos de i18n a Atualizar
 
-**Arquivo:** `src/components/events/EventChangeNoticeCard.tsx`
+### 4. `src/locales/pt-BR.ts`, `en.ts`, `es.ts`
 
-**Substituir a função `getDescription()` inteira por:**
-```typescript
-const getDescription = (): string => {
-  if (type === 'CANCELED') {
-    return t(config.descKey);
-  }
+Adicionar 16 novas chaves de erro:
 
-  return t(config.descKey, {
-    from: previousValue || '—',
-    to: currentValue || '—',
-  });
-};
+| Chave | pt-BR | en | es |
+|-------|-------|----|----|
+| `errors.network.title` | Problema de conexão | Connection problem | Problema de conexión |
+| `errors.network.desc` | Não foi possível se conectar ao servidor. | Could not connect to server. | No fue posible conectar al servidor. |
+| `errors.network.reassurance` | Isso costuma ser temporário. | This is usually temporary. | Esto suele ser temporal. |
+| `errors.timeout.title` | Resposta demorou mais que o esperado | Response took longer than expected | La respuesta tardó más de lo esperado |
+| `errors.timeout.desc` | O servidor demorou para responder. | The server took too long to respond. | El servidor tardó en responder. |
+| `errors.timeout.reassurance` | Você pode tentar novamente com segurança. | You can safely try again. | Puedes intentar de nuevo con seguridad. |
+| `errors.server.title` | Serviço temporariamente indisponível | Service temporarily unavailable | Servicio temporalmente no disponible |
+| `errors.server.desc` | Estamos com uma instabilidade no momento. | We are experiencing instability at the moment. | Estamos experimentando inestabilidad en este momento. |
+| `errors.server.reassurance` | Nossa equipe já foi notificada. | Our team has been notified. | Nuestro equipo ya ha sido notificado. |
+| `errors.rateLimit.title` | Muitas tentativas em pouco tempo | Too many attempts | Demasiados intentos en poco tiempo |
+| `errors.rateLimit.desc` | Aguarde alguns instantes antes de tentar novamente. | Please wait a moment before trying again. | Espera unos momentos antes de intentar de nuevo. |
+| `errors.rateLimit.reassurance` | Isso ajuda a manter o sistema estável. | This helps keep the system stable. | Esto ayuda a mantener el sistema estable. |
+| `errors.generic.title` | Algo não saiu como esperado | Something didn't go as expected | Algo no salió como se esperaba |
+| `errors.generic.desc` | Ocorreu um erro inesperado. | An unexpected error occurred. | Ocurrió un error inesperado. |
+| `common.waitAndRetry` | Aguardar e tentar novamente | Wait and try again | Esperar e intentar de nuevo |
+
+---
+
+## Integração (NÃO GLOBAL — Pontual)
+
+A integração será preparada estruturalmente mas **não aplicada automaticamente** aos componentes existentes para manter o princípio SAFE GOLD:
+
+```text
+PASSO 5 — Uso Recomendado (Documentado, Não Aplicado)
+```
+
+O `TemporaryErrorCard` pode ser usado em locais que já tratam erros visualmente:
+- `IdentityGate` (case ERROR) — pode substituir BlockedStateCard específico se erro for transitório
+- Páginas com `useQuery` que têm `error` state
+
+**Exemplo de uso futuro:**
+```tsx
+{error && (
+  <TemporaryErrorCard
+    type="NETWORK"
+    onRetry={() => refetch()}
+  />
+)}
 ```
 
 ---
 
-## Critérios SAFE GOLD
+## Checklist SAFE GOLD
 
 | Critério | Status |
 |----------|--------|
 | Nenhuma regra de domínio alterada | ✅ |
 | Nenhum fetch novo | ✅ |
-| Nenhuma ação adicionada | ✅ |
-| Nenhum estado novo criado | ✅ |
+| Nenhuma ação adicionada que mude estado | ✅ |
+| Nenhum retry automático | ✅ |
+| Nenhum estado novo persistido | ✅ |
 | Nenhum impacto em billing, roles ou gates | ✅ |
-| Retrocompatível (chamadas existentes de `t(key)` continuam funcionando) | ✅ |
+| Componente usa BlockedStateCard existente | ✅ |
+| i18n completo nos 3 idiomas | ✅ |
 | Build limpo esperado | ✅ |
+| Se removido, sistema continua funcional | ✅ |
 
 ---
 
-## Arquivos a Modificar
+## Resumo de Arquivos
 
-1. `src/contexts/I18nContext.tsx` — estender interface e lógica de `t()`
-2. `src/components/events/EventChangeNoticeCard.tsx` — usar sintaxe correta de interpolação
+| Operação | Arquivo |
+|----------|---------|
+| **CRIAR** | `src/lib/errors/temporaryErrorMap.ts` |
+| **CRIAR** | `src/components/ux/TemporaryErrorCard.tsx` |
+| **EDITAR** | `src/components/ux/index.ts` (adicionar export) |
+| **EDITAR** | `src/locales/pt-BR.ts` (adicionar 16 chaves) |
+| **EDITAR** | `src/locales/en.ts` (adicionar 16 chaves) |
+| **EDITAR** | `src/locales/es.ts` (adicionar 16 chaves) |
 
 ---
 
@@ -108,12 +177,11 @@ const getDescription = (): string => {
 Após implementação:
 
 ```
-P2.4 CORREÇÃO — Suporte a Interpolação i18n SAFE GOLD concluído.
+P2.5 — UX de Falhas Temporárias SAFE GOLD concluído.
 
-- Função t() estendida para aceitar parâmetros de interpolação
-- EventChangeNoticeCard corrigido para usar t(key, { from, to })
-- 100% retrocompatível (nenhuma quebra em chamadas existentes)
+- Comunicação clara de erros transitórios
+- Usuário orientado sem pânico
 - Nenhuma regra de domínio alterada
-- Build limpo
+- Nenhuma automação invisível
+- Totalmente reversível
 ```
-
