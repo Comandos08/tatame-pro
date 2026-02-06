@@ -176,17 +176,22 @@ export function TransitionFeedback({
       )}
 
       {/* Text Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        {/* Title (required) */}
         <p className="text-sm font-medium text-foreground">
           {t(titleKey)}
         </p>
-        {descriptionKey && (
-          <p className="text-xs text-muted-foreground mt-0.5">
+
+        {/* Description (optional, only if translation exists) */}
+        {descriptionKey && t(descriptionKey) !== descriptionKey && (
+          <p className="text-xs text-muted-foreground">
             {t(descriptionKey)}
           </p>
         )}
-        {hintKey && (
-          <p className="text-xs text-muted-foreground/70 mt-1">
+
+        {/* Hint (optional, only if translation exists) */}
+        {hintKey && t(hintKey) !== hintKey && (
+          <p className="text-xs text-muted-foreground/70">
             {t(hintKey)}
           </p>
         )}
