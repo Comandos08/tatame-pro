@@ -5,6 +5,14 @@
  * 
  * P2.6: Read-only component for displaying empty states without blocking.
  * 
+ * PURPOSE:
+ * Communicates "no data yet" in a calm, non-alarming way.
+ * This is NOT an error, NOT a blocker, NOT a loading state.
+ * 
+ * VARIANTS:
+ * - inline: Compact display for use inside existing cards/sections (no animation)
+ * - standalone: Full-page centered display for main content areas (subtle motion)
+ * 
  * CONTRACT:
  * - No fetch
  * - No actions/callbacks
@@ -16,12 +24,21 @@
  * 
  * USAGE:
  * ```tsx
+ * // Inside a card or section
  * <EmptyStateCard
  *   icon={Calendar}
  *   titleKey="empty.events.title"
  *   descriptionKey="empty.events.desc"
  *   hintKey="empty.events.hint"
  *   variant="inline"
+ * />
+ * 
+ * // As main page content
+ * <EmptyStateCard
+ *   icon={Users}
+ *   titleKey="empty.athletes.title"
+ *   descriptionKey="empty.athletes.desc"
+ *   variant="standalone"
  * />
  * ```
  * ============================================================================
@@ -67,21 +84,46 @@ export function EmptyStateCard({
 }: EmptyStateCardProps) {
   const { t } = useI18n();
 
+  // DEV-only: warn if i18n keys are missing (helps catch typos early)
+  if (import.meta.env.DEV) {
+    const titleValue = t(titleKey);
+    const descValue = t(descriptionKey);
+    
+    if (titleValue === titleKey) {
+      console.warn(
+        `[EmptyStateCard] Missing i18n key: "${titleKey}". Add it to locale files.`
+      );
+    }
+    if (descValue === descriptionKey) {
+      console.warn(
+        `[EmptyStateCard] Missing i18n key: "${descriptionKey}". Add it to locale files.`
+      );
+    }
+  }
+
   // Inline variant: compact, for use inside existing cards/sections
+  // NO animation - appears instantly within parent context
   if (variant === 'inline') {
     return (
       <div className={cn('flex flex-col items-center justify-center py-8 px-4', className)}>
+        {/* Icon Circle - muted, decorative only */}
         <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-          <Icon className="h-6 w-6 text-muted-foreground" />
+          <Icon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
         </div>
-        <h3 className="text-base font-medium text-foreground mb-1">
+        
+        {/* Title - consistent with BlockedStateCard hierarchy */}
+        <h3 className="text-base font-semibold text-foreground mb-1 text-center">
           {t(titleKey)}
         </h3>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
+        
+        {/* Description - secondary emphasis */}
+        <p className="text-sm text-muted-foreground text-center max-w-sm mb-1">
           {t(descriptionKey)}
         </p>
+        
+        {/* Hint - tertiary emphasis, softer tone */}
         {hintKey && (
-          <p className="text-xs text-muted-foreground/70 text-center mt-2 max-w-sm">
+          <p className="text-xs text-muted-foreground/60 text-center mt-1 max-w-sm">
             {t(hintKey)}
           </p>
         )}
@@ -90,33 +132,34 @@ export function EmptyStateCard({
   }
 
   // Standalone variant: full page centered, for main content areas
+  // Subtle motion on mount for perceived quality
   return (
     <div className={cn('min-h-screen flex items-center justify-center bg-background p-4', className)}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.2 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            {/* Icon Circle */}
+            {/* Icon Circle - muted, decorative only */}
             <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-              <Icon className="h-8 w-8 text-muted-foreground" />
+              <Icon className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             </div>
 
-            {/* Title */}
-            <CardTitle className="text-xl">{t(titleKey)}</CardTitle>
+            {/* Title - consistent typography */}
+            <CardTitle className="text-xl font-semibold">{t(titleKey)}</CardTitle>
 
-            {/* Description */}
+            {/* Description - secondary emphasis */}
             <CardDescription className="text-base mt-2">
               {t(descriptionKey)}
             </CardDescription>
           </CardHeader>
 
-          {/* Optional Hint */}
+          {/* Optional Hint - tertiary emphasis */}
           {hintKey && (
-            <CardContent>
-              <p className="text-sm text-muted-foreground text-center">
+            <CardContent className="pt-0">
+              <p className="text-sm text-muted-foreground/80 text-center">
                 {t(hintKey)}
               </p>
             </CardContent>
