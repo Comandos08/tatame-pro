@@ -1167,6 +1167,48 @@ export const en: Record<string, string> = {
   'billing.overrideAt': 'Applied on',
   'billing.overrideReasonUnknown': 'Not specified',
   'billing.stripeDisabled': 'Automatic payments are disabled.',
+
+  // P3.3 — Billing Overview Card
+
+  'billing.overview.title': 'Plan Overview',
+  'billing.overview.trialDaysLeft': '{days} days left in trial',
+  'billing.overview.trialExpired': 'Trial period ended',
+  'billing.overview.active': 'Active subscription - {plan} plan',
+  'billing.overview.pastDue': 'Payment overdue',
+  'billing.overview.pendingDelete': 'Organization will be removed soon',
+  'billing.overview.canceled': 'Subscription canceled',
+  'billing.overview.unknown': 'Unknown status',
+  'billing.overview.currentPlan': 'Current plan',
+
+  // P3.3 — Billing Status Labels
+  'billing.status.active': 'Active',
+  'billing.status.trialing': 'Trialing',
+  'billing.status.trial_expired': 'Trial Expired',
+  'billing.status.pending_delete': 'Pending Deletion',
+  'billing.status.past_due': 'Past Due',
+  'billing.status.canceled': 'Canceled',
+  'billing.status.unpaid': 'Unpaid',
+  'billing.status.incomplete': 'Incomplete',
+
+  // P3.3 — Billing Timeline
+  'billing.timeline.title': 'Timeline',
+  'billing.timeline.description': 'Your subscription status progression',
+  'billing.timeline.activeDescription': 'Your subscription is active and working normally.',
+  'billing.timeline.subscriptionActive': 'Subscription active',
+  'billing.timeline.trial': 'Trial',
+  'billing.timeline.expired': 'Expired',
+  'billing.timeline.pendingDelete': 'Deletion',
+  'billing.timeline.deleted': 'Deleted',
+
+  // P3.3 — Billing CTAs
+  'billing.cta.upgrade': 'Upgrade Now',
+  'billing.cta.manage': 'Manage Plan',
+  'billing.cta.reactivate': 'Reactivate Now',
+  'billing.cta.contactSupport': 'Contact Support',
+
+  // P3.3 — Billing Errors
+  'billing.error.checkoutFailed': 'Error starting checkout. Please try again.',
+  'billing.error.portalFailed': 'Error opening management portal.',
   
   // SAFE GOLD P3 — Portal Card
   'portal.myCard': 'My Card',

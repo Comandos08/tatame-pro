@@ -1773,6 +1773,47 @@ export const ptBR = {
   'billing.gate.warning.generic': 'Há um problema com sua assinatura.',
   'billing.gate.warning.action': 'Resolver',
 
+  // P3.3 — Billing Overview Card
+  'billing.overview.title': 'Visão Geral do Plano',
+  'billing.overview.trialDaysLeft': 'Restam {days} dias de teste',
+  'billing.overview.trialExpired': 'Período de teste encerrado',
+  'billing.overview.active': 'Assinatura ativa - Plano {plan}',
+  'billing.overview.pastDue': 'Pagamento em atraso',
+  'billing.overview.pendingDelete': 'Organização será removida em breve',
+  'billing.overview.canceled': 'Assinatura cancelada',
+  'billing.overview.unknown': 'Status desconhecido',
+  'billing.overview.currentPlan': 'Plano atual',
+
+  // P3.3 — Billing Status Labels
+  'billing.status.active': 'Ativo',
+  'billing.status.trialing': 'Em Teste',
+  'billing.status.trial_expired': 'Teste Expirado',
+  'billing.status.pending_delete': 'Pendente Deleção',
+  'billing.status.past_due': 'Em Atraso',
+  'billing.status.canceled': 'Cancelado',
+  'billing.status.unpaid': 'Não Pago',
+  'billing.status.incomplete': 'Incompleto',
+
+  // P3.3 — Billing Timeline
+  'billing.timeline.title': 'Linha do Tempo',
+  'billing.timeline.description': 'Progressão do status da sua assinatura',
+  'billing.timeline.activeDescription': 'Sua assinatura está ativa e funcionando normalmente.',
+  'billing.timeline.subscriptionActive': 'Assinatura ativa',
+  'billing.timeline.trial': 'Teste',
+  'billing.timeline.expired': 'Expirado',
+  'billing.timeline.pendingDelete': 'Remoção',
+  'billing.timeline.deleted': 'Removido',
+
+  // P3.3 — Billing CTAs
+  'billing.cta.upgrade': 'Fazer Upgrade',
+  'billing.cta.manage': 'Gerenciar Plano',
+  'billing.cta.reactivate': 'Reativar Agora',
+  'billing.cta.contactSupport': 'Falar com Suporte',
+
+  // P3.3 — Billing Errors
+  'billing.error.checkoutFailed': 'Erro ao iniciar checkout. Tente novamente.',
+  'billing.error.portalFailed': 'Erro ao abrir portal de gerenciamento.',
+
   // Admin Athletes (P4/4)
   'admin.athletes.title': 'Atletas',
   'admin.athletes.description': 'Gerencie os atletas cadastrados na organização',

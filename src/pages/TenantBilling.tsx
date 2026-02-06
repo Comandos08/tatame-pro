@@ -1,3 +1,14 @@
+/**
+ * TenantBilling — Billing Management Page
+ * 
+ * P3.3 — Billing UX Advanced Layer
+ * 
+ * Composes:
+ * - BillingOverviewCard (current status + CTAs)
+ * - BillingTimeline (visual progression)
+ * - Invoice history (existing)
+ */
+
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CreditCard, ExternalLink, FileText, Loader2, TrendingUp, Clock, CalendarCheck } from 'lucide-react';
@@ -10,6 +21,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { BillingOverviewCard } from '@/components/billing/BillingOverviewCard';
+import { BillingTimeline } from '@/components/billing/BillingTimeline';
 
 // Map invoice status to StatusBadge status type
 const invoiceStatusMap: Record<string, StatusType> = {
@@ -119,6 +132,7 @@ export default function TenantBilling() {
   return (
     <AppShell>
       <div className="space-y-6">
+        {/* Header */}
         <div>
           <h1 className="font-display text-3xl font-bold mb-2 flex items-center gap-3">
             <CreditCard className="h-8 w-8" />
@@ -128,6 +142,12 @@ export default function TenantBilling() {
             {t('billing.invoiceHistory')}
           </p>
         </div>
+
+        {/* P3.3 — Billing Overview Card */}
+        <BillingOverviewCard />
+
+        {/* P3.3 — Billing Timeline */}
+        <BillingTimeline />
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-3">
