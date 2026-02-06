@@ -19,7 +19,7 @@ type SupabaseClient = any;
 /**
  * Domain types for billing-aware operations
  */
-export type AuditDomain = 'EVENTS' | 'MEMBERSHIPS' | 'RANKINGS' | 'GRADINGS' | 'ACADEMIES' | 'COACHES' | 'ATHLETES';
+export type AuditDomain = 'EVENTS' | 'MEMBERSHIPS' | 'RANKINGS' | 'GRADINGS' | 'ACADEMIES' | 'COACHES' | 'ATHLETES' | 'WIZARD';
 
 /**
  * Decision outcomes for billing gate
@@ -34,7 +34,8 @@ export type BillingAuditEventType =
   | 'BILLING_WRITE_BLOCKED'
   | 'TENANT_NOT_ACTIVE_BLOCK'
   | 'BILLING_READ_ONLY_BLOCK'
-  | 'BILLING_BLOCKED';
+  | 'BILLING_BLOCKED'
+  | 'WIZARD_ADMIN_ASSIGN_FAILED';
 
 /**
  * Payload for billing-aware audit events

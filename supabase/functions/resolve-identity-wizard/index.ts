@@ -51,6 +51,7 @@
  */
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { emitBillingAuditEvent } from "../_shared/emitBillingAuditEvent.ts";
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * CORS HEADERS
@@ -533,11 +534,30 @@ async function handleWizardCompletion(
   // Garantir que o tenant foi criado com status correto
   // Previne regressão silenciosa futura
   if (newTenant.status !== "SETUP") {
-    console.error("[WIZARD_CREATE_TENANT] CRITICAL: Tenant created with invalid initial status:", {
+    // Enhanced structured logging (P3.FINAL.FIX)
+    console.error("[WIZARD][SANITY_CHECK]", {
       expected: "SETUP",
       actual: newTenant.status,
-      tenant_id: newTenant.id,
+      tenantId: newTenant.id,
+      userId,
     });
+
+    // Best-effort audit event (P3.5 pattern)
+    await emitBillingAuditEvent(supabase, {
+      event_type: "WIZARD_ADMIN_ASSIGN_FAILED",
+      tenant_id: newTenant.id,
+      profile_id: userId,
+      domain: "WIZARD",
+      operation: "tenant_sanity_check",
+      decision: "BLOCKED",
+      tenant_status: newTenant.status,
+      billing_status: null,
+      metadata: {
+        expected_status: "SETUP",
+        actual_status: newTenant.status,
+      },
+    });
+
     // Rollback - tenant criado com estado inválido
     await supabase.from("tenants").delete().eq("id", newTenant.id);
     return {
@@ -567,7 +587,31 @@ async function handleWizardCompletion(
   });
 
   if (roleError) {
-    console.error("[resolve-identity-wizard] Failed to assign role:", roleError);
+    // Enhanced structured logging (P3.FINAL.FIX)
+    console.error("[WIZARD][ROLE_ASSIGN]", {
+      tenantId: newTenant.id,
+      userId,
+      error: roleError.message,
+      code: roleError.code,
+      details: roleError.details,
+    });
+
+    // Best-effort audit event (P3.5 pattern)
+    await emitBillingAuditEvent(supabase, {
+      event_type: "WIZARD_ADMIN_ASSIGN_FAILED",
+      tenant_id: newTenant.id,
+      profile_id: userId,
+      domain: "WIZARD",
+      operation: "assign_admin_role",
+      decision: "BLOCKED",
+      tenant_status: "SETUP",
+      billing_status: null,
+      metadata: {
+        error_code: roleError.code,
+        error_message: roleError.message,
+      },
+    });
+
     // Rollback tenant creation
     await supabase.from("tenants").delete().eq("id", newTenant.id);
     return {
