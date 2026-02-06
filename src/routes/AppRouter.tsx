@@ -22,6 +22,7 @@ import TenantOnboarding from '@/pages/TenantOnboarding';
 import TenantHelp from '@/pages/TenantHelp';
 import TenantDiagnostics from '@/pages/TenantDiagnostics';
 import NotFound from '@/pages/NotFound';
+import { BillingGate } from '@/components/billing/BillingGate';
 
 export default function AppRouter() {
   return (
@@ -39,8 +40,9 @@ export default function AppRouter() {
       <Route path="approvals" element={<ApprovalsList />} />
       <Route path="approvals/:approvalId" element={<ApprovalDetails />} />
       <Route path="rankings" element={<InternalRankings />} />
-      <Route path="events" element={<EventsList />} />
-      <Route path="events/:eventId" element={<EventDetails />} />
+      {/* P3.4: Events routes wrapped with BillingGate strictMode */}
+      <Route path="events" element={<BillingGate strictMode><EventsList /></BillingGate>} />
+      <Route path="events/:eventId" element={<BillingGate strictMode><EventDetails /></BillingGate>} />
       <Route path="audit-log" element={<AuditLog />} />
       <Route path="security" element={<SecurityTimeline />} />
       <Route path="billing" element={<TenantBilling />} />
