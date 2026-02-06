@@ -13,12 +13,19 @@
  * ============================================================================
  */
 
-export type TemporaryErrorType =
-  | 'NETWORK'
-  | 'TIMEOUT'
-  | 'SERVER'
-  | 'RATE_LIMIT'
-  | 'UNKNOWN';
+/**
+ * Const array of all valid temporary error types.
+ * Used for compile-time safety and autocomplete.
+ */
+export const TEMPORARY_ERROR_TYPES = [
+  'NETWORK',
+  'TIMEOUT',
+  'SERVER',
+  'RATE_LIMIT',
+  'UNKNOWN',
+] as const;
+
+export type TemporaryErrorType = typeof TEMPORARY_ERROR_TYPES[number];
 
 export interface TemporaryErrorConfig {
   /** i18n key for error title */
