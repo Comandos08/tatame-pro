@@ -1,24 +1,21 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * 🔐 RESOLVE IDENTITY WIZARD — IDENTITY RESOLUTION ORACLE (READ-ONLY)
+ * 🔐 RESOLVE IDENTITY WIZARD — IDENTITY RESOLUTION & WIZARD COMPLETION
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * CONTRATO IMUTÁVEL:
+ * CONTRATO:
  * ─────────────────────────────────────────────────────────────────────────────
  * Esta Edge Function é a FONTE DE VERDADE para resolução de identidade.
- * Ela APENAS LEITURA e DECIDE — nunca modifica estrutura organizacional.
- *
- * ⛔ O QUE ESTA FUNÇÃO NÃO FAZ (BY DESIGN):
- *    1. NÃO cria tenants (bloqueado intencionalmente)
- *    2. NÃO executa onboarding ativo
- *    3. NÃO modifica estrutura organizacional
- *    4. NÃO atribui roles (isso é feito em approve-membership)
- *    5. NÃO cria registros de billing
  *
  * ✅ O QUE ESTA FUNÇÃO FAZ:
- *    1. RESOLVE estado de identidade do usuário autenticado
- *    2. DECIDE redirecionamento com base no estado resolvido
- *    3. RETORNA estado determinístico para o frontend
+ *    1. CHECK: Resolve estado de identidade do usuário autenticado
+ *    2. COMPLETE_WIZARD: Cria tenant em status=SETUP + atribui ADMIN_TENANT
+ *
+ * ⛔ O QUE ESTA FUNÇÃO NÃO FAZ (BY DESIGN):
+ *    1. NÃO executa lógica de billing (tenant em SETUP não tem billing)
+ *    2. NÃO envia convites automáticos
+ *    3. NÃO libera features de produção para tenants em SETUP
+ *    4. NÃO atribui permissões globais (apenas ADMIN do tenant criado)
  *
  * INVARIANTES ABSOLUTAS:
  * ─────────────────────────────────────────────────────────────────────────────
@@ -26,7 +23,6 @@
  *    - Estado vem SOMENTE no body (nunca depende de status HTTP)
  *    - Nenhum fluxo depende de status HTTP
  *    - Nenhum maybeSingle() em contexto de identidade
- *    - Bloqueios são INTENCIONAIS e POR DESIGN
  *
  * ESTADOS POSSÍVEIS:
  * ─────────────────────────────────────────────────────────────────────────────
@@ -42,9 +38,14 @@
  *      3. Tem role+tenant ativo? → RESOLVED + /{slug}/app ou /{slug}/portal
  *      4. Fallback → ERROR
  *
- *    COMPLETE_WIZARD:
- *      ⛔ BLOQUEADO — Criação de tenants via wizard está DESABILITADA.
- *      Novos tenants devem ser criados via Admin Dashboard.
+ *    COMPLETE_WIZARD (joinMode = "new"):
+ *      1. Valida payload
+ *      2. Verifica idempotência (wizard já completado?)
+ *      3. Gera slug único
+ *      4. Cria tenant com status=SETUP, creation_source=wizard
+ *      5. Atribui role ADMIN_TENANT ao usuário criador
+ *      6. Marca wizard_completed = true
+ *      7. Retorna RESOLVED + /{slug}/app/onboarding
  *
  * ═══════════════════════════════════════════════════════════════════════════════
  */
@@ -321,8 +322,6 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string): Pr
  * SLUG GENERATOR (UTILITY)
  * ═══════════════════════════════════════════════════════════════════════════════
  * Gera slug URL-safe a partir de nome.
- * ⚠️ NOTA: Esta função existe mas NÃO É UTILIZADA pois criação de tenants
- * via wizard está BLOQUEADA.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 function generateSlug(name: string): string {
@@ -336,29 +335,23 @@ function generateSlug(name: string): string {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
- * COMPLETE_WIZARD — TENANT CREATION (BLOQUEADO)
+ * COMPLETE_WIZARD — TENANT CREATION (SETUP MODE)
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * ⛔⛔⛔ BLOQUEIO INTENCIONAL — BY DESIGN ⛔⛔⛔
+ * P2.HOTFIX — Cria tenant via Wizard em modo SETUP
  *
- * Esta função NÃO cria tenants. O fluxo está DESABILITADO intencionalmente.
+ * REGRAS:
+ *   1. Apenas joinMode === "new" é suportado
+ *   2. Tenant é criado com status = 'SETUP', creation_source = 'wizard'
+ *   3. Usuário recebe APENAS role ADMIN_TENANT do tenant criado
+ *   4. Nenhuma lógica de billing é executada
+ *   5. Nenhum convite automático é enviado
+ *   6. Usuário é redirecionado para /{slug}/app/onboarding
  *
- * RAZÃO DO BLOQUEIO:
- *   - Criação de tenants requer seleção explícita de modalidade (sport_types)
- *   - O Identity Wizard não suporta seleção de modalidade
- *   - Novos tenants DEVEM ser criados via Admin Dashboard
- *   - Este bloqueio garante integridade da estrutura organizacional
- *
- * COMPORTAMENTO ATUAL:
- *   - joinMode === "existing": Retorna UNSUPPORTED_JOIN_MODE
- *   - joinMode === "new": Valida payload, verifica idempotência, depois BLOQUEIA
- *
- * FLUXO DE VALIDAÇÃO (antes do bloqueio):
- *   1. Validar joinMode (apenas "new" aceito)
- *   2. Validar nome da organização
- *   3. Verificar idempotência (wizard já completado?)
- *   4. Gerar slug único (20 tentativas max)
- *   5. ⛔ BLOQUEIO: Retornar WIZARD_TENANT_CREATION_DISABLED
+ * SEGURANÇA:
+ *   - Tenant em SETUP não aparece em listagens públicas (is_active = true, mas status = SETUP)
+ *   - Billing não é criado até onboarding ser completado
+ *   - Operações destrutivas são bloqueadas até tenant estar ACTIVE
  *
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -371,7 +364,7 @@ async function handleWizardCompletion(
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * VALIDAÇÃO 1: joinMode
-   * ⛔ joinMode === "existing" NÃO É SUPORTADO (feature futura)
+   * Apenas joinMode === "new" é suportado (criar nova organização)
    * ───────────────────────────────────────────────────────────────────────────── */
   if (payload?.joinMode !== "new") {
     console.warn("[resolve-identity-wizard] UNSUPPORTED_JOIN_MODE:", payload?.joinMode);
@@ -458,22 +451,124 @@ async function handleWizardCompletion(
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * ⛔⛔⛔ BLOQUEIO INTENCIONAL — CRIAÇÃO DE TENANT DESABILITADA ⛔⛔⛔
+   * ✅ P2.HOTFIX — CRIAR TENANT EM MODO SETUP
    * ═══════════════════════════════════════════════════════════════════════════
    *
-   * RAZÃO: sport_types é obrigatório para criação de tenant.
-   *        O wizard NÃO suporta seleção de modalidade.
-   *        Tenants devem ser criados via Admin Dashboard.
-   *
-   * ESTE BLOQUEIO É BY DESIGN E NÃO DEVE SER REMOVIDO.
+   * 1. Cria tenant com status=SETUP, creation_source=wizard
+   * 2. sport_types vazio (será definido no onboarding)
+   * 3. is_active=true para permitir acesso do admin criador
+   * 4. onboarding_completed=false (obriga wizard de setup)
    *
    * ═══════════════════════════════════════════════════════════════════════════ */
-  console.error("[resolve-identity-wizard] BLOCKED: Tenant creation via wizard is disabled. Use Admin Dashboard.");
-  return {
-    status: "ERROR",
-    error: {
-      code: "WIZARD_TENANT_CREATION_DISABLED",
-      message: "Criação de organização via wizard está desabilitada. Use o painel administrativo.",
+  console.log("[resolve-identity-wizard] Creating tenant in SETUP mode:", { orgName, finalSlug });
+
+  const { data: newTenant, error: tenantError } = await supabase
+    .from("tenants")
+    .insert({
+      name: orgName,
+      slug: finalSlug,
+      is_active: true,
+      status: "SETUP",
+      creation_source: "wizard",
+      onboarding_completed: false,
+      sport_types: [], // Será definido no onboarding - trigger validação desabilitado para SETUP
+    })
+    .select("id, slug, name")
+    .single();
+
+  if (tenantError || !newTenant) {
+    console.error("[resolve-identity-wizard] Failed to create tenant:", tenantError);
+    
+    // Check for specific constraint violation (sport_types)
+    if (tenantError?.message?.includes("sport_types")) {
+      return {
+        status: "ERROR",
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Falha na validação: modalidade esportiva será definida no próximo passo.",
+        },
+      };
+    }
+    
+    return {
+      status: "ERROR",
+      error: {
+        code: "TENANT_CREATION_FAILED",
+        message: tenantError?.message || "Falha ao criar organização.",
+      },
+    };
+  }
+
+  console.log("[resolve-identity-wizard] Tenant created successfully:", newTenant.id);
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 5: Atribuir role ADMIN_TENANT ao usuário criador
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { error: roleError } = await supabase.from("user_roles").insert({
+    user_id: userId,
+    role: "ADMIN_TENANT",
+    tenant_id: newTenant.id,
+  });
+
+  if (roleError) {
+    console.error("[resolve-identity-wizard] Failed to assign role:", roleError);
+    // Rollback tenant creation
+    await supabase.from("tenants").delete().eq("id", newTenant.id);
+    return {
+      status: "ERROR",
+      error: {
+        code: "ROLE_ASSIGNMENT_FAILED",
+        message: "Falha ao atribuir permissão de administrador.",
+      },
+    };
+  }
+
+  console.log("[resolve-identity-wizard] ADMIN_TENANT role assigned to user:", userId);
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 6: Atualizar profile com wizard_completed e tenant_id
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({
+      wizard_completed: true,
+      tenant_id: newTenant.id,
+    })
+    .eq("id", userId);
+
+  if (profileError) {
+    console.error("[resolve-identity-wizard] Failed to update profile:", profileError);
+    // Continue anyway - wizard_completed can be set later
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 7: Log audit event
+   * ───────────────────────────────────────────────────────────────────────────── */
+  await supabase.from("audit_logs").insert({
+    tenant_id: newTenant.id,
+    profile_id: userId,
+    event_type: "TENANT_CREATED_VIA_WIZARD",
+    metadata: {
+      tenant_name: orgName,
+      tenant_slug: finalSlug,
+      creation_source: "wizard",
+      status: "SETUP",
     },
+  });
+
+  console.log("[resolve-identity-wizard] COMPLETE_WIZARD success - redirecting to onboarding");
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * RETORNO: RESOLVED com redirecionamento para onboarding
+   * ───────────────────────────────────────────────────────────────────────────── */
+  return {
+    status: "RESOLVED",
+    role: "ADMIN_TENANT",
+    tenant: {
+      id: newTenant.id,
+      slug: newTenant.slug,
+      name: newTenant.name,
+    },
+    redirectPath: `/${newTenant.slug}/app/onboarding`,
   };
 }
