@@ -1,264 +1,240 @@
 
-# P0 — RESET CONTROLADO DE AMBIENTE
+# Plano de Execução: Eliminação de Defaults de Modalidade
 
-## Database Clean Slate · TATAME PRO
+## Resumo Executivo
 
----
-
-## PRÉ-CHECK EXECUTADO ✅
-
-### 1. Superadmin Confirmado
-
-| Campo | Valor |
-|-------|-------|
-| Email | `global@tatame.pro` |
-| User ID | `d26454f2-a66d-423f-ae5f-006f1cc90635` |
-| Role | `SUPERADMIN_GLOBAL` |
-| Tenant ID | `NULL` ✅ |
-
-**Nota**: Este usuário também possui role `ADMIN_TENANT` em um tenant. Será removida durante o reset (apenas `SUPERADMIN_GLOBAL` permanece).
-
-### 2. Estado Atual do Banco
-
-| Tabela | Contagem |
-|--------|----------|
-| tenants | 3 |
-| academies | 2 |
-| athletes | 1 |
-| coaches | 4 |
-| memberships | 1 |
-| digital_cards | 1 |
-| diplomas | 1 |
-| events | 2 |
-| event_categories | 1 |
-| grading_schemes | 2 |
-| grading_levels | 10 |
-| athlete_gradings | 1 |
-| academy_coaches | 3 |
-| tenant_billing | 3 |
-| audit_logs | 31 |
-| decision_logs | 5 |
-| superadmin_impersonations | 10 |
-| profiles | 5 |
-
-### 3. Usuários no auth.users
-
-| Email | Profile Tenant |
-|-------|---------------|
-| global@tatame.pro | 2d641c56... |
-| luizfelipevillar@gmail.com | 2d641c56... |
-| cbsa@sambocbsa.com.br | 31a7f2a8... |
-| global@tierone.pro | 14a99bd5... |
-| fernandojujitsu@hotmail.com | NULL |
+Auditoria completa realizada. O sistema possui múltiplas fontes de injeção implícita de modalidades (BJJ, Jiu-Jitsu) que devem ser removidas para garantir que **nenhum tenant seja criado sem modalidade explicitamente definida**.
 
 ---
 
-## DECISÃO CRÍTICA
+## ETAPA 1 — Classificação das Ocorrências
 
-### Usuários auth.users
+### 1.1 Defaults em Banco de Dados (CRÍTICO)
 
-O escopo original indica **preservar apenas `global@tatame.pro`**. Porém, deletar usuários do `auth.users` requer cuidado especial:
+| Arquivo | Linha | Tipo | Ação |
+|---------|-------|------|------|
+| `supabase/migrations/20260115171534_*.sql` | 28 | DEFAULT ARRAY['BJJ'] | Remover via nova migration |
 
-**Opção A** (Conservadora): Manter todos os usuários em `auth.users`, apenas limpar dados funcionais e roles não-superadmin.
+### 1.2 Backend / Edge Functions (CRÍTICO)
 
-**Opção B** (Radical): Deletar outros usuários de `auth.users` via SQL direto.
+| Arquivo | Linha | Ocorrência | Ação |
+|---------|-------|------------|------|
+| `supabase/functions/resolve-identity-wizard/index.ts` | 341 | `sport_types: ["BJJ"]` hardcoded | Bloquear criação - exigir modalidade via payload |
+| `supabase/functions/generate-digital-card/index.ts` | 120 | `sport_types?.[0] \|\| "Esporte de Combate"` | Fallback aceitável (display only) |
+| `supabase/functions/verify-digital-card/index.ts` | 251 | `sport_types?.[0] \|\| "Combat Sport"` | Fallback aceitável (display only) |
 
-**Recomendação**: Opção A. Manter os 5 usuários em `auth.users`, mas:
-- Limpar profile.tenant_id para todos exceto superadmin
-- Remover todas as roles exceto SUPERADMIN_GLOBAL
-- Resetar wizard_completed para false (exceto superadmin)
+### 1.3 Frontend — Defaults em Código (ALTERAR)
 
-Isso preserva a integridade do auth e permite que esses usuários façam novo onboarding.
+| Arquivo | Linha | Ocorrência | Ação |
+|---------|-------|------------|------|
+| `src/components/admin/CreateTenantDialog.tsx` | 49 | `useState(['Jiu-Jitsu'])` | Mudar para `[]` |
+| `src/components/admin/CreateTenantDialog.tsx` | 137 | `setSelectedSports(['Jiu-Jitsu'])` | Mudar para `[]` |
+| `src/contexts/TenantContext.tsx` | 120 | `(data.sport_types \|\| ['BJJ'])` | Mudar para `(data.sport_types \|\| [])` |
+| `src/pages/GradingSchemesList.tsx` | 105 | `tenant?.sportTypes?.[0] \|\| 'BJJ'` | Mudar para `tenant?.sportTypes?.[0] \|\| ''` |
+| `src/pages/GradingSchemesList.tsx` | 136 | `tenant?.sportTypes \|\| ['BJJ']` | Mudar para `tenant?.sportTypes \|\| []` |
+| `src/components/events/CreateEventDialog.tsx` | 82 | `tenant?.sportTypes?.[0] \|\| ''` | Já correto |
+| `src/pages/AcademiesList.tsx` | 78 | `tenant.sportTypes?.[0] \|\| null` | Já correto |
+| `src/pages/CoachesList.tsx` | 132 | `tenant.sportTypes?.[0] \|\| null` | Já correto |
+
+### 1.4 Valores Válidos em Textos (MANTER)
+
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| `src/locales/*.ts` | i18n | Exemplos de preenchimento (BJJ, Jiu-Jitsu) — textos de ajuda |
+| `src/types/tenant.ts` | TypeScript | União de tipos SportType — definição válida |
+| `src/lib/notifications/examples.ts` | Examples | Dados de exemplo para dev — não afeta produção |
+
+### 1.5 Testes E2E (AJUSTAR)
+
+| Arquivo | Ocorrência | Ação |
+|---------|------------|------|
+| `e2e/fixtures/personas.seed.ts` | `'demo-bjj'` | Slug de tenant de teste — manter como referência |
+| `e2e/events-module.spec.ts` | `TEST_TENANT_SLUG = 'demo-bjj'` | Referência válida a tenant existente |
+| `e2e/public-verification.spec.ts` | `TEST_TENANT_SLUG = 'demo-bjj'` | Referência válida a tenant existente |
+| `src/lib/notifications/__tests__/notificationEngine.spec.ts` | `'demo-bjj'` | Fixture de teste — manter |
 
 ---
 
-## PLANO DE EXECUÇÃO
+## ETAPA 2 — Banco de Dados
 
-### FASE 0 — Backup Mental
-
-Nenhuma estrutura será alterada. Apenas dados.
-
-### FASE 1 — Limpeza de Logs e Eventos
+### SQL de Migração
 
 ```sql
-DELETE FROM webhook_events;
-DELETE FROM security_events;
-DELETE FROM decision_logs;
-DELETE FROM audit_logs;
-DELETE FROM superadmin_impersonations;
-DELETE FROM password_resets;
-```
+-- Remove DEFAULT de sport_types na tabela tenants
+-- Permite NULL para validação explícita
+ALTER TABLE public.tenants 
+  ALTER COLUMN sport_types DROP DEFAULT;
 
-### FASE 2 — Limpeza de Eventos Esportivos
+-- Adiciona constraint NOT NULL para garantir obrigatoriedade
+-- (opcional - pode deixar nullable e validar via trigger)
+-- ALTER TABLE public.tenants 
+--   ALTER COLUMN sport_types SET NOT NULL;
 
-```sql
-DELETE FROM event_results;
-DELETE FROM event_registrations;
-DELETE FROM event_bracket_matches;
-DELETE FROM event_brackets;
-DELETE FROM event_categories;
-DELETE FROM events;
-```
+-- Trigger de validação: bloqueia INSERT sem sport_types válido
+CREATE OR REPLACE FUNCTION validate_tenant_sport_types()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF NEW.sport_types IS NULL OR array_length(NEW.sport_types, 1) IS NULL OR array_length(NEW.sport_types, 1) = 0 THEN
+    RAISE EXCEPTION 'sport_types is required and must contain at least one modality';
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
-### FASE 3 — Limpeza de Graduação e Diplomas
-
-```sql
-DELETE FROM diplomas;
-DELETE FROM athlete_gradings;
-DELETE FROM grading_levels;
-DELETE FROM grading_schemes;
-```
-
-### FASE 4 — Limpeza de Memberships e Pessoas
-
-```sql
-DELETE FROM digital_cards;
-DELETE FROM documents;
-DELETE FROM memberships;
-DELETE FROM guardian_links;
-DELETE FROM guardians;
-DELETE FROM athletes;
-DELETE FROM coaches;
-```
-
-### FASE 5 — Limpeza de Academias e Tenants
-
-```sql
-DELETE FROM academy_coaches;
-DELETE FROM academies;
-DELETE FROM tenant_invoices;
-DELETE FROM tenant_billing;
-DELETE FROM deleted_tenants;
-DELETE FROM tenants;
-```
-
-### FASE 6 — Limpeza de Roles (Preservar Superadmin)
-
-```sql
-DELETE FROM public.user_roles
-WHERE NOT (
-  role = 'SUPERADMIN_GLOBAL' 
-  AND user_id = 'd26454f2-a66d-423f-ae5f-006f1cc90635'
-);
-```
-
-### FASE 7 — Reset de Profiles
-
-```sql
--- Superadmin: limpar tenant_id, manter wizard_completed
-UPDATE public.profiles
-SET tenant_id = NULL
-WHERE id = 'd26454f2-a66d-423f-ae5f-006f1cc90635';
-
--- Outros usuários: limpar tenant_id e resetar wizard
-UPDATE public.profiles
-SET tenant_id = NULL, wizard_completed = false
-WHERE id != 'd26454f2-a66d-423f-ae5f-006f1cc90635';
-```
-
-### FASE 8 — Preservar Configuração de Plataforma
-
-```sql
--- Manter platform_landing_config (1 registro)
--- Manter platform_partners (0 registros)
--- Estes são dados de plataforma, não de tenant
+CREATE TRIGGER trg_validate_tenant_sport_types
+  BEFORE INSERT ON public.tenants
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_tenant_sport_types();
 ```
 
 ---
 
-## VALIDAÇÃO PÓS-RESET
+## ETAPA 3 — Backend / Edge Functions
 
-### 1. Banco Vazio
+### resolve-identity-wizard/index.ts
 
-```sql
-SELECT
-  (SELECT COUNT(*) FROM tenants) AS tenants,
-  (SELECT COUNT(*) FROM memberships) AS memberships,
-  (SELECT COUNT(*) FROM athletes) AS athletes,
-  (SELECT COUNT(*) FROM digital_cards) AS cards;
-```
+Atualmente a edge function insere `sport_types: ["BJJ"]` hardcoded na linha 341. Deve ser alterado para:
 
-**Esperado**: Todos = 0
+1. **Rejeitar criação sem modalidade** (bloqueante)
+2. **Ou receber modalidade via payload** (se wizard for expandido)
 
-### 2. Superadmin Único
+**Decisão**: Como o Identity Wizard atual não coleta modalidade, e o tenant deve completar onboarding (TenantOnboarding) onde configura a organização, a solução é:
 
-```sql
-SELECT role, user_id FROM public.user_roles;
-```
+- Remover `sport_types: ["BJJ"]` do insert
+- O banco vai rejeitar via trigger
+- Wizard atual não pode criar tenant (comportamento correto para P0)
 
-**Esperado**: 1 linha, `SUPERADMIN_GLOBAL`, user_id do global@tatame.pro
-
-### 3. Profiles Limpos
-
-```sql
-SELECT email, tenant_id, wizard_completed 
-FROM profiles p
-JOIN auth.users u ON u.id = p.id;
-```
-
-**Esperado**: 
-- global@tatame.pro: tenant_id NULL, wizard_completed true
-- Outros: tenant_id NULL, wizard_completed false
+**Alternativa P0**: Inserir `sport_types: []` array vazio e bloquear onboarding até configurar. O trigger rejeitará arrays vazios.
 
 ---
 
-## CRITÉRIOS DE PARADA
+## ETAPA 4 — Frontend
 
-| Condição | Ação |
-|----------|------|
-| FK violation | PARAR |
-| Erro em DELETE | PARAR |
-| Superadmin afetado | PARAR |
-| Policy/função alterada | PARAR |
+### CreateTenantDialog.tsx
 
----
+```diff
+- const [selectedSports, setSelectedSports] = useState<string[]>(['Jiu-Jitsu']);
++ const [selectedSports, setSelectedSports] = useState<string[]>([]);
 
-## GARANTIAS DE SEGURANÇA
+  const resetForm = () => {
+    setName('');
+    setSlug('');
+    setDescription('');
+-   setSelectedSports(['Jiu-Jitsu']);
++   setSelectedSports([]);
+    setDefaultLocale('pt-BR');
+    setPrimaryColor('#dc2626');
+  };
+```
 
-| Item | Estado |
-|------|--------|
-| Schema preservado | ✅ |
-| Funções SQL preservadas | ✅ |
-| Policies RLS preservadas | ✅ |
-| Edge Functions preservadas | ✅ |
-| auth.users preservado | ✅ |
-| Superadmin preservado | ✅ |
-| platform_landing_config preservado | ✅ |
+**Validação já existe** na linha 74: `if (selectedSports.length === 0)` → lança erro.
 
----
+### TenantContext.tsx
 
-## RESULTADO ESPERADO
+```diff
+- sportTypes: (data.sport_types || ['BJJ']) as Tenant['sportTypes'],
++ sportTypes: (data.sport_types || []) as Tenant['sportTypes'],
+```
 
-```text
-DATABASE STATE: CLEAN SLATE
-USERS: 5 (auth.users preservados)
-PROFILES: 5 (tenant_id = NULL para todos)
-ROLES: 1 (SUPERADMIN_GLOBAL apenas)
-TENANTS: 0
-RLS: ATIVO
-EDGE FUNCTIONS: ATIVAS
-BASELINE: PRESERVADO
+### GradingSchemesList.tsx
+
+```diff
+  const openCreateDialog = () => {
+    setEditingScheme(null);
+    setFormData({
+      name: '',
+-     sport_type: tenant?.sportTypes?.[0] || 'BJJ',
++     sport_type: tenant?.sportTypes?.[0] || '',
+      is_default: false,
+    });
+    setIsDialogOpen(true);
+  };
+
+- const sportTypes = tenant?.sportTypes || ['BJJ'];
++ const sportTypes = tenant?.sportTypes || [];
 ```
 
 ---
 
-## PRÓXIMOS PASSOS (APÓS RESET)
+## ETAPA 5 — Testes
 
-1. ✅ Login com global@tatame.pro
-2. ✅ Criar tenant de teste
-3. ✅ Criar academy
-4. ✅ Criar atleta
-5. ✅ Criar membership
-6. ✅ Emitir digital_card
-7. ✅ Testar verificação QR
-8. ✅ Testar impersonation
-9. ✅ Testar RLS (tentativas proibidas)
-10. ✅ Testar Edge Functions
+### Teste Negativo a Criar
+
+Arquivo: `e2e/security/tenant-modality-contract.spec.ts`
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Tenant Modality Contract', () => {
+  test('rejects tenant creation without modality', async ({ page }) => {
+    // Login as superadmin
+    // Open CreateTenantDialog
+    // Fill name, slug
+    // DO NOT select any modality
+    // Click Create
+    // Expect error toast: "Selecione pelo menos uma modalidade"
+  });
+
+  test('allows tenant creation with explicit modality', async ({ page }) => {
+    // Login as superadmin
+    // Open CreateTenantDialog
+    // Fill name, slug
+    // Select "Judo"
+    // Click Create
+    // Expect success toast
+    // Verify tenant has sport_types = ['Judo']
+  });
+});
+```
+
+### Atualizar Mocks/Factories
+
+- Verificar se fixtures de teste injetam `sport_types: ['BJJ']` implicitamente
+- Ajustar para sempre exigir modalidade explícita
 
 ---
 
-## EXECUÇÃO
+## ETAPA 6 — Validação Final
 
-A execução será feita via múltiplas chamadas SQL, na ordem especificada, com validação entre cada fase.
+| Cenário | Resultado Esperado |
+|---------|-------------------|
+| Criar tenant sem modalidade (Admin Dashboard) | ❌ Erro: "Selecione pelo menos uma modalidade" |
+| Criar tenant sem modalidade (Edge Function) | ❌ Erro: "sport_types is required" |
+| Criar tenant com modalidade explícita | ✅ Sucesso |
+| Impersonation após mudanças | ✅ Funciona normalmente |
+| TenantContext carrega tenant sem sport_types | ✅ Retorna array vazio, não injeta BJJ |
 
-**STATUS**: PRONTO PARA EXECUÇÃO
+---
+
+## Detalhes Técnicos
+
+### Arquivos a Modificar
+
+1. **Nova migration SQL** — Remove default, adiciona trigger
+2. `supabase/functions/resolve-identity-wizard/index.ts` — Remove hardcoded BJJ
+3. `src/components/admin/CreateTenantDialog.tsx` — Estado inicial vazio
+4. `src/contexts/TenantContext.tsx` — Remove fallback BJJ
+5. `src/pages/GradingSchemesList.tsx` — Remove fallback BJJ
+6. **Novo teste E2E** — Validação do contrato de modalidade
+
+### Arquivos que NÃO serão modificados
+
+- Locales (pt-BR, en, es) — São exemplos de preenchimento
+- `src/types/tenant.ts` — Definição de tipos válida
+- Fixtures de teste E2E com `demo-bjj` — É um slug, não um default
+- Edge functions de card (generate/verify) — Fallbacks de display são aceitáveis
+
+---
+
+## Confirmação Esperada
+
+Ao final da implementação:
+
+> **"Não existe mais default de modalidade no sistema."**
+> 
+> **O sistema agora se recusa a criar tenants sem modalidade explicitamente definida.
+> Nenhuma modalidade é inferida, presumida ou aplicada por padrão.**
