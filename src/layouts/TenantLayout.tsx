@@ -35,14 +35,15 @@
  */
 
 import React, { useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
 import { useI18n } from '@/contexts/I18nContext';
 import { motion } from 'framer-motion';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Home } from 'lucide-react';
 import { hexToHsl } from '@/lib/colorUtils';
+import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 
 // =============================================================================
 // TENANT CONTENT COMPONENT
@@ -51,6 +52,7 @@ import { hexToHsl } from '@/lib/colorUtils';
 function TenantContent() {
   const { tenant, isLoading, error, billingInfo } = useTenant();
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useI18n();
 
   // =========================================================================
@@ -95,24 +97,22 @@ function TenantContent() {
   // STEP 3: Tenant Not Found / Error
   // =========================================================================
   // FAIL-CLOSED: Invalid tenant slug shows error UI
-  // DOES NOT redirect — shows informative error instead
+  // P1.1: Uses BlockedStateCard for unified UX
   if (error || !tenant) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-4 p-8 text-center"
-        >
-          <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AlertCircle className="h-8 w-8 text-destructive" />
-          </div>
-          <h1 className="text-2xl font-display font-bold">{t('tenant.notFound')}</h1>
-          <p className="text-muted-foreground max-w-md">
-            {t('tenant.notFoundDesc')}
-          </p>
-        </motion.div>
-      </div>
+      <BlockedStateCard
+        icon={AlertCircle}
+        iconVariant="destructive"
+        titleKey="tenant.notFound"
+        descriptionKey="tenant.notFoundDesc"
+        actions={[
+          {
+            labelKey: 'common.goHome',
+            onClick: () => navigate('/'),
+            icon: Home,
+          },
+        ]}
+      />
     );
   }
 

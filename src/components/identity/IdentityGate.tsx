@@ -42,14 +42,14 @@
 
 import React, { useRef, useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/contexts/I18nContext";
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
+import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
 import {
   resolveIdentityState,
   IdentityResolutionInput,
@@ -359,28 +359,22 @@ export function IdentityGate({ children }: IdentityGateProps) {
         // INTENTIONAL: Check if superadmin is trying to access tenant route without impersonation
         const { isTenant, tenantSlug } = isTenantRoute(pathname);
         if (isTenant && tenantSlug) {
-          // BY DESIGN: Show explanatory UI instead of silent redirect
+          // P1.1: Uses BlockedStateCard for unified UX
           // SECURITY BOUNDARY: Superadmin must explicitly impersonate to access tenant data
           return (
-            <div className="min-h-screen flex items-center justify-center bg-background p-4">
-              <Card className="max-w-md w-full">
-                <CardHeader>
-                  <AlertCircle className="h-8 w-8 text-warning mx-auto mb-2" />
-                  <CardTitle className="text-center">{t("impersonation.actionRequired")}</CardTitle>
-                  <CardDescription className="text-center">
-                    {t("impersonation.superadminContextRequired")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <p className="text-sm text-muted-foreground text-center">
-                    {t("impersonation.superadminExplainer")}
-                  </p>
-                  <Button onClick={() => navigate("/admin")} className="w-full">
-                    {t("impersonation.goToAdmin")}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <BlockedStateCard
+              icon={ShieldAlert}
+              iconVariant="warning"
+              titleKey="impersonation.actionRequired"
+              descriptionKey="impersonation.superadminContextRequired"
+              hintKey="impersonation.superadminExplainer"
+              actions={[
+                {
+                  labelKey: 'impersonation.goToAdmin',
+                  onClick: () => navigate("/admin"),
+                },
+              ]}
+            />
           );
         }
         return <Navigate to={redirectDecision.destination!} replace />;
@@ -395,25 +389,25 @@ export function IdentityGate({ children }: IdentityGateProps) {
       // EDGE CASE: User at /portal but no redirect path resolved
       // INTENTIONAL: Show error UI with recovery options
       if (!redirectPath && pathname === '/portal') {
+        // P1.1: Uses BlockedStateCard for unified UX
         return (
-          <div className="min-h-screen flex items-center justify-center bg-background p-4">
-            <Card className="max-w-md w-full">
-              <CardHeader>
-                <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-                <CardTitle className="text-center">{t("identity.noContext")}</CardTitle>
-                <CardDescription className="text-center">{t("identity.noContextDesc")}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Button onClick={refreshIdentity} className="w-full">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {t("common.retry")}
-                </Button>
-                <Button variant="outline" onClick={() => signOut()} className="w-full">
-                  {t("auth.logout")}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          <BlockedStateCard
+            icon={AlertCircle}
+            iconVariant="destructive"
+            titleKey="identity.noContext"
+            descriptionKey="identity.noContextDesc"
+            actions={[
+              {
+                labelKey: 'common.retry',
+                onClick: refreshIdentity,
+                icon: RefreshCw,
+              },
+              {
+                labelKey: 'auth.logout',
+                onClick: () => signOut(),
+              },
+            ]}
+          />
         );
       }
       // INTENTIONAL: Redirect if state machine decided so
@@ -428,44 +422,43 @@ export function IdentityGate({ children }: IdentityGateProps) {
     // -----------------------------------------------------------------
     // FAIL-CLOSED: Show escape hatch UI, never silent pass
     // BY DESIGN: Error codes are mapped to user-friendly messages via resolveErrorEscapeHatch
+    // P1.1: Uses BlockedStateCard for unified UX
     case 'ERROR': {
       // INTENTIONAL: Use explicit escape hatch with KEY-BASED i18n
       const escapeOptions = resolveErrorEscapeHatch(error);
       
-      // BY DESIGN: Translation happens HERE, not in escape hatch (separation of concerns)
-      const userMessage = t(escapeOptions.userMessageKey) || escapeOptions.fallbackMessage || t('identity.error');
-      const suggestion = t(escapeOptions.suggestionKey);
-      const retryLabel = escapeOptions.canRetry ? t(escapeOptions.retryLabelKey) : '';
-      const logoutLabel = t(escapeOptions.logoutLabelKey);
-      
+      // Build dynamic actions based on escape options
+      const actions: Array<{
+        labelKey: string;
+        onClick: () => void;
+        variant?: 'default' | 'outline' | 'ghost';
+        icon?: typeof RefreshCw;
+      }> = [];
+
+      if (escapeOptions.canRetry) {
+        actions.push({
+          labelKey: escapeOptions.retryLabelKey,
+          onClick: refreshIdentity,
+          icon: RefreshCw,
+        });
+      }
+
+      if (escapeOptions.canLogout) {
+        actions.push({
+          labelKey: escapeOptions.logoutLabelKey,
+          onClick: () => signOut(),
+        });
+      }
+
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader>
-              <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-              <CardTitle className="text-center">{t("identity.error")}</CardTitle>
-              <CardDescription className="text-center">
-                {userMessage}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <p className="text-sm text-muted-foreground text-center">
-                {suggestion}
-              </p>
-              {escapeOptions.canRetry && (
-                <Button onClick={refreshIdentity} className="w-full">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {retryLabel}
-                </Button>
-              )}
-              {escapeOptions.canLogout && (
-                <Button variant="outline" onClick={() => signOut()} className="w-full">
-                  {logoutLabel}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <BlockedStateCard
+          icon={AlertCircle}
+          iconVariant="destructive"
+          titleKey="identity.error"
+          descriptionKey={escapeOptions.userMessageKey}
+          hintKey={escapeOptions.suggestionKey}
+          actions={actions}
+        />
       );
     }
 

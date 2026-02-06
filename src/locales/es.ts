@@ -1720,6 +1720,11 @@ export const es: Record<string, string> = {
   'identity.resolvingContext': 'Identificando organización...',
   'identity.superadminTenantAccessHint': 'Para acceder a "{tenant}", inicia una sesión de impersonación desde el panel de administración.',
   'common.retry': 'Intentar de Nuevo',
+  'common.retryNow': 'Intentar de nuevo ahora',
+  'common.backToDashboard': 'Volver al panel',
+  'common.backToHome': 'Volver al inicio',
+  'common.contactSupport': 'Contactar soporte',
+  'auth.endSession': 'Cerrar sesión',
 
   // Trial Status (Growth Trial PI)
   'trial.daysRemaining': 'Período de prueba - {days} días restantes',
@@ -2083,5 +2088,30 @@ export const es: Record<string, string> = {
   'admin.selectModality': 'Seleccione al menos una modalidad',
   'admin.slugInUse': 'Este slug ya está en uso. Elija otro.',
   'admin.tenantsWithProblems': 'Tenants con Problemas',
+
+  // P1.2 — Loading States with Intent
+  'loading.identifyingOrg': 'Identificando organización...',
+  'loading.validatingPermissions': 'Validando permisos...',
+  'loading.loadingDashboard': 'Preparando su panel...',
+  'loading.loadingAthletes': 'Cargando atletas...',
+  'loading.loadingAcademies': 'Cargando academias...',
+  'loading.loadingCoaches': 'Cargando entrenadores...',
+  'loading.loadingApprovals': 'Cargando aprobaciones...',
+  'loading.loadingEvents': 'Cargando eventos...',
+  'loading.pleaseWait': 'Espere un momento',
+
+  // P1.1 — IdentityErrorScreen i18n (replacing hardcoded strings)
+  'identityError.tenantNotFound.title': 'Organización no encontrada',
+  'identityError.tenantNotFound.desc': 'La organización a la que intenta acceder no existe o ha sido desactivada. Verifique el código o seleccione otra organización.',
+  'identityError.tenantNotFound.selectOrg': 'Seleccionar Organización',
+  'identityError.inviteInvalid.title': 'Invitación inválida',
+  'identityError.inviteInvalid.desc': 'El código de invitación proporcionado es inválido, ha expirado o ya fue utilizado. Solicite una nueva invitación al administrador de la organización.',
+  'identityError.permissionDenied.title': 'Acceso denegado',
+  'identityError.permissionDenied.desc': 'No tiene permiso para acceder a esta área. Contacte al administrador de su organización para solicitar acceso.',
+  'identityError.impersonationInvalid.title': 'Sesión de impersonación inválida',
+  'identityError.impersonationInvalid.desc': 'La sesión de impersonación ha expirado o fue invalidada. Inicie una nueva sesión de impersonación si es necesario.',
+  'identityError.impersonationInvalid.backToAdmin': 'Volver al Admin',
+  'identityError.default.title': 'Error de identidad',
+  'identityError.default.desc': 'Ocurrió un error al verificar su identidad. Por favor, inténtelo de nuevo.',
 
 };
