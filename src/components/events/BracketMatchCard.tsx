@@ -177,7 +177,7 @@ export function BracketMatchCard({
       {/* Match label */}
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] text-muted-foreground">
-          {t('events.brackets.match').replace('{match}', `${match.position}`)}
+          {t('events.brackets.match', { match: String(match.position) })}
         </span>
         {isCompleted && (
           <span className="text-[10px] text-primary flex items-center gap-0.5">

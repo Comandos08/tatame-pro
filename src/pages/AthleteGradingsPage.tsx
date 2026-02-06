@@ -39,6 +39,7 @@ import {
 import { toast } from 'sonner';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
 import { formatDateForCsv } from '@/lib/exportCsv';
+import { useI18n } from '@/contexts/I18nContext';
 import type { AthleteGrading, GradingScheme, GradingLevel } from '@/types/grading';
 
 interface Athlete {
@@ -62,6 +63,7 @@ export default function AthleteGradingsPage() {
   const { tenantSlug, athleteId } = useParams<{ tenantSlug: string; athleteId: string }>();
   const navigate = useNavigate();
   const { tenant } = useTenant();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -323,11 +325,11 @@ export default function AthleteGradingsPage() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Award className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhuma graduação registrada para este atleta.
+                {t('empty.gradings.title')}
               </p>
               <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="mt-4">
                 <Plus className="mr-2 h-4 w-4" />
-                Registrar primeira graduação
+                {t('empty.gradings.registerFirst')}
               </Button>
             </CardContent>
           </Card>

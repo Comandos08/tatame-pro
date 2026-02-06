@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useI18n } from '@/contexts/I18nContext';
 
 interface Tenant {
   id: string;
@@ -51,6 +52,7 @@ interface ManageAdminsDialogProps {
 }
 
 export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsDialogProps) {
+  const { t } = useI18n();
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -283,7 +285,7 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
             ) : (
               <div className="text-center py-6 text-muted-foreground">
                 <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nenhum admin cadastrado ainda.</p>
+                <p className="text-sm">{t('empty.admins.title')}</p>
               </div>
             )}
 

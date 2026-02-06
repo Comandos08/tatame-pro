@@ -131,7 +131,7 @@ export default function PublicAcademies() {
                 <Building2 className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {academies.length === 0 
-                    ? 'Nenhuma academia credenciada no momento.'
+                    ? t('empty.publicAcademies.title')
                     : t('common.noResults')
                   }
                 </p>
@@ -140,7 +140,7 @@ export default function PublicAcademies() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground mb-4">
-                {filteredAcademies.length} {filteredAcademies.length === 1 ? 'academia encontrada' : 'academias encontradas'}
+                {t('empty.publicAcademies.count', { count: String(filteredAcademies.length) })}
               </p>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredAcademies.map((academy, index) => (

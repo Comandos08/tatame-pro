@@ -246,7 +246,7 @@ export default function InternalRankings() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Academias são ranqueadas por filiações ativas. Atletas são ranqueados por número de graduações registradas.
+            {t('rankings.methodologyHint')}
           </AlertDescription>
         </Alert>
 
@@ -329,8 +329,8 @@ export default function InternalRankings() {
                       <p className="text-muted-foreground font-medium">{t('rankings.noData')}</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {academyRankings.length > 0 
-                          ? 'Tente ajustar os filtros para ver mais resultados.'
-                          : 'Nenhuma academia com atletas ativos ainda.'}
+                          ? t('rankings.adjustFilters')
+                          : t('rankings.noActiveAcademies')}
                       </p>
                     </div>
                   ) : (

@@ -42,7 +42,7 @@ export function ExportCsvButton<T extends Record<string, any>>({
       const fullFilename = `${filename}_${timestamp}`;
       
       exportToCsv(fullFilename, columns, data);
-      toast.success(t('export.success').replace('{count}', String(data.length)));
+      toast.success(t('export.success', { count: String(data.length) }));
     } catch (error) {
       console.error('Export error:', error);
       toast.error(t('export.error'));

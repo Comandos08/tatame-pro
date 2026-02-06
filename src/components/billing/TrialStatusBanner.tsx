@@ -77,7 +77,7 @@ export function TrialStatusBanner() {
       // Urgent - trial ending soon
       variant = 'destructive';
       icon = AlertTriangle;
-      message = t('trial.expiringSoon').replace('{days}', String(daysRemaining));
+      message = t('trial.expiringSoon', { days: String(daysRemaining) });
       showCTA = true;
       canDismiss = true;
       isUrgent = true;
@@ -85,7 +85,7 @@ export function TrialStatusBanner() {
       // Normal trial info
       variant = 'default';
       icon = Clock;
-      message = t('trial.daysRemaining').replace('{days}', String(daysRemaining));
+      message = t('trial.daysRemaining', { days: String(daysRemaining) });
       showCTA = false;
       canDismiss = true;
     } else {

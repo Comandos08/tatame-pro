@@ -2169,6 +2169,43 @@ export const ptBR = {
   'transition.error.title': 'Algo deu errado',
   'transition.error.desc': 'Não foi possível concluir a ação.',
 
+  // P2.H1 — ForgotPassword i18n
+  'auth.forgot.title': 'Esqueceu sua senha?',
+  'auth.forgot.description': 'Digite seu e-mail e enviaremos um link para redefinir sua senha.',
+  'auth.forgot.email.label': 'E-mail',
+  'auth.forgot.email.placeholder': 'seu@email.com',
+  'auth.forgot.submit': 'Enviar link de recuperação',
+  'auth.forgot.sending': 'Enviando...',
+  'auth.forgot.backToLogin': 'Voltar para o login',
+  'auth.forgot.emailRequired': 'E-mail obrigatório',
+  'auth.forgot.emailRequiredDesc': 'Por favor, insira seu e-mail.',
+  'auth.forgot.error': 'Erro ao solicitar recuperação',
+  'auth.forgot.errorDesc': 'Tente novamente mais tarde.',
+  'auth.forgot.successTitle': 'Verifique seu e-mail',
+  'auth.forgot.successDesc': 'Se o e-mail {email} estiver cadastrado, você receberá um link para redefinir sua senha.',
+  'auth.forgot.linkExpiry': '📧 O link expira em 1 hora',
+  'auth.forgot.linkWarning': '🔒 Não compartilhe este link com ninguém',
+  'auth.forgot.tryAgain': 'Não recebeu? Tentar novamente',
+  'auth.forgot.emailSent': 'E-mail enviado!',
+
+  // P2.H1 — Empty States adicionais
+  'empty.gradingSchemes.title': 'Nenhum esquema de graduação configurado.',
+  'empty.gradingSchemes.createFirst': 'Criar primeiro esquema',
+  'empty.gradings.title': 'Nenhuma graduação registrada para este atleta.',
+  'empty.gradings.registerFirst': 'Registrar primeira graduação',
+  'empty.athleteGradings.desc': 'Nenhuma graduação registrada para este atleta ainda.',
+  'empty.admins.title': 'Nenhum admin cadastrado ainda.',
+  'empty.memberships.title': 'Nenhuma filiação encontrada',
+  'empty.memberships.desc': 'Você ainda não possui filiações registradas na {tenantName}. Comece agora mesmo e faça parte da nossa comunidade!',
+  'empty.memberships.cta': 'Fazer minha filiação',
+  'empty.publicAcademies.title': 'Nenhuma academia credenciada no momento.',
+  'empty.publicAcademies.count': '{count} academia(s) encontrada(s)',
+
+  // P2.H1 — Rankings
+  'rankings.methodologyHint': 'Academias são ranqueadas por filiações ativas. Atletas são ranqueados por número de graduações registradas.',
+  'rankings.adjustFilters': 'Tente ajustar os filtros para ver mais resultados.',
+  'rankings.noActiveAcademies': 'Nenhuma academia com atletas ativos ainda.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

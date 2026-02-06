@@ -8,6 +8,7 @@ import {
   Shield, Image
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
+import { LoadingState } from '@/components/ux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -242,11 +243,7 @@ export default function AdminDashboard() {
   ];
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <LoadingState titleKey="common.loading" variant="fullscreen" />;
   }
 
   return (
