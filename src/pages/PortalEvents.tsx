@@ -18,7 +18,9 @@ import { useI18n } from '@/contexts/I18nContext';
 import { PortalLayout } from '@/layouts/PortalLayout';
 import { PortalAccessGate } from '@/components/portal/PortalAccessGate';
 import { useAthleteEvents, RegistrationWithEvent, ResultWithEvent } from '@/hooks/useAthleteEvents';
-import { EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
+import { RegistrationStatusBadge } from '@/components/events/RegistrationStatusBadge';
+import { EventExpectationCard } from '@/components/events/EventExpectationCard';
+import { EventRegistrationStatus } from '@/types/event';
 
 interface AthleteData {
   id: string;
@@ -137,22 +139,6 @@ export default function PortalEvents() {
     });
   }, [results, yearFilter]);
 
-  const getStatusBadge = (status: string) => {
-    const config = EVENT_REGISTRATION_STATUS_CONFIG[status as keyof typeof EVENT_REGISTRATION_STATUS_CONFIG];
-    if (!config) return <Badge variant="outline">{status}</Badge>;
-    
-    const colorClasses = {
-      warning: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-      success: 'bg-green-500/10 text-green-600 dark:text-green-400',
-      muted: 'bg-muted text-muted-foreground',
-    };
-    
-    return (
-      <Badge variant="outline" className={colorClasses[config.color]}>
-        {config.label}
-      </Badge>
-    );
-  };
 
   const getPaymentBadge = (status: string) => {
     const configs: Record<string, { label: string; className: string }> = {
@@ -324,28 +310,36 @@ export default function PortalEvents() {
                       {filteredRegistrations.map((reg) => (
                         <div
                           key={reg.id}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border bg-card gap-3"
+                          className="space-y-3"
                         >
-                          <div className="space-y-1 flex-1">
-                            <p className="font-medium">{reg.event.name}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {format(new Date(reg.event.start_date), "dd MMM yyyy", { locale: getDateLocale() })}
-                              </span>
-                              {reg.event.location && (
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border bg-card gap-3">
+                            <div className="space-y-1 flex-1">
+                              <p className="font-medium">{reg.event.name}</p>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {reg.event.location}
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(reg.event.start_date), "dd MMM yyyy", { locale: getDateLocale() })}
                                 </span>
-                              )}
-                              <span>• {reg.category?.name}</span>
+                                {reg.event.location && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {reg.event.location}
+                                  </span>
+                                )}
+                                <span>• {reg.category?.name}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <RegistrationStatusBadge status={reg.status as EventRegistrationStatus} size="sm" />
+                              {getPaymentBadge(reg.payment_status)}
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {getStatusBadge(reg.status)}
-                            {getPaymentBadge(reg.payment_status)}
-                          </div>
+                          {/* P2.3 — Expectation Card: "O que acontece agora?" */}
+                          {(reg.status === 'PENDING' || reg.status === 'CONFIRMED') && (
+                            <EventExpectationCard 
+                              registrationStatus={reg.status as EventRegistrationStatus} 
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
