@@ -2109,11 +2109,19 @@ export const ptBR = {
   // P2.3 — Event Status & Expectation (Athlete Awareness)
   'events.expectation.pending.title': 'Inscrição recebida',
   'events.expectation.pending.desc': 'Sua inscrição foi enviada e está aguardando validação da organização.',
+  'events.expectation.pending.reassurance': 'Você será notificado quando houver atualização.',
   'events.expectation.confirmed.title': 'Você está confirmado',
   'events.expectation.confirmed.desc': 'Sua participação foi aprovada. Compareça no dia e horário do evento.',
+  'events.expectation.confirmed.reassurance': 'Compareça conforme data e local informados.',
   'events.expectation.canceled.title': 'Inscrição cancelada',
   'events.expectation.canceled.desc': 'Esta inscrição foi cancelada. Você pode se inscrever novamente se o evento permitir.',
+  'events.expectation.canceled.reassurance': 'Se tiver dúvidas, fale com o organizador.',
   'events.registration.canceled': 'Cancelada',
+
+  // P2.3.1 — Tooltips de ajuda para badges de inscrição
+  'events.registration.pending.help': 'Sua inscrição foi recebida e está aguardando análise do organizador.',
+  'events.registration.confirmed.help': 'Sua participação está garantida. Compareça no dia do evento.',
+  'events.registration.canceled.help': 'Esta inscrição foi cancelada e não seguirá adiante.',
 
 } as const;
 

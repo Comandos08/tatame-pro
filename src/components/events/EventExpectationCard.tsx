@@ -17,6 +17,7 @@ interface ExpectationConfig {
   borderClass: string;
   titleKey: string;
   descKey: string;
+  reassuranceKey: string; // P2.3.1 — Microcopy de reforço
 }
 
 const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
@@ -27,6 +28,7 @@ const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
     borderClass: 'border-yellow-500/20',
     titleKey: 'events.expectation.pending.title',
     descKey: 'events.expectation.pending.desc',
+    reassuranceKey: 'events.expectation.pending.reassurance',
   },
   CONFIRMED: {
     icon: CheckCircle,
@@ -35,6 +37,7 @@ const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
     borderClass: 'border-green-500/20',
     titleKey: 'events.expectation.confirmed.title',
     descKey: 'events.expectation.confirmed.desc',
+    reassuranceKey: 'events.expectation.confirmed.reassurance',
   },
   CANCELED: {
     icon: XCircle,
@@ -43,6 +46,7 @@ const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
     borderClass: 'border-muted',
     titleKey: 'events.expectation.canceled.title',
     descKey: 'events.expectation.canceled.desc',
+    reassuranceKey: 'events.expectation.canceled.reassurance',
   },
 };
 
@@ -52,11 +56,12 @@ const expectationConfigs: Record<EventRegistrationStatus, ExpectationConfig> = {
  * Componente UX puro que responde a pergunta do atleta:
  * "Ok, e agora... o que acontece?"
  * 
- * REGRAS P2.3:
+ * REGRAS P2.3 + P2.3.1:
  * - SEM side effects
  * - SEM ações/botões
  * - Status desconhecido → return null
  * - Usa SOMENTE i18n
+ * - P2.3.1: Microcopy de reforço para reduzir ansiedade
  */
 export function EventExpectationCard({ 
   registrationStatus, 
@@ -69,6 +74,10 @@ export function EventExpectationCard({
   if (!config) return null;
 
   const Icon = config.icon;
+  
+  // P2.3.1: Microcopy de reforço (só mostra se a key existir)
+  const reassuranceText = t(config.reassuranceKey as any);
+  const hasReassurance = reassuranceText && reassuranceText !== config.reassuranceKey;
 
   return (
     <Card className={cn(
@@ -92,6 +101,11 @@ export function EventExpectationCard({
             <p className="text-sm text-muted-foreground">
               {t(config.descKey as any)}
             </p>
+            {hasReassurance && (
+              <p className="text-xs text-muted-foreground/80 mt-2 italic">
+                {reassuranceText}
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
