@@ -8,8 +8,10 @@
  * This function creates a Stripe Customer Portal session for authorized
  * tenant administrators to manage their billing and subscription.
  * 
+ * THIS IS A SELF-SERVICE TOOL, NOT A BILLING DECISION MAKER.
+ * 
  * WHAT THIS FUNCTION DOES:
- * - Validates caller is ADMIN_TENANT, STAFF_ORGANIZACAO, or SUPERADMIN_GLOBAL
+ * - Validates caller has appropriate role for the tenant
  * - Fetches tenant's stripe_customer_id from tenant_billing
  * - Creates a Stripe Billing Portal session
  * - Returns the portal URL for redirect
@@ -17,13 +19,21 @@
  * WHAT THIS FUNCTION DOES NOT DO:
  * - Does NOT modify subscription directly
  * - Does NOT process payments
- * - Does NOT update billing records
+ * - Does NOT update billing records in our database
  * - Does NOT handle webhook events
+ * - Does NOT decide billing status
+ * - Does NOT cancel or upgrade plans
  * 
- * SECURITY INVARIANTS:
- * - Only authorized roles can access portal (BY DESIGN)
- * - Stripe customer must exist for tenant (REQUIRED)
- * - Return URL is validated (INTENTIONAL)
+ * SECURITY BOUNDARY:
+ * - Only ADMIN_TENANT, STAFF_ORGANIZACAO, or SUPERADMIN_GLOBAL can access
+ * - Stripe customer must exist for tenant
+ * - Portal actions are handled by Stripe, not by us
+ * 
+ * WHY STRIPE PORTAL?
+ * - Customers manage their own payment methods
+ * - Customers can view invoices and receipts
+ * - Customers can upgrade/downgrade (if configured)
+ * - We don't handle sensitive payment data
  * 
  * ============================================================================
  */
@@ -43,6 +53,7 @@ const corsHeaders = {
 
 // ============================================================================
 // LOGGING HELPER
+// NOTE: Pre-existing logging preserved for operational visibility
 // ============================================================================
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -65,6 +76,7 @@ serve(async (req) => {
 
     // ========================================================================
     // STEP 1: Environment Validation
+    // SECURITY BOUNDARY: Function cannot operate without Stripe key
     // ========================================================================
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
@@ -89,9 +101,9 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    const callerUser = userData.user;
-    if (!callerUser?.id) throw new Error("User not authenticated");
-    logStep("User authenticated", { userId: callerUser.id });
+    const user = userData.user;
+    if (!user?.id) throw new Error("User not authenticated");
+    logStep("User authenticated", { userId: user.id });
 
     // ========================================================================
     // STEP 4: Request Body Validation
@@ -102,12 +114,13 @@ serve(async (req) => {
 
     // ========================================================================
     // STEP 5: Role Authorization Check
-    // BY DESIGN: Only ADMIN_TENANT, STAFF_ORGANIZACAO, or SUPERADMIN_GLOBAL
+    // SECURITY BOUNDARY: Only specific roles can access billing portal
+    // BY DESIGN: ADMIN_TENANT, STAFF_ORGANIZACAO, or SUPERADMIN_GLOBAL
     // ========================================================================
-    const { data: tenantRoles, error: rolesError } = await supabaseClient
+    const { data: tenantRoles } = await supabaseClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', callerUser.id)
+      .eq('user_id', user.id)
       .eq('tenant_id', tenantId)
       .in('role', ['ADMIN_TENANT', 'STAFF_ORGANIZACAO']);
 
@@ -115,7 +128,7 @@ serve(async (req) => {
     const { data: globalRoles } = await supabaseClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', callerUser.id)
+      .eq('user_id', user.id)
       .eq('role', 'SUPERADMIN_GLOBAL')
       .is('tenant_id', null);
 
@@ -127,6 +140,7 @@ serve(async (req) => {
 
     // ========================================================================
     // STEP 6: Fetch Stripe Customer ID
+    // DOES NOT modify billing records
     // ========================================================================
     const { data: billingData, error: billingError } = await supabaseClient
       .from('tenant_billing')
@@ -143,6 +157,8 @@ serve(async (req) => {
 
     // ========================================================================
     // STEP 7: Create Stripe Portal Session
+    // INTENTIONAL: We only create the session, Stripe handles the rest
+    // DOES NOT modify subscription or billing in our database
     // ========================================================================
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const origin = req.headers.get("origin") || "https://tatame-pro.lovable.app";
@@ -155,6 +171,7 @@ serve(async (req) => {
 
     // ========================================================================
     // STEP 8: Success Response
+    // Returns URL only; customer interacts with Stripe, not us
     // ========================================================================
     return new Response(JSON.stringify({ url: portalSession.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
