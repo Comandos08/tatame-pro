@@ -1720,6 +1720,11 @@ export const en: Record<string, string> = {
   'identity.resolvingContext': 'Identifying organization...',
   'identity.superadminTenantAccessHint': 'To access "{tenant}", start an impersonation session from the admin panel.',
   'common.retry': 'Try Again',
+  'common.retryNow': 'Try again now',
+  'common.backToDashboard': 'Back to dashboard',
+  'common.backToHome': 'Back to home',
+  'common.contactSupport': 'Contact support',
+  'auth.endSession': 'End session',
 
   // Trial Status (Growth Trial PI)
   'trial.daysRemaining': 'Trial period - {days} days remaining',
@@ -2083,5 +2088,30 @@ export const en: Record<string, string> = {
   'admin.selectModality': 'Select at least one modality',
   'admin.slugInUse': 'This slug is already in use. Choose another.',
   'admin.tenantsWithProblems': 'Tenants with Problems',
+
+  // P1.2 — Loading States with Intent
+  'loading.identifyingOrg': 'Identifying organization...',
+  'loading.validatingPermissions': 'Validating permissions...',
+  'loading.loadingDashboard': 'Preparing your dashboard...',
+  'loading.loadingAthletes': 'Loading athletes...',
+  'loading.loadingAcademies': 'Loading academies...',
+  'loading.loadingCoaches': 'Loading coaches...',
+  'loading.loadingApprovals': 'Loading approvals...',
+  'loading.loadingEvents': 'Loading events...',
+  'loading.pleaseWait': 'Please wait a moment',
+
+  // P1.1 — IdentityErrorScreen i18n (replacing hardcoded strings)
+  'identityError.tenantNotFound.title': 'Organization not found',
+  'identityError.tenantNotFound.desc': 'The organization you are trying to access does not exist or has been deactivated. Check the code or select another organization.',
+  'identityError.tenantNotFound.selectOrg': 'Select Organization',
+  'identityError.inviteInvalid.title': 'Invalid invite',
+  'identityError.inviteInvalid.desc': 'The invite code provided is invalid, expired, or has already been used. Request a new invite from the organization administrator.',
+  'identityError.permissionDenied.title': 'Access denied',
+  'identityError.permissionDenied.desc': 'You do not have permission to access this area. Contact your organization administrator to request access.',
+  'identityError.impersonationInvalid.title': 'Invalid impersonation session',
+  'identityError.impersonationInvalid.desc': 'The impersonation session has expired or been invalidated. Start a new impersonation session if needed.',
+  'identityError.impersonationInvalid.backToAdmin': 'Back to Admin',
+  'identityError.default.title': 'Identity error',
+  'identityError.default.desc': 'An error occurred while verifying your identity. Please try again.',
 
 };

@@ -1,36 +1,34 @@
 /**
  * 🔐 IDENTITY ERROR SCREEN — Explicit Error Display
  * 
+ * P1.1: Refactored to use BlockedStateCard for unified UX.
  * Shows clear, actionable error messages for identity issues.
  * No silent errors, no console-only logging.
+ * 
+ * All strings now use i18n keys (no hardcoded text).
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Building2, Key, Shield, HelpCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Building2, Key, Shield, HelpCircle } from 'lucide-react';
+import { BlockedStateCard, type BlockedStateAction } from '@/components/ux/BlockedStateCard';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useIdentity, IdentityError } from '@/contexts/IdentityContext';
-import { useI18n } from '@/contexts/I18nContext';
+import type { LucideIcon } from 'lucide-react';
 
 interface IdentityErrorScreenProps {
   error: IdentityError;
 }
 
 interface ErrorConfig {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  actions: Array<{
-    label: string;
-    onClick: () => void;
-    variant?: 'default' | 'outline' | 'ghost';
-  }>;
+  icon: LucideIcon;
+  iconVariant: 'destructive' | 'warning' | 'muted';
+  titleKey: string;
+  descriptionKey: string;
+  actions: BlockedStateAction[];
 }
 
 export function IdentityErrorScreen({ error }: IdentityErrorScreenProps) {
   const navigate = useNavigate();
-  const { t } = useI18n();
   const { signOut } = useCurrentUser();
   const { clearError } = useIdentity();
 
@@ -61,93 +59,79 @@ export function IdentityErrorScreen({ error }: IdentityErrorScreenProps) {
       case 'TENANT_NOT_FOUND':
         return {
           icon: Building2,
-          title: 'Organização não encontrada',
-          description: 'A organização que você está tentando acessar não existe ou foi desativada. Verifique o código ou selecione outra organização.',
+          iconVariant: 'destructive',
+          titleKey: 'identityError.tenantNotFound.title',
+          descriptionKey: 'identityError.tenantNotFound.desc',
           actions: [
-            { label: 'Selecionar Organização', onClick: handleGoToWizard, variant: 'default' },
-            { label: 'Voltar ao Início', onClick: handleGoHome, variant: 'outline' },
-            { label: 'Sair', onClick: handleLogout, variant: 'ghost' },
+            { labelKey: 'identityError.tenantNotFound.selectOrg', onClick: handleGoToWizard },
+            { labelKey: 'common.goHome', onClick: handleGoHome },
+            { labelKey: 'auth.logout', onClick: handleLogout },
           ],
         };
 
       case 'INVITE_INVALID':
         return {
           icon: Key,
-          title: 'Convite inválido',
-          description: 'O código de convite informado é inválido, expirou ou já foi utilizado. Solicite um novo convite ao administrador da organização.',
+          iconVariant: 'warning',
+          titleKey: 'identityError.inviteInvalid.title',
+          descriptionKey: 'identityError.inviteInvalid.desc',
           actions: [
-            { label: 'Tentar Novamente', onClick: handleGoToWizard, variant: 'default' },
-            { label: 'Contatar Suporte', onClick: handleContactSupport, variant: 'outline' },
-            { label: 'Sair', onClick: handleLogout, variant: 'ghost' },
+            { labelKey: 'common.retry', onClick: handleGoToWizard },
+            { labelKey: 'common.contactSupport', onClick: handleContactSupport },
+            { labelKey: 'auth.logout', onClick: handleLogout },
           ],
         };
 
       case 'PERMISSION_DENIED':
         return {
           icon: Shield,
-          title: 'Acesso negado',
-          description: 'Você não tem permissão para acessar esta área. Entre em contato com o administrador da sua organização para solicitar acesso.',
+          iconVariant: 'destructive',
+          titleKey: 'identityError.permissionDenied.title',
+          descriptionKey: 'identityError.permissionDenied.desc',
           actions: [
-            { label: 'Contatar Suporte', onClick: handleContactSupport, variant: 'default' },
-            { label: 'Voltar ao Início', onClick: handleGoHome, variant: 'outline' },
-            { label: 'Sair', onClick: handleLogout, variant: 'ghost' },
+            { labelKey: 'common.contactSupport', onClick: handleContactSupport },
+            { labelKey: 'common.goHome', onClick: handleGoHome },
+            { labelKey: 'auth.logout', onClick: handleLogout },
           ],
         };
 
       case 'IMPERSONATION_INVALID':
         return {
           icon: Shield,
-          title: 'Sessão de impersonação inválida',
-          description: 'A sessão de impersonação expirou ou foi invalidada. Inicie uma nova sessão de impersonação se necessário.',
+          iconVariant: 'warning',
+          titleKey: 'identityError.impersonationInvalid.title',
+          descriptionKey: 'identityError.impersonationInvalid.desc',
           actions: [
-            { label: 'Voltar ao Admin', onClick: () => navigate('/admin', { replace: true }), variant: 'default' },
-            { label: 'Sair', onClick: handleLogout, variant: 'ghost' },
+            { labelKey: 'identityError.impersonationInvalid.backToAdmin', onClick: () => navigate('/admin', { replace: true }) },
+            { labelKey: 'auth.logout', onClick: handleLogout },
           ],
         };
 
       default:
         return {
           icon: HelpCircle,
-          title: 'Erro de identidade',
-          description: error.message || 'Ocorreu um erro ao verificar sua identidade. Por favor, tente novamente.',
+          iconVariant: 'muted',
+          titleKey: 'identityError.default.title',
+          descriptionKey: 'identityError.default.desc',
           actions: [
-            { label: 'Tentar Novamente', onClick: handleRetry, variant: 'default' },
-            { label: 'Contatar Suporte', onClick: handleContactSupport, variant: 'outline' },
-            { label: 'Sair', onClick: handleLogout, variant: 'ghost' },
+            { labelKey: 'common.retry', onClick: handleRetry },
+            { labelKey: 'common.contactSupport', onClick: handleContactSupport },
+            { labelKey: 'auth.logout', onClick: handleLogout },
           ],
         };
     }
   };
 
   const config = getErrorConfig();
-  const IconComponent = config.icon;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="max-w-md w-full">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-            <IconComponent className="h-8 w-8 text-destructive" />
-          </div>
-          <CardTitle className="text-xl">{config.title}</CardTitle>
-          <CardDescription className="text-base mt-2">
-            {config.description}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {config.actions.map((action, index) => (
-            <Button
-              key={index}
-              onClick={action.onClick}
-              variant={action.variant || 'default'}
-              className="w-full"
-            >
-              {action.label}
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
-    </div>
+    <BlockedStateCard
+      icon={config.icon}
+      iconVariant={config.iconVariant}
+      titleKey={config.titleKey}
+      descriptionKey={config.descriptionKey}
+      actions={config.actions}
+    />
   );
 }
 
@@ -160,7 +144,7 @@ export function IdentityErrorPage() {
   if (!error) {
     return (
       <IdentityErrorScreen 
-        error={{ code: 'UNKNOWN', message: 'Erro desconhecido' }} 
+        error={{ code: 'UNKNOWN', message: 'Unknown error' }} 
       />
     );
   }
