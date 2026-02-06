@@ -451,74 +451,109 @@ async function handleWizardCompletion(
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * ✅ P2.HOTFIX — CRIAR TENANT EM MODO SETUP
+   * ✅ P2.HOTFIX.WIZARD.2 — CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════
    *
-   * 1. Cria tenant com status=SETUP, creation_source=wizard
-   * 2. sport_types vazio (será definido no onboarding)
-   * 3. is_active=true para permitir acesso do admin criador
-   * 4. onboarding_completed=false (obriga wizard de setup)
+   * CONTRATO IMUTÁVEL:
+   * 1. status = 'SETUP' (EXPLÍCITO, NÃO INFERIDO)
+   * 2. creation_source = 'wizard' (EXPLÍCITO, NÃO INFERIDO)
+   * 3. onboarding_completed = false (EXPLÍCITO, NÃO INFERIDO)
+   * 4. is_active = true (permite acesso do admin criador)
+   * 5. sport_types = [] (vazio, será definido no onboarding)
    *
+   * 🔒 HARD RULE — Wizard NEVER touches sport types além de array vazio
    * ═══════════════════════════════════════════════════════════════════════════ */
-  console.log("[resolve-identity-wizard] Creating tenant in SETUP mode:", { orgName, finalSlug });
+  
+  // ✅ TAREFA 1 — BLINDAGEM DE PAYLOAD (OBRIGATÓRIA)
+  // Garantir que nenhuma modalidade esportiva seja passada
+  // Isso é defensivo - mesmo que o payload não contenha esses campos
+  const sanitizedPayload = {
+    name: orgName,
+    slug: finalSlug,
+    is_active: true,
+    // ✅ TAREFA 2 — INSERT DETERMINÍSTICO (VALORES EXPLÍCITOS, NÃO INFERIDOS)
+    status: "SETUP" as const,
+    creation_source: "wizard" as const,
+    onboarding_completed: false,
+    // ✅ sport_types VAZIO — modalidade definida APENAS no onboarding
+    sport_types: [] as string[],
+  };
+
+  // 🔒 HARD RULE — Garantir que sport_type/sport_types não vazem de nenhuma fonte
+  // @ts-ignore - Defensive deletion
+  delete (sanitizedPayload as Record<string, unknown>).sport_type;
+  
+  console.log("[WIZARD_CREATE_TENANT] Creating tenant in SETUP mode:", {
+    name: sanitizedPayload.name,
+    slug: sanitizedPayload.slug,
+    status: sanitizedPayload.status,
+    creation_source: sanitizedPayload.creation_source,
+  });
 
   const { data: newTenant, error: tenantError } = await supabase
     .from("tenants")
-    .insert({
-      name: orgName,
-      slug: finalSlug,
-      is_active: true,
-      status: "SETUP",
-      creation_source: "wizard",
-      onboarding_completed: false,
-      sport_types: [], // Será definido no onboarding - trigger validação desabilitado para SETUP
-    })
-    .select("id, slug, name")
+    .insert(sanitizedPayload)
+    .select("id, slug, name, status")
     .single();
 
+  // ✅ TAREFA 3 — CORREÇÃO DEFINITIVA DE ERROR HANDLING
   if (tenantError || !newTenant) {
-    console.error("[resolve-identity-wizard] Failed to create tenant:", {
+    // Log técnico detalhado para diagnóstico (NÃO REMOVER)
+    console.error("[WIZARD_CREATE_TENANT] Failed to create tenant:", {
       error: tenantError,
       code: tenantError?.code,
       message: tenantError?.message,
       details: tenantError?.details,
       hint: tenantError?.hint,
+      user_id: userId,
+      payload: {
+        name: sanitizedPayload.name,
+        slug: sanitizedPayload.slug,
+        status: sanitizedPayload.status,
+        creation_source: sanitizedPayload.creation_source,
+      },
     });
     
-    // ✅ P2.HOTFIX — Log detalhado para debugging
-    // O trigger validate_tenant_sport_types foi atualizado para permitir status=SETUP
-    // Se esse erro ocorrer, significa que há um problema de sincronização
-    if (tenantError?.message?.includes("sport_types")) {
-      console.error("[resolve-identity-wizard] CRITICAL: sport_types validation failed for SETUP tenant. Trigger may not be updated.");
-      return {
-        status: "ERROR",
-        error: {
-          code: "TENANT_CREATION_FAILED",
-          message: "Erro ao criar organização. Tente novamente ou contate o suporte.",
-        },
-      };
-    }
-    
-    // RLS policy violation
+    // ✅ TAREFA 4 — TRATAMENTO EXPLÍCITO DE RLS (SEM BYPASS)
     if (tenantError?.code === "42501" || tenantError?.message?.includes("row-level security")) {
-      console.error("[resolve-identity-wizard] RLS policy violation - check service role key");
-      return {
-        status: "ERROR",
-        error: {
-          code: "TENANT_CREATION_FAILED",
-          message: "Erro de permissão ao criar organização.",
-        },
-      };
+      console.error("[WIZARD_CREATE_TENANT] RLS policy violation detected - service_role key may be misconfigured");
     }
     
+    // ✅ Mensagem genérica e honesta ao usuário (SEM referência a modalidade)
     return {
       status: "ERROR",
       error: {
         code: "TENANT_CREATION_FAILED",
-        message: tenantError?.message || "Falha ao criar organização.",
+        message: "Erro ao criar organização. Tente novamente.",
       },
     };
   }
+
+  // ✅ TAREFA 5 — SANITY CHECK PÓS-CRIAÇÃO (BARATO E SEGURO)
+  // Garantir que o tenant foi criado com status correto
+  // Previne regressão silenciosa futura
+  if (newTenant.status !== "SETUP") {
+    console.error("[WIZARD_CREATE_TENANT] CRITICAL: Tenant created with invalid initial status:", {
+      expected: "SETUP",
+      actual: newTenant.status,
+      tenant_id: newTenant.id,
+    });
+    // Rollback - tenant criado com estado inválido
+    await supabase.from("tenants").delete().eq("id", newTenant.id);
+    return {
+      status: "ERROR",
+      error: {
+        code: "TENANT_CREATION_FAILED",
+        message: "Erro ao criar organização. Tente novamente.",
+      },
+    };
+  }
+
+  console.log("[WIZARD_CREATE_TENANT] Tenant created successfully:", {
+    id: newTenant.id,
+    slug: newTenant.slug,
+    status: newTenant.status,
+  });
 
   console.log("[resolve-identity-wizard] Tenant created successfully:", newTenant.id);
 
