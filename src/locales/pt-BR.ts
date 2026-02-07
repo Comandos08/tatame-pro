@@ -2151,6 +2151,18 @@ export const ptBR = {
   'admin.nameSlugRequired': 'Nome e slug são obrigatórios',
   'admin.selectModality': 'Selecione pelo menos uma modalidade',
   'admin.slugInUse': 'Este slug já está em uso. Escolha outro.',
+  'admin.slugInvalid': 'Slug inválido ou reservado.',
+  'admin.slugImmutable': 'O slug não pode ser alterado após a criação.',
+  'admin.organizationStatus': 'Status da organização',
+  'admin.statusActiveDesc': 'A organização está ativa e acessível.',
+  'admin.statusInactiveDesc': 'A organização está desativada.',
+  'admin.editOrganization': 'Editar Organização',
+  'admin.editOrganizationDesc': 'Altere os dados da organização {name}.',
+  'admin.organizationUpdatedSuccess': 'Organização atualizada com sucesso!',
+  'admin.organizationUpdateError': 'Erro ao atualizar organização',
+  'admin.nameRequired': 'Nome é obrigatório',
+  'common.saving': 'Salvando...',
+  'common.saveChanges': 'Salvar Alterações',
   'admin.tenantsWithProblems': 'Tenants com Problemas',
 
   // P1.2 — Loading States with Intent

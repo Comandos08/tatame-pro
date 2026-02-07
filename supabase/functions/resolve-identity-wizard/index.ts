@@ -323,16 +323,29 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string): Pr
  * SLUG GENERATOR (UTILITY)
  * ═══════════════════════════════════════════════════════════════════════════════
  * Gera slug URL-safe a partir de nome.
+ * Lógica idêntica ao frontend (src/lib/slugify.ts) para consistência.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Palavras reservadas que não podem ser usadas como slugs.
+ */
+const RESERVED_SLUGS = ['admin', 'auth', 'login', 'logout', 'help', 'portal', 'api', 'app', 'forgot-password', 'reset-password', 'join', 'verify'];
+
 function generateSlug(name: string): string {
+  if (!name) return '';
+
   return name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // remove accents
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")     // replace non-alphanumeric with hyphen
+    .replace(/-+/g, "-")              // remove duplicate hyphens
+    .replace(/^-+|-+$/g, "")          // trim hyphens from edges
     .substring(0, 48);
+}
+
+function isReservedSlug(slug: string): boolean {
+  return RESERVED_SLUGS.includes(slug.toLowerCase());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -427,6 +440,19 @@ async function handleWizardCompletion(
    * Tenta até 20 variações para evitar colisão
    * ───────────────────────────────────────────────────────────────────────────── */
   const baseSlug = generateSlug(orgName);
+  
+  // ✅ Validação de slug reservado
+  if (isReservedSlug(baseSlug)) {
+    console.warn("[resolve-identity-wizard] RESERVED_SLUG:", baseSlug);
+    return {
+      status: "ERROR",
+      error: {
+        code: "RESERVED_SLUG",
+        message: "This organization name would create a reserved URL.",
+      },
+    };
+  }
+
   let finalSlug = baseSlug;
 
   for (let attemptIndex = 1; attemptIndex <= 20; attemptIndex++) {
