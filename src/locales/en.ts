@@ -1504,6 +1504,7 @@ export const en: Record<string, string> = {
   'platformHealth.expireMemberships': 'Expire Memberships',
   'platformHealth.cleanAbandoned': 'Clean Abandoned',
   'platformHealth.checkTrials': 'Check Trials',
+  'platformHealth.youthTransition': 'Youth→Adult Transition',
   'platformHealth.neverRan': 'Never ran',
   'platformHealth.lessThan1h': 'Less than 1h ago',
   'platformHealth.hoursAgo': '{h}h ago',

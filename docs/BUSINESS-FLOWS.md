@@ -184,6 +184,59 @@ Este documento descreve os principais fluxos de negócio do sistema Tatame PRO, 
 }
 ```
 
+### Transição Automática Youth → Adult
+
+Quando um atleta com Youth Membership completa 18 anos:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ CRON: 03:15 UTC diariamente                                     │
+│ transition-youth-to-adult                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Busca atletas com guardian_links                             │
+│ 2. Filtra por age >= 18 (birth_date)                            │
+│ 3. Filtra por is_minor = true na membership                     │
+├─────────────────────────────────────────────────────────────────┤
+│ Para cada atleta elegível:                                      │
+│                                                                 │
+│ ✅ applicant_data.is_minor = false                              │
+│ ✅ Guardian movido para youth_transition.previous_guardian      │
+│ ✅ Membership PERMANECE a mesma                                 │
+│ ✅ Athlete PERMANECE o mesmo                                    │
+│ ✅ guardian_links PRESERVADO (não deletado)                     │
+├─────────────────────────────────────────────────────────────────┤
+│ Audit: YOUTH_AUTO_TRANSITION                                    │
+│ metadata: athlete_id, membership_id, previous_is_minor,         │
+│          birth_date, transitioned_at, job_run_id                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Estrutura applicant_data APÓS Transição:**
+```json
+{
+  "full_name": "João Silva",
+  "birth_date": "2006-02-07",
+  "is_minor": false,
+  "youth_transition": {
+    "transitioned_at": "2024-02-07T03:15:00.000Z",
+    "previous_guardian": {
+      "full_name": "Maria Silva",
+      "national_id": "123.456.789-00",
+      "email": "responsavel@email.com",
+      "relationship": "PARENT"
+    },
+    "job_run_id": "uuid-do-job"
+  }
+}
+```
+
+**Princípios SAFE GOLD:**
+- Nenhum dado é deletado
+- Nenhuma nova entidade é criada
+- Histórico financeiro intacto
+- Guardian links preservados para auditoria legal
+- 100% idempotente e auditável
+
 ### Status de Filiação
 
 | Status | Descrição | Próximo Estado |
@@ -292,6 +345,7 @@ Garantir que novos tenants configurem o mínimo necessário antes de operar.
 | 02:30 | pre-expiration-scheduler | Alertas de expiração de filiação |
 | 03:00 | expire-memberships | Expira filiações vencidas |
 | 03:00 | cleanup-expired-tenants | Remove tenants marcados |
+| 03:15 | transition-youth-to-adult | Transiciona menores de 18 para adultos |
 | 03:30 | cleanup-tmp-documents | Remove documentos temporários |
 | 04:00 | cleanup-abandoned-memberships | Remove filiações abandonadas |
 | 09:00 | check-membership-renewal | Lembretes de renovação |

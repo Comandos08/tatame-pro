@@ -19,17 +19,20 @@ interface PlatformMetrics {
   lastExpireMembershipsRun: string | null;
   lastCleanupAbandonedRun: string | null;
   lastTrialCheckRun: string | null;
+  lastYouthTransitionRun: string | null;
   
   // Job execution had events?
   expireMembershipsHadEvents: boolean;
   cleanupAbandonedHadEvents: boolean;
   trialCheckHadEvents: boolean;
+  youthTransitionHadEvents: boolean;
   
   // Counts from last 24h/7d (action events)
   expiredLast24h: number;
   expiredLast7d: number;
   cleanedLast24h: number;
   cleanedLast7d: number;
+  transitionedLast7d: number;
   
   // Error metrics
   webhookErrorsLast24h: number;
@@ -66,6 +69,7 @@ export function PlatformHealthCard() {
           'JOB_EXPIRE_MEMBERSHIPS_RUN',
           'JOB_CLEANUP_ABANDONED_RUN',
           'JOB_CHECK_TRIALS_RUN',
+          'JOB_YOUTH_TRANSITION_RUN',
         ])
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
@@ -78,7 +82,8 @@ export function PlatformHealthCard() {
           'MEMBERSHIP_EXPIRED', 
           'MEMBERSHIP_ABANDONED_CLEANUP',
           'TRIAL_END_NOTIFICATION_SENT',
-          'TENANT_PAYMENT_FAILED'
+          'TENANT_PAYMENT_FAILED',
+          'YOUTH_AUTO_TRANSITION',
         ])
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
@@ -87,9 +92,11 @@ export function PlatformHealthCard() {
       let lastExpireMembershipsRun: string | null = null;
       let lastCleanupAbandonedRun: string | null = null;
       let lastTrialCheckRun: string | null = null;
+      let lastYouthTransitionRun: string | null = null;
       let expireMembershipsHadEvents = false;
       let cleanupAbandonedHadEvents = false;
       let trialCheckHadEvents = false;
+      let youthTransitionHadEvents = false;
 
       jobRunLogs?.forEach(log => {
         const meta = log.metadata as { 
@@ -97,6 +104,7 @@ export function PlatformHealthCard() {
           expired?: number;
           cleaned?: number; 
           notified?: number;
+          transitioned?: number;
           status?: string 
         } | null;
         
@@ -122,6 +130,12 @@ export function PlatformHealthCard() {
               trialCheckHadEvents = (meta?.notified || meta?.processed || 0) > 0;
             }
             break;
+          case 'JOB_YOUTH_TRANSITION_RUN':
+            if (!lastYouthTransitionRun) {
+              lastYouthTransitionRun = log.created_at;
+              youthTransitionHadEvents = (meta?.transitioned || 0) > 0;
+            }
+            break;
         }
       });
 
@@ -131,6 +145,7 @@ export function PlatformHealthCard() {
       let cleanedLast24h = 0;
       let cleanedLast7d = 0;
       let billingErrorsLast7d = 0;
+      let transitionedLast7d = 0;
 
       actionLogs?.forEach(log => {
         const logDate = new Date(log.created_at);
@@ -147,6 +162,9 @@ export function PlatformHealthCard() {
             break;
           case 'TENANT_PAYMENT_FAILED':
             billingErrorsLast7d++;
+            break;
+          case 'YOUTH_AUTO_TRANSITION':
+            transitionedLast7d++;
             break;
         }
       });
@@ -181,13 +199,16 @@ export function PlatformHealthCard() {
         lastExpireMembershipsRun,
         lastCleanupAbandonedRun,
         lastTrialCheckRun,
+        lastYouthTransitionRun,
         expireMembershipsHadEvents,
         cleanupAbandonedHadEvents,
         trialCheckHadEvents,
+        youthTransitionHadEvents,
         expiredLast24h,
         expiredLast7d,
         cleanedLast24h,
         cleanedLast7d,
+        transitionedLast7d,
         webhookErrorsLast24h,
         billingErrorsLast7d,
         tenantsBlocked,
@@ -357,6 +378,20 @@ export function PlatformHealthCard() {
                     title={getJobStatus(metrics.lastTrialCheckRun, metrics.trialCheckHadEvents).tooltip}
                   >
                     {getJobStatus(metrics.lastTrialCheckRun, metrics.trialCheckHadEvents).label}
+                  </Badge>
+                </div>
+                
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{t('platformHealth.youthTransition')}</p>
+                    <p className="text-sm font-medium">{formatTime(metrics.lastYouthTransitionRun)}</p>
+                  </div>
+                  <Badge 
+                    variant={getJobStatus(metrics.lastYouthTransitionRun, metrics.youthTransitionHadEvents).color} 
+                    className="text-xs cursor-help"
+                    title={getJobStatus(metrics.lastYouthTransitionRun, metrics.youthTransitionHadEvents).tooltip}
+                  >
+                    {getJobStatus(metrics.lastYouthTransitionRun, metrics.youthTransitionHadEvents).label}
                   </Badge>
                 </div>
               </div>

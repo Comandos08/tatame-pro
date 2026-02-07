@@ -144,6 +144,7 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 | `expire-memberships-daily` | Marca filiações vencidas como EXPIRED | 03:00 | 🔴 Alta |
 | `cleanup-expired-tenants-daily` | Remove tenants PENDING_DELETE após 7 dias | 03:00 | 🔴 Alta |
 | `cleanup-tmp-documents-daily` | Remove arquivos tmp/ > 7 dias | 03:30 | 🟡 Média |
+| `transition-youth-to-adult-daily` | Transiciona menores que completaram 18 anos | 03:15 | 🟡 Média |
 | `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
 | `check-membership-renewal-daily` | Envia lembretes de renovação | 09:00 | 🟡 Média |
 | `check-trial-ending-daily` | Notifica tenants sobre trial | 10:00 | 🟡 Média |
@@ -273,6 +274,33 @@ SELECT cron.schedule(
 - Arquivos com < 7 dias: **NÃO deletados**
 - Arquivos associados a memberships PENDING_REVIEW, APPROVED ou ACTIVE: **NÃO deletados**
 - Arquivos órfãos ou de memberships CANCELLED/REJECTED: **deletados**
+
+#### transition-youth-to-adult (diário às 03:15 UTC)
+Transiciona automaticamente atletas que completaram 18 anos de Youth para Adult membership.
+
+**⚠️ IMPORTANTE:** Este job usa autenticação via header `x-cron-secret`.  
+Substitua `SEU_CRON_SECRET` pelo valor configurado no secret `CRON_SECRET`.
+
+```sql
+SELECT cron.schedule(
+  'transition-youth-to-adult-daily',
+  '15 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/transition-youth-to-adult',
+    headers:='{"Content-Type": "application/json", "x-cron-secret": "' || current_setting('app.cron_secret') || '"}'::jsonb,
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+```
+
+**Regras SAFE GOLD:**
+- ❌ NÃO cria nova membership
+- ❌ NÃO cria novo athlete
+- ❌ NÃO deleta guardian ou guardian_links
+- ✅ Apenas atualiza `applicant_data.is_minor = false`
+- ✅ Preserva histórico do guardian em `applicant_data.youth_transition`
 
 ---
 
