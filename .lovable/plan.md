@@ -1,301 +1,385 @@
 
 
-# Plano: Normalização de Slugs e Correção de Anomalias
+# Plano Refinado: Validação e Feedback nos Formulários
 
-## Resumo do Diagnóstico
+## Diagnóstico Atualizado
 
-### Problemas Identificados
+O plano anterior foi parcialmente aprovado, mas requer os seguintes ajustes críticos:
 
-| Problema | Localização | Status Atual |
-|----------|-------------|--------------|
-| Função `generateSlug` duplicada | `CreateTenantDialog.tsx` (linhas 55-62) + `resolve-identity-wizard/index.ts` (linhas 328-336) | Código duplicado sem validação de palavras reservadas |
-| Validação de slugs reservados inexistente | Formulários de criação | Não há bloqueio para slugs como "admin", "auth", "login" |
-| Chave de tradução `admin.slugInvalid` ausente | Locales | Não existe nos arquivos de idioma |
-| Anomalias no banco de dados | Tabela `tenants` | 2 registros com problemas: `+FIGHT CT` (prefixo +) e `JuJitsu-Brasil` (maiúsculas no slug) |
-| Textos hardcoded | `EditTenantDialog.tsx` | Strings literais em português (não usa i18n) |
-
-### Dados Anômalos no Banco
-
-```text
-┌────────────────────────────────────┬──────────────────────────┬─────────────────────────┐
-│ ID                                 │ Nome                     │ Slug                    │
-├────────────────────────────────────┼──────────────────────────┼─────────────────────────┤
-│ 9adcfd7a-ba33-4881-8ce5-1c7ddb8f4843 │ +FIGHT CT - Jiu-Jitsu  │ fight-ct---jiu-jitsu    │
-│ 1584e2c3-8610-46dc-a19c-d221f28f2f7f │ JuJitsu Brasil         │ JuJitsu-Brasil          │
-└────────────────────────────────────┴──────────────────────────┴─────────────────────────┘
-```
+| Problema | Status | Correção Necessária |
+|----------|--------|---------------------|
+| Botão ForgotPassword não valida formato de email | ❌ Pendente | Adicionar `EMAIL_REGEX.test()` na condição `disabled` |
+| Toast em ForgotPassword usa chaves antigas | ❌ Pendente | Usar `auth.emailRequired` e `auth.invalidEmail` |
+| AthleteLogin não valida formato no botão | ❌ Pendente | Adicionar validação de regex no `disabled` |
+| Chaves de tradução ausentes | ❌ Pendente | Adicionar 6 chaves aos 3 locales |
+| Login.tsx sem validação completa | ❌ Pendente | Implementar estado de erros e validação |
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Criar Utilitário Central `slugify.ts`
-
-**Arquivo:** `src/lib/slugify.ts` (NOVO)
-
-Criar utilitário centralizado com validação de palavras reservadas:
-
-```typescript
-/**
- * Palavras reservadas que não podem ser usadas como slugs.
- * Estas rotas são usadas pelo sistema e conflitariam com tenants.
- */
-const RESERVED_SLUGS = ['admin', 'auth', 'login', 'logout', 'help', 'portal', 'api', 'app'];
-
-/**
- * Gera slug URL-safe a partir de texto.
- * - Converte para minúsculas
- * - Remove acentos
- * - Substitui espaços e caracteres especiais por hífen
- * - Remove hífens duplicados
- * - Remove hífens no início e fim
- */
-export function slugify(text: string): string {
-  if (!text) return '';
-  
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-    .replace(/[^a-z0-9]+/g, '-')     // Substitui não-alfanuméricos por hífen
-    .replace(/-+/g, '-')              // Remove hífens duplicados
-    .replace(/^-+|-+$/g, '');         // Remove hífens nas pontas
-}
-
-/**
- * Verifica se um slug é válido (não vazio e não reservado).
- */
-export function isValidSlug(slug: string): boolean {
-  if (!slug || slug.length === 0) return false;
-  return !RESERVED_SLUGS.includes(slug.toLowerCase());
-}
-
-/**
- * Lista de slugs reservados para validação externa.
- */
-export const reservedSlugs = RESERVED_SLUGS;
-```
-
----
-
-### Tarefa 2: Refatorar `CreateTenantDialog.tsx`
-
-**Arquivo:** `src/components/admin/CreateTenantDialog.tsx`
-
-Alterações:
-
-1. **Remover função interna `generateSlug`** (linhas 55-62)
-2. **Importar utilitário centralizado**
-3. **Adicionar validação de slug reservado antes do submit**
-
-```typescript
-// Adicionar import
-import { slugify, isValidSlug } from '@/lib/slugify';
-
-// Remover função generateSlug local (linhas 55-62)
-
-// Alterar handleNameChange (linhas 64-69)
-const handleNameChange = (value: string) => {
-  setName(value);
-  if (!slug || slug === slugify(name)) {
-    setSlug(slugify(value));
-  }
-};
-
-// No onChange do input de slug (linha 177)
-onChange={(e) => setSlug(slugify(e.target.value))}
-
-// Adicionar validação no mutationFn (antes da verificação de slug único)
-if (!isValidSlug(slug)) {
-  throw new Error(t('admin.slugInvalid'));
-}
-```
-
----
-
-### Tarefa 3: Adicionar Chaves de Tradução
+### Tarefa 1: Adicionar Chaves de Tradução (Pré-requisito)
 
 **Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
 
-Adicionar após a linha com `admin.slugInUse`:
+Adicionar na seção de auth (após linha ~540):
 
 ```typescript
 // pt-BR.ts
-'admin.slugInvalid': 'Slug inválido ou reservado.',
+'auth.emailRequired': 'E-mail é obrigatório.',
+'auth.invalidEmail': 'Formato de e-mail inválido.',
+'auth.passwordRequired': 'Senha é obrigatória.',
+'auth.fullNameRequired': 'Nome completo é obrigatório.',
+'auth.formError': 'Corrija os erros',
+'auth.correctErrors': 'Preencha todos os campos obrigatórios.',
 
 // en.ts
-'admin.slugInvalid': 'Invalid or reserved slug.',
+'auth.emailRequired': 'Email is required.',
+'auth.invalidEmail': 'Invalid email format.',
+'auth.passwordRequired': 'Password is required.',
+'auth.fullNameRequired': 'Full name is required.',
+'auth.formError': 'Please correct the errors',
+'auth.correctErrors': 'Fill in all required fields.',
 
 // es.ts
-'admin.slugInvalid': 'Slug inválido o reservado.',
+'auth.emailRequired': 'Correo electrónico es obligatorio.',
+'auth.invalidEmail': 'Formato de correo electrónico inválido.',
+'auth.passwordRequired': 'Contraseña es obligatoria.',
+'auth.fullNameRequired': 'Nombre completo es obligatorio.',
+'auth.formError': 'Por favor corrija los errores',
+'auth.correctErrors': 'Complete todos los campos requeridos.',
 ```
 
 ---
 
-### Tarefa 4: Atualizar Edge Function `resolve-identity-wizard`
+### Tarefa 2: Atualizar ForgotPassword.tsx
 
-**Arquivo:** `supabase/functions/resolve-identity-wizard/index.ts`
+**Arquivo:** `src/pages/ForgotPassword.tsx`
 
-Alterar a função `generateSlug` (linhas 328-336) para usar lógica consistente:
+#### 2.1 Adicionar regex e estado de erro
 
 ```typescript
-function generateSlug(name: string): string {
-  if (!name) return '';
-  
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove accents
-    .replace(/[^a-z0-9]+/g, "-")     // replace non-alphanumeric with hyphen
-    .replace(/-+/g, "-")              // remove duplicate hyphens
-    .replace(/^-+|-+$/g, "")          // trim hyphens from edges
-    .substring(0, 48);
-}
+// Após linha 18 (const { t } = useI18n();)
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const [emailError, setEmailError] = useState<string | null>(null);
 ```
 
-Adicionar validação de palavras reservadas no fluxo de criação:
+#### 2.2 Modificar handleSubmit com validação completa
 
 ```typescript
-// Após gerar baseSlug (linha 429)
-const RESERVED_SLUGS = ['admin', 'auth', 'login', 'logout', 'help', 'portal', 'api', 'app'];
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setEmailError(null);
 
-if (RESERVED_SLUGS.includes(baseSlug)) {
-  return {
-    status: "ERROR",
-    error: { code: "RESERVED_SLUG", message: "This organization name would create a reserved URL." },
-  };
-}
+  // Validar email vazio
+  if (!email.trim()) {
+    setEmailError(t('auth.emailRequired'));
+    toast({
+      title: t('auth.formError'),
+      description: t('auth.emailRequired'),
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // Validar formato de email
+  if (!EMAIL_REGEX.test(email.trim())) {
+    setEmailError(t('auth.invalidEmail'));
+    toast({
+      title: t('auth.formError'),
+      description: t('auth.invalidEmail'),
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setIsLoading(true);
+  // ... resto do código existente
+};
+```
+
+#### 2.3 Atualizar botão com validação de formato
+
+```tsx
+// Linha 140 - Antes:
+<Button type="submit" className="w-full" disabled={isLoading}>
+
+// Depois:
+<Button 
+  type="submit" 
+  className="w-full" 
+  disabled={isLoading || !email.trim() || !EMAIL_REGEX.test(email.trim())}
+>
+```
+
+#### 2.4 Adicionar mensagem de erro inline
+
+```tsx
+// Após o Input (linha 135), adicionar:
+{emailError && (
+  <p className="text-sm text-destructive mt-1">{emailError}</p>
+)}
+```
+
+#### 2.5 Limpar erro ao digitar
+
+```tsx
+// Modificar onChange do Input:
+onChange={(e) => {
+  setEmail(e.target.value);
+  if (emailError) setEmailError(null);
+}}
 ```
 
 ---
 
-### Tarefa 5: Internacionalizar `EditTenantDialog.tsx`
+### Tarefa 3: Atualizar AthleteLogin.tsx
 
-**Arquivo:** `src/components/admin/EditTenantDialog.tsx`
+**Arquivo:** `src/pages/AthleteLogin.tsx`
 
-Substituir strings hardcoded por chamadas `t()`:
+#### 3.1 Adicionar regex
 
-| Linha | Antes | Depois |
-|-------|-------|--------|
-| 81 | `'Nome é obrigatório'` | `t('admin.nameRequired')` |
-| 85 | `'Selecione pelo menos uma modalidade'` | `t('admin.selectModality')` |
-| 105 | `'Organização atualizada com sucesso!'` | `t('admin.organizationUpdatedSuccess')` |
-| 109 | `'Erro ao atualizar organização'` | `t('admin.organizationUpdateError')` |
-| 117 | `'Editar Organização'` | `t('admin.editOrganization')` |
-| 119 | Template literal com nome | `t('admin.editOrganizationDesc', { name: tenant.name })` |
-| 125 | `'Nome da organização *'` | `t('admin.organizationNameLabel')` + ` *` |
-| 134 | `'Slug (URL)'` | `t('admin.slugLabel')` |
-| 145 | `'O slug não pode ser alterado...'` | `t('admin.slugImmutable')` |
-| 149 | `'Modalidades *'` | `t('admin.modalities')` + ` *` |
-| 166 | `'Idioma padrão'` | `t('admin.defaultLanguage')` |
-| 182 | `'Cor primária'` | `t('admin.primaryColor')` |
-| 201 | `'Descrição'` | `t('admin.descriptionLabel')` |
-| 212 | `'Status da organização'` | `t('admin.organizationStatus')` |
-| 214 | Strings de status | `t('admin.statusActiveDesc')` / `t('admin.statusInactiveDesc')` |
-| 226 | `'Cancelar'` | `t('common.cancel')` |
-| 234 | `'Salvando...'` | `t('common.saving')` |
-| 236 | `'Salvar Alterações'` | `t('common.saveChanges')` |
+```typescript
+// Após linha 23 (const [error, setError] = useState...)
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+```
 
-Adicionar chaves de tradução ausentes nos três arquivos de locale.
+#### 3.2 Adicionar validação no handleMagicLink
+
+```typescript
+const handleMagicLink = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setError(null);
+
+  // Validar email vazio
+  if (!email.trim()) {
+    setError(t('auth.emailRequired'));
+    setIsLoading(false);
+    return;
+  }
+
+  // Validar formato de email
+  if (!EMAIL_REGEX.test(email.trim())) {
+    setError(t('auth.invalidEmail'));
+    setIsLoading(false);
+    return;
+  }
+
+  // Guard defensivo: tenantSlug é obrigatório
+  if (!tenantSlug) {
+    // ... código existente
+  }
+  // ... resto do código
+};
+```
+
+#### 3.3 Atualizar botão com validação de formato
+
+```tsx
+// Linha 138 - Antes:
+<Button type="submit" className="w-full" disabled={isLoading || !email} variant="tenant">
+
+// Depois:
+<Button 
+  type="submit" 
+  className="w-full" 
+  disabled={isLoading || !email.trim() || !EMAIL_REGEX.test(email.trim())} 
+  variant="tenant"
+>
+```
 
 ---
 
-### Tarefa 6 (Opcional/Manual): Script de Correção de Dados
+### Tarefa 4: Atualizar Login.tsx
 
-**Fora do escopo do Lovable** — Executar manualmente via SQL Editor:
+**Arquivo:** `src/pages/Login.tsx`
 
-```sql
--- Corrigir slugs anômalos
-UPDATE tenants 
-SET slug = LOWER(
-  REGEXP_REPLACE(
-    REGEXP_REPLACE(
-      REGEXP_REPLACE(
-        NORMALIZE(name, NFD), 
-        '[\u0300-\u036f]', '', 'g'
-      ),
-      '[^a-z0-9]+', '-', 'gi'
-    ),
-    '-+', '-', 'g'
-  )
-)
-WHERE slug ~ '--' 
-   OR slug ~ '^-' 
-   OR slug ~ '-$'
-   OR slug ~ '[A-Z]'
-   OR slug ~ '[^a-z0-9-]';
+#### 4.1 Adicionar estado de erros e regex
 
--- Verificar conflitos antes de aplicar
-SELECT id, name, slug, 
-  LOWER(REGEXP_REPLACE(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'), '-+', '-', 'g')) as new_slug
-FROM tenants
-WHERE slug ~ '--' OR slug ~ '[A-Z]';
+```typescript
+// Após linha 22 (const [name, setName] = useState("");)
+const [formErrors, setFormErrors] = useState<{
+  email?: string;
+  password?: string;
+  name?: string;
+}>({});
+
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+```
+
+#### 4.2 Criar função de validação
+
+```typescript
+const validateForm = (): boolean => {
+  const errors: typeof formErrors = {};
+
+  if (!email.trim()) {
+    errors.email = t('auth.emailRequired');
+  } else if (!EMAIL_REGEX.test(email.trim())) {
+    errors.email = t('auth.invalidEmail');
+  }
+
+  if (!password.trim()) {
+    errors.password = t('auth.passwordRequired');
+  }
+
+  if (isSignUp && !name.trim()) {
+    errors.name = t('auth.fullNameRequired');
+  }
+
+  setFormErrors(errors);
+  return Object.keys(errors).length === 0;
+};
+```
+
+#### 4.3 Criar função isFormValid
+
+```typescript
+const isFormValid = (): boolean => {
+  const emailValid = email.trim() !== '' && EMAIL_REGEX.test(email.trim());
+  const passwordValid = password.trim() !== '';
+  const nameValid = !isSignUp || name.trim() !== '';
+  return emailValid && passwordValid && nameValid;
+};
+```
+
+#### 4.4 Modificar handleSubmit
+
+```typescript
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (isSubmitting) return;
+
+  setFormErrors({});
+  if (!validateForm()) {
+    toast({
+      title: t('auth.formError'),
+      description: t('auth.correctErrors'),
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setIsSubmitting(true);
+  // ... resto do código existente
+};
+```
+
+#### 4.5 Atualizar botão de submit
+
+```tsx
+// Linha 163 - Antes:
+<Button type="submit" className="w-full h-11" disabled={isSubmitting}>
+
+// Depois:
+<Button type="submit" className="w-full h-11" disabled={isSubmitting || !isFormValid()}>
+```
+
+#### 4.6 Adicionar mensagens de erro inline
+
+```tsx
+{/* Após o input de nome (linha 115) */}
+{formErrors.name && (
+  <p className="text-sm text-destructive mt-1">{formErrors.name}</p>
+)}
+
+{/* Após o input de email (linha 134) */}
+{formErrors.email && (
+  <p className="text-sm text-destructive mt-1">{formErrors.email}</p>
+)}
+
+{/* Após o div de senha (linha 160) */}
+{formErrors.password && (
+  <p className="text-sm text-destructive mt-1">{formErrors.password}</p>
+)}
+```
+
+#### 4.7 Limpar erros ao alternar modo
+
+```tsx
+// Linha 186-189 - Modificar o onClick:
+onClick={() => {
+  setIsSignUp(!isSignUp);
+  setIsSubmitting(false);
+  setFormErrors({});
+}}
 ```
 
 ---
 
 ## Arquivos Modificados
 
-| Arquivo | Ação |
-|---------|------|
-| `src/lib/slugify.ts` | CRIAR |
-| `src/components/admin/CreateTenantDialog.tsx` | MODIFICAR |
-| `src/components/admin/EditTenantDialog.tsx` | MODIFICAR (i18n) |
-| `supabase/functions/resolve-identity-wizard/index.ts` | MODIFICAR |
-| `src/locales/pt-BR.ts` | ADICIONAR chaves |
-| `src/locales/en.ts` | ADICIONAR chaves |
-| `src/locales/es.ts` | ADICIONAR chaves |
+| Arquivo | Ação | Alterações |
+|---------|------|------------|
+| `src/locales/pt-BR.ts` | ADICIONAR | 6 chaves de validação |
+| `src/locales/en.ts` | ADICIONAR | 6 chaves de validação |
+| `src/locales/es.ts` | ADICIONAR | 6 chaves de validação |
+| `src/pages/Login.tsx` | MODIFICAR | Estado de erros, validação, mensagens inline |
+| `src/pages/ForgotPassword.tsx` | MODIFICAR | Validação de formato, botão disabled, mensagens inline |
+| `src/pages/AthleteLogin.tsx` | MODIFICAR | Validação de formato, botão disabled |
 
 ---
 
 ## Critérios de Aceitação
 
-- [ ] Utilitário `slugify.ts` centralizado criado
-- [ ] `CreateTenantDialog` usa `slugify` importado (não local)
-- [ ] Validação de slugs reservados implementada (admin, auth, login, etc.)
-- [ ] Mensagem de erro `admin.slugInvalid` exibida quando apropriado
-- [ ] Edge Function usa mesma lógica de normalização
-- [ ] Hífens duplicados são removidos automaticamente
-- [ ] `EditTenantDialog` totalmente internacionalizado
+- [ ] Botão de Login/Criar Conta habilitado apenas quando campos preenchidos E válidos
+- [ ] Botão de ForgotPassword desabilitado até email ter formato válido
+- [ ] Botão de AthleteLogin desabilitado até email ter formato válido
+- [ ] Mensagens de erro inline aparecem abaixo de cada campo inválido
+- [ ] Toast geral é exibido quando há erros de validação
+- [ ] Erros são limpos ao alternar entre Login e Signup
+- [ ] Erros são limpos ao digitar em campos com erro
+- [ ] Traduções funcionam nos 3 idiomas
 - [ ] Build compila sem erros
-- [ ] Chaves i18n consistentes nos 3 idiomas
 
 ---
 
 ## Seção Técnica
 
-### Lógica de Normalização (Fluxo)
-
-```text
-Entrada: "+FIGHT CT - Jiu-Jitsu"
-         ↓
-toLowerCase(): "+fight ct - jiu-jitsu"
-         ↓
-normalize('NFD'): "+fight ct - jiu-jitsu"
-         ↓
-remove acentos: "+fight ct - jiu-jitsu"
-         ↓
-replace [^a-z0-9]+: "-fight-ct---jiu-jitsu-"
-         ↓
-remove hífens duplicados: "-fight-ct-jiu-jitsu-"
-         ↓
-trim hífens: "fight-ct-jiu-jitsu"
-         ↓
-Resultado: "fight-ct-jiu-jitsu" ✅
-```
-
-### Palavras Reservadas
+### Regex de Validação
 
 ```typescript
-const RESERVED_SLUGS = [
-  'admin',   // Painel administrativo
-  'auth',    // Autenticação
-  'login',   // Login
-  'logout',  // Logout
-  'help',    // Ajuda
-  'portal',  // Portal do atleta
-  'api',     // Reservado para API
-  'app'      // Reservado para aplicação
-];
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+```
+
+Valida:
+- Pelo menos um caractere antes do `@` (exceto espaços)
+- Pelo menos um caractere entre `@` e `.`
+- Pelo menos um caractere após o último `.`
+- Não permite espaços em nenhuma posição
+
+### Fluxo de Validação Unificado
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ Usuário interage com formulário                     │
+├─────────────────────────────────────────────────────┤
+│ 1. isFormValid() avalia em tempo real               │
+│    → Botão habilitado/desabilitado dinamicamente    │
+│                                                     │
+│ 2. Usuário clica Submit                             │
+│    → setFormErrors({}) limpa erros anteriores       │
+│    → validateForm() executa validação completa      │
+│                                                     │
+│ 3. Se erros encontrados:                            │
+│    → setFormErrors(errors) atualiza estado          │
+│    → toast() exibe mensagem geral                   │
+│    → return (não prossegue)                         │
+│                                                     │
+│ 4. Se sem erros:                                    │
+│    → setIsSubmitting(true)                          │
+│    → Executa signIn/signUp/etc                      │
+└─────────────────────────────────────────────────────┘
+```
+
+### Estrutura de Estado de Erros
+
+```typescript
+interface FormErrors {
+  email?: string;    // Mensagem traduzida ou undefined
+  password?: string; // Mensagem traduzida ou undefined
+  name?: string;     // Mensagem traduzida ou undefined (só cadastro)
+}
 ```
 
