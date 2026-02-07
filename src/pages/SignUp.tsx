@@ -1,9 +1,9 @@
-// src/pages/Login.tsx
+// src/pages/SignUp.tsx
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, User } from "lucide-react";
 import iconLogo from "@/assets/iconLogo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,32 +15,31 @@ import { useI18n } from "@/contexts/I18nContext";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-export default function Login() {
+export default function SignUp() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<{
+    name?: string;
     email?: string;
     password?: string;
   }>({});
 
-  const { signIn, isAuthenticated } = useCurrentUser();
+  const { signUp, isAuthenticated } = useCurrentUser();
   const { identityState, redirectPath } = useIdentity();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useI18n();
 
-  // ✅ Wait for auth AND identity to be resolved before navigating
+  // Redirect when authenticated
   useEffect(() => {
     if (isAuthenticated && identityState !== "loading") {
-      // If wizard required, let the normal flow handle it
       if (identityState === "wizard_required") {
         navigate("/identity/wizard", { replace: true });
         return;
       }
-      
-      // Use redirectPath from backend (more precise than hardcoded /portal)
       const destination = redirectPath || "/portal";
       navigate(destination, { replace: true });
     }
@@ -48,6 +47,10 @@ export default function Login() {
 
   const validateForm = (): boolean => {
     const errors: typeof formErrors = {};
+
+    if (!name.trim()) {
+      errors.name = t('auth.fullNameRequired');
+    }
 
     if (!email.trim()) {
       errors.email = t('auth.emailRequired');
@@ -65,6 +68,7 @@ export default function Login() {
 
   const isFormValid = (): boolean => {
     return (
+      name.trim() !== '' &&
       email.trim() !== '' &&
       EMAIL_REGEX.test(email.trim()) &&
       password.trim() !== ''
@@ -88,14 +92,14 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      await signIn(email, password);
+      await signUp(email, password, name);
       toast({
-        title: t("auth.welcome"),
-        description: t("auth.loginSuccess"),
+        title: t("auth.accountCreated"),
+        description: t("auth.accountCreatedDesc"),
       });
-      // DO NOT navigate here. Wait for isAuthenticated and then go to destination.
+      // Do not navigate manually - wait for isAuthenticated in useEffect
     } catch (error) {
-      console.error("Auth error:", error);
+      console.error("SignUp error:", error);
       toast({
         title: t("auth.error"),
         description: error instanceof Error ? error.message : t("auth.genericError"),
@@ -120,12 +124,36 @@ export default function Login() {
               <span className="font-display text-xl font-bold">TATAME</span>
             </Link>
             <h1 className="font-display text-3xl font-bold mb-2">
-              {t("auth.loginTitle")}
+              {t("auth.signUpTitle")}
             </h1>
-            <p className="text-muted-foreground">{t("auth.loginDesc")}</p>
+            <p className="text-muted-foreground">{t("auth.signUpDesc")}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("auth.fullName")}</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder={t("auth.fullNamePlaceholder")}
+                  className="pl-10"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  required
+                  autoComplete="name"
+                />
+              </div>
+              {formErrors.name && (
+                <p className="text-sm text-destructive mt-1">{formErrors.name}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">{t("auth.emailLabel")}</Label>
               <div className="relative">
@@ -167,7 +195,7 @@ export default function Login() {
                   }}
                   required
                   minLength={6}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
@@ -186,21 +214,15 @@ export default function Login() {
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                t("auth.login")
+                t("auth.createAccount")
               )}
             </Button>
           </form>
 
-          <div className="mt-4 text-center">
-            <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
-              {t("auth.forgotPassword")}
-            </Link>
-          </div>
-
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            {t("auth.dontHaveAccount")}{" "}
-            <Link to="/signup" className="text-primary hover:underline font-medium">
-              {t("auth.createAccount")}
+            {t("auth.alreadyHaveAccount")}{" "}
+            <Link to="/login" className="text-primary hover:underline font-medium">
+              {t("auth.login")}
             </Link>
           </p>
         </motion.div>
