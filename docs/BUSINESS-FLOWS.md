@@ -136,6 +136,54 @@ Este documento descreve os principais fluxos de negócio do sistema Tatame PRO, 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Fluxo Completo (Menor de Idade)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Responsável acessa /{slug} (TenantLanding)                   │
+│ 2. Clica em "Filie-se Agora"                                    │
+│ 3. Seleciona tipo de filiação: "Menor de Idade"                 │
+│ 4. Preenche dados do responsável (Step 1 - Guardian)            │
+│ 5. Preenche dados do atleta menor (Step 2 - Athlete)            │
+│    └─ Validação: idade < 18 anos (cálculo preciso)              │
+│ 6. Faz upload de documentos do atleta (Step 3 - Documents)      │
+│ 7. Faz login (se ainda não autenticado)                         │
+│ 8. Sistema salva dados em applicant_data (inclui guardian{})    │
+│ 9. Documentos salvos em tmp/{userId}/{timestamp}/               │
+│ 10. Confirma dados e efetua pagamento (Stripe Checkout)         │
+│ 11. Webhook processa pagamento:                                 │
+│     └─ Membership status: DRAFT → PENDING_REVIEW                │
+│     └─ Payment status: PENDING → PAID                           │
+│ 12. Staff/Admin do tenant aprova filiação:                      │
+│     └─ Sistema cria registro de Guardian                        │
+│     └─ Sistema cria registro de Athlete                         │
+│     └─ Sistema cria guardian_link (is_primary = true)           │
+│     └─ Move documentos tmp/ → {tenant_id}/{athlete_id}/         │
+│     └─ Gera Digital Card (generate-digital-card)                │
+│     └─ Membership status: PENDING_REVIEW → ACTIVE               │
+│ 13. Responsável/Atleta pode acessar Portal via carteira digital │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Estrutura applicant_data para Menor:**
+```json
+{
+  "full_name": "João Silva",
+  "birth_date": "2012-05-15",
+  "national_id": null,
+  "gender": "MALE",
+  "email": "responsavel@email.com",
+  "is_minor": true,
+  "guardian": {
+    "full_name": "Maria Silva",
+    "national_id": "123.456.789-00",
+    "email": "responsavel@email.com",
+    "phone": "11999998888",
+    "relationship": "PARENT"
+  }
+}
+```
+
 ### Status de Filiação
 
 | Status | Descrição | Próximo Estado |

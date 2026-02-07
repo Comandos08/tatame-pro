@@ -85,19 +85,18 @@ export function MembershipTypeSelector() {
   const options = [
     {
       id: 'adult',
-      title: 'Atleta Adulto',
-      description: 'Para atletas com 18 anos ou mais que farão a filiação em nome próprio.',
+      title: t('membership.adultOptionTitle'),
+      description: t('membership.adultOptionDesc'),
       icon: User,
       path: `/${tenantSlug}/membership/adult`,
     },
-    // ⚠️ P3/4 — Youth membership hidden (pending E2E validation)
-    // {
-    //   id: 'youth',
-    //   title: 'Atleta Menor de Idade',
-    //   description: 'Para atletas menores de 18 anos. A filiação será feita por um responsável legal.',
-    //   icon: Users,
-    //   path: `/${tenantSlug}/membership/youth`,
-    // },
+    {
+      id: 'youth',
+      title: t('membership.youthOptionTitle'),
+      description: t('membership.youthOptionDesc'),
+      icon: Users,
+      path: `/${tenantSlug}/membership/youth`,
+    },
   ];
 
   const handleOptionClick = (path: string) => {
@@ -120,7 +119,7 @@ export function MembershipTypeSelector() {
             {t('membership.title')}
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Escolha o tipo de filiação para se juntar à {tenant?.name || t('common.organization')}.
+            {t('membership.selectTypeDesc', { orgName: tenant?.name || t('common.organization') })}
           </p>
         </motion.div>
 
@@ -216,7 +215,7 @@ export function MembershipTypeSelector() {
           transition={{ delay: 0.3 }}
           className="text-center text-sm text-muted-foreground mt-8"
         >
-          Ao continuar, você concorda com os termos de uso e política de privacidade.
+          {t('membership.termsAgreement')}
         </motion.p>
       </div>
     </div>
