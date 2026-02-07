@@ -123,6 +123,7 @@ function isPublicPath(pathname: string) {
     "/",
     "/about",
     "/login",
+    "/signup",
     "/forgot-password",
     "/reset-password",
     "/help",
