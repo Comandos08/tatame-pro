@@ -1514,6 +1514,7 @@ export const es: Record<string, string> = {
   'platformHealth.blocked': 'bloqueados',
   'platformHealth.latePayment': 'con pago atrasado',
   'platformHealth.loadError': 'Error al cargar métricas de salud',
+  'platformHealth.noEventsTooltip': 'El job se ejecutó recientemente, pero no se procesaron elementos. Esto es normal si no hay afiliaciones/trials para procesar.',
 
   // P4.x-R1 — Card Diagnostics i18n
   'cardDiagnostics.title': 'Diagnóstico de Tarjetas',

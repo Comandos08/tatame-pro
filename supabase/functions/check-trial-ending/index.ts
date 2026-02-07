@@ -65,6 +65,21 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
+    const jobRunId = crypto.randomUUID();
+
+    // Log job execution start
+    await supabase.from("audit_logs").insert({
+      event_type: "JOB_CHECK_TRIALS_RUN",
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'STARTED',
+        automatic: true,
+        scheduled: true,
+        source: 'check-trial-ending-job',
+      },
+    });
+
     // Find tenants in TRIALING status with current_period_end within 3 days
     // We check for current_period_end between 2 and 4 days from now to have a window
     const now = new Date();
@@ -163,6 +178,22 @@ serve(async (req) => {
     }
 
     logStep("Finished processing", { results });
+
+    // Log job execution completion
+    await supabase.from("audit_logs").insert({
+      event_type: "JOB_CHECK_TRIALS_RUN",
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'COMPLETED',
+        processed: results.length,
+        notified: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        automatic: true,
+        scheduled: true,
+        source: 'check-trial-ending-job',
+      },
+    });
 
     return new Response(
       JSON.stringify({ 
