@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
-import { Loader2, X, Edit2, Check, ExternalLink } from 'lucide-react';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
+import { useI18n } from '@/contexts/I18nContext';
 import { toast } from 'sonner';
 
 const SPORT_TYPES = ['Jiu-Jitsu', 'Judo', 'Muay Thai', 'Wrestling', 'Karate', 'Taekwondo', 'Boxing', 'MMA', 'Sambo', 'Krav Maga'];
@@ -50,6 +51,7 @@ interface EditTenantDialogProps {
 }
 
 export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialogProps) {
+  const { t } = useI18n();
   const [name, setName] = useState(tenant.name);
   const [description, setDescription] = useState(tenant.description || '');
   const [selectedSports, setSelectedSports] = useState<string[]>(tenant.sport_types || []);
@@ -78,11 +80,11 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!name.trim()) {
-        throw new Error('Nome é obrigatório');
+        throw new Error(t('admin.nameRequired'));
       }
 
       if (selectedSports.length === 0) {
-        throw new Error('Selecione pelo menos uma modalidade');
+        throw new Error(t('admin.selectModality'));
       }
 
       const { error } = await supabase
@@ -102,11 +104,11 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast.success('Organização atualizada com sucesso!');
+      toast.success(t('admin.organizationUpdatedSuccess'));
       onOpenChange(false);
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Erro ao atualizar organização');
+      toast.error(error instanceof Error ? error.message : t('admin.organizationUpdateError'));
     },
   });
 
@@ -114,15 +116,15 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Editar Organização</DialogTitle>
+          <DialogTitle>{t('admin.editOrganization')}</DialogTitle>
           <DialogDescription>
-            Altere os dados da organização <strong>{tenant.name}</strong>.
+            {t('admin.editOrganizationDesc', { name: tenant.name })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-tenant-name">Nome da organização *</Label>
+            <Label htmlFor="edit-tenant-name">{t('admin.organizationNameLabel')} *</Label>
             <Input
               id="edit-tenant-name"
               value={name}
@@ -131,7 +133,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
           </div>
 
           <div className="space-y-2">
-            <Label>Slug (URL)</Label>
+            <Label>{t('admin.slugLabel')}</Label>
             <div className="flex items-center gap-2">
               <code className="text-sm bg-muted px-2 py-1 rounded flex-1">
                 /{tenant.slug}
@@ -142,11 +144,11 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
                 </a>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">O slug não pode ser alterado após a criação.</p>
+            <p className="text-xs text-muted-foreground">{t('admin.slugImmutable')}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Modalidades *</Label>
+            <Label>{t('admin.modalities')} *</Label>
             <div className="flex flex-wrap gap-2">
               {SPORT_TYPES.map((sport) => (
                 <Badge
@@ -163,7 +165,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-default-locale">Idioma padrão</Label>
+              <Label htmlFor="edit-default-locale">{t('admin.defaultLanguage')}</Label>
               <Select value={defaultLocale} onValueChange={setDefaultLocale}>
                 <SelectTrigger id="edit-default-locale">
                   <SelectValue />
@@ -179,7 +181,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-primary-color">Cor primária</Label>
+              <Label htmlFor="edit-primary-color">{t('admin.primaryColor')}</Label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -198,7 +200,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Descrição</Label>
+            <Label htmlFor="edit-description">{t('admin.descriptionLabel')}</Label>
             <Textarea
               id="edit-description"
               value={description}
@@ -209,9 +211,9 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
 
           <div className="flex items-center justify-between p-4 rounded-lg border">
             <div>
-              <Label htmlFor="is-active">Status da organização</Label>
+              <Label htmlFor="is-active">{t('admin.organizationStatus')}</Label>
               <p className="text-sm text-muted-foreground">
-                {isActive ? 'A organização está ativa e acessível.' : 'A organização está desativada.'}
+                {isActive ? t('admin.statusActiveDesc') : t('admin.statusInactiveDesc')}
               </p>
             </div>
             <Switch
@@ -224,16 +226,16 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
             {updateMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
+                {t('common.saving')}
               </>
             ) : (
-              'Salvar Alterações'
+              t('common.saveChanges')
             )}
           </Button>
         </DialogFooter>

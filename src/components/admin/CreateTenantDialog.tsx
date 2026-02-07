@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { slugify, isValidSlug } from '@/lib/slugify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,22 +50,13 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [defaultLocale, setDefaultLocale] = useState('pt-BR');
   const [primaryColor, setPrimaryColor] = useState('#dc2626');
-  
-  const queryClient = useQueryClient();
 
-  const generateSlug = (text: string) => {
-    return text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
+  const queryClient = useQueryClient();
 
   const handleNameChange = (value: string) => {
     setName(value);
-    if (!slug || slug === generateSlug(name)) {
-      setSlug(generateSlug(value));
+    if (!slug || slug === slugify(name)) {
+      setSlug(slugify(value));
     }
   };
 
@@ -83,6 +75,11 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
 
       if (!name.trim() || !slug.trim()) {
         throw new Error(t('admin.nameSlugRequired'));
+      }
+
+      // ✅ Validação de slug reservado ou inválido
+      if (!isValidSlug(slug)) {
+        throw new Error(t('admin.slugInvalid'));
       }
 
       if (selectedSports.length === 0) {
@@ -174,7 +171,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
                 id="tenant-slug"
                 placeholder={t('admin.slugPlaceholder')}
                 value={slug}
-                onChange={(e) => setSlug(generateSlug(e.target.value))}
+                onChange={(e) => setSlug(slugify(e.target.value))}
                 className="flex-1"
               />
             </div>

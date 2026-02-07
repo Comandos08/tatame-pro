@@ -2172,6 +2172,18 @@ export const es: Record<string, string> = {
   'admin.nameSlugRequired': 'Nombre y slug son obligatorios',
   'admin.selectModality': 'Seleccione al menos una modalidad',
   'admin.slugInUse': 'Este slug ya está en uso. Elija otro.',
+  'admin.slugInvalid': 'Slug inválido o reservado.',
+  'admin.slugImmutable': 'El slug no puede cambiarse después de la creación.',
+  'admin.organizationStatus': 'Estado de la organización',
+  'admin.statusActiveDesc': 'La organización está activa y accesible.',
+  'admin.statusInactiveDesc': 'La organización está desactivada.',
+  'admin.editOrganization': 'Editar Organización',
+  'admin.editOrganizationDesc': 'Modifique los datos de {name}.',
+  'admin.organizationUpdatedSuccess': '¡Organización actualizada con éxito!',
+  'admin.organizationUpdateError': 'Error al actualizar la organización',
+  'admin.nameRequired': 'El nombre es obligatorio',
+  'common.saving': 'Guardando...',
+  'common.saveChanges': 'Guardar Cambios',
   'admin.tenantsWithProblems': 'Tenants con Problemas',
 
   // P1.2 — Loading States with Intent
