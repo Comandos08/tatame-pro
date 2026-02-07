@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, AlertCircle } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
@@ -31,8 +32,10 @@ import {
 export function YouthMembershipForm() {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
+  const [searchParams] = useSearchParams();
   const { tenant } = useTenant();
   const { t, locale } = useI18n();
+  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +45,22 @@ export function YouthMembershipForm() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
+
+  // Restore form data from sessionStorage after login redirect
+  useEffect(() => {
+    const savedData = sessionStorage.getItem('membershipYouthFormData');
+    if (savedData && isAuthenticated) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.guardianData) setGuardianData(parsed.guardianData);
+        if (parsed.athleteData) setAthleteData(parsed.athleteData);
+        if (parsed.step) setStep(parsed.step);
+        sessionStorage.removeItem('membershipYouthFormData');
+      } catch (e) {
+        console.error('Failed to restore form data:', e);
+      }
+    }
+  }, [isAuthenticated]);
 
   const guardianSchema = z.object({
     fullName: z.string().min(3, t('membership.validation.nameMin')),
@@ -80,9 +99,9 @@ export function YouthMembershipForm() {
   };
 
   const GUARDIAN_RELATIONSHIP_LABELS: Record<GuardianRelationship, string> = {
-    PARENT: locale === 'en' ? 'Parent' : locale === 'es' ? 'Padre/Madre' : 'Pai/Mãe',
-    GUARDIAN: locale === 'en' ? 'Legal Guardian' : locale === 'es' ? 'Tutor Legal' : 'Responsável Legal',
-    OTHER: t('membership.other'),
+    PARENT: t('membership.guardianRelationship.PARENT'),
+    GUARDIAN: t('membership.guardianRelationship.GUARDIAN'),
+    OTHER: t('membership.guardianRelationship.OTHER'),
   };
 
   const guardianForm = useForm<z.infer<typeof guardianSchema>>({
@@ -119,11 +138,27 @@ export function YouthMembershipForm() {
     setStep(2);
   };
 
-  const handleAthleteSubmit = (data: z.infer<typeof athleteSchema>) => {
-    // Check if minor (under 18)
-    const birthDate = new Date(data.birthDate);
+  /**
+   * Precise age calculation that considers month/day
+   */
+  function calculatePreciseAge(birthDate: Date): number {
     const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const dayDiff = today.getDate() - birthDate.getDate();
+    
+    // Hasn't had birthday this year yet
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age--;
+    }
+    
+    return age;
+  }
+
+  const handleAthleteSubmit = (data: z.infer<typeof athleteSchema>) => {
+    // Precise age check: must be under 18
+    const birthDate = new Date(data.birthDate);
+    const age = calculatePreciseAge(birthDate);
     
     if (age >= 18) {
       toast.error(t('membership.errorYouthAge'));
@@ -152,7 +187,7 @@ export function YouthMembershipForm() {
   };
 
   const handlePayment = async () => {
-    // SAFE GOLD: Bloquear Stripe quando override manual ativo
+    // Block Stripe when manual override active
     if (!canUseStripe) {
       toast.error(t('billing.stripeDisabled'));
       return;
@@ -160,119 +195,112 @@ export function YouthMembershipForm() {
     
     if (!tenant || !athleteData || !guardianData) return;
 
+    // ✅ REQUIRED: Require authentication before payment
+    if (!isAuthenticated || !currentUser) {
+      // Save form data to restore after login
+      sessionStorage.setItem('membershipYouthFormData', JSON.stringify({
+        guardianData,
+        athleteData,
+        step: 4
+      }));
+      toast.info(t('membership.loginRequired'));
+      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // 1. Create guardian record
-      const { data: guardian, error: guardianError } = await supabase
-        .from('guardians')
-        .insert({
-          tenant_id: tenant.id,
-          full_name: guardianData.fullName,
-          national_id: guardianData.nationalId,
-          email: guardianData.email,
-          phone: guardianData.phone,
-        })
-        .select()
-        .single();
+      // 1. Upload documents to TEMPORARY path tmp/{userId}/{timestamp}/
+      const documentsUploaded: Array<{type: string; storage_path: string; file_type: string}> = [];
+      const timestamp = Date.now();
 
-      if (guardianError) throw guardianError;
-
-      // 2. Create athlete record
-      const { data: athlete, error: athleteError } = await supabase
-        .from('athletes')
-        .insert({
-          tenant_id: tenant.id,
-          full_name: athleteData.fullName,
-          birth_date: athleteData.birthDate,
-          national_id: athleteData.nationalId || null,
-          gender: athleteData.gender,
-          email: athleteData.email || guardianData.email,
-          phone: athleteData.phone || guardianData.phone,
-          address_line1: athleteData.addressLine1,
-          address_line2: athleteData.addressLine2 || null,
-          city: athleteData.city,
-          state: athleteData.state,
-          postal_code: athleteData.postalCode,
-          country: athleteData.country,
-        })
-        .select()
-        .single();
-
-      if (athleteError) throw athleteError;
-
-      // 3. Create guardian-athlete link
-      await supabase.from('guardian_links').insert({
-        tenant_id: tenant.id,
-        guardian_id: guardian.id,
-        athlete_id: athlete.id,
-        relationship: guardianData.relationship,
-        is_primary: true,
-      });
-
-      // 4. Upload documents
       if (documents.idDocument) {
-        const fileName = `${tenant.id}/${athlete.id}/id_document_${Date.now()}`;
+        const storagePath = `tmp/${currentUser.id}/${timestamp}/id_document`;
         const { error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(fileName, documents.idDocument);
+          .upload(storagePath, documents.idDocument);
 
-        if (!uploadError) {
-          const { data: publicUrl } = supabase.storage
-            .from('documents')
-            .getPublicUrl(fileName);
-
-          await supabase.from('documents').insert({
-            tenant_id: tenant.id,
-            athlete_id: athlete.id,
-            type: 'ID_DOCUMENT',
-            file_url: publicUrl.publicUrl,
-            file_type: documents.idDocument.type,
-            file_size: documents.idDocument.size,
-          });
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast.error(t('membership.errorIdDocument'));
+          setIsLoading(false);
+          return;
         }
+
+        documentsUploaded.push({
+          type: 'ID_DOCUMENT',
+          storage_path: storagePath,
+          file_type: documents.idDocument.type,
+        });
       }
 
       if (documents.medicalCertificate) {
-        const fileName = `${tenant.id}/${athlete.id}/medical_${Date.now()}`;
+        const storagePath = `tmp/${currentUser.id}/${timestamp}/medical_certificate`;
         const { error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(fileName, documents.medicalCertificate);
+          .upload(storagePath, documents.medicalCertificate);
 
-        if (!uploadError) {
-          const { data: publicUrl } = supabase.storage
-            .from('documents')
-            .getPublicUrl(fileName);
-
-          await supabase.from('documents').insert({
-            tenant_id: tenant.id,
-            athlete_id: athlete.id,
-            type: 'MEDICAL_CERTIFICATE',
-            file_url: publicUrl.publicUrl,
-            file_type: documents.medicalCertificate.type,
-            file_size: documents.medicalCertificate.size,
-          });
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast.error(t('membership.errorGeneric'));
+          setIsLoading(false);
+          return;
         }
+
+        documentsUploaded.push({
+          type: 'MEDICAL_CERTIFICATE',
+          storage_path: storagePath,
+          file_type: documents.medicalCertificate.type,
+        });
       }
 
-      // 5. Create membership
+      // 2. Create membership WITH applicant_data (includes guardian data)
+      // ⚠️ DO NOT create guardian/athlete/guardian_links here - that happens on approval!
       const { data: membership, error: membershipError } = await supabase
         .from('memberships')
         .insert({
           tenant_id: tenant.id,
-          athlete_id: athlete.id,
+          athlete_id: null, // Will be filled on approval
+          applicant_profile_id: currentUser.id,
+          applicant_data: {
+            // Athlete data
+            full_name: athleteData.fullName,
+            birth_date: athleteData.birthDate,
+            national_id: athleteData.nationalId || null,
+            gender: athleteData.gender,
+            email: athleteData.email || guardianData.email,
+            phone: athleteData.phone || guardianData.phone,
+            address_line1: athleteData.addressLine1,
+            address_line2: athleteData.addressLine2 || null,
+            city: athleteData.city,
+            state: athleteData.state,
+            postal_code: athleteData.postalCode,
+            country: athleteData.country,
+            // ✅ Guardian data (nested object)
+            guardian: {
+              full_name: guardianData.fullName,
+              national_id: guardianData.nationalId,
+              email: guardianData.email,
+              phone: guardianData.phone,
+              relationship: guardianData.relationship,
+            },
+            // ✅ Flag to identify youth membership
+            is_minor: true,
+          },
+          documents_uploaded: documentsUploaded,
           status: 'DRAFT',
           type: 'FIRST_MEMBERSHIP',
           price_cents: MEMBERSHIP_PRICE_CENTS,
           currency: MEMBERSHIP_CURRENCY,
           payment_status: 'NOT_PAID',
-        })
+        } as any)
         .select()
         .single();
 
       if (membershipError) throw membershipError;
 
-      // 6. Create Stripe checkout session
+      // 3. Create Stripe checkout session (identical to adult flow)
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(
         'create-membership-checkout',
         {
@@ -305,7 +333,6 @@ export function YouthMembershipForm() {
       }
     } catch (error: any) {
       console.error('Error:', error);
-      // Show specific error message if available
       const errorMessage = error?.message || t('membership.errorGeneric');
       toast.error(errorMessage);
     } finally {
@@ -743,7 +770,7 @@ export function YouthMembershipForm() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* SAFE GOLD: Banner de override manual */}
+                  {/* Manual override banner */}
                   {isManualOverride && (
                     <ManualOverrideBanner reason={overrideReason} appliedAt={overrideAt} />
                   )}

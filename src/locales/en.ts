@@ -80,6 +80,17 @@ export const en: Record<string, string> = {
   'membership.success': 'Membership Complete!',
   'membership.type.first': 'First Membership',
   'membership.type.renewal': 'Renewal',
+
+  // Membership Type Selector
+  'membership.adultOptionTitle': 'Adult Athlete',
+  'membership.adultOptionDesc': 'For athletes 18 years or older registering on their own behalf.',
+  'membership.youthOptionTitle': 'Minor Athlete',
+  'membership.youthOptionDesc': 'For athletes under 18 years old. Registration will be done by a legal guardian.',
+  'membership.selectTypeDesc': 'Choose the membership type to join {orgName}.',
+  'membership.termsAgreement': 'By continuing, you agree to the terms of use and privacy policy.',
+  'membership.guardianRelationship.PARENT': 'Parent',
+  'membership.guardianRelationship.GUARDIAN': 'Legal Guardian',
+  'membership.guardianRelationship.OTHER': 'Other',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Adult Athlete Membership',

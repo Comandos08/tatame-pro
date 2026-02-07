@@ -80,6 +80,17 @@ export const ptBR = {
   'membership.success': 'Filiação Realizada!',
   'membership.type.first': 'Primeira Filiação',
   'membership.type.renewal': 'Renovação',
+
+  // Membership Type Selector
+  'membership.adultOptionTitle': 'Atleta Adulto',
+  'membership.adultOptionDesc': 'Para atletas com 18 anos ou mais que farão a filiação em nome próprio.',
+  'membership.youthOptionTitle': 'Atleta Menor de Idade',
+  'membership.youthOptionDesc': 'Para atletas menores de 18 anos. A filiação será feita por um responsável legal.',
+  'membership.selectTypeDesc': 'Escolha o tipo de filiação para se juntar à {orgName}.',
+  'membership.termsAgreement': 'Ao continuar, você concorda com os termos de uso e política de privacidade.',
+  'membership.guardianRelationship.PARENT': 'Pai/Mãe',
+  'membership.guardianRelationship.GUARDIAN': 'Responsável Legal',
+  'membership.guardianRelationship.OTHER': 'Outro',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Filiação de Atleta Adulto',

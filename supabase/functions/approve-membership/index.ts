@@ -87,6 +87,15 @@ interface ApplicantData {
   state: string;
   postal_code: string;
   country: string;
+  // Youth membership support
+  is_minor?: boolean;
+  guardian?: {
+    full_name: string;
+    national_id: string;
+    email: string;
+    phone: string;
+    relationship: 'PARENT' | 'GUARDIAN' | 'OTHER';
+  };
 }
 
 interface DocumentUploaded {
@@ -471,6 +480,38 @@ serve(async (req) => {
     logStep("Tenant data fetched", { slug: tenant.slug });
 
     // ========================================================================
+    // 8️⃣.5️⃣ CREATE GUARDIAN (if minor)
+    // ========================================================================
+    let guardianId: string | null = null;
+    
+    if (applicantData.is_minor && applicantData.guardian) {
+      logStep("Creating guardian for minor athlete");
+      
+      const { data: guardian, error: guardianError } = await supabase
+        .from("guardians")
+        .insert({
+          tenant_id: targetTenantId,
+          full_name: applicantData.guardian.full_name,
+          national_id: applicantData.guardian.national_id,
+          email: applicantData.guardian.email,
+          phone: applicantData.guardian.phone,
+        })
+        .select()
+        .single();
+
+      if (guardianError) {
+        logStep("Failed to create guardian", { error: guardianError.message });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Operation not permitted" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      guardianId = guardian.id;
+      logStep("Guardian created", { guardianId });
+    }
+
+    // ========================================================================
     // 9️⃣ CREATE ATHLETE
     // ========================================================================
     const { data: athlete, error: athleteError } = await supabase
@@ -506,6 +547,28 @@ serve(async (req) => {
     }
 
     logStep("Athlete created", { athleteId: athlete.id });
+
+    // ========================================================================
+    // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
+    // ========================================================================
+    if (guardianId && applicantData.is_minor && applicantData.guardian) {
+      const { error: linkError } = await supabase
+        .from("guardian_links")
+        .insert({
+          tenant_id: targetTenantId,
+          guardian_id: guardianId,
+          athlete_id: athlete.id,
+          relationship: applicantData.guardian.relationship,
+          is_primary: true,
+        });
+
+      if (linkError) {
+        logStep("Guardian link warning", { error: linkError.message });
+        // Non-fatal: continue with approval
+      } else {
+        logStep("Guardian link created", { guardianId, athleteId: athlete.id });
+      }
+    }
 
     // ========================================================================
     // 🔟 CREATE USER ROLES
@@ -813,6 +876,8 @@ serve(async (req) => {
       metadata: {
         membership_id: membershipId,
         athlete_id: athlete.id,
+        guardian_id: guardianId,
+        is_minor: applicantData.is_minor || false,
         athlete_name: applicantData.full_name,
         academy_id: academyId || null,
         coach_id: coachId || null,

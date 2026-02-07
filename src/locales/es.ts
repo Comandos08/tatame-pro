@@ -80,6 +80,17 @@ export const es: Record<string, string> = {
   'membership.success': '¡Afiliación Completada!',
   'membership.type.first': 'Primera Afiliación',
   'membership.type.renewal': 'Renovación',
+
+  // Membership Type Selector
+  'membership.adultOptionTitle': 'Atleta Adulto',
+  'membership.adultOptionDesc': 'Para atletas de 18 años o más que realizarán la afiliación por cuenta propia.',
+  'membership.youthOptionTitle': 'Atleta Menor de Edad',
+  'membership.youthOptionDesc': 'Para atletas menores de 18 años. La afiliación será realizada por un responsable legal.',
+  'membership.selectTypeDesc': 'Elija el tipo de afiliación para unirse a {orgName}.',
+  'membership.termsAgreement': 'Al continuar, acepta los términos de uso y la política de privacidad.',
+  'membership.guardianRelationship.PARENT': 'Padre/Madre',
+  'membership.guardianRelationship.GUARDIAN': 'Tutor Legal',
+  'membership.guardianRelationship.OTHER': 'Otro',
   
   // Membership Form - Adult
   'membership.adultTitle': 'Afiliación de Atleta Adulto',
