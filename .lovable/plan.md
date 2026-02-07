@@ -1,642 +1,329 @@
 
 
-# Plano Revisado: Finalizar a Filiação Juvenil (Youth Membership)
+# Plano: P3.YOUTH.FINAL.HARDENING (SAFE GOLD)
 
-## Resumo do Diagnóstico Atualizado
+## Resumo do Diagnóstico
 
-### Descobertas Críticas
+### Verificação do Enum no Banco (Confirmado)
 
-| Componente | Estado Atual | Ação Necessária |
-|------------|-------------|-----------------|
-| **approve-membership** | Já move documentos de `tmp/` para path permanente (linhas 563-612) | Adicionar suporte a `is_minor` e criação de guardian |
-| **YouthMembershipForm** | Cria guardian/athlete ANTES do pagamento | Refatorar para usar `applicant_data` |
-| **MEMBERSHIP_PRICE_CENTS** | Já importado do `@/types/membership` (linha 27) | Nenhuma |
-| **Chaves i18n** | `loginRequired`, `errorGeneric`, `errorIdDocument` já existem | Adicionar chaves de opções do seletor |
-| **MembershipTypeSelector** | Textos hardcoded em português | Internacionalizar |
+```sql
+SELECT t.typname, e.enumlabel FROM pg_type t ...
+-- Resultado:
+-- guardian_relationship: PARENT, GUARDIAN, OTHER
+```
 
-### Problema Principal
+### Estado Atual dos Enums (100% Alinhados)
 
-O `YouthMembershipForm` cria registros permanentes (`guardians`, `athletes`, `guardian_links`) **antes do pagamento**, enquanto o `AdultMembershipForm` usa a arquitetura `applicant_data` que só cria o atleta após aprovação. Isso gera:
-- Registros órfãos se o usuário abandonar antes do pagamento
-- Inconsistência arquitetural
-- Documentos em path permanente antes da aprovação
+| Camada | Valores | Status |
+|--------|---------|--------|
+| **Banco (pg_enum)** | `PARENT`, `GUARDIAN`, `OTHER` | ✅ Fonte da Verdade |
+| **Supabase Types** | `"PARENT" \| "GUARDIAN" \| "OTHER"` | ✅ Alinhado |
+| **src/types/membership.ts** | `'PARENT' \| 'GUARDIAN' \| 'OTHER'` | ✅ Alinhado |
+| **approve-membership** | `'PARENT' \| 'GUARDIAN' \| 'OTHER'` | ✅ Alinhado |
+| **YouthMembershipForm.tsx** | `z.enum(['PARENT', 'GUARDIAN', 'OTHER'])` | ✅ Alinhado |
+
+### Problema Identificado
+
+O único gap técnico é o uso de `as any` em dois arquivos:
+- `YouthMembershipForm.tsx` (linha 297)
+- `AdultMembershipForm.tsx` (linha 302)
+
+O enum `GuardianRelationship` já está **corretamente** definido em `src/types/membership.ts`, e NÃO precisa ser movido para um arquivo separado `src/types/guardian.ts` — isso apenas fragmentaria o código sem benefício.
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Habilitar Rota Youth no MembershipRouter
+### Tarefa 1: Criar Tipos de Inserção Explícitos
 
-**Arquivo:** `src/routes/MembershipRouter.tsx`
-
-```typescript
-// Linha 4 - Adicionar import
-import MembershipYouth from '@/pages/MembershipYouth';
-
-// Linha 17 - Substituir Navigate por MembershipYouth
-<Route path="youth" element={<MembershipYouth />} />
-```
-
----
-
-### Tarefa 2: Internacionalizar e Habilitar Youth no MembershipTypeSelector
-
-**Arquivo:** `src/components/membership/MembershipTypeSelector.tsx`
-
-**2.1 Atualizar opções para usar i18n (linhas 85-101):**
+**Arquivo:** `src/types/membership-insert.ts` (NOVO)
 
 ```typescript
-const options = [
-  {
-    id: 'adult',
-    title: t('membership.adultOptionTitle'),
-    description: t('membership.adultOptionDesc'),
-    icon: User,
-    path: `/${tenantSlug}/membership/adult`,
-  },
-  {
-    id: 'youth',
-    title: t('membership.youthOptionTitle'),
-    description: t('membership.youthOptionDesc'),
-    icon: Users,
-    path: `/${tenantSlug}/membership/youth`,
-  },
-];
-```
+import type { GenderType, GuardianRelationship } from './membership';
 
-**2.2 Internacionalizar texto da página (linhas 123-124 e 219):**
-
-```typescript
-// Linha 123-124
-<p className="text-muted-foreground text-lg max-w-xl mx-auto">
-  {t('membership.selectTypeDesc', { orgName: tenant?.name || t('common.organization') })}
-</p>
-
-// Linha 219
-{t('membership.termsAgreement')}
-```
-
----
-
-### Tarefa 3: Refatorar YouthMembershipForm para Arquitetura applicant_data
-
-**Arquivo:** `src/components/membership/YouthMembershipForm.tsx`
-
-**3.1 Adicionar imports e hooks de autenticação (linha 4 e após linha 34):**
-
-```typescript
-// Linha 4 - Adicionar useSearchParams
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-
-// Após linha 34 - Adicionar autenticação
-const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
-```
-
-**3.2 Corrigir cálculo de idade (linhas 122-131):**
-
-```typescript
-const handleAthleteSubmit = (data: z.infer<typeof athleteSchema>) => {
-  // Cálculo preciso de idade
-  const birthDate = new Date(data.birthDate);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  const dayDiff = today.getDate() - birthDate.getDate();
-  
-  // Ainda não fez aniversário este ano
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--;
-  }
-  
-  // Menor de idade = até 17 anos completos
-  if (age >= 18) {
-    toast.error(t('membership.errorYouthAge'));
-    return;
-  }
-
-  setAthleteData({
-    ...data,
-    email: data.email || guardianData?.email || '',
-  } as AthleteFormData);
-  setStep(3);
-};
-```
-
-**3.3 Refatorar handlePayment completo (linhas 154-314):**
-
-```typescript
-const handlePayment = async () => {
-  if (!canUseStripe) {
-    toast.error(t('billing.stripeDisabled'));
-    return;
-  }
-  
-  if (!tenant || !athleteData || !guardianData) return;
-
-  // ✅ OBRIGATÓRIO: Exigir login antes de prosseguir
-  if (!isAuthenticated || !currentUser) {
-    sessionStorage.setItem('membershipYouthFormData', JSON.stringify({
-      guardianData,
-      athleteData,
-      step: 4
-    }));
-    toast.info(t('membership.loginRequired'));
-    navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`);
-    return;
-  }
-
-  setIsLoading(true);
-
-  try {
-    // 1. Upload documentos para path TEMPORÁRIO tmp/{userId}/{timestamp}/
-    const documentsUploaded: Array<{type: string; storage_path: string; file_type: string}> = [];
-    const timestamp = Date.now();
-
-    if (documents.idDocument) {
-      const storagePath = `tmp/${currentUser.id}/${timestamp}/id_document`;
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(storagePath, documents.idDocument);
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        toast.error(t('membership.errorIdDocument'));
-        setIsLoading(false);
-        return;
-      }
-
-      documentsUploaded.push({
-        type: 'ID_DOCUMENT',
-        storage_path: storagePath,
-        file_type: documents.idDocument.type,
-      });
-    }
-
-    if (documents.medicalCertificate) {
-      const storagePath = `tmp/${currentUser.id}/${timestamp}/medical_certificate`;
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(storagePath, documents.medicalCertificate);
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        toast.error(t('membership.errorGeneric'));
-        setIsLoading(false);
-        return;
-      }
-
-      documentsUploaded.push({
-        type: 'MEDICAL_CERTIFICATE',
-        storage_path: storagePath,
-        file_type: documents.medicalCertificate.type,
-      });
-    }
-
-    // 2. Criar membership COM applicant_data (INCLUI guardian)
-    // ⚠️ NÃO criar guardian/athlete/guardian_links aqui!
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .insert({
-        tenant_id: tenant.id,
-        athlete_id: null, // Será preenchido na aprovação
-        applicant_profile_id: currentUser.id,
-        applicant_data: {
-          // Dados do atleta
-          full_name: athleteData.fullName,
-          birth_date: athleteData.birthDate,
-          national_id: athleteData.nationalId || null,
-          gender: athleteData.gender,
-          email: athleteData.email || guardianData.email,
-          phone: athleteData.phone || guardianData.phone,
-          address_line1: athleteData.addressLine1,
-          address_line2: athleteData.addressLine2 || null,
-          city: athleteData.city,
-          state: athleteData.state,
-          postal_code: athleteData.postalCode,
-          country: athleteData.country,
-          // ✅ NOVO: Dados do responsável (nested object)
-          guardian: {
-            full_name: guardianData.fullName,
-            national_id: guardianData.nationalId,
-            email: guardianData.email,
-            phone: guardianData.phone,
-            relationship: guardianData.relationship,
-          },
-          // ✅ NOVO: Flag para identificar filiação juvenil
-          is_minor: true,
-        },
-        documents_uploaded: documentsUploaded,
-        status: 'DRAFT',
-        type: 'FIRST_MEMBERSHIP',
-        price_cents: MEMBERSHIP_PRICE_CENTS,
-        currency: MEMBERSHIP_CURRENCY,
-        payment_status: 'NOT_PAID',
-      } as any)
-      .select()
-      .single();
-
-    if (membershipError) throw membershipError;
-
-    // 3. Criar Stripe checkout session (idêntico ao adulto)
-    const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(
-      'create-membership-checkout',
-      {
-        body: {
-          membershipId: membership.id,
-          tenantSlug: tenantSlug,
-          successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
-          cancelUrl: `${window.location.origin}/${tenantSlug}/membership/youth`,
-          captchaToken: captchaToken,
-        },
-      }
-    );
-
-    if (checkoutError) throw checkoutError;
-
-    if (checkoutData?.error) {
-      if (checkoutData.captchaRequired) {
-        setCaptchaError(checkoutData.error);
-        setCaptchaToken(null);
-        throw new Error(checkoutData.error);
-      }
-      throw new Error(checkoutData.error);
-    }
-
-    if (checkoutData?.url) {
-      window.location.href = checkoutData.url;
-    } else {
-      throw new Error(t('membership.errorPaymentSession'));
-    }
-  } catch (error: any) {
-    console.error('Error:', error);
-    const errorMessage = error?.message || t('membership.errorGeneric');
-    toast.error(errorMessage);
-  } finally {
-    setIsLoading(false);
-  }
-};
-```
-
----
-
-### Tarefa 4: Atualizar approve-membership para Suportar Menores
-
-**Arquivo:** `supabase/functions/approve-membership/index.ts`
-
-**4.1 Expandir interface ApplicantData (após linha 90):**
-
-```typescript
-interface ApplicantData {
+/**
+ * Estrutura de applicant_data para filiações adultas
+ */
+export interface AdultApplicantData {
   full_name: string;
   birth_date: string;
   national_id: string;
-  gender: string;
+  gender: GenderType;
   email: string;
   phone: string;
   address_line1: string;
-  address_line2?: string;
+  address_line2?: string | null;
   city: string;
   state: string;
   postal_code: string;
   country: string;
-  // ✅ NOVO: Suporte a filiação juvenil
-  is_minor?: boolean;
-  guardian?: {
+}
+
+/**
+ * Estrutura de applicant_data para filiações juvenis
+ */
+export interface YouthApplicantData extends AdultApplicantData {
+  is_minor: true;
+  national_id: string | null;
+  guardian: {
     full_name: string;
     national_id: string;
     email: string;
     phone: string;
-    relationship: 'PARENT' | 'GUARDIAN' | 'OTHER';
+    relationship: GuardianRelationship;
   };
 }
-```
 
-**4.2 Adicionar lógica de criação de guardian antes do atleta (antes da seção 9️⃣, linha 473):**
+/**
+ * Estrutura de documento uploaded
+ */
+export interface DocumentUploaded {
+  type: 'ID_DOCUMENT' | 'MEDICAL_CERTIFICATE';
+  storage_path: string;
+  file_type: string;
+}
 
-```typescript
-    // ========================================================================
-    // 8️⃣.5️⃣ CREATE GUARDIAN (if minor)
-    // ========================================================================
-    let guardianId: string | null = null;
-    
-    if (applicantData.is_minor && applicantData.guardian) {
-      logStep("Creating guardian for minor athlete");
-      
-      const { data: guardian, error: guardianError } = await supabase
-        .from("guardians")
-        .insert({
-          tenant_id: targetTenantId,
-          full_name: applicantData.guardian.full_name,
-          national_id: applicantData.guardian.national_id,
-          email: applicantData.guardian.email,
-          phone: applicantData.guardian.phone,
-        })
-        .select()
-        .single();
+/**
+ * Payload de inserção para membership (adulto)
+ */
+export interface AdultMembershipInsert {
+  tenant_id: string;
+  athlete_id: null;
+  applicant_profile_id: string;
+  applicant_data: AdultApplicantData;
+  documents_uploaded: DocumentUploaded[];
+  status: 'DRAFT';
+  type: 'FIRST_MEMBERSHIP';
+  price_cents: number;
+  currency: string;
+  payment_status: 'NOT_PAID';
+}
 
-      if (guardianError) {
-        logStep("Failed to create guardian", { error: guardianError.message });
-        return new Response(
-          JSON.stringify({ ok: false, error: "Operation not permitted" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      guardianId = guardian.id;
-      logStep("Guardian created", { guardianId });
-    }
-```
-
-**4.3 Criar guardian_link após criar atleta (após linha 508):**
-
-```typescript
-    logStep("Athlete created", { athleteId: athlete.id });
-
-    // ========================================================================
-    // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
-    // ========================================================================
-    if (guardianId && applicantData.is_minor && applicantData.guardian) {
-      const { error: linkError } = await supabase
-        .from("guardian_links")
-        .insert({
-          tenant_id: targetTenantId,
-          guardian_id: guardianId,
-          athlete_id: athlete.id,
-          relationship: applicantData.guardian.relationship,
-          is_primary: true,
-        });
-
-      if (linkError) {
-        logStep("Guardian link warning", { error: linkError.message });
-        // Non-fatal: continue with approval
-      } else {
-        logStep("Guardian link created", { guardianId, athleteId: athlete.id });
-      }
-    }
-```
-
-**4.4 Adicionar guardian_id ao audit log (linha 815):**
-
-```typescript
-    await supabase.from("audit_logs").insert({
-      event_type: "MEMBERSHIP_APPROVED",
-      tenant_id: targetTenantId,
-      profile_id: adminProfileId,
-      metadata: {
-        membership_id: membershipId,
-        athlete_id: athlete.id,
-        guardian_id: guardianId, // ✅ NOVO
-        is_minor: applicantData.is_minor || false, // ✅ NOVO
-        athlete_name: applicantData.full_name,
-        // ... resto igual
-      },
-    });
-```
-
----
-
-### Tarefa 5: Adicionar Chaves de Tradução
-
-**Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
-
-```typescript
-// pt-BR.ts
-'membership.adultOptionTitle': 'Atleta Adulto',
-'membership.adultOptionDesc': 'Para atletas com 18 anos ou mais que farão a filiação em nome próprio.',
-'membership.youthOptionTitle': 'Atleta Menor de Idade',
-'membership.youthOptionDesc': 'Para atletas menores de 18 anos. A filiação será feita por um responsável legal.',
-'membership.selectTypeDesc': 'Escolha o tipo de filiação para se juntar à {orgName}.',
-'membership.termsAgreement': 'Ao continuar, você concorda com os termos de uso e política de privacidade.',
-'membership.guardianRelationship.PARENT': 'Pai/Mãe',
-'membership.guardianRelationship.GUARDIAN': 'Responsável Legal',
-'membership.guardianRelationship.OTHER': 'Outro',
-
-// en.ts
-'membership.adultOptionTitle': 'Adult Athlete',
-'membership.adultOptionDesc': 'For athletes 18 years or older registering on their own behalf.',
-'membership.youthOptionTitle': 'Minor Athlete',
-'membership.youthOptionDesc': 'For athletes under 18 years old. Registration will be done by a legal guardian.',
-'membership.selectTypeDesc': 'Choose the membership type to join {orgName}.',
-'membership.termsAgreement': 'By continuing, you agree to the terms of use and privacy policy.',
-'membership.guardianRelationship.PARENT': 'Parent',
-'membership.guardianRelationship.GUARDIAN': 'Legal Guardian',
-'membership.guardianRelationship.OTHER': 'Other',
-
-// es.ts
-'membership.adultOptionTitle': 'Atleta Adulto',
-'membership.adultOptionDesc': 'Para atletas de 18 años o más que realizarán la afiliación por cuenta propia.',
-'membership.youthOptionTitle': 'Atleta Menor de Edad',
-'membership.youthOptionDesc': 'Para atletas menores de 18 años. La afiliación será realizada por un responsable legal.',
-'membership.selectTypeDesc': 'Elija el tipo de afiliación para unirse a {orgName}.',
-'membership.termsAgreement': 'Al continuar, acepta los términos de uso y la política de privacidad.',
-'membership.guardianRelationship.PARENT': 'Padre/Madre',
-'membership.guardianRelationship.GUARDIAN': 'Tutor Legal',
-'membership.guardianRelationship.OTHER': 'Otro',
-```
-
----
-
-### Tarefa 6: Criar Teste E2E para Fluxo Juvenil
-
-**Arquivo:** `e2e/membership-youth-flow.spec.ts` (NOVO)
-
-```typescript
-import { test, expect } from '@playwright/test';
-
-test.describe('Youth Membership Flow', () => {
-  test('should show youth membership option in selector', async ({ page }) => {
-    // Navigate to a tenant's membership page
-    await page.goto('/');
-    
-    const youthOption = page.locator('text=/menor|youth|minor/i').first();
-    
-    if (await youthOption.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(youthOption).toBeVisible();
-    } else {
-      test.skip();
-    }
-  });
-
-  test('should navigate to youth membership form', async ({ page }) => {
-    await page.goto('/');
-    
-    const youthOption = page.locator('text=/menor|youth|minor/i').first();
-    
-    if (await youthOption.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await youthOption.click();
-      
-      // Should see guardian form (step 1)
-      await expect(page.locator('text=/responsável|guardian/i').first()).toBeVisible({ timeout: 10000 });
-    } else {
-      test.skip();
-    }
-  });
-
-  test('should reject athletes 18 or older', async ({ page }) => {
-    // Test that the age validation works correctly
-    await page.goto('/');
-    
-    const youthOption = page.locator('text=/menor|youth|minor/i').first();
-    
-    if (await youthOption.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await youthOption.click();
-      await page.waitForLoadState('networkidle');
-      
-      // This test would need to fill guardian form and proceed to athlete step
-      // to test age validation - implementation depends on form structure
-    } else {
-      test.skip();
-    }
-  });
-});
-```
-
----
-
-### Tarefa 7: Atualizar Documentação
-
-**Arquivo:** `docs/BUSINESS-FLOWS.md`
-
-Adicionar seção após "Fluxo Completo (Adulto)":
-
-```markdown
-### Fluxo Completo (Menor de Idade)
-
-                         +------------------------------------------+
-                         | 1. Responsável acessa /{slug}            |
-                         | 2. Clica em "Filie-se Agora"             |
-                         | 3. Seleciona "Menor de Idade"            |
-                         +------------------------------------------+
-                                          |
-                                          v
-                         +------------------------------------------+
-                         | 4. Preenche dados do responsável         |
-                         | 5. Preenche dados do atleta menor        |
-                         | 6. Upload de documentos (RG do atleta)   |
-                         +------------------------------------------+
-                                          |
-                                          v
-                         +------------------------------------------+
-                         | 7. Faz login (se não autenticado)        |
-                         | 8. applicant_data inclui guardian{}      |
-                         | 9. Documentos salvos em tmp/{userId}/    |
-                         +------------------------------------------+
-                                          |
-                                          v
-                         +------------------------------------------+
-                         | 10. Stripe Checkout                      |
-                         | 11. Webhook: DRAFT -> PENDING_REVIEW     |
-                         +------------------------------------------+
-                                          |
-                                          v
-                         +------------------------------------------+
-                         | 12. Admin aprova filiação:               |
-                         |     - Cria registro Guardian             |
-                         |     - Cria registro Athlete              |
-                         |     - Cria guardian_link                 |
-                         |     - Move documentos tmp/ -> permanente |
-                         |     - Gera Digital Card                  |
-                         +------------------------------------------+
-                                          |
-                                          v
-                         +------------------------------------------+
-                         | 13. Status: APPROVED/ACTIVE              |
-                         | 14. Email de confirmação enviado         |
-                         +------------------------------------------+
-
-**Estrutura applicant_data para Menor:**
-{
-  "full_name": "João Silva",
-  "birth_date": "2012-05-15",
-  "is_minor": true,
-  "guardian": {
-    "full_name": "Maria Silva",
-    "national_id": "123.456.789-00",
-    "email": "responsavel@email.com",
-    "relationship": "PARENT"
-  }
+/**
+ * Payload de inserção para membership (juvenil)
+ */
+export interface YouthMembershipInsert {
+  tenant_id: string;
+  athlete_id: null;
+  applicant_profile_id: string;
+  applicant_data: YouthApplicantData;
+  documents_uploaded: DocumentUploaded[];
+  status: 'DRAFT';
+  type: 'FIRST_MEMBERSHIP';
+  price_cents: number;
+  currency: string;
+  payment_status: 'NOT_PAID';
 }
 ```
+
+---
+
+### Tarefa 2: Substituir `as any` no YouthMembershipForm.tsx
+
+**Arquivo:** `src/components/membership/YouthMembershipForm.tsx`
+
+**2.1 Adicionar import (linha 30):**
+
+```typescript
+import type { YouthMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
+```
+
+**2.2 Tipar o array de documentos (linha 215):**
+
+```typescript
+const documentsUploaded: DocumentUploaded[] = [];
+```
+
+**2.3 Substituir o insert (linhas 260-299):**
+
+```typescript
+// 2. Create membership WITH applicant_data (includes guardian data)
+const membershipPayload: YouthMembershipInsert = {
+  tenant_id: tenant.id,
+  athlete_id: null,
+  applicant_profile_id: currentUser.id,
+  applicant_data: {
+    full_name: athleteData.fullName,
+    birth_date: athleteData.birthDate,
+    national_id: athleteData.nationalId || null,
+    gender: athleteData.gender,
+    email: athleteData.email || guardianData.email,
+    phone: athleteData.phone || guardianData.phone,
+    address_line1: athleteData.addressLine1,
+    address_line2: athleteData.addressLine2 || null,
+    city: athleteData.city,
+    state: athleteData.state,
+    postal_code: athleteData.postalCode,
+    country: athleteData.country,
+    is_minor: true,
+    guardian: {
+      full_name: guardianData.fullName,
+      national_id: guardianData.nationalId,
+      email: guardianData.email,
+      phone: guardianData.phone,
+      relationship: guardianData.relationship,
+    },
+  },
+  documents_uploaded: documentsUploaded,
+  status: 'DRAFT',
+  type: 'FIRST_MEMBERSHIP',
+  price_cents: MEMBERSHIP_PRICE_CENTS,
+  currency: MEMBERSHIP_CURRENCY,
+  payment_status: 'NOT_PAID',
+};
+
+const { data: membership, error: membershipError } = await supabase
+  .from('memberships')
+  .insert(membershipPayload as any) // Type assertion for JSONB fields
+  .select()
+  .single();
+```
+
+---
+
+### Tarefa 3: Substituir `as any` no AdultMembershipForm.tsx
+
+**Arquivo:** `src/components/membership/AdultMembershipForm.tsx`
+
+**3.1 Adicionar import (após linha 23):**
+
+```typescript
+import type { AdultMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
+```
+
+**3.2 Tipar o array de documentos:**
+
+```typescript
+const documentsUploaded: DocumentUploaded[] = [];
+```
+
+**3.3 Substituir o insert (linhas 276-304):**
+
+```typescript
+// 2. Criar membership COM applicant_data (SEM athlete_id)
+const membershipPayload: AdultMembershipInsert = {
+  tenant_id: tenant.id,
+  athlete_id: null,
+  applicant_profile_id: currentUser.id,
+  applicant_data: {
+    full_name: athleteData.fullName,
+    birth_date: athleteData.birthDate,
+    national_id: athleteData.nationalId,
+    gender: athleteData.gender,
+    email: athleteData.email,
+    phone: athleteData.phone,
+    address_line1: athleteData.addressLine1,
+    address_line2: athleteData.addressLine2 || null,
+    city: athleteData.city,
+    state: athleteData.state,
+    postal_code: athleteData.postalCode,
+    country: athleteData.country,
+  },
+  documents_uploaded: documentsUploaded,
+  status: 'DRAFT',
+  type: 'FIRST_MEMBERSHIP',
+  price_cents: MEMBERSHIP_PRICE_CENTS,
+  currency: MEMBERSHIP_CURRENCY,
+  payment_status: 'NOT_PAID',
+};
+
+const { data: membership, error: membershipError } = await supabase
+  .from('memberships')
+  .insert(membershipPayload as any) // Type assertion for JSONB fields
+  .select()
+  .single();
+```
+
+---
+
+### Tarefa 4: Atualizar Exportações (Opcional mas Recomendado)
+
+**Arquivo:** `src/types/membership.ts`
+
+Adicionar reexport no final do arquivo para centralização:
+
+```typescript
+// Reexport insert types for convenience
+export type { 
+  AdultApplicantData,
+  YouthApplicantData,
+  DocumentUploaded,
+  AdultMembershipInsert,
+  YouthMembershipInsert,
+} from './membership-insert';
+```
+
+---
+
+## Nota Técnica: Por que manter `as any` no insert final
+
+O Supabase Client tipifica `applicant_data` e `documents_uploaded` como `Json | null`, que é um tipo genérico que não aceita interfaces específicas sem type assertion. 
+
+A estratégia SAFE GOLD adotada:
+
+1. **Tipagem explícita no payload**: O objeto `membershipPayload` é 100% tipado via interface
+2. **Type assertion mínima no insert**: O `as any` é necessário apenas porque o schema do Supabase usa `Json` genérico
+3. **Validação em compile-time**: Erros de tipagem serão detectados ANTES do `as any`
+
+**Alternativa (não recomendada para SAFE GOLD)**: Alterar o arquivo `types.ts` gerado pelo Supabase - isso seria sobrescrito na próxima sincronização e criaria regressões.
 
 ---
 
 ## Arquivos Modificados
 
-| Arquivo | Acao | Descricao |
+| Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/routes/MembershipRouter.tsx` | MODIFICAR | Habilitar rota youth |
-| `src/components/membership/MembershipTypeSelector.tsx` | MODIFICAR | Internacionalizar e habilitar youth |
-| `src/components/membership/YouthMembershipForm.tsx` | MODIFICAR | Refatorar para applicant_data |
-| `supabase/functions/approve-membership/index.ts` | MODIFICAR | Suportar guardian na aprovacao |
-| `src/locales/pt-BR.ts` | ADICIONAR | 9 novas chaves |
-| `src/locales/en.ts` | ADICIONAR | 9 novas chaves |
-| `src/locales/es.ts` | ADICIONAR | 9 novas chaves |
-| `e2e/membership-youth-flow.spec.ts` | CRIAR | Testes E2E |
-| `docs/BUSINESS-FLOWS.md` | ADICIONAR | Documentacao do fluxo juvenil |
+| `src/types/membership-insert.ts` | **CRIAR** | Interfaces tipadas para insert |
+| `src/components/membership/YouthMembershipForm.tsx` | **MODIFICAR** | Usar YouthMembershipInsert |
+| `src/components/membership/AdultMembershipForm.tsx` | **MODIFICAR** | Usar AdultMembershipInsert |
+| `src/types/membership.ts` | **MODIFICAR** | Reexport de tipos (opcional) |
 
 ---
 
-## Criterios de Aceitacao
+## Critérios de Aceitação
 
-- [ ] Rota `/membership/youth` carrega o formulario juvenil
-- [ ] Seletor de tipo exibe opcao "Menor de Idade" internacionalizada
-- [ ] Validacao de idade precisa: apenas menores de 18 aceitos
-- [ ] Autenticacao exigida antes do pagamento
-- [ ] `applicant_data` contem `is_minor: true` e objeto `guardian`
-- [ ] Documentos salvos em `tmp/` ate aprovacao
-- [ ] Na aprovacao: guardian, athlete e guardian_links criados
-- [ ] Documentos movidos de `tmp/` para `{tenant_id}/{athlete_id}/`
-- [ ] MEMBERSHIP_PRICE_CENTS importado de `@/types/membership` (ja existente)
-- [ ] Chaves i18n funcionam nos 3 idiomas
-- [ ] Build compila sem erros
+- [ ] Interfaces `YouthMembershipInsert` e `AdultMembershipInsert` criadas
+- [ ] Payload de membership explicitamente tipado em ambos os forms
+- [ ] Enum `GuardianRelationship` permanece em `src/types/membership.ts` (já alinhado)
+- [ ] Build TypeScript passa sem warnings
+- [ ] E2E existente continua passando
+- [ ] ZERO mudanças comportamentais
+- [ ] SAFE GOLD preservado
 
 ---
 
-## Secao Tecnica
+## Seção Técnica
 
-### Variaveis de Preco e Moeda
-
-As constantes ja estao definidas e importadas corretamente:
+### Enum Canônico (Já Definido Corretamente)
 
 ```typescript
-// src/types/membership.ts (linhas 42-43)
-export const MEMBERSHIP_PRICE_CENTS = 15000;
-export const MEMBERSHIP_CURRENCY = 'BRL';
-
-// YouthMembershipForm.tsx (linha 22-28) - ja importa
-import {
-  MEMBERSHIP_PRICE_CENTS,
-  MEMBERSHIP_CURRENCY,
-} from '@/types/membership';
+// src/types/membership.ts (linha 2)
+export type GuardianRelationship = 'PARENT' | 'GUARDIAN' | 'OTHER';
 ```
 
-### Chaves i18n Existentes (Nao Precisam Ser Adicionadas)
+Este tipo já está:
+- ✅ Alinhado com o banco (`guardian_relationship` enum)
+- ✅ Importado no `YouthMembershipForm.tsx` (linha 27)
+- ✅ Usado no `approve-membership/index.ts` (linhas 92-98)
 
-As seguintes chaves ja existem nos 3 locales:
-- `membership.loginRequired`
-- `membership.errorGeneric`
-- `membership.errorIdDocument`
-- `membership.errorIdDocumentYouth`
-- `membership.errorYouthAge`
+**NÃO** é necessário criar `src/types/guardian.ts` separado — isso fragmentaria o código sem benefício.
 
-### Fluxo de Movimentacao de Documentos (Ja Implementado)
+### Estrutura Final do Insert Tipado
 
-O `approve-membership` ja implementa a movimentacao (linhas 563-612):
-
-```typescript
-// Codigo existente - nao precisa modificar
-for (const doc of documentsUploaded) {
-  const oldPath = doc.storage_path;
-  const newPath = `${targetTenantId}/${athlete.id}/${fileName}`;
-  
-  // 1. Copiar para path permanente
-  await supabase.storage.from("documents").copy(oldPath, newPath);
-  
-  // 2. Remover do path temporario
-  await supabase.storage.from("documents").remove([oldPath]);
-  
-  // 3. Criar registro na tabela documents
-  await supabase.from("documents").insert({...});
-}
+```text
+YouthMembershipInsert
+├── tenant_id: string
+├── athlete_id: null
+├── applicant_profile_id: string
+├── applicant_data: YouthApplicantData
+│   ├── full_name, birth_date, gender, email, phone...
+│   ├── is_minor: true
+│   └── guardian: { full_name, national_id, email, phone, relationship }
+├── documents_uploaded: DocumentUploaded[]
+├── status: 'DRAFT'
+├── type: 'FIRST_MEMBERSHIP'
+├── price_cents: number
+├── currency: string
+└── payment_status: 'NOT_PAID'
 ```
 
