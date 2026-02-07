@@ -10,20 +10,37 @@ import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
 
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const { toast } = useToast();
   const { t } = useI18n();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError(null);
     
+    // Validar email vazio
     if (!email.trim()) {
+      setEmailError(t('auth.emailRequired'));
       toast({
-        title: t('auth.forgot.emailRequired'),
-        description: t('auth.forgot.emailRequiredDesc'),
+        title: t('auth.formError'),
+        description: t('auth.emailRequired'),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar formato de email
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setEmailError(t('auth.invalidEmail'));
+      toast({
+        title: t('auth.formError'),
+        description: t('auth.invalidEmail'),
         variant: "destructive",
       });
       return;
@@ -128,16 +145,26 @@ export default function ForgotPassword() {
                   type="email"
                   placeholder={t('auth.forgot.email.placeholder')}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError(null);
+                  }}
                   disabled={isLoading}
                   autoComplete="email"
                   autoFocus
                 />
+                {emailError && (
+                  <p className="text-sm text-destructive mt-1">{emailError}</p>
+                )}
               </div>
             </CardContent>
 
             <CardFooter className="flex flex-col gap-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isLoading || !email.trim() || !EMAIL_REGEX.test(email.trim())}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
