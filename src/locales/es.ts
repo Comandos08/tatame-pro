@@ -543,6 +543,12 @@ export const es: Record<string, string> = {
   'auth.dontHaveAccount': '¿No tiene una cuenta?',
   'auth.manageOrganization': 'Gestione su federación',
   'auth.manageOrganizationDesc': 'Sistema completo para organizaciones de deportes de combate. BJJ, Judo, Wrestling, Muay Thai y más.',
+  'auth.emailRequired': 'Correo electrónico es obligatorio.',
+  'auth.invalidEmail': 'Formato de correo electrónico inválido.',
+  'auth.passwordRequired': 'Contraseña es obligatoria.',
+  'auth.fullNameRequired': 'Nombre completo es obligatorio.',
+  'auth.formError': 'Por favor corrija los errores',
+  'auth.correctErrors': 'Complete todos los campos requeridos.',
 
   // Login institutional block
   'login.institutional.title': 'Infraestructura institucional para deportes de combate',

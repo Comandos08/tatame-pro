@@ -11,6 +11,8 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { supabase } from "@/integrations/supabase/client";
 
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export default function AthleteLogin() {
   const { tenantSlug } = useParams();
   const [searchParams] = useSearchParams();
@@ -24,8 +26,21 @@ export default function AthleteLogin() {
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
+
+    // Validar email vazio
+    if (!email.trim()) {
+      setError(t('auth.emailRequired'));
+      return;
+    }
+
+    // Validar formato de email
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setError(t('auth.invalidEmail'));
+      return;
+    }
+
+    setIsLoading(true);
 
     // Guard defensivo: tenantSlug é obrigatório
     if (!tenantSlug) {
@@ -66,6 +81,8 @@ export default function AthleteLogin() {
     setEmailSent(false);
     setError(null);
   };
+
+  const isEmailValid = email.trim() !== '' && EMAIL_REGEX.test(email.trim());
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -135,7 +152,12 @@ export default function AthleteLogin() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading || !email} variant="tenant">
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isLoading || !isEmailValid} 
+                  variant="tenant"
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

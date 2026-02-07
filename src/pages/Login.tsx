@@ -13,6 +13,8 @@ import { useIdentity } from "@/contexts/IdentityContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +22,11 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState("");
+  const [formErrors, setFormErrors] = useState<{
+    email?: string;
+    password?: string;
+    name?: string;
+  }>({});
 
   const { signIn, signUp, isAuthenticated } = useCurrentUser();
   const { identityState, redirectPath } = useIdentity();
@@ -42,9 +49,47 @@ export default function Login() {
     }
   }, [isAuthenticated, identityState, redirectPath, navigate]);
 
+  const validateForm = (): boolean => {
+    const errors: typeof formErrors = {};
+
+    if (!email.trim()) {
+      errors.email = t('auth.emailRequired');
+    } else if (!EMAIL_REGEX.test(email.trim())) {
+      errors.email = t('auth.invalidEmail');
+    }
+
+    if (!password.trim()) {
+      errors.password = t('auth.passwordRequired');
+    }
+
+    if (isSignUp && !name.trim()) {
+      errors.name = t('auth.fullNameRequired');
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const isFormValid = (): boolean => {
+    const emailValid = email.trim() !== '' && EMAIL_REGEX.test(email.trim());
+    const passwordValid = password.trim() !== '';
+    const nameValid = !isSignUp || name.trim() !== '';
+    return emailValid && passwordValid && nameValid;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    setFormErrors({});
+    if (!validateForm()) {
+      toast({
+        title: t('auth.formError'),
+        description: t('auth.correctErrors'),
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -113,6 +158,9 @@ export default function Login() {
                   required
                   autoComplete="name"
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-destructive mt-1">{formErrors.name}</p>
+                )}
               </div>
             )}
 
@@ -132,6 +180,9 @@ export default function Login() {
                   autoComplete="email"
                 />
               </div>
+              {formErrors.email && (
+                <p className="text-sm text-destructive mt-1">{formErrors.email}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -158,9 +209,12 @@ export default function Login() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {formErrors.password && (
+                <p className="text-sm text-destructive mt-1">{formErrors.password}</p>
+              )}
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={isSubmitting}>
+            <Button type="submit" className="w-full h-11" disabled={isSubmitting || !isFormValid()}>
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isSignUp ? (
@@ -186,6 +240,7 @@ export default function Login() {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setIsSubmitting(false);
+                setFormErrors({});
               }}
               className="text-primary hover:underline font-medium"
             >

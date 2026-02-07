@@ -541,6 +541,12 @@ export const ptBR = {
   'auth.dontHaveAccount': 'Não tem uma conta?',
   'auth.manageOrganization': 'Gerencie sua federação',
   'auth.manageOrganizationDesc': 'Sistema completo para organizações de esportes de combate. BJJ, Judô, Wrestling, Muay Thai e muito mais.',
+  'auth.emailRequired': 'E-mail é obrigatório.',
+  'auth.invalidEmail': 'Formato de e-mail inválido.',
+  'auth.passwordRequired': 'Senha é obrigatória.',
+  'auth.fullNameRequired': 'Nome completo é obrigatório.',
+  'auth.formError': 'Corrija os erros',
+  'auth.correctErrors': 'Preencha todos os campos obrigatórios.',
 
   // Login institutional block
   'login.institutional.title': 'Infraestrutura institucional para esportes de combate',
