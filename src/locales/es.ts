@@ -1182,8 +1182,8 @@ export const es: Record<string, string> = {
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Activo',
-  'billing.status.trialing': 'En Prueba',
-  'billing.status.trial_expired': 'Prueba Expirada',
+  'billing.status.trialing': 'En Período de Prueba',
+  'billing.status.trial_expired': 'Período de Prueba Expirado',
   'billing.status.pending_delete': 'Pendiente Eliminación',
   'billing.status.past_due': 'Vencido',
   'billing.status.canceled': 'Cancelado',
