@@ -1,307 +1,268 @@
 
-# Plano: Separação de Rotas de Login e Cadastro
+
+# Plano: Tratamento de Erros de Backend
 
 ## Resumo do Diagnóstico
 
 ### Estado Atual
 
-| Componente | Arquivo | Comportamento Atual |
-|------------|---------|---------------------|
-| Login + SignUp | `src/pages/Login.tsx` | Formulário único com toggle `isSignUp` para alternar entre modos |
-| Rotas | `src/App.tsx` | Apenas `/login` existe, não há `/signup` |
-| IdentityGate | `src/components/identity/IdentityGate.tsx` | `/login` está na whitelist pública (linha 125) |
-| Traduções | `src/locales/*.ts` | Chaves existentes para ambos os fluxos (`auth.signUpTitle`, `auth.loginTitle`, etc.) |
+| Componente | Tratamento de Erro | Problema |
+|------------|-------------------|----------|
+| `Login.tsx` (linha 101) | `error.message` direto | Exibe mensagens em inglês como "Invalid login credentials" |
+| `SignUp.tsx` (linha 105) | `error.message` direto | Exibe mensagens como "User already registered" |
+| `ForgotPassword.tsx` (linha 67) | Chave genérica `auth.forgot.errorDesc` | Não diferencia tipos de erro |
+| `AuthContext.tsx` | Relança erro do Supabase | Sem transformação/mapeamento |
 
-### Problema
+### Mensagens Técnicas Expostas ao Usuário
 
-O formulário atual mistura login e cadastro em uma única página, com toggle para alternar entre modos. Isso:
-- Aumenta a complexidade do código
-- Dificulta links diretos para cadastro
-- Prejudica SEO e analytics
-- Confunde o fluxo de navegação
+```text
+"Invalid login credentials"     → Credenciais inválidas (inglês técnico)
+"User already registered"       → Email já cadastrado (inglês técnico)
+"Failed to fetch"               → Erro de rede (genérico)
+"Network request failed"        → Erro de conexão (genérico)
+```
+
+### Arquitetura Existente de Erros
+
+O projeto já possui `src/lib/errors/` com:
+- `temporaryErrorMap.ts` — Mapeamento de erros temporários para UX
+- `index.ts` — Exportações centralizadas
+
+A nova função deve seguir o mesmo padrão arquitetural.
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Criar SignUp.tsx
+### Tarefa 1: Criar Utilitário de Mapeamento de Erros de Autenticação
 
-**Arquivo:** `src/pages/SignUp.tsx` (NOVO)
-
-Criar componente dedicado para cadastro, baseado na lógica existente de `Login.tsx`:
+**Arquivo:** `src/lib/errors/authErrorMap.ts` (NOVO)
 
 ```typescript
-// src/pages/SignUp.tsx
+/**
+ * ============================================================================
+ * 🔐 AUTH ERROR MAP — Friendly Error Mapping for Authentication
+ * ============================================================================
+ * 
+ * Maps Supabase auth error messages to i18n keys for user-friendly display.
+ * 
+ * SAFE GOLD PRINCIPLES:
+ * - Pure function, no side effects
+ * - Returns i18n keys, not hardcoded strings
+ * - Extensible pattern matching
+ * ============================================================================
+ */
 
-import React, { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, Loader2, User } from "lucide-react";
-import iconLogo from "@/assets/iconLogo.png";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useCurrentUser } from "@/contexts/AuthContext";
-import { useIdentity } from "@/contexts/IdentityContext";
-import { useToast } from "@/hooks/use-toast";
-import { useI18n } from "@/contexts/I18nContext";
+export interface AuthError {
+  message?: string;
+  status?: number;
+  statusCode?: number;
+  code?: string;
+}
 
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/**
+ * Maps authentication errors to user-friendly i18n keys.
+ * 
+ * @param error - The error object from Supabase or network
+ * @returns i18n key for the friendly error message
+ */
+export function getAuthErrorKey(error: AuthError | Error | unknown): string {
+  if (!error) return 'auth.genericError';
 
-export default function SignUp() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<{
-    name?: string;
-    email?: string;
-    password?: string;
-  }>({});
+  const err = error as AuthError;
+  const message = err?.message?.toLowerCase() || '';
+  const status = err?.status || err?.statusCode || 0;
+  const code = err?.code?.toLowerCase() || '';
 
-  const { signUp, isAuthenticated } = useCurrentUser();
-  const { identityState, redirectPath } = useIdentity();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { t } = useI18n();
+  // SignUp: Email already registered (Supabase returns 422 or specific message)
+  if (
+    message.includes('user already registered') ||
+    message.includes('email already in use') ||
+    code === 'user_already_exists'
+  ) {
+    return 'auth.alreadyRegistered';
+  }
 
-  // Redirect quando autenticado
-  useEffect(() => {
-    if (isAuthenticated && identityState !== "loading") {
-      if (identityState === "wizard_required") {
-        navigate("/identity/wizard", { replace: true });
-        return;
-      }
-      const destination = redirectPath || "/portal";
-      navigate(destination, { replace: true });
-    }
-  }, [isAuthenticated, identityState, redirectPath, navigate]);
+  // Login: Invalid credentials (Supabase returns 400)
+  if (
+    message.includes('invalid login credentials') ||
+    message.includes('invalid email or password') ||
+    code === 'invalid_credentials'
+  ) {
+    return 'auth.invalidCredentials';
+  }
 
-  const validateForm = (): boolean => {
-    const errors: typeof formErrors = {};
+  // Email not confirmed
+  if (
+    message.includes('email not confirmed') ||
+    code === 'email_not_confirmed'
+  ) {
+    return 'auth.emailNotConfirmed';
+  }
 
-    if (!name.trim()) {
-      errors.name = t('auth.fullNameRequired');
-    }
+  // Rate limiting
+  if (
+    message.includes('rate limit') ||
+    message.includes('too many requests') ||
+    status === 429
+  ) {
+    return 'auth.rateLimited';
+  }
 
-    if (!email.trim()) {
-      errors.email = t('auth.emailRequired');
-    } else if (!EMAIL_REGEX.test(email.trim())) {
-      errors.email = t('auth.invalidEmail');
-    }
+  // Network errors
+  if (
+    message.includes('failed to fetch') ||
+    message.includes('network request failed') ||
+    message.includes('networkerror') ||
+    message.includes('fetch error') ||
+    status === 0
+  ) {
+    return 'auth.networkError';
+  }
 
-    if (!password.trim()) {
-      errors.password = t('auth.passwordRequired');
-    }
+  // Server errors (5xx)
+  if (status >= 500) {
+    return 'auth.serverError';
+  }
 
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  // Default fallback
+  return 'auth.genericError';
+}
+```
 
-  const isFormValid = (): boolean => {
-    return (
-      name.trim() !== '' &&
-      email.trim() !== '' &&
-      EMAIL_REGEX.test(email.trim()) &&
-      password.trim() !== ''
-    );
-  };
+### Tarefa 2: Atualizar Exportações do Módulo de Erros
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmitting) return;
+**Arquivo:** `src/lib/errors/index.ts`
 
-    setFormErrors({});
-    if (!validateForm()) {
-      toast({
-        title: t('auth.formError'),
-        description: t('auth.correctErrors'),
-        variant: 'destructive',
-      });
-      return;
-    }
+```typescript
+/**
+ * 🚨 Error Utilities — Centralized Error Handling
+ */
 
-    setIsSubmitting(true);
+export {
+  TEMPORARY_ERROR_MAP,
+  TEMPORARY_ERROR_TYPES,
+  type TemporaryErrorType,
+  type TemporaryErrorConfig,
+} from './temporaryErrorMap';
 
-    try {
-      await signUp(email, password, name);
-      toast({
-        title: t("auth.accountCreated"),
-        description: t("auth.accountCreatedDesc"),
-      });
-      // Não navegar manualmente - aguardar isAuthenticated no useEffect
+// Auth error mapping
+export { getAuthErrorKey, type AuthError } from './authErrorMap';
+```
+
+---
+
+### Tarefa 3: Atualizar Login.tsx
+
+**Arquivo:** `src/pages/Login.tsx`
+
+#### 3.1 Adicionar import
+
+```typescript
+import { getAuthErrorKey } from '@/lib/errors';
+```
+
+#### 3.2 Modificar bloco catch (linhas 97-105)
+
+```typescript
     } catch (error) {
-      console.error("SignUp error:", error);
+      console.error("Auth error:", error);
+      const errorKey = getAuthErrorKey(error);
       toast({
         title: t("auth.error"),
-        description: error instanceof Error ? error.message : t("auth.genericError"),
+        description: t(errorKey),
         variant: "destructive",
       });
       setIsSubmitting(false);
     }
-  };
-
-  // ... JSX com campos para nome, email, senha
-  // ... Link para /login na parte inferior
-}
 ```
 
-**Estrutura do formulário:**
-- Campo: Nome completo (com ícone User)
-- Campo: E-mail (com ícone Mail)
-- Campo: Senha (com toggle mostrar/ocultar)
-- Botão: Criar conta (desabilitado até `isFormValid()`)
-- Link: "Já tem uma conta? Entrar" → `/login`
-
 ---
 
-### Tarefa 2: Refatorar Login.tsx para Login Puro
+### Tarefa 4: Atualizar SignUp.tsx
 
-**Arquivo:** `src/pages/Login.tsx`
+**Arquivo:** `src/pages/SignUp.tsx`
 
-#### Alterações:
-
-1. **Remover estados de cadastro:**
-   - Remover `isSignUp` state
-   - Remover `name` state
-   - Remover `formErrors.name`
-
-2. **Simplificar validação:**
-   ```typescript
-   const validateForm = (): boolean => {
-     const errors: typeof formErrors = {};
-
-     if (!email.trim()) {
-       errors.email = t('auth.emailRequired');
-     } else if (!EMAIL_REGEX.test(email.trim())) {
-       errors.email = t('auth.invalidEmail');
-     }
-
-     if (!password.trim()) {
-       errors.password = t('auth.passwordRequired');
-     }
-
-     setFormErrors(errors);
-     return Object.keys(errors).length === 0;
-   };
-
-   const isFormValid = (): boolean => {
-     return (
-       email.trim() !== '' &&
-       EMAIL_REGEX.test(email.trim()) &&
-       password.trim() !== ''
-     );
-   };
-   ```
-
-3. **Simplificar handleSubmit:**
-   ```typescript
-   const handleSubmit = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (isSubmitting) return;
-
-     setFormErrors({});
-     if (!validateForm()) {
-       toast({
-         title: t('auth.formError'),
-         description: t('auth.correctErrors'),
-         variant: 'destructive',
-       });
-       return;
-     }
-
-     setIsSubmitting(true);
-
-     try {
-       await signIn(email, password);
-       toast({
-         title: t("auth.welcome"),
-         description: t("auth.loginSuccess"),
-       });
-     } catch (error) {
-       console.error("Auth error:", error);
-       toast({
-         title: t("auth.error"),
-         description: error instanceof Error ? error.message : t("auth.genericError"),
-         variant: "destructive",
-       });
-       setIsSubmitting(false);
-     }
-   };
-   ```
-
-4. **Atualizar JSX:**
-   - Remover bloco condicional `{isSignUp && (...)}` do campo nome
-   - Usar sempre `t("auth.loginTitle")` e `t("auth.loginDesc")` no header
-   - Remover lógica ternária no texto do botão (sempre "Login")
-   - Substituir botão de toggle por Link:
-     ```tsx
-     <p className="mt-4 text-center text-sm text-muted-foreground">
-       {t("auth.dontHaveAccount")}{" "}
-       <Link to="/signup" className="text-primary hover:underline font-medium">
-         {t("auth.createAccount")}
-       </Link>
-     </p>
-     ```
-   - Atualizar `autoComplete` da senha para sempre `"current-password"`
-
----
-
-### Tarefa 3: Atualizar Rotas em App.tsx
-
-**Arquivo:** `src/App.tsx`
-
-#### Alterações:
-
-1. **Adicionar import:**
-   ```typescript
-   import SignUp from "@/pages/SignUp";
-   ```
-
-2. **Adicionar rota `/signup`** (após `/login`):
-   ```tsx
-   <Route path="/login" element={<Login />} />
-   <Route path="/signup" element={<SignUp />} />  {/* NOVO */}
-   ```
-
----
-
-### Tarefa 4: Atualizar IdentityGate (Whitelist)
-
-**Arquivo:** `src/components/identity/IdentityGate.tsx`
-
-#### Alterações:
-
-Na função `isPublicPath`, adicionar `/signup` à whitelist (linha 122-132):
+#### 4.1 Adicionar import
 
 ```typescript
-const rootPublic = new Set([
-  "/",
-  "/about",
-  "/login",
-  "/signup",  // ← ADICIONAR
-  "/forgot-password",
-  "/reset-password",
-  "/help",
-  "/auth/callback",
-  "/identity/wizard",
-  "/identity/error",
-]);
+import { getAuthErrorKey } from '@/lib/errors';
+```
+
+#### 4.2 Modificar bloco catch (linhas 101-109)
+
+```typescript
+    } catch (error) {
+      console.error("SignUp error:", error);
+      const errorKey = getAuthErrorKey(error);
+      toast({
+        title: t("auth.error"),
+        description: t(errorKey),
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
 ```
 
 ---
 
-### Tarefa 5: Verificar Links em Outras Páginas
+### Tarefa 5: Atualizar ForgotPassword.tsx (Opcional mas Recomendado)
 
-**Arquivos a verificar:**
+**Arquivo:** `src/pages/ForgotPassword.tsx`
 
-| Arquivo | Link Atual | Ação |
-|---------|------------|------|
-| `ForgotPassword.tsx` | `/login` (linha 101, 179) | ✅ Manter (correto) |
-| `ResetPassword.tsx` | `/login` (linhas 158, 161, 164, 194, 291, 294) | ✅ Manter (correto) |
+#### 5.1 Adicionar import
 
-Nenhuma alteração necessária — ambos linkam corretamente para `/login`.
+```typescript
+import { getAuthErrorKey } from '@/lib/errors';
+```
+
+#### 5.2 Modificar bloco catch (linhas 63-70)
+
+```typescript
+    } catch (error) {
+      console.error("Password reset error:", error);
+      const errorKey = getAuthErrorKey(error);
+      toast({
+        title: t('auth.forgot.error'),
+        description: t(errorKey),
+        variant: "destructive",
+      });
+    } finally {
+```
+
+---
+
+### Tarefa 6: Adicionar Chaves de Tradução
+
+**Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
+
+Adicionar após a linha com `auth.genericError` (≈ linha 536):
+
+```typescript
+// pt-BR.ts
+'auth.alreadyRegistered': 'Este e-mail já está cadastrado. Faça login ou redefina sua senha.',
+'auth.invalidCredentials': 'E-mail ou senha inválidos.',
+'auth.emailNotConfirmed': 'E-mail não confirmado. Verifique sua caixa de entrada.',
+'auth.rateLimited': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+'auth.networkError': 'Erro de rede. Verifique sua conexão e tente novamente.',
+'auth.serverError': 'Erro no servidor. Tente novamente em alguns instantes.',
+
+// en.ts
+'auth.alreadyRegistered': 'This email is already registered. Please log in or reset your password.',
+'auth.invalidCredentials': 'Invalid email or password.',
+'auth.emailNotConfirmed': 'Email not confirmed. Please check your inbox.',
+'auth.rateLimited': 'Too many attempts. Please wait a few minutes and try again.',
+'auth.networkError': 'Network error. Please check your connection and try again.',
+'auth.serverError': 'Server error. Please try again in a moment.',
+
+// es.ts
+'auth.alreadyRegistered': 'Este correo electrónico ya está registrado. Inicie sesión o restablezca su contraseña.',
+'auth.invalidCredentials': 'Correo electrónico o contraseña inválidos.',
+'auth.emailNotConfirmed': 'Correo electrónico no confirmado. Verifique su bandeja de entrada.',
+'auth.rateLimited': 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
+'auth.networkError': 'Error de red. Verifique su conexión e inténtelo de nuevo.',
+'auth.serverError': 'Error del servidor. Inténtelo de nuevo en unos momentos.',
+```
 
 ---
 
@@ -309,76 +270,77 @@ Nenhuma alteração necessária — ambos linkam corretamente para `/login`.
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/SignUp.tsx` | **CRIAR** | Novo componente de cadastro |
-| `src/pages/Login.tsx` | **MODIFICAR** | Remover lógica de cadastro, simplificar |
-| `src/App.tsx` | **MODIFICAR** | Adicionar rota `/signup` |
-| `src/components/identity/IdentityGate.tsx` | **MODIFICAR** | Adicionar `/signup` à whitelist |
+| `src/lib/errors/authErrorMap.ts` | **CRIAR** | Função de mapeamento de erros de auth |
+| `src/lib/errors/index.ts` | **MODIFICAR** | Exportar nova função |
+| `src/pages/Login.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
+| `src/pages/SignUp.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
+| `src/pages/ForgotPassword.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
+| `src/locales/pt-BR.ts` | **ADICIONAR** | 6 chaves de erro |
+| `src/locales/en.ts` | **ADICIONAR** | 6 chaves de erro |
+| `src/locales/es.ts` | **ADICIONAR** | 6 chaves de erro |
 
 ---
 
 ## Critérios de Aceitação
 
-- [ ] Rota `/signup` exibe formulário de cadastro funcional
-- [ ] Rota `/login` exibe apenas formulário de login
-- [ ] Link "Não tem uma conta? Criar conta" no login → `/signup`
-- [ ] Link "Já tem uma conta? Entrar" no signup → `/login`
-- [ ] Validação e feedback funcionam em ambos os formulários
-- [ ] Redirecionamento pós-autenticação funciona corretamente
-- [ ] `/signup` está na whitelist pública do IdentityGate
+- [ ] Cadastro com email duplicado exibe "Este e-mail já está cadastrado..."
+- [ ] Login com senha errada exibe "E-mail ou senha inválidos."
+- [ ] Erro de rede exibe "Erro de rede. Verifique sua conexão..."
+- [ ] Mensagens técnicas em inglês não são exibidas diretamente
+- [ ] Traduções funcionam nos 3 idiomas (pt-BR, en, es)
 - [ ] Build compila sem erros
-- [ ] Traduções funcionam nos 3 idiomas
+- [ ] Função `getAuthErrorKey` é reutilizável em outros contextos
 
 ---
 
 ## Seção Técnica
 
-### Fluxo de Navegação
+### Mapeamento de Erros Supabase
+
+| Erro Supabase | Status | Chave i18n |
+|--------------|--------|------------|
+| `User already registered` | 422 | `auth.alreadyRegistered` |
+| `Invalid login credentials` | 400 | `auth.invalidCredentials` |
+| `Email not confirmed` | 400 | `auth.emailNotConfirmed` |
+| `Too many requests` | 429 | `auth.rateLimited` |
+| `Failed to fetch` | 0 | `auth.networkError` |
+| `Internal Server Error` | 5xx | `auth.serverError` |
+| (qualquer outro) | - | `auth.genericError` |
+
+### Fluxo de Mapeamento
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│                    LANDING (/)                      │
+│ Supabase retorna erro                               │
 ├─────────────────────────────────────────────────────┤
-│  [Login]              [Criar Conta]                 │
-│     ↓                      ↓                        │
-│  /login                 /signup                     │
+│ catch (error) {                                     │
+│   const errorKey = getAuthErrorKey(error);          │
+│   toast({ description: t(errorKey) });              │
+│ }                                                   │
 ├─────────────────────────────────────────────────────┤
 │                                                     │
-│  ┌─────────────────┐    ┌─────────────────┐        │
-│  │     LOGIN       │    │     SIGNUP      │        │
-│  │                 │    │                 │        │
-│  │ [Email]         │    │ [Nome]          │        │
-│  │ [Senha]         │    │ [Email]         │        │
-│  │                 │    │ [Senha]         │        │
-│  │ [Esqueceu?] ──→ /forgot-password       │        │
-│  │                 │    │                 │        │
-│  │ "Não tem conta?"│    │ "Já tem conta?" │        │
-│  │  → /signup      │    │  → /login       │        │
-│  └────────┬────────┘    └────────┬────────┘        │
-│           │                      │                  │
-│           └──────────┬───────────┘                  │
-│                      ↓                              │
-│            [isAuthenticated = true]                 │
-│                      ↓                              │
-│     ┌─────────────────────────────────────┐        │
-│     │ identityState === "wizard_required" │        │
-│     │         → /identity/wizard          │        │
-│     │ else → redirectPath || /portal      │        │
-│     └─────────────────────────────────────┘        │
+│ getAuthErrorKey(error):                             │
+│   ├─ "User already registered" → auth.alreadyRegistered
+│   ├─ "Invalid login credentials" → auth.invalidCredentials
+│   ├─ "Failed to fetch" → auth.networkError          │
+│   └─ default → auth.genericError                    │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ t(errorKey) retorna texto traduzido                 │
+│ → "Este e-mail já está cadastrado..."               │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Chaves i18n Utilizadas
+### Extensibilidade
 
-Todas as chaves já existem nos locales:
+Para adicionar novos mapeamentos no futuro, basta:
+1. Adicionar condição na função `getAuthErrorKey`
+2. Adicionar chave correspondente nos 3 locales
 
-| Chave | pt-BR | en | es |
-|-------|-------|----|----|
-| `auth.loginTitle` | "Entrar" | "Sign in" | "Iniciar sesión" |
-| `auth.loginDesc` | "Entre com suas credenciais..." | "Enter your credentials..." | "Ingrese sus credenciales..." |
-| `auth.signUpTitle` | "Criar conta" | "Create account" | "Crear cuenta" |
-| `auth.signUpDesc` | "Preencha os dados..." | "Fill in your details..." | "Complete sus datos..." |
-| `auth.alreadyHaveAccount` | "Já tem uma conta?" | "Already have an account?" | "¿Ya tiene una cuenta?" |
-| `auth.dontHaveAccount` | "Não tem uma conta?" | "Don't have an account?" | "¿No tiene una cuenta?" |
-| `auth.createAccount` | "Criar conta" | "Create account" | "Crear cuenta" |
-| `auth.login` | "Entrar" | "Login" | "Iniciar sesión" |
+Exemplo para erro de senha fraca:
+```typescript
+if (message.includes('password too weak')) {
+  return 'auth.passwordTooWeak';
+}
+```
 
