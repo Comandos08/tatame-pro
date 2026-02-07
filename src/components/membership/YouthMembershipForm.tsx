@@ -28,6 +28,7 @@ import {
   MEMBERSHIP_PRICE_CENTS,
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
+import type { YouthMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
 
 export function YouthMembershipForm() {
   const navigate = useNavigate();
@@ -212,7 +213,7 @@ export function YouthMembershipForm() {
 
     try {
       // 1. Upload documents to TEMPORARY path tmp/{userId}/{timestamp}/
-      const documentsUploaded: Array<{type: string; storage_path: string; file_type: string}> = [];
+      const documentsUploaded: DocumentUploaded[] = [];
       const timestamp = Date.now();
 
       if (documents.idDocument) {
@@ -257,44 +258,43 @@ export function YouthMembershipForm() {
 
       // 2. Create membership WITH applicant_data (includes guardian data)
       // ⚠️ DO NOT create guardian/athlete/guardian_links here - that happens on approval!
+      const membershipPayload: YouthMembershipInsert = {
+        tenant_id: tenant.id,
+        athlete_id: null,
+        applicant_profile_id: currentUser.id,
+        applicant_data: {
+          full_name: athleteData.fullName,
+          birth_date: athleteData.birthDate,
+          national_id: athleteData.nationalId || null,
+          gender: athleteData.gender,
+          email: athleteData.email || guardianData.email,
+          phone: athleteData.phone || guardianData.phone,
+          address_line1: athleteData.addressLine1,
+          address_line2: athleteData.addressLine2 || null,
+          city: athleteData.city,
+          state: athleteData.state,
+          postal_code: athleteData.postalCode,
+          country: athleteData.country,
+          is_minor: true,
+          guardian: {
+            full_name: guardianData.fullName,
+            national_id: guardianData.nationalId,
+            email: guardianData.email,
+            phone: guardianData.phone,
+            relationship: guardianData.relationship,
+          },
+        },
+        documents_uploaded: documentsUploaded,
+        status: 'DRAFT',
+        type: 'FIRST_MEMBERSHIP',
+        price_cents: MEMBERSHIP_PRICE_CENTS,
+        currency: MEMBERSHIP_CURRENCY,
+        payment_status: 'NOT_PAID',
+      };
+
       const { data: membership, error: membershipError } = await supabase
         .from('memberships')
-        .insert({
-          tenant_id: tenant.id,
-          athlete_id: null, // Will be filled on approval
-          applicant_profile_id: currentUser.id,
-          applicant_data: {
-            // Athlete data
-            full_name: athleteData.fullName,
-            birth_date: athleteData.birthDate,
-            national_id: athleteData.nationalId || null,
-            gender: athleteData.gender,
-            email: athleteData.email || guardianData.email,
-            phone: athleteData.phone || guardianData.phone,
-            address_line1: athleteData.addressLine1,
-            address_line2: athleteData.addressLine2 || null,
-            city: athleteData.city,
-            state: athleteData.state,
-            postal_code: athleteData.postalCode,
-            country: athleteData.country,
-            // ✅ Guardian data (nested object)
-            guardian: {
-              full_name: guardianData.fullName,
-              national_id: guardianData.nationalId,
-              email: guardianData.email,
-              phone: guardianData.phone,
-              relationship: guardianData.relationship,
-            },
-            // ✅ Flag to identify youth membership
-            is_minor: true,
-          },
-          documents_uploaded: documentsUploaded,
-          status: 'DRAFT',
-          type: 'FIRST_MEMBERSHIP',
-          price_cents: MEMBERSHIP_PRICE_CENTS,
-          currency: MEMBERSHIP_CURRENCY,
-          payment_status: 'NOT_PAID',
-        } as any)
+        .insert(membershipPayload as any) // Type assertion for JSONB fields
         .select()
         .single();
 

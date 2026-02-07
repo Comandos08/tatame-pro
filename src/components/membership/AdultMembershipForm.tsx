@@ -27,6 +27,7 @@ import {
   MEMBERSHIP_PRICE_CENTS,
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
+import type { AdultMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
 
 // ✅ P1/4 — Draft persistence for multi-step form
 const STORAGE_KEY = 'tatame.membership.adult.draft';
@@ -229,7 +230,7 @@ export function AdultMembershipForm() {
 
     try {
       // 1. Upload documentos para path temporário tmp/{userId}/{timestamp}/
-      const documentsUploaded: Array<{type: string; storage_path: string; file_type: string}> = [];
+      const documentsUploaded: DocumentUploaded[] = [];
       const timestamp = Date.now();
 
       if (documents.idDocument) {
@@ -273,33 +274,35 @@ export function AdultMembershipForm() {
       }
 
       // 2. Criar membership COM applicant_data (SEM athlete_id)
+      const membershipPayload: AdultMembershipInsert = {
+        tenant_id: tenant.id,
+        athlete_id: null,
+        applicant_profile_id: currentUser.id,
+        applicant_data: {
+          full_name: athleteData.fullName,
+          birth_date: athleteData.birthDate,
+          national_id: athleteData.nationalId,
+          gender: athleteData.gender,
+          email: athleteData.email,
+          phone: athleteData.phone,
+          address_line1: athleteData.addressLine1,
+          address_line2: athleteData.addressLine2 || null,
+          city: athleteData.city,
+          state: athleteData.state,
+          postal_code: athleteData.postalCode,
+          country: athleteData.country,
+        },
+        documents_uploaded: documentsUploaded,
+        status: 'DRAFT',
+        type: 'FIRST_MEMBERSHIP',
+        price_cents: MEMBERSHIP_PRICE_CENTS,
+        currency: MEMBERSHIP_CURRENCY,
+        payment_status: 'NOT_PAID',
+      };
+
       const { data: membership, error: membershipError } = await supabase
         .from('memberships')
-        .insert({
-          tenant_id: tenant.id,
-          athlete_id: null,
-          applicant_profile_id: currentUser.id,
-          applicant_data: {
-            full_name: athleteData.fullName,
-            birth_date: athleteData.birthDate,
-            national_id: athleteData.nationalId,
-            gender: athleteData.gender,
-            email: athleteData.email,
-            phone: athleteData.phone,
-            address_line1: athleteData.addressLine1,
-            address_line2: athleteData.addressLine2 || null,
-            city: athleteData.city,
-            state: athleteData.state,
-            postal_code: athleteData.postalCode,
-            country: athleteData.country,
-          },
-          documents_uploaded: documentsUploaded,
-          status: 'DRAFT',
-          type: 'FIRST_MEMBERSHIP',
-          price_cents: MEMBERSHIP_PRICE_CENTS,
-          currency: MEMBERSHIP_CURRENCY,
-          payment_status: 'NOT_PAID',
-        } as any)
+        .insert(membershipPayload as any) // Type assertion for JSONB fields
         .select()
         .single();
 

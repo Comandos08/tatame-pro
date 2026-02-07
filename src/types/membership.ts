@@ -69,3 +69,12 @@ export const GUARDIAN_RELATIONSHIP_LABELS: Record<GuardianRelationship, string> 
   GUARDIAN: 'Responsável Legal',
   OTHER: 'Outro',
 };
+
+// Re-export insert types for convenience
+export type {
+  AdultApplicantData,
+  YouthApplicantData,
+  DocumentUploaded,
+  AdultMembershipInsert,
+  YouthMembershipInsert,
+} from './membership-insert';
