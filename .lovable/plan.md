@@ -1,385 +1,384 @@
 
+# Plano: Separação de Rotas de Login e Cadastro
 
-# Plano Refinado: Validação e Feedback nos Formulários
+## Resumo do Diagnóstico
 
-## Diagnóstico Atualizado
+### Estado Atual
 
-O plano anterior foi parcialmente aprovado, mas requer os seguintes ajustes críticos:
+| Componente | Arquivo | Comportamento Atual |
+|------------|---------|---------------------|
+| Login + SignUp | `src/pages/Login.tsx` | Formulário único com toggle `isSignUp` para alternar entre modos |
+| Rotas | `src/App.tsx` | Apenas `/login` existe, não há `/signup` |
+| IdentityGate | `src/components/identity/IdentityGate.tsx` | `/login` está na whitelist pública (linha 125) |
+| Traduções | `src/locales/*.ts` | Chaves existentes para ambos os fluxos (`auth.signUpTitle`, `auth.loginTitle`, etc.) |
 
-| Problema | Status | Correção Necessária |
-|----------|--------|---------------------|
-| Botão ForgotPassword não valida formato de email | ❌ Pendente | Adicionar `EMAIL_REGEX.test()` na condição `disabled` |
-| Toast em ForgotPassword usa chaves antigas | ❌ Pendente | Usar `auth.emailRequired` e `auth.invalidEmail` |
-| AthleteLogin não valida formato no botão | ❌ Pendente | Adicionar validação de regex no `disabled` |
-| Chaves de tradução ausentes | ❌ Pendente | Adicionar 6 chaves aos 3 locales |
-| Login.tsx sem validação completa | ❌ Pendente | Implementar estado de erros e validação |
+### Problema
+
+O formulário atual mistura login e cadastro em uma única página, com toggle para alternar entre modos. Isso:
+- Aumenta a complexidade do código
+- Dificulta links diretos para cadastro
+- Prejudica SEO e analytics
+- Confunde o fluxo de navegação
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Adicionar Chaves de Tradução (Pré-requisito)
+### Tarefa 1: Criar SignUp.tsx
 
-**Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
+**Arquivo:** `src/pages/SignUp.tsx` (NOVO)
 
-Adicionar na seção de auth (após linha ~540):
-
-```typescript
-// pt-BR.ts
-'auth.emailRequired': 'E-mail é obrigatório.',
-'auth.invalidEmail': 'Formato de e-mail inválido.',
-'auth.passwordRequired': 'Senha é obrigatória.',
-'auth.fullNameRequired': 'Nome completo é obrigatório.',
-'auth.formError': 'Corrija os erros',
-'auth.correctErrors': 'Preencha todos os campos obrigatórios.',
-
-// en.ts
-'auth.emailRequired': 'Email is required.',
-'auth.invalidEmail': 'Invalid email format.',
-'auth.passwordRequired': 'Password is required.',
-'auth.fullNameRequired': 'Full name is required.',
-'auth.formError': 'Please correct the errors',
-'auth.correctErrors': 'Fill in all required fields.',
-
-// es.ts
-'auth.emailRequired': 'Correo electrónico es obligatorio.',
-'auth.invalidEmail': 'Formato de correo electrónico inválido.',
-'auth.passwordRequired': 'Contraseña es obligatoria.',
-'auth.fullNameRequired': 'Nombre completo es obligatorio.',
-'auth.formError': 'Por favor corrija los errores',
-'auth.correctErrors': 'Complete todos los campos requeridos.',
-```
-
----
-
-### Tarefa 2: Atualizar ForgotPassword.tsx
-
-**Arquivo:** `src/pages/ForgotPassword.tsx`
-
-#### 2.1 Adicionar regex e estado de erro
+Criar componente dedicado para cadastro, baseado na lógica existente de `Login.tsx`:
 
 ```typescript
-// Após linha 18 (const { t } = useI18n();)
+// src/pages/SignUp.tsx
+
+import React, { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Mail, Lock, Eye, EyeOff, Loader2, User } from "lucide-react";
+import iconLogo from "@/assets/iconLogo.png";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useCurrentUser } from "@/contexts/AuthContext";
+import { useIdentity } from "@/contexts/IdentityContext";
+import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/contexts/I18nContext";
+
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const [emailError, setEmailError] = useState<string | null>(null);
+
+export default function SignUp() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+  }>({});
+
+  const { signUp, isAuthenticated } = useCurrentUser();
+  const { identityState, redirectPath } = useIdentity();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { t } = useI18n();
+
+  // Redirect quando autenticado
+  useEffect(() => {
+    if (isAuthenticated && identityState !== "loading") {
+      if (identityState === "wizard_required") {
+        navigate("/identity/wizard", { replace: true });
+        return;
+      }
+      const destination = redirectPath || "/portal";
+      navigate(destination, { replace: true });
+    }
+  }, [isAuthenticated, identityState, redirectPath, navigate]);
+
+  const validateForm = (): boolean => {
+    const errors: typeof formErrors = {};
+
+    if (!name.trim()) {
+      errors.name = t('auth.fullNameRequired');
+    }
+
+    if (!email.trim()) {
+      errors.email = t('auth.emailRequired');
+    } else if (!EMAIL_REGEX.test(email.trim())) {
+      errors.email = t('auth.invalidEmail');
+    }
+
+    if (!password.trim()) {
+      errors.password = t('auth.passwordRequired');
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const isFormValid = (): boolean => {
+    return (
+      name.trim() !== '' &&
+      email.trim() !== '' &&
+      EMAIL_REGEX.test(email.trim()) &&
+      password.trim() !== ''
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    setFormErrors({});
+    if (!validateForm()) {
+      toast({
+        title: t('auth.formError'),
+        description: t('auth.correctErrors'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await signUp(email, password, name);
+      toast({
+        title: t("auth.accountCreated"),
+        description: t("auth.accountCreatedDesc"),
+      });
+      // Não navegar manualmente - aguardar isAuthenticated no useEffect
+    } catch (error) {
+      console.error("SignUp error:", error);
+      toast({
+        title: t("auth.error"),
+        description: error instanceof Error ? error.message : t("auth.genericError"),
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
+  };
+
+  // ... JSX com campos para nome, email, senha
+  // ... Link para /login na parte inferior
+}
 ```
 
-#### 2.2 Modificar handleSubmit com validação completa
-
-```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setEmailError(null);
-
-  // Validar email vazio
-  if (!email.trim()) {
-    setEmailError(t('auth.emailRequired'));
-    toast({
-      title: t('auth.formError'),
-      description: t('auth.emailRequired'),
-      variant: "destructive",
-    });
-    return;
-  }
-
-  // Validar formato de email
-  if (!EMAIL_REGEX.test(email.trim())) {
-    setEmailError(t('auth.invalidEmail'));
-    toast({
-      title: t('auth.formError'),
-      description: t('auth.invalidEmail'),
-      variant: "destructive",
-    });
-    return;
-  }
-
-  setIsLoading(true);
-  // ... resto do código existente
-};
-```
-
-#### 2.3 Atualizar botão com validação de formato
-
-```tsx
-// Linha 140 - Antes:
-<Button type="submit" className="w-full" disabled={isLoading}>
-
-// Depois:
-<Button 
-  type="submit" 
-  className="w-full" 
-  disabled={isLoading || !email.trim() || !EMAIL_REGEX.test(email.trim())}
->
-```
-
-#### 2.4 Adicionar mensagem de erro inline
-
-```tsx
-// Após o Input (linha 135), adicionar:
-{emailError && (
-  <p className="text-sm text-destructive mt-1">{emailError}</p>
-)}
-```
-
-#### 2.5 Limpar erro ao digitar
-
-```tsx
-// Modificar onChange do Input:
-onChange={(e) => {
-  setEmail(e.target.value);
-  if (emailError) setEmailError(null);
-}}
-```
+**Estrutura do formulário:**
+- Campo: Nome completo (com ícone User)
+- Campo: E-mail (com ícone Mail)
+- Campo: Senha (com toggle mostrar/ocultar)
+- Botão: Criar conta (desabilitado até `isFormValid()`)
+- Link: "Já tem uma conta? Entrar" → `/login`
 
 ---
 
-### Tarefa 3: Atualizar AthleteLogin.tsx
-
-**Arquivo:** `src/pages/AthleteLogin.tsx`
-
-#### 3.1 Adicionar regex
-
-```typescript
-// Após linha 23 (const [error, setError] = useState...)
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-```
-
-#### 3.2 Adicionar validação no handleMagicLink
-
-```typescript
-const handleMagicLink = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setError(null);
-
-  // Validar email vazio
-  if (!email.trim()) {
-    setError(t('auth.emailRequired'));
-    setIsLoading(false);
-    return;
-  }
-
-  // Validar formato de email
-  if (!EMAIL_REGEX.test(email.trim())) {
-    setError(t('auth.invalidEmail'));
-    setIsLoading(false);
-    return;
-  }
-
-  // Guard defensivo: tenantSlug é obrigatório
-  if (!tenantSlug) {
-    // ... código existente
-  }
-  // ... resto do código
-};
-```
-
-#### 3.3 Atualizar botão com validação de formato
-
-```tsx
-// Linha 138 - Antes:
-<Button type="submit" className="w-full" disabled={isLoading || !email} variant="tenant">
-
-// Depois:
-<Button 
-  type="submit" 
-  className="w-full" 
-  disabled={isLoading || !email.trim() || !EMAIL_REGEX.test(email.trim())} 
-  variant="tenant"
->
-```
-
----
-
-### Tarefa 4: Atualizar Login.tsx
+### Tarefa 2: Refatorar Login.tsx para Login Puro
 
 **Arquivo:** `src/pages/Login.tsx`
 
-#### 4.1 Adicionar estado de erros e regex
+#### Alterações:
+
+1. **Remover estados de cadastro:**
+   - Remover `isSignUp` state
+   - Remover `name` state
+   - Remover `formErrors.name`
+
+2. **Simplificar validação:**
+   ```typescript
+   const validateForm = (): boolean => {
+     const errors: typeof formErrors = {};
+
+     if (!email.trim()) {
+       errors.email = t('auth.emailRequired');
+     } else if (!EMAIL_REGEX.test(email.trim())) {
+       errors.email = t('auth.invalidEmail');
+     }
+
+     if (!password.trim()) {
+       errors.password = t('auth.passwordRequired');
+     }
+
+     setFormErrors(errors);
+     return Object.keys(errors).length === 0;
+   };
+
+   const isFormValid = (): boolean => {
+     return (
+       email.trim() !== '' &&
+       EMAIL_REGEX.test(email.trim()) &&
+       password.trim() !== ''
+     );
+   };
+   ```
+
+3. **Simplificar handleSubmit:**
+   ```typescript
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     if (isSubmitting) return;
+
+     setFormErrors({});
+     if (!validateForm()) {
+       toast({
+         title: t('auth.formError'),
+         description: t('auth.correctErrors'),
+         variant: 'destructive',
+       });
+       return;
+     }
+
+     setIsSubmitting(true);
+
+     try {
+       await signIn(email, password);
+       toast({
+         title: t("auth.welcome"),
+         description: t("auth.loginSuccess"),
+       });
+     } catch (error) {
+       console.error("Auth error:", error);
+       toast({
+         title: t("auth.error"),
+         description: error instanceof Error ? error.message : t("auth.genericError"),
+         variant: "destructive",
+       });
+       setIsSubmitting(false);
+     }
+   };
+   ```
+
+4. **Atualizar JSX:**
+   - Remover bloco condicional `{isSignUp && (...)}` do campo nome
+   - Usar sempre `t("auth.loginTitle")` e `t("auth.loginDesc")` no header
+   - Remover lógica ternária no texto do botão (sempre "Login")
+   - Substituir botão de toggle por Link:
+     ```tsx
+     <p className="mt-4 text-center text-sm text-muted-foreground">
+       {t("auth.dontHaveAccount")}{" "}
+       <Link to="/signup" className="text-primary hover:underline font-medium">
+         {t("auth.createAccount")}
+       </Link>
+     </p>
+     ```
+   - Atualizar `autoComplete` da senha para sempre `"current-password"`
+
+---
+
+### Tarefa 3: Atualizar Rotas em App.tsx
+
+**Arquivo:** `src/App.tsx`
+
+#### Alterações:
+
+1. **Adicionar import:**
+   ```typescript
+   import SignUp from "@/pages/SignUp";
+   ```
+
+2. **Adicionar rota `/signup`** (após `/login`):
+   ```tsx
+   <Route path="/login" element={<Login />} />
+   <Route path="/signup" element={<SignUp />} />  {/* NOVO */}
+   ```
+
+---
+
+### Tarefa 4: Atualizar IdentityGate (Whitelist)
+
+**Arquivo:** `src/components/identity/IdentityGate.tsx`
+
+#### Alterações:
+
+Na função `isPublicPath`, adicionar `/signup` à whitelist (linha 122-132):
 
 ```typescript
-// Após linha 22 (const [name, setName] = useState("");)
-const [formErrors, setFormErrors] = useState<{
-  email?: string;
-  password?: string;
-  name?: string;
-}>({});
-
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const rootPublic = new Set([
+  "/",
+  "/about",
+  "/login",
+  "/signup",  // ← ADICIONAR
+  "/forgot-password",
+  "/reset-password",
+  "/help",
+  "/auth/callback",
+  "/identity/wizard",
+  "/identity/error",
+]);
 ```
 
-#### 4.2 Criar função de validação
+---
 
-```typescript
-const validateForm = (): boolean => {
-  const errors: typeof formErrors = {};
+### Tarefa 5: Verificar Links em Outras Páginas
 
-  if (!email.trim()) {
-    errors.email = t('auth.emailRequired');
-  } else if (!EMAIL_REGEX.test(email.trim())) {
-    errors.email = t('auth.invalidEmail');
-  }
+**Arquivos a verificar:**
 
-  if (!password.trim()) {
-    errors.password = t('auth.passwordRequired');
-  }
+| Arquivo | Link Atual | Ação |
+|---------|------------|------|
+| `ForgotPassword.tsx` | `/login` (linha 101, 179) | ✅ Manter (correto) |
+| `ResetPassword.tsx` | `/login` (linhas 158, 161, 164, 194, 291, 294) | ✅ Manter (correto) |
 
-  if (isSignUp && !name.trim()) {
-    errors.name = t('auth.fullNameRequired');
-  }
-
-  setFormErrors(errors);
-  return Object.keys(errors).length === 0;
-};
-```
-
-#### 4.3 Criar função isFormValid
-
-```typescript
-const isFormValid = (): boolean => {
-  const emailValid = email.trim() !== '' && EMAIL_REGEX.test(email.trim());
-  const passwordValid = password.trim() !== '';
-  const nameValid = !isSignUp || name.trim() !== '';
-  return emailValid && passwordValid && nameValid;
-};
-```
-
-#### 4.4 Modificar handleSubmit
-
-```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (isSubmitting) return;
-
-  setFormErrors({});
-  if (!validateForm()) {
-    toast({
-      title: t('auth.formError'),
-      description: t('auth.correctErrors'),
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  setIsSubmitting(true);
-  // ... resto do código existente
-};
-```
-
-#### 4.5 Atualizar botão de submit
-
-```tsx
-// Linha 163 - Antes:
-<Button type="submit" className="w-full h-11" disabled={isSubmitting}>
-
-// Depois:
-<Button type="submit" className="w-full h-11" disabled={isSubmitting || !isFormValid()}>
-```
-
-#### 4.6 Adicionar mensagens de erro inline
-
-```tsx
-{/* Após o input de nome (linha 115) */}
-{formErrors.name && (
-  <p className="text-sm text-destructive mt-1">{formErrors.name}</p>
-)}
-
-{/* Após o input de email (linha 134) */}
-{formErrors.email && (
-  <p className="text-sm text-destructive mt-1">{formErrors.email}</p>
-)}
-
-{/* Após o div de senha (linha 160) */}
-{formErrors.password && (
-  <p className="text-sm text-destructive mt-1">{formErrors.password}</p>
-)}
-```
-
-#### 4.7 Limpar erros ao alternar modo
-
-```tsx
-// Linha 186-189 - Modificar o onClick:
-onClick={() => {
-  setIsSignUp(!isSignUp);
-  setIsSubmitting(false);
-  setFormErrors({});
-}}
-```
+Nenhuma alteração necessária — ambos linkam corretamente para `/login`.
 
 ---
 
 ## Arquivos Modificados
 
-| Arquivo | Ação | Alterações |
-|---------|------|------------|
-| `src/locales/pt-BR.ts` | ADICIONAR | 6 chaves de validação |
-| `src/locales/en.ts` | ADICIONAR | 6 chaves de validação |
-| `src/locales/es.ts` | ADICIONAR | 6 chaves de validação |
-| `src/pages/Login.tsx` | MODIFICAR | Estado de erros, validação, mensagens inline |
-| `src/pages/ForgotPassword.tsx` | MODIFICAR | Validação de formato, botão disabled, mensagens inline |
-| `src/pages/AthleteLogin.tsx` | MODIFICAR | Validação de formato, botão disabled |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/pages/SignUp.tsx` | **CRIAR** | Novo componente de cadastro |
+| `src/pages/Login.tsx` | **MODIFICAR** | Remover lógica de cadastro, simplificar |
+| `src/App.tsx` | **MODIFICAR** | Adicionar rota `/signup` |
+| `src/components/identity/IdentityGate.tsx` | **MODIFICAR** | Adicionar `/signup` à whitelist |
 
 ---
 
 ## Critérios de Aceitação
 
-- [ ] Botão de Login/Criar Conta habilitado apenas quando campos preenchidos E válidos
-- [ ] Botão de ForgotPassword desabilitado até email ter formato válido
-- [ ] Botão de AthleteLogin desabilitado até email ter formato válido
-- [ ] Mensagens de erro inline aparecem abaixo de cada campo inválido
-- [ ] Toast geral é exibido quando há erros de validação
-- [ ] Erros são limpos ao alternar entre Login e Signup
-- [ ] Erros são limpos ao digitar em campos com erro
-- [ ] Traduções funcionam nos 3 idiomas
+- [ ] Rota `/signup` exibe formulário de cadastro funcional
+- [ ] Rota `/login` exibe apenas formulário de login
+- [ ] Link "Não tem uma conta? Criar conta" no login → `/signup`
+- [ ] Link "Já tem uma conta? Entrar" no signup → `/login`
+- [ ] Validação e feedback funcionam em ambos os formulários
+- [ ] Redirecionamento pós-autenticação funciona corretamente
+- [ ] `/signup` está na whitelist pública do IdentityGate
 - [ ] Build compila sem erros
+- [ ] Traduções funcionam nos 3 idiomas
 
 ---
 
 ## Seção Técnica
 
-### Regex de Validação
-
-```typescript
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-```
-
-Valida:
-- Pelo menos um caractere antes do `@` (exceto espaços)
-- Pelo menos um caractere entre `@` e `.`
-- Pelo menos um caractere após o último `.`
-- Não permite espaços em nenhuma posição
-
-### Fluxo de Validação Unificado
+### Fluxo de Navegação
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│ Usuário interage com formulário                     │
+│                    LANDING (/)                      │
 ├─────────────────────────────────────────────────────┤
-│ 1. isFormValid() avalia em tempo real               │
-│    → Botão habilitado/desabilitado dinamicamente    │
+│  [Login]              [Criar Conta]                 │
+│     ↓                      ↓                        │
+│  /login                 /signup                     │
+├─────────────────────────────────────────────────────┤
 │                                                     │
-│ 2. Usuário clica Submit                             │
-│    → setFormErrors({}) limpa erros anteriores       │
-│    → validateForm() executa validação completa      │
-│                                                     │
-│ 3. Se erros encontrados:                            │
-│    → setFormErrors(errors) atualiza estado          │
-│    → toast() exibe mensagem geral                   │
-│    → return (não prossegue)                         │
-│                                                     │
-│ 4. Se sem erros:                                    │
-│    → setIsSubmitting(true)                          │
-│    → Executa signIn/signUp/etc                      │
+│  ┌─────────────────┐    ┌─────────────────┐        │
+│  │     LOGIN       │    │     SIGNUP      │        │
+│  │                 │    │                 │        │
+│  │ [Email]         │    │ [Nome]          │        │
+│  │ [Senha]         │    │ [Email]         │        │
+│  │                 │    │ [Senha]         │        │
+│  │ [Esqueceu?] ──→ /forgot-password       │        │
+│  │                 │    │                 │        │
+│  │ "Não tem conta?"│    │ "Já tem conta?" │        │
+│  │  → /signup      │    │  → /login       │        │
+│  └────────┬────────┘    └────────┬────────┘        │
+│           │                      │                  │
+│           └──────────┬───────────┘                  │
+│                      ↓                              │
+│            [isAuthenticated = true]                 │
+│                      ↓                              │
+│     ┌─────────────────────────────────────┐        │
+│     │ identityState === "wizard_required" │        │
+│     │         → /identity/wizard          │        │
+│     │ else → redirectPath || /portal      │        │
+│     └─────────────────────────────────────┘        │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Estrutura de Estado de Erros
+### Chaves i18n Utilizadas
 
-```typescript
-interface FormErrors {
-  email?: string;    // Mensagem traduzida ou undefined
-  password?: string; // Mensagem traduzida ou undefined
-  name?: string;     // Mensagem traduzida ou undefined (só cadastro)
-}
-```
+Todas as chaves já existem nos locales:
+
+| Chave | pt-BR | en | es |
+|-------|-------|----|----|
+| `auth.loginTitle` | "Entrar" | "Sign in" | "Iniciar sesión" |
+| `auth.loginDesc` | "Entre com suas credenciais..." | "Enter your credentials..." | "Ingrese sus credenciales..." |
+| `auth.signUpTitle` | "Criar conta" | "Create account" | "Crear cuenta" |
+| `auth.signUpDesc` | "Preencha os dados..." | "Fill in your details..." | "Complete sus datos..." |
+| `auth.alreadyHaveAccount` | "Já tem uma conta?" | "Already have an account?" | "¿Ya tiene una cuenta?" |
+| `auth.dontHaveAccount` | "Não tem uma conta?" | "Don't have an account?" | "¿No tiene una cuenta?" |
+| `auth.createAccount` | "Criar conta" | "Create account" | "Crear cuenta" |
+| `auth.login` | "Entrar" | "Login" | "Iniciar sesión" |
 
