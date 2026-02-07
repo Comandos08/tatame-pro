@@ -1459,6 +1459,7 @@ export const ptBR = {
   'platformHealth.expireMemberships': 'Expirar Filiações',
   'platformHealth.cleanAbandoned': 'Limpar Abandonados',
   'platformHealth.checkTrials': 'Checar Trials',
+  'platformHealth.youthTransition': 'Transição Youth→Adult',
   'platformHealth.neverRan': 'Nunca executou',
   'platformHealth.lessThan1h': 'Há menos de 1h',
   'platformHealth.hoursAgo': 'Há {h}h',

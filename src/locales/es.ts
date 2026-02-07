@@ -1504,6 +1504,7 @@ export const es: Record<string, string> = {
   'platformHealth.expireMemberships': 'Expirar Afiliaciones',
   'platformHealth.cleanAbandoned': 'Limpiar Abandonados',
   'platformHealth.checkTrials': 'Verificar Pruebas',
+  'platformHealth.youthTransition': 'Transición Youth→Adult',
   'platformHealth.neverRan': 'Nunca ejecutó',
   'platformHealth.lessThan1h': 'Hace menos de 1h',
   'platformHealth.hoursAgo': 'Hace {h}h',
