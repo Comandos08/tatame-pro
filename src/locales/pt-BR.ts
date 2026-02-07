@@ -1786,8 +1786,8 @@ export const ptBR = {
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Ativo',
-  'billing.status.trialing': 'Em Teste',
-  'billing.status.trial_expired': 'Teste Expirado',
+  'billing.status.trialing': 'Em Avaliação',
+  'billing.status.trial_expired': 'Período de avaliação expirado',
   'billing.status.pending_delete': 'Pendente Deleção',
   'billing.status.past_due': 'Em Atraso',
   'billing.status.canceled': 'Cancelado',
