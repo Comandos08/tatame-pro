@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
+import { getAuthErrorKey } from "@/lib/errors";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -62,9 +63,10 @@ export default function ForgotPassword() {
       });
     } catch (error) {
       console.error("Password reset error:", error);
+      const errorKey = getAuthErrorKey(error);
       toast({
         title: t('auth.forgot.error'),
-        description: t('auth.forgot.errorDesc'),
+        description: t(errorKey),
         variant: "destructive",
       });
     } finally {

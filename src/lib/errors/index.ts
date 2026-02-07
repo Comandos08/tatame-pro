@@ -8,3 +8,6 @@ export {
   type TemporaryErrorType,
   type TemporaryErrorConfig,
 } from './temporaryErrorMap';
+
+// Auth error mapping
+export { getAuthErrorKey, type AuthError } from './authErrorMap';

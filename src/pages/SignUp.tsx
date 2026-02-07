@@ -12,6 +12,7 @@ import { useCurrentUser } from "@/contexts/AuthContext";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
+import { getAuthErrorKey } from "@/lib/errors";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -100,9 +101,10 @@ export default function SignUp() {
       // Do not navigate manually - wait for isAuthenticated in useEffect
     } catch (error) {
       console.error("SignUp error:", error);
+      const errorKey = getAuthErrorKey(error);
       toast({
         title: t("auth.error"),
-        description: error instanceof Error ? error.message : t("auth.genericError"),
+        description: t(errorKey),
         variant: "destructive",
       });
       setIsSubmitting(false);
