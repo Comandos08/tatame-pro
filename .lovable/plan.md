@@ -1,233 +1,326 @@
 
-
-# Plano: Tratamento de Erros de Backend
+# Plano: Monitoramento de Jobs e Saúde da Plataforma
 
 ## Resumo do Diagnóstico
 
 ### Estado Atual
 
-| Componente | Tratamento de Erro | Problema |
-|------------|-------------------|----------|
-| `Login.tsx` (linha 101) | `error.message` direto | Exibe mensagens em inglês como "Invalid login credentials" |
-| `SignUp.tsx` (linha 105) | `error.message` direto | Exibe mensagens como "User already registered" |
-| `ForgotPassword.tsx` (linha 67) | Chave genérica `auth.forgot.errorDesc` | Não diferencia tipos de erro |
-| `AuthContext.tsx` | Relança erro do Supabase | Sem transformação/mapeamento |
+| Componente | Arquivo | Comportamento Atual |
+|------------|---------|---------------------|
+| PlatformHealthCard | `src/components/admin/PlatformHealthCard.tsx` | Busca eventos de ação (`MEMBERSHIP_EXPIRED`, etc.) para inferir última execução |
+| Edge Functions | 8 funções de job | Registram eventos de ação, mas NÃO eventos de execução (JOB_RUN) |
+| Cron Jobs | `docs/operacao-configuracoes.md` | Documentados com SQL, alguns já agendados |
+| Traduções | `src/locales/*.ts` | Chaves existentes para platformHealth |
 
-### Mensagens Técnicas Expostas ao Usuário
+### Problemas Identificados
 
-```text
-"Invalid login credentials"     → Credenciais inválidas (inglês técnico)
-"User already registered"       → Email já cadastrado (inglês técnico)
-"Failed to fetch"               → Erro de rede (genérico)
-"Network request failed"        → Erro de conexão (genérico)
-```
+1. **PlatformHealthCard depende de eventos de ação**: Se um job executa mas não encontra nada para processar, não há registro de execução.
+2. **"Nunca executou" falso positivo**: Jobs podem estar funcionando, mas sem itens para processar, aparecem como "Sem dados".
+3. **Não diferencia "job não executou" de "executou sem eventos"**: Ambos mostram "Sem dados".
+4. **Falta de eventos JOB_RUN no audit_logger**: O padrão `JOB_*_RUN` não está definido.
 
-### Arquitetura Existente de Erros
+### Jobs Existentes que Precisam de Monitoramento
 
-O projeto já possui `src/lib/errors/` com:
-- `temporaryErrorMap.ts` — Mapeamento de erros temporários para UX
-- `index.ts` — Exportações centralizadas
-
-A nova função deve seguir o mesmo padrão arquitetural.
+| Job | Função | Evento de Ação Atual | Evento de Execução (faltando) |
+|-----|--------|---------------------|------------------------------|
+| expire-memberships | `MEMBERSHIP_EXPIRED` | Sim | ❌ Falta `JOB_EXPIRE_MEMBERSHIPS_RUN` |
+| cleanup-abandoned-memberships | `MEMBERSHIP_ABANDONED_CLEANUP` | Sim | ❌ Falta `JOB_CLEANUP_ABANDONED_RUN` |
+| check-trial-ending | `TRIAL_END_NOTIFICATION_SENT` | Sim | ❌ Falta `JOB_CHECK_TRIALS_RUN` |
+| expire-trials | `TRIAL_EXPIRED` | Sim | ❌ Falta `JOB_EXPIRE_TRIALS_RUN` |
+| mark-pending-delete | `PENDING_DELETE` | Sim | ❌ Falta `JOB_PENDING_DELETE_RUN` |
+| pre-expiration-scheduler | `MEMBERSHIP_EXPIRING_NOTIFIED` | Sim | ❌ Falta `JOB_PRE_EXPIRATION_RUN` |
+| cleanup-tmp-documents | `TMP_DOCUMENT_CLEANUP_RUN` | ✅ Já existe | - |
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Criar Utilitário de Mapeamento de Erros de Autenticação
+### Tarefa 1: Adicionar Eventos de Execução no audit-logger.ts
 
-**Arquivo:** `src/lib/errors/authErrorMap.ts` (NOVO)
+**Arquivo:** `supabase/functions/_shared/audit-logger.ts`
+
+Adicionar constantes para eventos de execução de job na seção de AUDIT_EVENTS:
 
 ```typescript
-/**
- * ============================================================================
- * 🔐 AUTH ERROR MAP — Friendly Error Mapping for Authentication
- * ============================================================================
- * 
- * Maps Supabase auth error messages to i18n keys for user-friendly display.
- * 
- * SAFE GOLD PRINCIPLES:
- * - Pure function, no side effects
- * - Returns i18n keys, not hardcoded strings
- * - Extensible pattern matching
- * ============================================================================
- */
+// Job execution events (runs even when no items processed)
+JOB_EXPIRE_MEMBERSHIPS_RUN: 'JOB_EXPIRE_MEMBERSHIPS_RUN',
+JOB_CLEANUP_ABANDONED_RUN: 'JOB_CLEANUP_ABANDONED_RUN',
+JOB_CHECK_TRIALS_RUN: 'JOB_CHECK_TRIALS_RUN',
+JOB_EXPIRE_TRIALS_RUN: 'JOB_EXPIRE_TRIALS_RUN',
+JOB_PENDING_DELETE_RUN: 'JOB_PENDING_DELETE_RUN',
+JOB_PRE_EXPIRATION_RUN: 'JOB_PRE_EXPIRATION_RUN',
+JOB_RENEWAL_REMINDER_RUN: 'JOB_RENEWAL_REMINDER_RUN',
+```
 
-export interface AuthError {
-  message?: string;
-  status?: number;
-  statusCode?: number;
-  code?: string;
+---
+
+### Tarefa 2: Modificar expire-memberships para Registrar Execução
+
+**Arquivo:** `supabase/functions/expire-memberships/index.ts`
+
+Adicionar log de execução no início e/ou final do job (linhas ~91 e ~389):
+
+**Início do job (após linha 91):**
+```typescript
+// Log job execution start
+await createAuditLog(supabase, {
+  event_type: AUDIT_EVENTS.JOB_EXPIRE_MEMBERSHIPS_RUN,
+  tenant_id: null, // Global job
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'STARTED',
+    automatic: true,
+    scheduled: true,
+    source: 'expire-memberships-job',
+  },
+});
+```
+
+**Final do job (antes do return linha 391):**
+```typescript
+// Log job execution completion
+await createAuditLog(supabase, {
+  event_type: AUDIT_EVENTS.JOB_EXPIRE_MEMBERSHIPS_RUN,
+  tenant_id: null,
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'COMPLETED',
+    processed,
+    expired,
+    skipped,
+    failed,
+    emailsSent,
+    automatic: true,
+    scheduled: true,
+    source: 'expire-memberships-job',
+  },
+});
+```
+
+---
+
+### Tarefa 3: Modificar cleanup-abandoned-memberships para Registrar Execução
+
+**Arquivo:** `supabase/functions/cleanup-abandoned-memberships/index.ts`
+
+Adicionar log de execução:
+
+**Após linha 64 (após logStep "Starting cleanup job"):**
+```typescript
+const jobRunId = crypto.randomUUID();
+
+// Log job execution
+await createAuditLog(supabase, {
+  event_type: AUDIT_EVENTS.JOB_CLEANUP_ABANDONED_RUN,
+  tenant_id: null,
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'STARTED',
+    automatic: true,
+    scheduled: true,
+    source: 'cleanup-abandoned-memberships-job',
+  },
+});
+```
+
+**Antes do return final (linha ~154):**
+```typescript
+// Log job completion
+await createAuditLog(supabase, {
+  event_type: AUDIT_EVENTS.JOB_CLEANUP_ABANDONED_RUN,
+  tenant_id: null,
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'COMPLETED',
+    cleaned: successCount,
+    failed: failCount,
+    automatic: true,
+    scheduled: true,
+    source: 'cleanup-abandoned-memberships-job',
+  },
+});
+```
+
+---
+
+### Tarefa 4: Modificar check-trial-ending para Registrar Execução
+
+**Arquivo:** `supabase/functions/check-trial-ending/index.ts`
+
+Adicionar log de execução (após linha 59):
+
+```typescript
+const jobRunId = crypto.randomUUID();
+
+// Log job execution
+await supabase.from("audit_logs").insert({
+  event_type: "JOB_CHECK_TRIALS_RUN",
+  tenant_id: null,
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'STARTED',
+    automatic: true,
+    scheduled: true,
+    source: 'check-trial-ending-job',
+  },
+});
+```
+
+**Antes do return final (linha ~167):**
+```typescript
+// Log job completion
+await supabase.from("audit_logs").insert({
+  event_type: "JOB_CHECK_TRIALS_RUN",
+  tenant_id: null,
+  metadata: {
+    job_run_id: jobRunId,
+    status: 'COMPLETED',
+    processed: results.length,
+    notified: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length,
+    automatic: true,
+    scheduled: true,
+    source: 'check-trial-ending-job',
+  },
+});
+```
+
+---
+
+### Tarefa 5: Atualizar PlatformHealthCard para Usar Eventos de Execução
+
+**Arquivo:** `src/components/admin/PlatformHealthCard.tsx`
+
+#### 5.1 Atualizar interface PlatformMetrics
+
+```typescript
+interface PlatformMetrics {
+  // Job execution metrics (from JOB_*_RUN events)
+  lastExpireMembershipsRun: string | null;
+  lastCleanupAbandonedRun: string | null;
+  lastTrialCheckRun: string | null;
+  
+  // Job execution had events?
+  expireMembershipsHadEvents: boolean;
+  cleanupAbandonedHadEvents: boolean;
+  trialCheckHadEvents: boolean;
+  
+  // Counts from last 24h/7d (action events)
+  expiredLast24h: number;
+  expiredLast7d: number;
+  cleanedLast24h: number;
+  cleanedLast7d: number;
+  
+  // ... existing fields
 }
+```
 
-/**
- * Maps authentication errors to user-friendly i18n keys.
- * 
- * @param error - The error object from Supabase or network
- * @returns i18n key for the friendly error message
- */
-export function getAuthErrorKey(error: AuthError | Error | unknown): string {
-  if (!error) return 'auth.genericError';
+#### 5.2 Atualizar query para buscar eventos de execução
 
-  const err = error as AuthError;
-  const message = err?.message?.toLowerCase() || '';
-  const status = err?.status || err?.statusCode || 0;
-  const code = err?.code?.toLowerCase() || '';
+Modificar `queryFn` (linhas 51-141):
 
-  // SignUp: Email already registered (Supabase returns 422 or specific message)
-  if (
-    message.includes('user already registered') ||
-    message.includes('email already in use') ||
-    code === 'user_already_exists'
-  ) {
-    return 'auth.alreadyRegistered';
+```typescript
+// Fetch job execution events (JOB_*_RUN)
+const { data: jobRunLogs } = await supabase
+  .from('audit_logs')
+  .select('event_type, created_at, metadata')
+  .in('event_type', [
+    'JOB_EXPIRE_MEMBERSHIPS_RUN',
+    'JOB_CLEANUP_ABANDONED_RUN',
+    'JOB_CHECK_TRIALS_RUN',
+  ])
+  .gte('created_at', sevenDaysAgo)
+  .order('created_at', { ascending: false });
+
+// Fetch action events (existing query)
+const { data: actionLogs } = await supabase
+  .from('audit_logs')
+  .select('event_type, created_at, metadata')
+  .in('event_type', [
+    'MEMBERSHIP_EXPIRED', 
+    'MEMBERSHIP_ABANDONED_CLEANUP',
+    'TRIAL_END_NOTIFICATION_SENT',
+    'TENANT_PAYMENT_FAILED'
+  ])
+  .gte('created_at', sevenDaysAgo)
+  .order('created_at', { ascending: false });
+```
+
+#### 5.3 Processar eventos de execução separadamente
+
+```typescript
+// Process job run events
+let expireMembershipsHadEvents = false;
+let cleanupAbandonedHadEvents = false;
+let trialCheckHadEvents = false;
+
+jobRunLogs?.forEach(log => {
+  const meta = log.metadata as { processed?: number; cleaned?: number; status?: string } | null;
+  
+  switch (log.event_type) {
+    case 'JOB_EXPIRE_MEMBERSHIPS_RUN':
+      if (!lastExpireMembershipsRun && meta?.status === 'COMPLETED') {
+        lastExpireMembershipsRun = log.created_at;
+        expireMembershipsHadEvents = (meta?.processed || 0) > 0;
+      }
+      break;
+    case 'JOB_CLEANUP_ABANDONED_RUN':
+      if (!lastCleanupAbandonedRun && meta?.status === 'COMPLETED') {
+        lastCleanupAbandonedRun = log.created_at;
+        cleanupAbandonedHadEvents = (meta?.cleaned || 0) > 0;
+      }
+      break;
+    case 'JOB_CHECK_TRIALS_RUN':
+      if (!lastTrialCheckRun && meta?.status === 'COMPLETED') {
+        lastTrialCheckRun = log.created_at;
+        trialCheckHadEvents = (meta?.processed || 0) > 0;
+      }
+      break;
   }
+});
 
-  // Login: Invalid credentials (Supabase returns 400)
-  if (
-    message.includes('invalid login credentials') ||
-    message.includes('invalid email or password') ||
-    code === 'invalid_credentials'
-  ) {
-    return 'auth.invalidCredentials';
+// Continue processing action events for counts...
+```
+
+#### 5.4 Modificar getJobStatus para considerar "executou sem eventos"
+
+```typescript
+const getJobStatus = (
+  lastRun: string | null, 
+  hadEvents: boolean = true
+): { status: string; color: 'default' | 'secondary' | 'destructive'; label: string; tooltip: string } => {
+  if (!lastRun) return { 
+    status: 'unknown', 
+    color: 'secondary', 
+    label: t('platformHealth.noData'),
+    tooltip: t('platformHealth.noDataTooltip')
+  };
+  
+  const hoursSinceRun = (Date.now() - new Date(lastRun).getTime()) / 3600000;
+  
+  if (hoursSinceRun < 25) {
+    return { 
+      status: 'ok', 
+      color: 'default',
+      label: t('platformHealth.ok'),
+      tooltip: hadEvents 
+        ? t('platformHealth.okTooltip') 
+        : t('platformHealth.noEventsTooltip')
+    };
   }
-
-  // Email not confirmed
-  if (
-    message.includes('email not confirmed') ||
-    code === 'email_not_confirmed'
-  ) {
-    return 'auth.emailNotConfirmed';
-  }
-
-  // Rate limiting
-  if (
-    message.includes('rate limit') ||
-    message.includes('too many requests') ||
-    status === 429
-  ) {
-    return 'auth.rateLimited';
-  }
-
-  // Network errors
-  if (
-    message.includes('failed to fetch') ||
-    message.includes('network request failed') ||
-    message.includes('networkerror') ||
-    message.includes('fetch error') ||
-    status === 0
-  ) {
-    return 'auth.networkError';
-  }
-
-  // Server errors (5xx)
-  if (status >= 500) {
-    return 'auth.serverError';
-  }
-
-  // Default fallback
-  return 'auth.genericError';
-}
-```
-
-### Tarefa 2: Atualizar Exportações do Módulo de Erros
-
-**Arquivo:** `src/lib/errors/index.ts`
-
-```typescript
-/**
- * 🚨 Error Utilities — Centralized Error Handling
- */
-
-export {
-  TEMPORARY_ERROR_MAP,
-  TEMPORARY_ERROR_TYPES,
-  type TemporaryErrorType,
-  type TemporaryErrorConfig,
-} from './temporaryErrorMap';
-
-// Auth error mapping
-export { getAuthErrorKey, type AuthError } from './authErrorMap';
-```
-
----
-
-### Tarefa 3: Atualizar Login.tsx
-
-**Arquivo:** `src/pages/Login.tsx`
-
-#### 3.1 Adicionar import
-
-```typescript
-import { getAuthErrorKey } from '@/lib/errors';
-```
-
-#### 3.2 Modificar bloco catch (linhas 97-105)
-
-```typescript
-    } catch (error) {
-      console.error("Auth error:", error);
-      const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t("auth.error"),
-        description: t(errorKey),
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-    }
-```
-
----
-
-### Tarefa 4: Atualizar SignUp.tsx
-
-**Arquivo:** `src/pages/SignUp.tsx`
-
-#### 4.1 Adicionar import
-
-```typescript
-import { getAuthErrorKey } from '@/lib/errors';
-```
-
-#### 4.2 Modificar bloco catch (linhas 101-109)
-
-```typescript
-    } catch (error) {
-      console.error("SignUp error:", error);
-      const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t("auth.error"),
-        description: t(errorKey),
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-    }
-```
-
----
-
-### Tarefa 5: Atualizar ForgotPassword.tsx (Opcional mas Recomendado)
-
-**Arquivo:** `src/pages/ForgotPassword.tsx`
-
-#### 5.1 Adicionar import
-
-```typescript
-import { getAuthErrorKey } from '@/lib/errors';
-```
-
-#### 5.2 Modificar bloco catch (linhas 63-70)
-
-```typescript
-    } catch (error) {
-      console.error("Password reset error:", error);
-      const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t('auth.forgot.error'),
-        description: t(errorKey),
-        variant: "destructive",
-      });
-    } finally {
+  if (hoursSinceRun < 48) return { 
+    status: 'warning', 
+    color: 'secondary',
+    label: t('platformHealth.delayed'),
+    tooltip: t('platformHealth.delayedTooltip')
+  };
+  return { 
+    status: 'error', 
+    color: 'destructive',
+    label: t('platformHealth.error'),
+    tooltip: t('platformHealth.errorTooltip')
+  };
+};
 ```
 
 ---
@@ -236,32 +329,41 @@ import { getAuthErrorKey } from '@/lib/errors';
 
 **Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
 
-Adicionar após a linha com `auth.genericError` (≈ linha 536):
+Adicionar após `platformHealth.loadError` (linha ~1471):
 
 ```typescript
 // pt-BR.ts
-'auth.alreadyRegistered': 'Este e-mail já está cadastrado. Faça login ou redefina sua senha.',
-'auth.invalidCredentials': 'E-mail ou senha inválidos.',
-'auth.emailNotConfirmed': 'E-mail não confirmado. Verifique sua caixa de entrada.',
-'auth.rateLimited': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
-'auth.networkError': 'Erro de rede. Verifique sua conexão e tente novamente.',
-'auth.serverError': 'Erro no servidor. Tente novamente em alguns instantes.',
+'platformHealth.noEventsTooltip': 'Job executou recentemente, mas nenhum item foi processado. Isso é normal se não houver filiações/trials para processar.',
 
 // en.ts
-'auth.alreadyRegistered': 'This email is already registered. Please log in or reset your password.',
-'auth.invalidCredentials': 'Invalid email or password.',
-'auth.emailNotConfirmed': 'Email not confirmed. Please check your inbox.',
-'auth.rateLimited': 'Too many attempts. Please wait a few minutes and try again.',
-'auth.networkError': 'Network error. Please check your connection and try again.',
-'auth.serverError': 'Server error. Please try again in a moment.',
+'platformHealth.noEventsTooltip': 'Job ran recently, but no items were processed. This is normal if there are no memberships/trials to process.',
 
 // es.ts
-'auth.alreadyRegistered': 'Este correo electrónico ya está registrado. Inicie sesión o restablezca su contraseña.',
-'auth.invalidCredentials': 'Correo electrónico o contraseña inválidos.',
-'auth.emailNotConfirmed': 'Correo electrónico no confirmado. Verifique su bandeja de entrada.',
-'auth.rateLimited': 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
-'auth.networkError': 'Error de red. Verifique su conexión e inténtelo de nuevo.',
-'auth.serverError': 'Error del servidor. Inténtelo de nuevo en unos momentos.',
+'platformHealth.noEventsTooltip': 'El job se ejecutó recientemente, pero no se procesaron elementos. Esto es normal si no hay afiliaciones/trials para procesar.',
+```
+
+---
+
+### Tarefa 7: Modificar expire-trials e mark-pending-delete (Opcional)
+
+Para completude, adicionar logs de execução também em:
+
+**`supabase/functions/expire-trials/index.ts`** (após linha 93):
+```typescript
+await supabase.from("audit_logs").insert({
+  event_type: "JOB_EXPIRE_TRIALS_RUN",
+  tenant_id: null,
+  metadata: { status: 'COMPLETED', processed: results.processed, errors: results.errors },
+});
+```
+
+**`supabase/functions/mark-pending-delete/index.ts`** (após linha 93):
+```typescript
+await supabase.from("audit_logs").insert({
+  event_type: "JOB_PENDING_DELETE_RUN",
+  tenant_id: null,
+  metadata: { status: 'COMPLETED', processed: results.processed, errors: results.errors },
+});
 ```
 
 ---
@@ -270,77 +372,85 @@ Adicionar após a linha com `auth.genericError` (≈ linha 536):
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/lib/errors/authErrorMap.ts` | **CRIAR** | Função de mapeamento de erros de auth |
-| `src/lib/errors/index.ts` | **MODIFICAR** | Exportar nova função |
-| `src/pages/Login.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
-| `src/pages/SignUp.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
-| `src/pages/ForgotPassword.tsx` | **MODIFICAR** | Usar `getAuthErrorKey` no catch |
-| `src/locales/pt-BR.ts` | **ADICIONAR** | 6 chaves de erro |
-| `src/locales/en.ts` | **ADICIONAR** | 6 chaves de erro |
-| `src/locales/es.ts` | **ADICIONAR** | 6 chaves de erro |
+| `supabase/functions/_shared/audit-logger.ts` | **MODIFICAR** | Adicionar constantes JOB_*_RUN |
+| `supabase/functions/expire-memberships/index.ts` | **MODIFICAR** | Registrar evento de execução |
+| `supabase/functions/cleanup-abandoned-memberships/index.ts` | **MODIFICAR** | Registrar evento de execução |
+| `supabase/functions/check-trial-ending/index.ts` | **MODIFICAR** | Registrar evento de execução |
+| `src/components/admin/PlatformHealthCard.tsx` | **MODIFICAR** | Buscar eventos JOB_*_RUN, diferenciar estados |
+| `src/locales/pt-BR.ts` | **ADICIONAR** | Chave `noEventsTooltip` |
+| `src/locales/en.ts` | **ADICIONAR** | Chave `noEventsTooltip` |
+| `src/locales/es.ts` | **ADICIONAR** | Chave `noEventsTooltip` |
 
 ---
 
 ## Critérios de Aceitação
 
-- [ ] Cadastro com email duplicado exibe "Este e-mail já está cadastrado..."
-- [ ] Login com senha errada exibe "E-mail ou senha inválidos."
-- [ ] Erro de rede exibe "Erro de rede. Verifique sua conexão..."
-- [ ] Mensagens técnicas em inglês não são exibidas diretamente
-- [ ] Traduções funcionam nos 3 idiomas (pt-BR, en, es)
+- [ ] Jobs registram evento `JOB_*_RUN` com `status: 'COMPLETED'` e contagens no metadata
+- [ ] PlatformHealthCard busca eventos de execução (não depende apenas de ação)
+- [ ] "Nunca executou" → Job nunca registrou `JOB_*_RUN`
+- [ ] "OK" com tooltip "nenhum item processado" → Job executou mas `processed: 0`
+- [ ] "OK" com tooltip padrão → Job executou e processou itens
+- [ ] Contagens (expired, cleaned) continuam vindo de eventos de ação
 - [ ] Build compila sem erros
-- [ ] Função `getAuthErrorKey` é reutilizável em outros contextos
+- [ ] Traduções funcionam nos 3 idiomas
 
 ---
 
 ## Seção Técnica
 
-### Mapeamento de Erros Supabase
-
-| Erro Supabase | Status | Chave i18n |
-|--------------|--------|------------|
-| `User already registered` | 422 | `auth.alreadyRegistered` |
-| `Invalid login credentials` | 400 | `auth.invalidCredentials` |
-| `Email not confirmed` | 400 | `auth.emailNotConfirmed` |
-| `Too many requests` | 429 | `auth.rateLimited` |
-| `Failed to fetch` | 0 | `auth.networkError` |
-| `Internal Server Error` | 5xx | `auth.serverError` |
-| (qualquer outro) | - | `auth.genericError` |
-
-### Fluxo de Mapeamento
+### Fluxo de Eventos
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│ Supabase retorna erro                               │
-├─────────────────────────────────────────────────────┤
-│ catch (error) {                                     │
-│   const errorKey = getAuthErrorKey(error);          │
-│   toast({ description: t(errorKey) });              │
-│ }                                                   │
+│               CRON EXECUTA JOB                      │
 ├─────────────────────────────────────────────────────┤
 │                                                     │
-│ getAuthErrorKey(error):                             │
-│   ├─ "User already registered" → auth.alreadyRegistered
-│   ├─ "Invalid login credentials" → auth.invalidCredentials
-│   ├─ "Failed to fetch" → auth.networkError          │
-│   └─ default → auth.genericError                    │
+│  1️⃣ JOB_EXPIRE_MEMBERSHIPS_RUN                     │
+│     └─ status: 'COMPLETED', processed: 5           │
+│                                                     │
+│  2️⃣ MEMBERSHIP_EXPIRED (para cada filiação)       │
+│     └─ membership_id, athlete_id, ...              │
 │                                                     │
 ├─────────────────────────────────────────────────────┤
-│ t(errorKey) retorna texto traduzido                 │
-│ → "Este e-mail já está cadastrado..."               │
+│           PLATFORM HEALTH CARD                      │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Query 1: JOB_*_RUN (últimos 7 dias)               │
+│    → Determina lastRun + hadEvents                 │
+│                                                     │
+│  Query 2: Eventos de ação (últimos 7 dias)         │
+│    → Determina contagens (expiredLast7d, etc.)     │
+│                                                     │
+│  Resultado:                                         │
+│    ├─ lastRun = null → "Nunca executou"            │
+│    ├─ lastRun < 24h, hadEvents = false → "OK" +    │
+│    │                    tooltip "sem itens"        │
+│    └─ lastRun < 24h, hadEvents = true → "OK"       │
+│                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Extensibilidade
+### Estrutura do Evento JOB_*_RUN
 
-Para adicionar novos mapeamentos no futuro, basta:
-1. Adicionar condição na função `getAuthErrorKey`
-2. Adicionar chave correspondente nos 3 locales
-
-Exemplo para erro de senha fraca:
-```typescript
-if (message.includes('password too weak')) {
-  return 'auth.passwordTooWeak';
+```json
+{
+  "event_type": "JOB_EXPIRE_MEMBERSHIPS_RUN",
+  "tenant_id": null,
+  "metadata": {
+    "job_run_id": "uuid",
+    "status": "COMPLETED",
+    "processed": 5,
+    "expired": 4,
+    "skipped": 1,
+    "failed": 0,
+    "emailsSent": 4,
+    "automatic": true,
+    "scheduled": true,
+    "source": "expire-memberships-job"
+  }
 }
 ```
 
+### Cron Jobs já Documentados
+
+Os agendamentos SQL já estão em `docs/operacao-configuracoes.md`. Com as modificações das Edge Functions, os mesmos comandos cron continuam funcionando — a diferença é que agora cada execução registrará um evento de "run" no audit_logs.
