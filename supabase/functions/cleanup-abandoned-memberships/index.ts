@@ -63,6 +63,21 @@ serve(async (req) => {
 
     logStep("Starting cleanup job for abandoned memberships");
 
+    const jobRunId = crypto.randomUUID();
+
+    // Log job execution start
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.JOB_CLEANUP_ABANDONED_RUN,
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'STARTED',
+        automatic: true,
+        scheduled: true,
+        source: 'cleanup-abandoned-memberships-job',
+      },
+    });
+
     // Calculate cutoff time (24 hours ago)
     const cutoffTime = new Date();
     cutoffTime.setHours(cutoffTime.getHours() - 24);
@@ -150,6 +165,21 @@ serve(async (req) => {
     const failCount = results.filter(r => !r.success).length;
 
     logStep("Cleanup completed", { successCount, failCount });
+
+    // Log job execution completion
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.JOB_CLEANUP_ABANDONED_RUN,
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'COMPLETED',
+        cleaned: successCount,
+        failed: failCount,
+        automatic: true,
+        scheduled: true,
+        source: 'cleanup-abandoned-memberships-job',
+      },
+    });
 
     return new Response(
       JSON.stringify({ 

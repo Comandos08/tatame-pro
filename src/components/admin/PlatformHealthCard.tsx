@@ -15,12 +15,17 @@ import { useI18n } from "@/contexts/I18nContext";
 import { format, subHours, subDays } from "date-fns";
 
 interface PlatformMetrics {
-  // Job execution metrics
+  // Job execution metrics (from JOB_*_RUN events)
   lastExpireMembershipsRun: string | null;
   lastCleanupAbandonedRun: string | null;
   lastTrialCheckRun: string | null;
   
-  // Counts from last 24h/7d
+  // Job execution had events?
+  expireMembershipsHadEvents: boolean;
+  cleanupAbandonedHadEvents: boolean;
+  trialCheckHadEvents: boolean;
+  
+  // Counts from last 24h/7d (action events)
   expiredLast24h: number;
   expiredLast7d: number;
   cleanedLast24h: number;
@@ -39,7 +44,7 @@ interface PlatformMetrics {
  * Platform Health Card for Superadmin Dashboard
  * 
  * Displays:
- * - Job execution status (last runs)
+ * - Job execution status (last runs, even when no items processed)
  * - Error counts from audit logs
  * - Tenant billing health summary
  */
@@ -53,8 +58,20 @@ export function PlatformHealthCard() {
       const oneDayAgo = subHours(now, 24).toISOString();
       const sevenDaysAgo = subDays(now, 7).toISOString();
 
-      // Fetch audit logs for job metrics - without tenant filter for global view
-      const { data: jobLogs } = await supabase
+      // Fetch job execution events (JOB_*_RUN)
+      const { data: jobRunLogs } = await supabase
+        .from('audit_logs')
+        .select('event_type, created_at, metadata')
+        .in('event_type', [
+          'JOB_EXPIRE_MEMBERSHIPS_RUN',
+          'JOB_CLEANUP_ABANDONED_RUN',
+          'JOB_CHECK_TRIALS_RUN',
+        ])
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false });
+
+      // Fetch action events for counts
+      const { data: actionLogs } = await supabase
         .from('audit_logs')
         .select('event_type, created_at, metadata')
         .in('event_type', [
@@ -66,33 +83,67 @@ export function PlatformHealthCard() {
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
 
-      // Process job logs
+      // Process job run events - find last COMPLETED run for each job
       let lastExpireMembershipsRun: string | null = null;
       let lastCleanupAbandonedRun: string | null = null;
       let lastTrialCheckRun: string | null = null;
+      let expireMembershipsHadEvents = false;
+      let cleanupAbandonedHadEvents = false;
+      let trialCheckHadEvents = false;
+
+      jobRunLogs?.forEach(log => {
+        const meta = log.metadata as { 
+          processed?: number; 
+          expired?: number;
+          cleaned?: number; 
+          notified?: number;
+          status?: string 
+        } | null;
+        
+        // Only count COMPLETED status
+        if (meta?.status !== 'COMPLETED') return;
+        
+        switch (log.event_type) {
+          case 'JOB_EXPIRE_MEMBERSHIPS_RUN':
+            if (!lastExpireMembershipsRun) {
+              lastExpireMembershipsRun = log.created_at;
+              expireMembershipsHadEvents = (meta?.expired || meta?.processed || 0) > 0;
+            }
+            break;
+          case 'JOB_CLEANUP_ABANDONED_RUN':
+            if (!lastCleanupAbandonedRun) {
+              lastCleanupAbandonedRun = log.created_at;
+              cleanupAbandonedHadEvents = (meta?.cleaned || 0) > 0;
+            }
+            break;
+          case 'JOB_CHECK_TRIALS_RUN':
+            if (!lastTrialCheckRun) {
+              lastTrialCheckRun = log.created_at;
+              trialCheckHadEvents = (meta?.notified || meta?.processed || 0) > 0;
+            }
+            break;
+        }
+      });
+
+      // Process action events for counts
       let expiredLast24h = 0;
       let expiredLast7d = 0;
       let cleanedLast24h = 0;
       let cleanedLast7d = 0;
       let billingErrorsLast7d = 0;
 
-      jobLogs?.forEach(log => {
+      actionLogs?.forEach(log => {
         const logDate = new Date(log.created_at);
         const isLast24h = logDate >= new Date(oneDayAgo);
         
         switch (log.event_type) {
           case 'MEMBERSHIP_EXPIRED':
-            if (!lastExpireMembershipsRun) lastExpireMembershipsRun = log.created_at;
             expiredLast7d++;
             if (isLast24h) expiredLast24h++;
             break;
           case 'MEMBERSHIP_ABANDONED_CLEANUP':
-            if (!lastCleanupAbandonedRun) lastCleanupAbandonedRun = log.created_at;
             cleanedLast7d++;
             if (isLast24h) cleanedLast24h++;
-            break;
-          case 'TRIAL_END_NOTIFICATION_SENT':
-            if (!lastTrialCheckRun) lastTrialCheckRun = log.created_at;
             break;
           case 'TENANT_PAYMENT_FAILED':
             billingErrorsLast7d++;
@@ -130,6 +181,9 @@ export function PlatformHealthCard() {
         lastExpireMembershipsRun,
         lastCleanupAbandonedRun,
         lastTrialCheckRun,
+        expireMembershipsHadEvents,
+        cleanupAbandonedHadEvents,
+        trialCheckHadEvents,
         expiredLast24h,
         expiredLast7d,
         cleanedLast24h,
@@ -156,7 +210,10 @@ export function PlatformHealthCard() {
     return format(date, 'dd/MM HH:mm');
   };
 
-  const getJobStatus = (lastRun: string | null): { status: string; color: 'default' | 'secondary' | 'destructive'; label: string; tooltip: string } => {
+  const getJobStatus = (
+    lastRun: string | null, 
+    hadEvents: boolean = true
+  ): { status: string; color: 'default' | 'secondary' | 'destructive'; label: string; tooltip: string } => {
     if (!lastRun) return { 
       status: 'unknown', 
       color: 'secondary', 
@@ -166,12 +223,16 @@ export function PlatformHealthCard() {
     
     const hoursSinceRun = (Date.now() - new Date(lastRun).getTime()) / 3600000;
     
-    if (hoursSinceRun < 25) return { 
-      status: 'ok', 
-      color: 'default',
-      label: t('platformHealth.ok'),
-      tooltip: t('platformHealth.okTooltip')
-    };
+    if (hoursSinceRun < 25) {
+      return { 
+        status: 'ok', 
+        color: 'default',
+        label: t('platformHealth.ok'),
+        tooltip: hadEvents 
+          ? t('platformHealth.okTooltip') 
+          : t('platformHealth.noEventsTooltip')
+      };
+    }
     if (hoursSinceRun < 48) return { 
       status: 'warning', 
       color: 'secondary',
@@ -193,8 +254,8 @@ export function PlatformHealthCard() {
   );
 
   const allJobsHealthy = metrics && 
-    getJobStatus(metrics.lastExpireMembershipsRun).status === 'ok' &&
-    getJobStatus(metrics.lastCleanupAbandonedRun).status === 'ok';
+    getJobStatus(metrics.lastExpireMembershipsRun, metrics.expireMembershipsHadEvents).status === 'ok' &&
+    getJobStatus(metrics.lastCleanupAbandonedRun, metrics.cleanupAbandonedHadEvents).status === 'ok';
 
   if (error) {
     return (
@@ -263,11 +324,11 @@ export function PlatformHealthCard() {
                     <p className="text-sm font-medium">{formatTime(metrics.lastExpireMembershipsRun)}</p>
                   </div>
                   <Badge 
-                    variant={getJobStatus(metrics.lastExpireMembershipsRun).color} 
+                    variant={getJobStatus(metrics.lastExpireMembershipsRun, metrics.expireMembershipsHadEvents).color} 
                     className="text-xs cursor-help"
-                    title={getJobStatus(metrics.lastExpireMembershipsRun).tooltip}
+                    title={getJobStatus(metrics.lastExpireMembershipsRun, metrics.expireMembershipsHadEvents).tooltip}
                   >
-                    {getJobStatus(metrics.lastExpireMembershipsRun).label}
+                    {getJobStatus(metrics.lastExpireMembershipsRun, metrics.expireMembershipsHadEvents).label}
                   </Badge>
                 </div>
                 
@@ -277,11 +338,11 @@ export function PlatformHealthCard() {
                     <p className="text-sm font-medium">{formatTime(metrics.lastCleanupAbandonedRun)}</p>
                   </div>
                   <Badge 
-                    variant={getJobStatus(metrics.lastCleanupAbandonedRun).color} 
+                    variant={getJobStatus(metrics.lastCleanupAbandonedRun, metrics.cleanupAbandonedHadEvents).color} 
                     className="text-xs cursor-help"
-                    title={getJobStatus(metrics.lastCleanupAbandonedRun).tooltip}
+                    title={getJobStatus(metrics.lastCleanupAbandonedRun, metrics.cleanupAbandonedHadEvents).tooltip}
                   >
-                    {getJobStatus(metrics.lastCleanupAbandonedRun).label}
+                    {getJobStatus(metrics.lastCleanupAbandonedRun, metrics.cleanupAbandonedHadEvents).label}
                   </Badge>
                 </div>
                 
@@ -291,11 +352,11 @@ export function PlatformHealthCard() {
                     <p className="text-sm font-medium">{formatTime(metrics.lastTrialCheckRun)}</p>
                   </div>
                   <Badge 
-                    variant={getJobStatus(metrics.lastTrialCheckRun).color} 
+                    variant={getJobStatus(metrics.lastTrialCheckRun, metrics.trialCheckHadEvents).color} 
                     className="text-xs cursor-help"
-                    title={getJobStatus(metrics.lastTrialCheckRun).tooltip}
+                    title={getJobStatus(metrics.lastTrialCheckRun, metrics.trialCheckHadEvents).tooltip}
                   >
-                    {getJobStatus(metrics.lastTrialCheckRun).label}
+                    {getJobStatus(metrics.lastTrialCheckRun, metrics.trialCheckHadEvents).label}
                   </Badge>
                 </div>
               </div>

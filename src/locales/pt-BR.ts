@@ -1469,6 +1469,7 @@ export const ptBR = {
   'platformHealth.blocked': 'bloqueados',
   'platformHealth.latePayment': 'com pagamento atrasado',
   'platformHealth.loadError': 'Erro ao carregar métricas de saúde',
+  'platformHealth.noEventsTooltip': 'Job executou recentemente, mas nenhum item foi processado. Isso é normal se não houver filiações/trials para processar.',
 
   // P4.x-R1 — Card Diagnostics i18n
   'cardDiagnostics.title': 'Diagnóstico de Carteirinhas',

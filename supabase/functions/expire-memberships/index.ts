@@ -90,6 +90,19 @@ serve(async (req) => {
 
     logStep("Job started", { jobRunId });
 
+    // Log job execution start
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.JOB_EXPIRE_MEMBERSHIPS_RUN,
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'STARTED',
+        automatic: true,
+        scheduled: true,
+        source: 'expire-memberships-job',
+      },
+    });
+
     // Resolve baseUrl for email CTAs
     const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
     const originHeader = req.headers.get("origin");
@@ -387,6 +400,24 @@ serve(async (req) => {
     const emailsSent = results.filter(r => r.email.sent).length;
 
     logStep("Job completed", { jobRunId, processed, expired, skipped, failed, emailsSent });
+
+    // Log job execution completion
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.JOB_EXPIRE_MEMBERSHIPS_RUN,
+      tenant_id: null,
+      metadata: {
+        job_run_id: jobRunId,
+        status: 'COMPLETED',
+        processed,
+        expired,
+        skipped,
+        failed,
+        emailsSent,
+        automatic: true,
+        scheduled: true,
+        source: 'expire-memberships-job',
+      },
+    });
 
     return new Response(
       JSON.stringify({ 
