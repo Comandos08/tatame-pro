@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -138,9 +139,7 @@ export default function MembershipList() {
   });
 
   const formatMembershipDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
-    return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'medium' }).format(new Date(dateString));
+    return formatDate(dateString, locale);
   };
 
   if (!tenant) return null;

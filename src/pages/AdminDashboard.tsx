@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { formatDate, formatCurrency, formatNumber } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CreateTenantDialog } from '@/components/admin/CreateTenantDialog';
@@ -220,24 +221,8 @@ export default function AdminDashboard() {
     },
   });
 
-  const formatAdminDate = (dateString: string) => {
-    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
-    return new Intl.DateTimeFormat(intlLocale, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(dateString));
-  };
-
-  // Format currency with locale
-  const formatAdminCurrency = (amountCents: number) => {
-    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
-    return new Intl.NumberFormat(intlLocale, {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-    }).format(amountCents / 100);
-  };
+  // Removed local formatAdminDate - using formatDate from formatters.ts
+  // Removed local formatAdminCurrency - using formatCurrency from formatters.ts
 
   const statCards = [
     { labelKey: 'admin.activeOrgs' as const, value: stats?.activeTenants || 0, icon: Building2, color: 'text-primary' },
@@ -250,7 +235,7 @@ export default function AdminDashboard() {
     { labelKey: 'admin.tenantsTrialing', value: billingMetrics?.trialing || 0, icon: Clock, color: 'text-info' },
     { labelKey: 'admin.tenantsActive', value: billingMetrics?.active || 0, icon: TrendingUp, color: 'text-success' },
     { labelKey: 'admin.tenantsWithIssues', value: billingMetrics?.withIssues || 0, icon: AlertTriangle, color: 'text-destructive' },
-    { labelKey: 'admin.monthlyRevenue', value: formatAdminCurrency(billingMetrics?.monthlyRevenue || 0), icon: CreditCard, color: 'text-primary', isText: true },
+    { labelKey: 'admin.monthlyRevenue', value: formatCurrency(billingMetrics?.monthlyRevenue || 0, locale), icon: CreditCard, color: 'text-primary', isText: true },
   ];
 
   if (authLoading) {
@@ -382,7 +367,7 @@ export default function AdminDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-display font-bold">
-                      {stat.value.toLocaleString('pt-BR')}
+                      {formatNumber(stat.value, locale)}
                     </div>
                   </CardContent>
                 </Card>
@@ -413,7 +398,7 @@ export default function AdminDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-display font-bold">
-                        {card.isText ? card.value : (card.value as number).toLocaleString('pt-BR')}
+                        {card.isText ? card.value : formatNumber(card.value as number, locale)}
                       </div>
                     </CardContent>
                   </Card>
@@ -665,7 +650,7 @@ export default function AdminDashboard() {
                             })()}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {formatAdminDate(tenant.created_at)}
+                            {formatDate(tenant.created_at, locale)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

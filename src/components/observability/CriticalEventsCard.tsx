@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/contexts/I18nContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@/lib/i18n/formatters';
 import { cn } from '@/lib/utils';
 
 interface CriticalEvent {
@@ -40,6 +40,7 @@ function formatEventType(eventType: string): string {
 }
 
 function EventRow({ event }: { event: CriticalEvent }) {
+  const { locale } = useI18n();
   const config = severityConfig[event.severity] || severityConfig.LOW;
   const Icon = config.icon;
   
@@ -57,7 +58,7 @@ function EventRow({ event }: { event: CriticalEvent }) {
             {event.category}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}
+            {formatRelativeTime(event.created_at, locale)}
           </span>
         </div>
       </div>

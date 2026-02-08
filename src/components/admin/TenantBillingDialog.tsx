@@ -14,6 +14,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 
 interface TenantBillingDialogProps {
   tenant: {
@@ -54,6 +56,7 @@ const billingStatusMap: Record<string, StatusType> = {
 
 export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillingDialogProps) {
   const queryClient = useQueryClient();
+  const { locale } = useI18n();
   const [isCreating, setIsCreating] = useState(false);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
@@ -135,13 +138,8 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
     }
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
+  const formatDisplayDate = (dateString: string | null) => {
+    return formatDate(dateString, locale, { dateStyle: 'long' });
   };
 
   const statusType = billing?.status ? billingStatusMap[billing.status] || 'neutral' : 'neutral';
@@ -179,14 +177,14 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Período atual</span>
                 <span className="text-sm">
-                  {formatDate(billing.current_period_start)} - {formatDate(billing.current_period_end)}
+                  {formatDisplayDate(billing.current_period_start)} - {formatDisplayDate(billing.current_period_end)}
                 </span>
               </div>
 
               {billing.cancel_at && (
                 <div className="flex items-center justify-between text-destructive">
                   <span className="text-sm">Cancela em</span>
-                  <span className="text-sm font-medium">{formatDate(billing.cancel_at)}</span>
+                  <span className="text-sm font-medium">{formatDisplayDate(billing.cancel_at)}</span>
                 </div>
               )}
 

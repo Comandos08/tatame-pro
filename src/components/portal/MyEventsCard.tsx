@@ -1,9 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Calendar, MapPin, ArrowRight, Trophy } from 'lucide-react';
+import { formatDate } from '@/lib/i18n/formatters';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,7 +37,7 @@ interface RegistrationWithEvent {
 }
 
 export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = false }: MyEventsCardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const { data: registrations = [], isLoading } = useQuery({
     queryKey: ['my-event-registrations', athleteId],
@@ -191,7 +190,7 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         <span>
-                          {format(new Date(reg.event.start_date), "dd 'de' MMM", { locale: ptBR })}
+                          {formatDate(reg.event.start_date, locale)}
                         </span>
                         {reg.event.location && (
                           <>
@@ -228,7 +227,7 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
                     <div className="space-y-1">
                       <p className="font-medium">{result.event?.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {result.category?.name} • {format(new Date(result.event?.start_date), "MMM yyyy", { locale: ptBR })}
+                        {result.category?.name} • {formatDate(result.event?.start_date, locale)}
                       </p>
                     </div>
                     {getPositionBadge(result.position)}

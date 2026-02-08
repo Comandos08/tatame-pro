@@ -27,7 +27,7 @@ import {
 } from '@/components/observability';
 import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@/lib/i18n/formatters';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -177,7 +177,7 @@ function MembershipHealthCard() {
 // ============================================
 
 export default function SystemHealth() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { currentUser, isGlobalSuperadmin, isLoading: authLoading, session } = useCurrentUser();
   const { data: health, isLoading: healthLoading, refetch, isFetching } = useSystemHealthStatus();
@@ -334,7 +334,7 @@ export default function SystemHealth() {
                     <div className="text-sm text-muted-foreground">
                       <Clock className="h-4 w-4 inline mr-1" />
                       {t('observability.dashboard.lastUpdate')}: {' '}
-                      {formatDistanceToNow(new Date(health.updatedAt), { addSuffix: true })}
+                      {formatRelativeTime(health.updatedAt, locale)}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm">

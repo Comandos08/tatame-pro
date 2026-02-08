@@ -18,6 +18,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useTenant } from '@/contexts/TenantContext';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/i18n/formatters';
 
 interface TimelineStep {
   id: string;
@@ -60,18 +61,7 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
 
   const status = billingState?.status;
 
-  const formatDate = (dateString: string | null | undefined): string | null => {
-    if (!dateString) return null;
-    const localeMap: Record<string, string> = {
-      'pt-BR': 'pt-BR',
-      'en': 'en-US',
-      'es': 'es-ES',
-    };
-    return new Date(dateString).toLocaleDateString(localeMap[locale] || 'pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    });
-  };
+  // Removed local formatDate - using centralized formatter
 
   // P3.3.P1.2: Explicit mapping, zero heuristics
   // Timeline state is 100% declarative based on current status only

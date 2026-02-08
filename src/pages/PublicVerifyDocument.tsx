@@ -147,12 +147,12 @@ function ValidState({ data }: { data: ValidData }) {
           )}
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Emitido em</span>
-            <span className="font-medium">{formatDate(data.issued_at)}</span>
+            <span className="font-medium">{formatDisplayDate(data.issued_at)}</span>
           </div>
           {data.valid_until && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Válido até</span>
-              <span className="font-medium">{formatDate(data.valid_until)}</span>
+              <span className="font-medium">{formatDisplayDate(data.valid_until)}</span>
             </div>
           )}
         </div>
@@ -231,15 +231,9 @@ function NotFoundState() {
   );
 }
 
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
+// Use formatDate from centralized formatters
+// Note: This public page uses pt-BR as default since it doesn't have i18n context
+import { formatDate as formatDateUtil } from '@/lib/i18n/formatters';
+function formatDisplayDate(dateStr: string): string {
+  return formatDateUtil(dateStr, 'pt-BR');
 }

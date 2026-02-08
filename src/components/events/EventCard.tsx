@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Calendar, MapPin, Users, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EventStatusBadge } from './EventStatusBadge';
 import { Event, EventStatus, canRegisterForEvent } from '@/types/event';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { cn } from '@/lib/utils';
 
 interface EventCardProps {
@@ -25,15 +25,15 @@ export function EventCard({
   registrationCount,
   className 
 }: EventCardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   
   const startDate = new Date(event.start_date);
   const endDate = new Date(event.end_date);
   const isSameDay = format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd');
   
   const dateDisplay = isSameDay
-    ? format(startDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-    : `${format(startDate, "dd MMM", { locale: ptBR })} - ${format(endDate, "dd MMM yyyy", { locale: ptBR })}`;
+    ? formatDate(startDate, locale, { dateStyle: 'long' })
+    : `${formatDate(startDate, locale, { dateStyle: 'medium' })} - ${formatDate(endDate, locale, { dateStyle: 'medium' })}`;
 
   const detailsLink = isAdmin 
     ? `/${tenantSlug}/app/events/${event.id}`

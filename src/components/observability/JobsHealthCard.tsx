@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useI18n } from '@/contexts/I18nContext';
 import { useJobsHealth } from '@/hooks/useSystemHealthStatus';
 import { JobStatus, getJobDisplayName } from '@/types/observability';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@/lib/i18n/formatters';
 import { cn } from '@/lib/utils';
 
 const statusIcons = {
@@ -30,12 +30,12 @@ const statusColors = {
 };
 
 function JobRow({ job }: { job: JobStatus }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const Icon = statusIcons[job.status];
   const colorClass = statusColors[job.status];
   
   const lastRunText = job.last_run_at 
-    ? formatDistanceToNow(new Date(job.last_run_at), { addSuffix: true })
+    ? formatRelativeTime(job.last_run_at, locale)
     : t('observability.jobs.neverRan');
   
   return (

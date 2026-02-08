@@ -8,6 +8,7 @@ import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDate } from '@/lib/i18n/formatters';
 import { toast } from 'sonner';
 
 export function TenantStatusBanner() {
@@ -40,18 +41,9 @@ export function TenantStatusBanner() {
     }
   };
 
-  const formatDate = (date: Date | null) => {
+  const formatDateDisplay = (date: Date | null) => {
     if (!date) return '';
-    const localeMap: Record<string, string> = {
-      'pt-BR': 'pt-BR',
-      'en': 'en-US',
-      'es': 'es-ES',
-    };
-    return date.toLocaleDateString(localeMap[locale] || 'pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatDate(date, locale, { dateStyle: 'long' });
   };
 
   // Don't show if dismissed, loading, or user can't see
@@ -94,7 +86,7 @@ export function TenantStatusBanner() {
     // Neutral trial message
     variant = 'default';
     icon = Clock;
-    message = t('tenantStatus.onTrial').replace('{date}', formatDate(status.currentPeriodEnd));
+    message = t('tenantStatus.onTrial').replace('{date}', formatDateDisplay(status.currentPeriodEnd));
     showCTA = false;
   } else {
     // No banner needed
