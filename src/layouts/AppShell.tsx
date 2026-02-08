@@ -50,6 +50,8 @@ import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
 import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
+import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
+import { useTenantStatus } from '@/hooks/useTenantStatus';
 import type { FeatureKey } from '@/lib/accessMatrix';
 
 interface AppShellProps {
@@ -71,6 +73,7 @@ export function AppShell({ children }: AppShellProps) {
   const { t } = useI18n();
   const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
   const { can } = usePermissions();
+  const { billingStatus } = useTenantStatus();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -139,6 +142,10 @@ export function AppShell({ children }: AppShellProps) {
     ? 'SUPERADMIN_GLOBAL'
     : 'NONE';
 
+  // BILLING UX SAFE GOLD B2.0: derive billing state deterministically
+  const billingState = normalizeBillingState(billingStatus);
+  const billingViewState = deriveBillingViewState(billingState);
+
   return (
     <div 
       className="min-h-screen bg-background"
@@ -151,6 +158,8 @@ export function AppShell({ children }: AppShellProps) {
       data-admin-view-state={adminViewState}
       data-admin-role={adminRole}
       data-admin-route={pathname}
+      data-billing-state={billingState}
+      data-billing-view-state={billingViewState}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
