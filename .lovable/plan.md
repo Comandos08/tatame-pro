@@ -1,402 +1,328 @@
 
+# PI-D6.1 — Contract & Invariant Verification (E2E + Enforcement)
 
-# PI-D6.0 — Core Stability & Architecture Hardening
-
-**Status:** PLAN (Aguardando aprovacao)
-**Escopo:** Fluxos criticos + blindagem arquitetural
-**Impacto funcional:** Baixo (correcoes estruturais, sem features novas)
-**Risco de regressao:** Controlado (escopo fechado + criterios explicitos)
+**Status:** PLAN (Aguardando aprovação)
+**Objetivo:** Provar (não assumir) que invariantes do sistema são respeitados em runtime
+**Impacto funcional:** Zero
+**Risco de regressão:** Muito baixo
+**Arquivos a criar:** 3
+**Arquivos a modificar:** 2
 
 ---
 
-## 1. Diagnostico do Estado Atual
+## 1. Análise do Estado Atual
 
-### 1.1 Arquitetura de Seguranca Existente
+### 1.1 Estrutura de Testes Existente
 
-O sistema ja possui uma base solida de seguranca documentada em:
+O projeto já possui uma arquitetura robusta de testes de contrato em `e2e/contract/`:
 
 ```text
-docs/
-├── SSF-CONSTITUTION.md      — Documento constitucional (imutavel)
-├── HARDENING.md             — P3 COMPLETE (v1.4.0)
-├── SECURITY-AUTH-CONTRACT.md — Auth state machine
-├── SECURITY/threat-model.md — Modelo de ameacas formal
-└── SAFE_GOLD/T1.0-*.md      — Contratos de tenant lifecycle
+e2e/contract/
+├── README.md                      — Política NEVER REMOVE
+├── safe-gold-invariants.spec.ts   — Invariantes SAFE GOLD (C.3.x)
+├── tenant-lifecycle.spec.ts       — Lifecycle do tenant (T.C.x)
+├── billing-contract.spec.ts       — Billing SAFE GOLD (B.C.x)
+├── impersonation-contract.spec.ts — Impersonation (I.C.x)
+└── ... (outros contratos)
 ```
 
-### 1.2 Edge Functions Criticas Analisadas
+### 1.2 Padrões Observados
 
-| Funcao | Status | Gaps Identificados |
-|--------|--------|-------------------|
-| `complete-tenant-onboarding` | ✅ COMPLETO | Contrato explicito, rollback atomico, auditoria |
-| `generate-digital-card` | ⚠️ PARCIAL | **NAO valida tenant.status antes de emissao** |
-| `generate-diploma` | ⚠️ PARCIAL | Valida billing, mas **NAO valida tenant.lifecycle_status** |
-| `verify-document` | ✅ COMPLETO | Usa Golden Rule (isInstitutionalDocumentValid) |
-| `verify-digital-card` | ✅ COMPLETO | Usa Golden Rule |
-| `resolve-identity-wizard` | ✅ COMPLETO | CREATE_TENANT cria em status=SETUP corretamente |
+| Padrão | Uso |
+|--------|-----|
+| `freezeTime()` | Tempo determinístico |
+| `logTestStep()` / `logTestAssertion()` | Logging estruturado |
+| `PROTECTED_TABLES` | Mutation boundary |
+| `data-*` selectors | DOM observability |
+| `route()` interceptors | Mutation detection |
+| `invokeEdgeFunction()` | Teste direto de Edge Functions |
 
-### 1.3 Invariantes Existentes (Documentadas)
-
-**SAFE GOLD ja define:**
-- Tenant lifecycle: SETUP → ACTIVE → BLOCKED
-- Mutation boundaries para tabelas protegidas
-- Golden Rule para documentos (tenant ACTIVE + billing OK + doc ACTIVE)
-
-**Federation (PI-D5.A):**
-- Eventos federativos exigem `federation_id` nos metadados
-- Auditoria valida campos obrigatorios
-
-### 1.4 Gaps Criticos Identificados
+### 1.3 Gaps Identificados
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
-│ GAP 1: EMISSAO DE DOCUMENTO SEM VALIDACAO DE TENANT STATUS    │
+│ GAP 1: TENANT LIFECYCLE GUARD SEM TESTE DE EDGE FUNCTION      │
 │                                                                │
-│ generate-digital-card e generate-diploma NAO verificam se     │
-│ tenant.lifecycle_status === 'ACTIVE' antes de emitir.         │
-│                                                                │
-│ Risco: Documento emitido para tenant em SETUP ou BLOCKED.     │
+│ O tenant-lifecycle.spec.ts testa UI/DOM, mas NÃO testa       │
+│ que Edge Functions (generate-digital-card, generate-diploma)  │
+│ bloqueiam emissão para tenants SETUP/BLOCKED.                 │
 └────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────┐
-│ GAP 2: FEDERACAO SEM EDGE FUNCTIONS DEDICADAS                 │
+│ GAP 2: FEDERATION GOVERNANCE SEM TESTES E2E                   │
 │                                                                │
-│ federation_tenants (vinculo fed↔org) nao tem Edge Function.   │
-│ Operacoes de JOIN/LEAVE podem ocorrer diretamente via RLS.    │
-│                                                                │
-│ Risco: Historico federativo nao auditado explicitamente.      │
+│ join-federation e leave-federation foram criados no D6.0,    │
+│ mas não há testes validando:                                  │
+│   - Bloqueio para tenant SETUP                                │
+│   - Auditoria com federation_id                               │
+│   - Soft history (left_at, não DELETE)                        │
 └────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────┐
-│ GAP 3: INVARIANTES NAO CENTRALIZADAS                          │
+│ GAP 3: INVARIANTS.md SEM REFERÊNCIA DE TEST COVERAGE         │
 │                                                                │
-│ Invariantes estao espalhadas em docs diferentes.              │
-│ Nao existe um INVARIANTS.md canonical.                        │
-│                                                                │
-│ Risco: Violacao acidental por falta de visibilidade.          │
-└────────────────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────────────────┐
-│ GAP 4: CONTRATOS DE EDGE FUNCTIONS NAO DOCUMENTADOS           │
-│                                                                │
-│ Funcoes criticas nao tem INPUT/PRE/POST documentado inline.   │
-│                                                                │
-│ Risco: Comportamento inesperado, dificil manutencao.          │
+│ O documento INVARIANTS.md lista invariantes, mas não         │
+│ referencia quais testes as validam.                           │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Estrategia de Execucao
+## 2. Arquivos a Criar
 
-### 2.1 Divisao em Sub-PIs
+### 2.1 `e2e/contract/tenant-lifecycle-guard.spec.ts`
+
+**Objetivo:** Validar que Edge Functions respeitam I4 (Tenant Lifecycle)
+
+**Estrutura:**
 
 ```text
-PI-D6.0 (Este Plano)
-    │
-    ├── PI-D6.1 — Core Stability (Fluxos Criticos)
-    │       ├── 6.1.1 — Tenant lifecycle validation em emissao
-    │       ├── 6.1.2 — Federation Edge Functions (JOIN/LEAVE)
-    │       └── 6.1.3 — Verificacao publica hardening
-    │
-    └── PI-D6.2 — Architecture Hardening (Contratos e Invariantes)
-            ├── 6.2.1 — INVARIANTS.md canonical
-            ├── 6.2.2 — Edge Function contracts inline
-            └── 6.2.3 — requireTenantActive shared utility
+TG.C — Tenant Lifecycle Guard Contract
+│
+├── TG.C.1: generate-digital-card BLOCKS for tenant SETUP
+│           → Chama Edge Function diretamente
+│           → Espera { success: false, code: "TENANT_NOT_ACTIVE" }
+│           → HTTP 200 (erro neutro)
+│
+├── TG.C.2: generate-digital-card BLOCKS for tenant BLOCKED
+│           → Mesmo padrão
+│
+├── TG.C.3: generate-digital-card ALLOWS for tenant ACTIVE
+│           → Espera { success: true } (ou erro de billing, não de tenant)
+│
+├── TG.C.4: generate-diploma BLOCKS for tenant SETUP
+│           → Mesmo padrão
+│
+├── TG.C.5: generate-diploma BLOCKS for tenant BLOCKED
+│           → Mesmo padrão
+│
+├── TG.C.6: Tenant inexistente retorna erro neutro
+│           → UUID inválido → success: false
+│           → Sem vazamento semântico
+│
+└── TG.C.7: Todas respostas são HTTP 200
+            → Validar que nenhum erro retorna 4xx/5xx
 ```
 
----
-
-## 3. Bloco A — Core Stability (PI-D6.1)
-
-### 3.1 Tenant Lifecycle Validation em Emissao
-
-**Problema:**
-- `generate-digital-card` e `generate-diploma` NAO verificam `tenant.lifecycle_status`
-- Documento pode ser emitido para tenant em SETUP ou BLOCKED
-
-**Solucao:**
-
-Criar utility compartilhada e aplicar em ambas funcoes:
+**Padrão de implementação:**
 
 ```typescript
-// supabase/functions/_shared/requireTenantActive.ts
-export async function requireTenantActive(
-  supabase: SupabaseClient,
-  tenantId: string
-): Promise<{ allowed: boolean; status: string | null; error?: string }> {
-  const { data: tenant, error } = await supabase
-    .from('tenants')
-    .select('lifecycle_status')
-    .eq('id', tenantId)
-    .maybeSingle();
+// Usa securityTestClient.ts para invocar Edge Functions
+const { status, data } = await invokeEdgeFunction(
+  session,
+  'generate-digital-card',
+  { membershipId: TEST_MEMBERSHIP_ID }
+);
 
-  if (error || !tenant) {
-    return { allowed: false, status: null, error: 'Tenant not found' };
+expect(status).toBe(200);
+expect(data.success).toBe(false);
+expect(data.code).toBe('TENANT_NOT_ACTIVE');
+```
+
+---
+
+### 2.2 `e2e/contract/federation-lifecycle.spec.ts`
+
+**Objetivo:** Validar I2 (Federation Governance) e I3 (Audit Trail)
+
+**Estrutura:**
+
+```text
+FG.C — Federation Lifecycle Contract
+│
+├── FG.C.1: join-federation BLOCKS for tenant SETUP
+│           → Chama Edge Function
+│           → Espera bloqueio com código neutro
+│
+├── FG.C.2: join-federation BLOCKS for federation INACTIVE
+│           → Federation.status !== 'ACTIVE' → bloqueio
+│
+├── FG.C.3: join-federation RETURNS 403 without role
+│           → Sem FED_ADMIN ou ADMIN_TENANT → 403
+│
+├── FG.C.4: join-federation CREATES audit with federation_id
+│           → Após join válido, verifica audit_logs
+│           → metadata.federation_id MUST exist
+│
+├── FG.C.5: join-federation duplicate is idempotent
+│           → Segunda chamada retorna neutro, não erro
+│
+├── FG.C.6: leave-federation SETS left_at (never deletes)
+│           → Após leave, verifica:
+│           → federation_tenants.left_at IS NOT NULL
+│           → Row ainda existe
+│
+├── FG.C.7: leave-federation CREATES audit with federation_id
+│           → metadata.federation_id + metadata.reason
+│
+├── FG.C.8: leave-federation duplicate is idempotent
+│           → Já saiu → retorna neutro
+│
+└── FG.C.9: DELETE direto via RLS é BLOQUEADO
+            → Tenta DELETE em federation_tenants
+            → Deve falhar (RLS block)
+```
+
+---
+
+### 2.3 `e2e/helpers/edge-function-invoker.ts`
+
+**Objetivo:** Helper centralizado para invocar Edge Functions nos testes
+
+**Funções:**
+
+```typescript
+export async function invokeEdgeFunctionWithSetup(
+  functionName: string,
+  body: Record<string, unknown>,
+  options?: {
+    tenantLifecycleStatus?: 'SETUP' | 'ACTIVE' | 'BLOCKED';
+    userRole?: 'SUPERADMIN' | 'TENANT_ADMIN' | 'FED_ADMIN';
+    expectSuccess?: boolean;
+    expectCode?: string;
   }
+): Promise<EdgeFunctionResult>;
 
-  if (tenant.lifecycle_status !== 'ACTIVE') {
-    return { 
-      allowed: false, 
-      status: tenant.lifecycle_status,
-      error: `Tenant not active: ${tenant.lifecycle_status}` 
-    };
-  }
+export async function assertEdgeFunctionBlocked(
+  functionName: string,
+  body: Record<string, unknown>,
+  expectedCode: string
+): Promise<void>;
 
-  return { allowed: true, status: 'ACTIVE' };
-}
+export async function assertAuditLogCreated(
+  eventType: string,
+  tenantId: string,
+  requiredMetadataFields: string[]
+): Promise<void>;
 ```
-
-**Aplicacao:**
-
-| Funcao | Alteracao |
-|--------|-----------|
-| `generate-digital-card` | Adicionar `requireTenantActive()` antes de emissao |
-| `generate-diploma` | Adicionar `requireTenantActive()` antes de emissao |
-
-**Resposta para tenant nao-ACTIVE:**
-```json
-{
-  "success": false,
-  "error": "Operation blocked",
-  "code": "TENANT_NOT_ACTIVE"
-}
-```
-
-### 3.2 Federation Edge Functions (JOIN/LEAVE)
-
-**Problema:**
-- Vinculos `federation_tenants` podem ser criados/removidos diretamente
-- Historico federativo nao e auditado explicitamente
-
-**Solucao:**
-
-Criar duas Edge Functions dedicadas:
-
-#### 3.2.1 `join-federation`
-
-```typescript
-// supabase/functions/join-federation/index.ts
-// CONTRACT:
-// INPUT: { tenantId: UUID, federationId: UUID }
-// PRE: tenant.lifecycle_status === 'ACTIVE'
-// PRE: federation.status === 'ACTIVE'
-// PRE: requester has FED_ADMIN or ADMIN_TENANT role
-// POST: federation_tenants row created
-// POST: audit event TENANT_JOINED_FEDERATION with federation_id
-```
-
-#### 3.2.2 `leave-federation`
-
-```typescript
-// supabase/functions/leave-federation/index.ts
-// CONTRACT:
-// INPUT: { tenantId: UUID, federationId: UUID, reason: string }
-// PRE: vinculo exists and is ACTIVE
-// PRE: requester has FED_ADMIN or ADMIN_TENANT role
-// POST: federation_tenants.status = 'LEFT' (soft delete)
-// POST: audit event TENANT_LEFT_FEDERATION with federation_id
-```
-
-**Principios:**
-- NUNCA apagar vinculo (soft history)
-- SEMPRE auditar com `metadata.federation_id`
-- Estados derivados do historico, nao o contrario
-
-### 3.3 Verificacao Publica Hardening
-
-**Status Atual:** ✅ JA COMPLETO
-
-Ambas funcoes (`verify-document`, `verify-digital-card`) ja seguem:
-- HTTP 200 sempre
-- Mensagem neutra unica para falha
-- Golden Rule aplicada
-
-**Acao:** Apenas validar via E2E que todos os cenarios retornam resposta neutra:
-- Token invalido
-- Documento inexistente
-- Documento revogado
-- Tenant bloqueado
 
 ---
 
-## 4. Bloco B — Architecture Hardening (PI-D6.2)
+## 3. Arquivos a Modificar
 
-### 4.1 INVARIANTS.md Canonical
+### 3.1 `e2e/contract/README.md`
 
-**Problema:**
-Invariantes estao espalhadas em:
-- `docs/PRODUCT-SAFETY.md` (invariantes de UX)
-- `docs/SSF-CONSTITUTION.md` (principios)
-- `e2e/contract/README.md` (invariantes de teste)
-- Varias Edge Functions (inline)
-
-**Solucao:**
-Criar `docs/SECURITY/INVARIANTS.md` como ponto unico:
+**Adicionar seções para novos contratos:**
 
 ```markdown
-# TATAME Pro — System Invariants
+### `tenant-lifecycle-guard.spec.ts` (PI-D6.1)
+- Edge Functions block for tenant SETUP/BLOCKED (I4)
+- All errors return HTTP 200 (I6)
+- No semantic leakage in error messages
 
-## I1. Document Validity (Golden Rule)
-Documento valido SOMENTE se:
-- tenant.lifecycle_status === 'ACTIVE'
-- billing.status ∈ ['ACTIVE', 'TRIALING']
-- document.status ∈ ['ACTIVE', 'ISSUED']
-- document.revoked_at === null
-
-## I2. Federation Governance
-- Federacao nunca existe sem federation_roles
-- Vinculo tenant↔federation e imutavel (soft history)
-- Eventos federativos exigem metadata.federation_id
-
-## I3. Audit Trail
-- audit_logs e append-only (DELETE/UPDATE bloqueados)
-- Acoes institucionais exigem auditoria
-- Eventos federativos exigem federation_id
-- Eventos de conselho exigem federation_id + council_id
-
-## I4. Tenant Lifecycle
-- Tenant em SETUP: operacoes destrutivas bloqueadas
-- Tenant em BLOCKED: todas operacoes bloqueadas
-- Transicao SETUP→ACTIVE: atomica com billing bootstrap
-
-## I5. RLS Independence
-- Seguranca nunca depende de frontend
-- Guards sao defense-in-depth, nao unica camada
-- RLS em todas tabelas sensivel
-
-## I6. Error Neutrality (Public Endpoints)
-- HTTP 200 sempre em endpoints publicos
-- Mensagem neutra unica para qualquer falha
-- Zero vazamento semantico
-```
-
-### 4.2 Edge Function Contracts Inline
-
-**Problema:**
-Funcoes criticas nao tem contrato documentado de forma padronizada.
-
-**Solucao:**
-Adicionar JSDoc padronizado no topo de cada funcao critica:
-
-```typescript
-/**
- * @contract generate-digital-card
- * 
- * INPUT:
- *   - membershipId: UUID (obrigatorio)
- * 
- * PRECONDITIONS:
- *   - tenant.lifecycle_status === 'ACTIVE'
- *   - billing.status ∈ ['ACTIVE', 'TRIALING']
- *   - membership.payment_status === 'PAID'
- *   - membership.status ∈ ['PENDING_REVIEW', 'APPROVED', 'ACTIVE']
- * 
- * POSTCONDITIONS:
- *   - digital_cards row created
- *   - document_public_tokens row created
- *   - audit event DOCUMENT_ISSUED logged
- * 
- * ERRORS:
- *   - All errors return HTTP 200 with { success: false }
- *   - No stack traces exposed
- */
-```
-
-**Funcoes a documentar:**
-1. `generate-digital-card`
-2. `generate-diploma`
-3. `complete-tenant-onboarding`
-4. `approve-membership`
-5. `verify-document`
-6. `start-impersonation`
-
-### 4.3 requireTenantActive Shared Utility
-
-Criar em `supabase/functions/_shared/requireTenantActive.ts`:
-
-```typescript
-/**
- * Validates that tenant is in ACTIVE lifecycle status.
- * FAIL-CLOSED: Any error = blocked access.
- * 
- * @usage
- * const check = await requireTenantActive(supabase, tenantId);
- * if (!check.allowed) {
- *   return tenantNotActiveResponse(check.status);
- * }
- */
-export async function requireTenantActive(
-  supabase: SupabaseClient,
-  tenantId: string
-): Promise<TenantActiveCheckResult>;
-
-export function tenantNotActiveResponse(
-  status: string | null
-): Response;
+### `federation-lifecycle.spec.ts` (PI-D6.1)
+- Federation join/leave require proper roles (I2)
+- Audit logs contain federation_id (I3)
+- Soft history: left_at instead of DELETE (I2)
+- RLS blocks direct DELETE on federation_tenants
 ```
 
 ---
 
-## 5. Arquivos a Criar/Modificar
+### 3.2 `docs/SECURITY/INVARIANTS.md`
 
-### 5.1 Arquivos a Criar
+**Adicionar seção "Test Coverage":**
 
-| Arquivo | Descricao |
-|---------|-----------|
-| `docs/SECURITY/INVARIANTS.md` | Invariantes canonicas centralizadas |
-| `supabase/functions/_shared/requireTenantActive.ts` | Utility para validar tenant ACTIVE |
-| `supabase/functions/join-federation/index.ts` | Edge Function para vinculo fed↔org |
-| `supabase/functions/leave-federation/index.ts` | Edge Function para saida de federacao |
+```markdown
+---
 
-### 5.2 Arquivos a Modificar
+## Test Coverage
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/functions/generate-digital-card/index.ts` | Adicionar requireTenantActive + contrato JSDoc |
-| `supabase/functions/generate-diploma/index.ts` | Adicionar requireTenantActive + contrato JSDoc |
-| `supabase/functions/complete-tenant-onboarding/index.ts` | Adicionar contrato JSDoc (ja tem logica ok) |
-| `supabase/functions/approve-membership/index.ts` | Adicionar contrato JSDoc |
-| `supabase/functions/verify-document/index.ts` | Adicionar contrato JSDoc (ja tem logica ok) |
-| `supabase/functions/start-impersonation/index.ts` | Adicionar contrato JSDoc |
+Each invariant is validated by contract tests in `e2e/contract/`:
 
-### 5.3 Arquivos de Teste
+| Invariant | Test File | Test IDs |
+|-----------|-----------|----------|
+| I1. Document Validity | `safe-gold-invariants.spec.ts` | C.3.x |
+| I2. Federation Governance | `federation-lifecycle.spec.ts` | FG.C.1-9 |
+| I3. Audit Trail | `federation-lifecycle.spec.ts` | FG.C.4, FG.C.7 |
+| I4. Tenant Lifecycle | `tenant-lifecycle-guard.spec.ts` | TG.C.1-7 |
+| I5. RLS Independence | `safe-gold-invariants.spec.ts` | C.3.1, C.3.3 |
+| I6. Error Neutrality | `tenant-lifecycle-guard.spec.ts` | TG.C.7 |
+| I7. Billing Guard | `billing-contract.spec.ts` | B.C.x |
+| I8. Impersonation | `impersonation-contract.spec.ts` | I.C.x |
 
-| Arquivo | Descricao |
-|---------|-----------|
-| `e2e/contract/tenant-active-guard.spec.ts` | Validar que emissao bloqueia para SETUP/BLOCKED |
-| `e2e/contract/federation-lifecycle.spec.ts` | Validar JOIN/LEAVE e auditoria |
+**Policy:** All invariants MUST have corresponding contract tests.
+```
 
 ---
 
-## 6. Criterios de Aceite (SAFE GOLD)
+## 4. Dependências de Dados
 
-| Criterio | Validacao |
+### 4.1 Fixtures Necessárias
+
+Os testes precisam de dados seed para:
+
+| Entidade | Requisito |
 |----------|-----------|
-| Fluxos criticos previsiveis | Nenhuma emissao para tenant nao-ACTIVE |
-| Nenhuma decisao implicita | Todos contratos documentados inline |
-| Seguranca independente de UI | requireTenantActive no backend |
-| Auditoria obrigatoria | JOIN/LEAVE federativos auditados |
-| Erros neutros | Verificacao publica nao vaza info |
-| Sistema extensivel | INVARIANTS.md canonical |
+| Tenant SETUP | `lifecycle_status = 'SETUP'` |
+| Tenant BLOCKED | `lifecycle_status = 'BLOCKED'` |
+| Tenant ACTIVE | `lifecycle_status = 'ACTIVE'` |
+| Federation ACTIVE | `status = 'ACTIVE'` |
+| Federation INACTIVE | `status = 'INACTIVE'` |
+| User com FED_ADMIN | `federation_roles.role = 'FED_ADMIN'` |
+| User sem role | Usuário autenticado sem papéis |
+
+### 4.2 Estratégia de Seed
+
+Usar `e2e/fixtures/users.seed.ts` existente + criar fixtures específicas via `beforeAll`:
+
+```typescript
+let tenantSetup: string;
+let tenantBlocked: string;
+let federationActive: string;
+
+beforeAll(async () => {
+  // Criar ou buscar tenants em estados específicos
+  // Usar createTestSupabaseClient() do projeto
+});
+```
 
 ---
 
-## 7. Ordem de Execucao
+## 5. Estrutura Final de Arquivos
 
 ```text
-PI-D6.1.1 — requireTenantActive utility
-    ↓
-PI-D6.1.2 — Aplicar em generate-digital-card e generate-diploma
-    ↓
-PI-D6.1.3 — Edge Functions join-federation e leave-federation
-    ↓
-PI-D6.2.1 — INVARIANTS.md canonical
-    ↓
-PI-D6.2.2 — Contratos JSDoc em Edge Functions
-    ↓
-E2E — tenant-active-guard.spec.ts e federation-lifecycle.spec.ts
+e2e/
+├── contract/
+│   ├── README.md                        [MODIFICAR]
+│   ├── tenant-lifecycle-guard.spec.ts   [CRIAR]
+│   └── federation-lifecycle.spec.ts     [CRIAR]
+├── helpers/
+│   └── edge-function-invoker.ts         [CRIAR]
+└── fixtures/
+    └── (existentes, reutilizar)
+
+docs/SECURITY/
+└── INVARIANTS.md                        [MODIFICAR]
 ```
+
+---
+
+## 6. Critérios de Aceite (SAFE GOLD)
+
+| Critério | Teste | Validação |
+|----------|-------|-----------|
+| Nenhum bypass de lifecycle | TG.C.1-2, TG.C.4-5 | success: false para SETUP/BLOCKED |
+| Nenhuma emissão fora de ACTIVE | TG.C.1-5 | Edge Function retorna bloqueio |
+| Nenhuma exclusão física de vínculo | FG.C.6 | left_at preenchido, row existe |
+| Auditoria sempre presente | FG.C.4, FG.C.7 | metadata.federation_id obrigatório |
+| HTTP neutro em público | TG.C.7 | Todos retornam HTTP 200 |
+| Testes determinísticos | Todos | freezeTime(), mocks controlados |
+
+---
+
+## 7. Padrão de Nomenclatura de Testes
+
+Seguindo o padrão existente:
+
+| Prefixo | Domínio |
+|---------|---------|
+| C.x.x | Core SAFE GOLD |
+| T.C.x | Tenant Lifecycle (UI) |
+| TG.C.x | Tenant Guard (Edge Functions) |
+| FG.C.x | Federation Governance |
+| B.C.x | Billing |
+| I.C.x | Impersonation |
 
 ---
 
@@ -404,46 +330,46 @@ E2E — tenant-active-guard.spec.ts e federation-lifecycle.spec.ts
 
 | Item | Motivo |
 |------|--------|
-| UX / UI | Nao e objetivo deste PI |
-| Microcopy | Nao e objetivo deste PI |
-| Layout | Nao e objetivo deste PI |
-| Novos dashboards | Nao e objetivo deste PI |
-| Features novas | Este PI remove fragilidade, nao adiciona funcionalidade |
-| Otimizacao prematura | Foco em correcao, nao performance |
+| UX / UI | Este PI é sobre backend |
+| Performance | Foco em correção |
+| Novas Edge Functions | Apenas testar existentes |
+| Refactors cosméticos | Apenas testes |
+| Copy / Microcopy | Não aplicável |
 
 ---
 
-## 9. Proximo Passo
+## 9. Ordem de Execução
 
-Se aprovado, execucao sera feita em etapas:
-
-1. **PI-D6.1.1** — Criar `requireTenantActive.ts`
-2. **PI-D6.1.2** — Aplicar em `generate-digital-card` e `generate-diploma`
-3. **PI-D6.1.3** — Criar Edge Functions de federacao
-4. **PI-D6.2.1** — Criar `INVARIANTS.md`
-5. **PI-D6.2.2** — Documentar contratos JSDoc
-6. **E2E** — Testes de contrato
-
-Cada etapa sera um PI menor, testavel e reversivel.
+```text
+1. Criar e2e/helpers/edge-function-invoker.ts
+   ↓
+2. Criar e2e/contract/tenant-lifecycle-guard.spec.ts
+   ↓
+3. Criar e2e/contract/federation-lifecycle.spec.ts
+   ↓
+4. Atualizar e2e/contract/README.md
+   ↓
+5. Atualizar docs/SECURITY/INVARIANTS.md
+```
 
 ---
 
-## Resumo Executivo
+## 10. Resumo Executivo
 
-Este PI consolida a estabilidade arquitetural do Tatame atraves de:
+Este PI transforma o sistema de "bem escrito" para "provado":
 
-1. **Core Stability (D6.1):**
-   - Validacao de tenant.lifecycle_status antes de emissao de documentos
-   - Edge Functions dedicadas para governanca federativa (JOIN/LEAVE)
-   - Confirmacao de hardening em verificacao publica
+1. **Tenant Lifecycle Guard Tests (TG.C):**
+   - 7 cenários validando que Edge Functions respeitam I4
+   - Testes diretos via API, não via UI
+   - Validação de HTTP 200 para erro neutro (I6)
 
-2. **Architecture Hardening (D6.2):**
-   - INVARIANTS.md canonical centralizado
-   - Contratos JSDoc padronizados em Edge Functions
-   - Utility compartilhada `requireTenantActive`
+2. **Federation Lifecycle Tests (FG.C):**
+   - 9 cenários validando I2 (Governance) e I3 (Audit)
+   - Soft history validado (left_at, não DELETE)
+   - Auditoria com federation_id obrigatório
 
-**Impacto funcional:** Baixo (correcoes estruturais)
-**Arquivos criados:** 4
-**Arquivos modificados:** 6
-**Risco de regressao:** Controlado (SAFE GOLD)
+3. **Documentação Atualizada:**
+   - README.md com novos contratos
+   - INVARIANTS.md com test coverage matrix
 
+**Resultado:** Sistema blindado com invariantes executáveis, base sólida para Dia 7 sem medo de regressão estrutural.
