@@ -1,261 +1,292 @@
 
-# PI-ONB-001 — Correção Definitiva do Onboarding para Tenant Existente
 
-## Resumo
+# PI-POL-001B — Enforcement Backend (Edge Function)
 
-Este PI implementa o suporte para entrada de atletas em organizações existentes através do Identity Wizard. A solução adiciona uma nova action `JOIN_EXISTING_TENANT` à Edge Function `resolve-identity-wizard`, separando claramente as intenções de "criar organização" e "entrar em organização existente".
+## Resumo Executivo
+
+Este PI implementa a **enforcement** da regra canonica de oficialidade no backend. A Edge Function `generate-diploma` passara a validar obrigatoriamente a existencia de membership ACTIVE antes de emitir qualquer diploma, bloqueando a operacao com audit log quando a condicao nao for atendida.
 
 ---
 
-## Arquitetura da Solução
+## Estado Atual (Diagnostico)
+
+| Aspecto | Status |
+|---------|--------|
+| Query do atleta inclui `profile_id` | NAO (linha 64: `id, full_name, tenant_id`) |
+| Validacao de membership ACTIVE | NAO EXISTE |
+| Audit log de bloqueio | NAO EXISTE |
+| Campo `is_official` na insercao de diploma | NAO (linha 386-401) |
+| Campo `is_official` na insercao de grading | NAO (linha 416-424) |
+
+---
+
+## Arquitetura do Gate de Membership
 
 ```text
-ANTES (Bloqueado)
-─────────────────────────────────────────────
-UI: joinMode="existing" + inviteCode="tier-one"
-     │
-     ▼
-Edge Function: COMPLETE_WIZARD
-     │
-     ▼
-❌ ERRO: "Only 'new' organization mode is supported"
-
-
-DEPOIS (Funcional)
-─────────────────────────────────────────────
-UI: "Criar nova organização"       UI: "Entrar em organização existente"
-     │                                   │
-     ▼                                   ▼
-action: CREATE_TENANT              action: JOIN_EXISTING_TENANT
-     │                                   │
-     ▼                                   ▼
-Cria tenant + ADMIN_TENANT         Valida slug + PENDING_REVIEW membership
-     │                                   │
-     ▼                                   ▼
-Redirect: /{slug}/app/onboarding   Redirect: /{slug}/membership/status
+FLUXO ATUAL                           FLUXO APOS PI-POL-001B
+------------------------------------  ------------------------------------
+Request                               Request
+    |                                     |
+    v                                     v
+Validar params                        Validar params
+    |                                     |
+    v                                     v
+Buscar athlete                        Buscar athlete + profile_id  <-- NOVO
+    |                                     |
+    v                                     v
+Buscar grading_level                  Buscar grading_level
+    |                                     |
+    v                                     v
+Validar tenant                        Validar tenant
+    |                                     |
+    v                                     v
+Billing check                         Billing check
+    |                                     |
+    v                                     v
+[nenhum gate]                         PI-POL-001B GATE  <-- NOVO
+                                          |
+                                      +---+---+
+                                      |       |
+                                      v       v
+                                    ACTIVE   NO ACTIVE
+                                      |       |
+                                      v       v
+                                  continua  BLOQUEIO + Audit
+                                      |       |
+    v                                 v       v
+Gerar PDF                         Gerar PDF  HTTP 200 + error
+    |                                 |
+    v                                 v
+Insert diploma                    Insert diploma + is_official=true
+    |                                 |
+    v                                 v
+Insert grading                    Insert grading + is_official=true
+    |                                 |
+    v                                 v
+Response success                  Response success
 ```
 
 ---
 
-## Escopo de Implementação
+## Mudancas Obrigatorias
 
-### 1. Banco de Dados — Índice de Idempotência
+### 1. Atualizar SELECT do atleta para incluir `profile_id`
 
-Criar índice parcial único para garantir que um usuário não possa ter múltiplas solicitações ativas/pendentes no mesmo tenant:
+**Localizacao:** Linha 64
 
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS uq_membership_applicant_active_or_pending
-ON public.memberships (tenant_id, applicant_profile_id)
-WHERE status IN ('PENDING_REVIEW', 'ACTIVE', 'APPROVED');
-```
-
-### 2. Edge Function — `resolve-identity-wizard`
-
-#### 2.1 Atualizar Types
-
+**De:**
 ```typescript
-// Antes
-type Action = "CHECK" | "COMPLETE_WIZARD";
-
-// Depois
-type Action = 
-  | "CHECK" 
-  | "CREATE_TENANT" 
-  | "JOIN_EXISTING_TENANT" 
-  | "ACCEPT_INVITE"    // Stub para futuro
-  | "COMPLETE_WIZARD"; // Compatibilidade temporária
+.select('id, full_name, tenant_id')
 ```
 
-#### 2.2 Atualizar Router de Ações
-
-O router será expandido para:
-- `CHECK` → Mantém comportamento atual (read-only)
-- `CREATE_TENANT` → Nova action, lógica idêntica ao `handleWizardCompletion` atual
-- `JOIN_EXISTING_TENANT` → Nova action para entrada em tenant existente
-- `ACCEPT_INVITE` → Stub retornando NOT_IMPLEMENTED
-- `COMPLETE_WIZARD` → Compatibilidade: roteia para CREATE_TENANT ou JOIN_EXISTING_TENANT baseado no joinMode
-
-#### 2.3 Implementar `handleJoinExistingTenant`
-
-Esta função:
-1. Valida formato do código/slug (letras, números, hífen, 3-64 chars)
-2. Busca tenant por slug (case-insensitive via `ilike`)
-3. Valida que tenant está com `status = 'ACTIVE'`
-4. Verifica se já existe membership do usuário neste tenant
-5. Cria membership com `status = 'PENDING_REVIEW'`
-6. Marca `wizard_completed = true` no profile (sem setar `tenant_id`)
-7. Registra audit log
-8. Retorna redirect para `/{slug}/membership/status`
-
-#### 2.4 Renomear Handler Existente
-
-- `handleWizardCompletion` → `handleCreateTenant`
-- Lógica permanece 100% idêntica
-
-### 3. Frontend — `IdentityContext.tsx`
-
-#### 3.1 Novos Types
-
+**Para:**
 ```typescript
-export interface CreateTenantPayload {
-  orgName: string;
-}
-
-export interface JoinExistingTenantPayload {
-  tenantCode: string;
-}
-
-export interface CreateTenantResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ADMIN_TENANT";
-  redirectPath?: string;
-  error?: IdentityError;
-}
-
-export interface JoinExistingTenantResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ATHLETE";
-  redirectPath?: string;
-  error?: IdentityError;
-}
+.select('id, full_name, tenant_id, profile_id')
 ```
-
-#### 3.2 Novos Métodos
-
-```typescript
-const createTenant = async (payload: CreateTenantPayload): Promise<CreateTenantResult>
-const joinExistingTenant = async (payload: JoinExistingTenantPayload): Promise<JoinExistingTenantResult>
-```
-
-O método `completeWizard` existente será mantido para compatibilidade mas marcado como deprecated.
-
-### 4. Frontend — `IdentityWizard.tsx`
-
-#### 4.1 Atualizar `handleComplete`
-
-```typescript
-// Antes
-const payload: CompleteWizardPayload = {
-  joinMode,
-  profileType,
-  ...(joinMode === 'existing' && { inviteCode: inviteCode.trim() }),
-  ...(joinMode === 'new' && { newOrgName: newOrgName.trim() }),
-};
-const result = await completeWizard(payload);
-
-// Depois
-if (joinMode === 'new') {
-  const result = await createTenant({ orgName: newOrgName.trim() });
-  // handle result...
-} else if (joinMode === 'existing') {
-  const result = await joinExistingTenant({ tenantCode: inviteCode.trim() });
-  // handle result...
-}
-```
-
-#### 4.2 Tratamento de Erros Específicos
-
-Adicionar handling para os novos códigos de erro:
-- `TENANT_NOT_FOUND` → "Organização não encontrada"
-- `TENANT_INACTIVE` → "Esta organização não está ativa"
-- `ALREADY_REQUESTED` → "Sua solicitação já está em análise"
-- `ALREADY_MEMBER` → "Você já faz parte desta organização"
 
 ---
 
-## Contratos Técnicos
+### 2. Inserir bloco PI-POL-001B apos billing check
 
-### Action: `JOIN_EXISTING_TENANT`
+**Localizacao:** Apos linha 133 (depois do log "Billing status OK")
 
-**Input:**
-```json
-{
-  "action": "JOIN_EXISTING_TENANT",
-  "payload": { "tenantCode": "tier-one-grappling-school" }
+**Codigo a inserir:**
+
+```typescript
+// ─────────────────────────────────────────────────────────────
+// PI-POL-001B — MEMBERSHIP REQUIRED (OFFICIAL DIPLOMA)
+// Contract: HTTP 200 always. Fail-closed.
+// ─────────────────────────────────────────────────────────────
+
+const profileId = athlete?.profile_id ?? null;
+
+// Case 1: Athlete has no profile_id (fail-closed)
+if (!profileId) {
+  console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: athlete.profile_id is null");
+  
+  await supabase.from('audit_logs').insert({
+    tenant_id: tenantId,
+    event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
+    category: 'GRADING',
+    level: 'WARN',
+    metadata: {
+      athlete_id: athleteId,
+      profile_id: null,
+      grading_level_id: gradingLevelId,
+      rule: 'MEMBERSHIP_REQUIRED',
+      decision: 'BLOCKED',
+      reason: 'ATHLETE_PROFILE_ID_NULL'
+    }
+  });
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: 'MEMBERSHIP_REQUIRED',
+      message: 'Official diploma requires ACTIVE membership.'
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
-```
 
-**Output (Sucesso):**
-```json
-{
-  "status": "RESOLVED",
-  "role": "ATHLETE",
-  "tenant": { 
-    "id": "bc8ab41f-a006-4be2-adfc-89dc4c593552", 
-    "slug": "tier-one-grappling-school", 
-    "name": "Tier One Grappling School" 
-  },
-  "redirectPath": "/tier-one-grappling-school/membership/status"
+// Case 2: Check for ACTIVE membership
+let hasActiveMembership = false;
+
+try {
+  const { data: activeMembership, error: membershipErr } = await supabase
+    .from('memberships')
+    .select('id')
+    .eq('applicant_profile_id', profileId)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'ACTIVE')
+    .maybeSingle();
+
+  if (membershipErr) {
+    console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup error:', membershipErr);
+    hasActiveMembership = false; // fail-closed
+  } else {
+    hasActiveMembership = !!activeMembership;
+  }
+} catch (e) {
+  console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup exception:', e);
+  hasActiveMembership = false; // fail-closed
 }
+
+if (!hasActiveMembership) {
+  console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
+  
+  await supabase.from('audit_logs').insert({
+    tenant_id: tenantId,
+    event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
+    category: 'GRADING',
+    level: 'WARN',
+    metadata: {
+      athlete_id: athleteId,
+      profile_id: profileId,
+      grading_level_id: gradingLevelId,
+      rule: 'MEMBERSHIP_REQUIRED',
+      decision: 'BLOCKED',
+      reason: 'NO_ACTIVE_MEMBERSHIP'
+    }
+  });
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: 'MEMBERSHIP_REQUIRED',
+      message: 'Official diploma requires ACTIVE membership.'
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+console.log("[GENERATE-DIPLOMA][PI-POL-001B] Membership check OK - proceeding with official diploma");
 ```
-
-**Códigos de Erro:**
-
-| Código | Quando | Mensagem |
-|--------|--------|----------|
-| `VALIDATION_ERROR` | Código vazio ou formato inválido | "Código da organização é obrigatório" / "Código inválido..." |
-| `TENANT_NOT_FOUND` | Slug não existe | "Organização não encontrada" |
-| `TENANT_INACTIVE` | `status != 'ACTIVE'` | "Esta organização não está ativa para novos membros" |
-| `ALREADY_REQUESTED` | Membership PENDING_REVIEW existe | "Sua solicitação já está em análise" |
-| `ALREADY_MEMBER` | Membership ACTIVE/APPROVED existe | "Você já faz parte desta organização" |
-| `ONBOARDING_FORBIDDEN` | Membership CANCELLED/EXPIRED existe | "Não foi possível solicitar entrada. Contate a administração" |
 
 ---
 
-## Arquivos Modificados
+### 3. Adicionar `is_official: true` na insercao de diploma
 
-| Arquivo | Tipo | Descrição |
+**Localizacao:** Linha 386-401 (insert em `diplomas`)
+
+**Adicionar campo:**
+```typescript
+is_official: true,
+```
+
+**Posicao:** Apos `content_hash_sha256: contentHash,`
+
+---
+
+### 4. Adicionar `is_official: true` na insercao de grading
+
+**Localizacao:** Linha 416-424 (insert em `athlete_gradings`)
+
+**Adicionar campo:**
+```typescript
+is_official: true,
+```
+
+**Posicao:** Apos `diploma_id: diploma.id,`
+
+---
+
+## Arquivo Modificado
+
+| Arquivo | Tipo | Descricao |
 |---------|------|-----------|
-| `supabase/migrations/[timestamp]_join_existing_tenant.sql` | CREATE | Índice de idempotência |
-| `supabase/functions/resolve-identity-wizard/index.ts` | MODIFY | Nova action + handler |
-| `src/contexts/IdentityContext.tsx` | MODIFY | Novos métodos + types |
-| `src/pages/IdentityWizard.tsx` | MODIFY | Usar novos métodos |
+| `supabase/functions/generate-diploma/index.ts` | MODIFY | Gate de membership + audit + is_official=true |
 
 ---
 
-## Regras SAFE GOLD Aplicadas
+## Invariantes SAFE GOLD Garantidas
 
-| Regra | Aplicação |
-|-------|-----------|
-| ✅ Sem `profiles.tenant_id` no JOIN | Apenas `wizard_completed = true` |
-| ✅ Idempotência via índice único | Partial index em memberships |
-| ✅ Checagem usando mesma tabela que escreve | Verifica memberships antes de inserir |
-| ✅ Actions distintas | CREATE_TENANT vs JOIN_EXISTING_TENANT |
-| ✅ Audit log em cada operação | ATHLETE_JOIN_REQUEST_VIA_WIZARD |
-| ✅ Zero refatoração fora do escopo | Apenas código necessário |
-
----
-
-## Ordem de Execução
-
-1. **Migração SQL** — Criar índice de idempotência
-2. **Edge Function** — Adicionar types e router expandido
-3. **Edge Function** — Implementar `handleJoinExistingTenant`
-4. **Edge Function** — Renomear `handleWizardCompletion` → `handleCreateTenant`
-5. **Edge Function** — Implementar compatibilidade `COMPLETE_WIZARD`
-6. **Deploy Edge Function** — Validar com curl
-7. **IdentityContext** — Adicionar types e métodos
-8. **IdentityWizard** — Usar métodos explícitos
+| Invariante | Como e Atendida |
+|------------|-----------------|
+| HTTP 200 sempre | Todos os returns usam status: 200 |
+| Fail-closed | profile_id null = bloqueia, erro na query = bloqueia |
+| Zero efeitos colaterais no bloqueio | Return antes de qualquer insert |
+| Audit obrigatorio | Dois pontos de audit (profile null e no membership) |
+| is_official = true | Campos adicionados em ambos os inserts |
+| Mensagem padronizada | "Official diploma requires ACTIVE membership." |
+| Error code estavel | "MEMBERSHIP_REQUIRED" |
 
 ---
 
-## Critérios de Aceitação
+## Contrato de Erros
 
-### Funcionais
-- [ ] Atleta pode entrar em tenant existente via slug
-- [ ] Nenhum tenant é criado quando JOIN_EXISTING_TENANT é chamado
-- [ ] Cria membership com status PENDING_REVIEW
-- [ ] Redirect correto para `/{slug}/membership/status`
-- [ ] Repetir JOIN não duplica (retorna ALREADY_REQUESTED)
+**Quando bloqueado:**
+```json
+{
+  "success": false,
+  "error": "MEMBERSHIP_REQUIRED",
+  "message": "Official diploma requires ACTIVE membership."
+}
+```
 
-### Técnicos
-- [ ] JOIN_EXISTING_TENANT não toca em `profiles.tenant_id`
-- [ ] COMPLETE_WIZARD mapeia `existing` → JOIN e `new` → CREATE
-- [ ] Índice de idempotência criado
-- [ ] Audit logs gravados
+**Quando sucesso:**
+```json
+{
+  "success": true,
+  "diploma": { ... },
+  "grading": { ... }
+}
+```
 
-### Regressão
-- [ ] Criar nova organização continua funcionando
-- [ ] Fluxo `/join/*` não é afetado
+---
+
+## Criterios de Aceitacao
+
+### Caminho Permitido
+Dado atleta com `profile_id` e membership ACTIVE no tenant:
+- Diploma e emitido com `is_official = true`
+- Grading e criado com `is_official = true`
+- Resposta `success: true`
+
+### Caminho Bloqueado
+Atleta sem `profile_id` OU sem membership ACTIVE:
+- Nenhuma escrita ocorre
+- Audit log e inserido (`DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP`)
+- Resposta HTTP 200 com `success: false` e `error: MEMBERSHIP_REQUIRED`
+
+### Fail-Closed
+Se query do membership falhar:
+- Bloqueia
+- Audita
+- Retorna `MEMBERSHIP_REQUIRED`
+
+---
+
+## Ordem de Execucao
+
+1. Editar `supabase/functions/generate-diploma/index.ts`
+   - Linha 64: adicionar `profile_id` ao select
+   - Apos linha 133: inserir bloco PI-POL-001B
+   - Linha ~400: adicionar `is_official: true` no diploma
+   - Linha ~424: adicionar `is_official: true` no grading
+2. Deploy automatico da Edge Function
+3. Teste manual:
+   - Atleta sem profile_id → `MEMBERSHIP_REQUIRED`
+   - Atleta com profile_id mas sem ACTIVE → `MEMBERSHIP_REQUIRED`
+   - Atleta com ACTIVE → diploma emitido com `is_official = true`
+
