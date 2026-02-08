@@ -1,8 +1,11 @@
 /**
- * 🔔 AlertsPanel — P4.1.D / P4.2.C
+ * 🔔 AlertsPanel — P4.1.D / P4.2.C / P4.3.1
  * 
  * Panel/modal showing list of alerts with dismiss functionality
  * and realtime "new events" indicator.
+ * 
+ * INVARIANT (P4.3.1): This component MUST NOT render data-conn-state.
+ * The canonical data-conn-state is rendered ONLY by AlertBadge.
  */
 
 import React from 'react';
@@ -163,12 +166,11 @@ export function AlertsPanel({
               {t('observability.alerts.title')}
             </SheetTitle>
             <div className="flex items-center gap-1">
-          {/* Connection status badge */}
+          {/* Connection status badge - visual only, NO data-conn-state (see P4.3.1 invariant) */}
           {isRealtimeConnected ? (
             <Badge 
               variant="outline" 
               className="text-success border-success text-[10px] px-1.5"
-              data-conn-state="live"
             >
               <Wifi className="h-3 w-3 mr-1" />
               {t('observability.realtime.live')}
@@ -177,7 +179,6 @@ export function AlertsPanel({
             <Badge 
               variant="outline" 
               className="text-muted-foreground text-[10px] px-1.5"
-              data-conn-state="polling"
             >
               <WifiOff className="h-3 w-3 mr-1" />
               {t('observability.realtime.polling')}

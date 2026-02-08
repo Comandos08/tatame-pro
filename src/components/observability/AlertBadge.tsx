@@ -1,8 +1,11 @@
 /**
- * 🔔 AlertBadge — P4.1.D / P4.2.C
+ * 🔔 AlertBadge — P4.1.D / P4.2.C / P4.3.1
  * 
  * Badge component showing active alert count with realtime indicator.
  * For use in headers/sidebars.
+ * 
+ * INVARIANT (P4.3.1): This is the ONLY component that renders data-conn-state.
+ * AlertsPanel must NOT render data-conn-state to ensure single-element contract.
  */
 
 import React from 'react';
@@ -12,6 +15,7 @@ import { useAlertsOptional } from '@/contexts/AlertContext';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/contexts/I18nContext';
+import { resolveConnectionState, type ConnectionState } from '@/types/connection-state';
 
 interface AlertBadgeProps {
   onClick?: () => void;
@@ -65,20 +69,25 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
             </span>
           )}
           
-          {/* Realtime connection indicator */}
-          <span 
-            className={cn(
-              'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
-              isRealtimeConnected 
-                ? 'bg-success' 
-                : 'bg-muted-foreground animate-pulse'
-            )}
-            data-conn-state={isRealtimeConnected ? 'live' : 'syncing'}
-            title={isRealtimeConnected 
-              ? t('observability.realtime.connected') 
-              : t('observability.realtime.syncing')
-            }
-          />
+          {/* Realtime connection indicator - CANONICAL data-conn-state element */}
+          {(() => {
+            const connState: ConnectionState = resolveConnectionState(isRealtimeConnected);
+            return (
+              <span 
+                className={cn(
+                  'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
+                  connState === 'live' 
+                    ? 'bg-success' 
+                    : 'bg-muted-foreground animate-pulse'
+                )}
+                data-conn-state={connState}
+                title={isRealtimeConnected 
+                  ? t('observability.realtime.connected') 
+                  : t('observability.realtime.syncing')
+                }
+              />
+            );
+          })()}
         </Button>
       </TooltipTrigger>
       <TooltipContent className="flex items-center gap-2">

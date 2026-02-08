@@ -4,6 +4,9 @@
  * Canonical types for platform health monitoring and alerting.
  */
 
+// Re-export ConnectionState for convenience
+export { type ConnectionState, resolveConnectionState, VALID_CONNECTION_STATES } from './connection-state';
+
 // Event categories matching audit_logs.category
 export type EventCategory = 
   | 'MEMBERSHIP' 
