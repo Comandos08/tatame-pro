@@ -1208,6 +1208,7 @@ export const ptBR = {
   'auth.magicLink.title': 'Acesso de Atleta',
   'auth.magicLink.description': 'Entre com seu e-mail para receber um link de acesso',
   'auth.magicLink.emailLabel': 'Seu e-mail cadastrado',
+  'auth.magicLink.emailPlaceholder': 'Digite seu e-mail cadastrado',
   'auth.magicLink.button': 'Entrar por e-mail (sem senha)',
   'auth.magicLink.sending': 'Enviando...',
   'auth.magicLink.success': 'Link enviado!',
