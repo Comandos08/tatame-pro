@@ -51,9 +51,9 @@ import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
+import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import type { FeatureKey } from '@/lib/accessMatrix';
-
 interface AppShellProps {
   children: ReactNode;
 }
@@ -146,6 +146,10 @@ export function AppShell({ children }: AppShellProps) {
   const billingState = normalizeBillingState(billingStatus);
   const billingViewState = deriveBillingViewState(billingState);
 
+  // REPORTS SAFE GOLD REPORTS1.0: derive report mode and view state deterministically
+  const isReportsRoute = pathname.includes('/reports') || pathname.includes('/analytics') || pathname.includes('/dashboard');
+  const reportMode = deriveReportMode(tenant?.id, isGlobalSuperadmin && !tenant?.id);
+  const reportViewState = normalizeAnalyticsViewState(isReportsRoute ? { ready: true } : null);
   return (
     <div 
       className="min-h-screen bg-background"
@@ -160,6 +164,9 @@ export function AppShell({ children }: AppShellProps) {
       data-admin-route={pathname}
       data-billing-state={billingState}
       data-billing-view-state={billingViewState}
+      data-report-mode={reportMode}
+      data-report-view-state={reportViewState}
+      data-report-route={isReportsRoute ? pathname : ''}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
