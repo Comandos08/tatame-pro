@@ -144,13 +144,21 @@ export function AccessGate({ children, requiredRoles }: AccessGateProps) {
   // DENIED State
   // =========================================================================
   if (access.state === 'DENIED') {
-    // Handle redirects
-    if (access.redirectTo) {
-      return <Navigate to={access.redirectTo} replace />;
+    // SAFE GOLD: Navigation is AccessGate's responsibility, not resolver's
+    // Map denial reasons to redirects
+    const REDIRECT_MAP: Partial<Record<AccessDeniedReason, string>> = {
+      NOT_AUTHENTICATED: '/login',
+      WIZARD_REQUIRED: '/identity/wizard',
+      IMPERSONATION_REQUIRED: '/admin',
+    };
+    
+    const redirectTo = REDIRECT_MAP[access.reason];
+    if (redirectTo) {
+      return <Navigate to={redirectTo} replace />;
     }
     
-    // Render blocking UI
-    const config = DENIAL_CONFIG[access.reason];
+    // SAFE GOLD: Fallback to UNKNOWN_ERROR config if reason not mapped
+    const config = DENIAL_CONFIG[access.reason] ?? DENIAL_CONFIG.UNKNOWN_ERROR;
     
     return (
       <BlockedStateCard
@@ -178,7 +186,11 @@ export function AccessGate({ children, requiredRoles }: AccessGateProps) {
   // ERROR State
   // =========================================================================
   if (access.state === 'ERROR') {
-    const config = DENIAL_CONFIG[access.reason];
+    // SAFE GOLD: Fallback to UNKNOWN_ERROR config if reason not mapped
+    const config = DENIAL_CONFIG[access.reason] ?? DENIAL_CONFIG.UNKNOWN_ERROR;
+    
+    // debugCode is for auditing only, never shown in UI
+    // Could be logged here in the future: console.debug('[AccessGate] debugCode:', access.debugCode);
     
     return (
       <BlockedStateCard

@@ -30,32 +30,16 @@ export function resolveAccess(
   context: AccessContext
 ): AccessResult {
   // =========================================================================
-  // STEP 0: Loading States
+  // STEP 0: EXPLICIT LOADING CHECK (must be first)
   // =========================================================================
-  // LOADING is a TEMPORARY state — caller must implement timeout
-  
-  // Auth is loading
-  if (input.isAuthLoading) {
-    return { state: 'LOADING' };
-  }
-  
-  // Identity is loading (for authenticated users)
-  if (input.isAuthenticated && input.identityState === 'loading') {
-    return { state: 'LOADING' };
-  }
-  
-  // Impersonation is resolving (for superadmin)
-  if (input.isGlobalSuperadmin && input.isImpersonating && input.impersonationResolutionStatus === 'RESOLVING') {
-    return { state: 'LOADING' };
-  }
-  
-  // Tenant is loading (for tenant-scoped routes)
-  if (context.requiresTenant && input.tenantIsLoading) {
-    return { state: 'LOADING' };
-  }
-  
-  // Roles are loading (for role-protected routes)
-  if (context.requiredRoles && context.requiredRoles.length > 0 && input.rolesLoading) {
+  // SAFE GOLD: LOADING is explicit, not inferred. Single consolidated check.
+  if (
+    input.isAuthLoading ||
+    input.tenantIsLoading ||
+    input.rolesLoading ||
+    input.impersonationResolutionStatus === 'RESOLVING' ||
+    (input.isAuthenticated && input.identityState === 'loading')
+  ) {
     return { state: 'LOADING' };
   }
 
@@ -65,8 +49,7 @@ export function resolveAccess(
   if (context.requiresAuth && !input.isAuthenticated) {
     return { 
       state: 'DENIED', 
-      reason: 'NOT_AUTHENTICATED',
-      redirectTo: '/login'
+      reason: 'NOT_AUTHENTICATED'
     };
   }
 
@@ -74,14 +57,14 @@ export function resolveAccess(
   // STEP 2: Identity Error Check
   // =========================================================================
   if (input.identityState === 'error' && input.identityError) {
-    // Map identity errors to access denied reasons
     const errorCode = input.identityError.code;
     
     if (errorCode === 'IDENTITY_TIMEOUT') {
       return { 
         state: 'ERROR', 
         error: input.identityError.message,
-        reason: 'TIMEOUT'
+        reason: 'TIMEOUT',
+        debugCode: 'IDENTITY_TIMEOUT'
       };
     }
     
@@ -92,10 +75,12 @@ export function resolveAccess(
       };
     }
     
+    // SAFE GOLD: Preserve technical context via debugCode for auditing
     return { 
       state: 'ERROR', 
       error: input.identityError.message,
-      reason: 'UNKNOWN_ERROR'
+      reason: 'UNKNOWN_ERROR',
+      debugCode: errorCode ?? 'UNKNOWN'
     };
   }
 
@@ -105,8 +90,7 @@ export function resolveAccess(
   if (context.requiresAuth && input.identityState === 'wizard_required') {
     return { 
       state: 'DENIED', 
-      reason: 'WIZARD_REQUIRED',
-      redirectTo: '/identity/wizard'
+      reason: 'WIZARD_REQUIRED'
     };
   }
 
@@ -134,8 +118,7 @@ export function resolveAccess(
     if (input.isGlobalSuperadmin && !input.isImpersonating) {
       return { 
         state: 'DENIED', 
-        reason: 'IMPERSONATION_REQUIRED',
-        redirectTo: '/admin'
+        reason: 'IMPERSONATION_REQUIRED'
       };
     }
     
@@ -267,7 +250,11 @@ export function inferRouteContext(pathname: string): Partial<AccessContext> {
     };
   }
   
-  // Default: require auth
+  // =========================================================================
+  // DEFAULT FALLBACK — SECURE BY DEFAULT (SAFE GOLD CONTRACT)
+  // =========================================================================
+  // Any unclassified route requires authentication.
+  // This ensures fail-closed behavior: unknown routes are protected, not exposed.
   return {
     requiresAuth: true,
     requiresTenant: false,
