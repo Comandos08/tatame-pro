@@ -60,6 +60,9 @@ export const AUDIT_EVENTS = {
   // PI-BILL-HARD-001 — Unexpected error normalization
   BILLING_UNEXPECTED_ERROR: 'BILLING_UNEXPECTED_ERROR',
   
+  // PI-BILL-HARD-002 — Billing not provisioned (valid domain state)
+  BILLING_NOT_PROVISIONED: 'BILLING_NOT_PROVISIONED',
+  
   // Auth events
   LOGIN_SUCCESS: 'LOGIN_SUCCESS',
   LOGIN_FAILED: 'LOGIN_FAILED',

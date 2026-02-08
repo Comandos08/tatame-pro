@@ -557,6 +557,38 @@ Deno.serve(async (req) => {
       );
     }
 
+    // PI-BILL-HARD-002 — Check if billing exists before any action
+    const { data: billingCheck } = await serviceClient
+      .from("tenant_billing")
+      .select("id")
+      .eq("tenant_id", payload.tenantId)
+      .maybeSingle();
+
+    if (!billingCheck) {
+      // Billing not provisioned is a valid domain state, not an error
+      await createAuditLog(serviceClient, {
+        event_type: "BILLING_NOT_PROVISIONED",
+        tenant_id: payload.tenantId,
+        profile_id: userId,
+        metadata: {
+          action: payload.action,
+          decision: "ALLOW",
+          source: "admin-billing-control",
+          severity: "INFO",
+          message: "Tenant has no billing record yet"
+        }
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          billing_state: "NOT_PROVISIONED",
+          message: "Tenant has no billing record yet"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Execute action
     let result: { success: boolean; error?: string; requiresConfirmation?: boolean };
 
