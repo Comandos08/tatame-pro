@@ -35,11 +35,18 @@ export type AccessDeniedReason =
 /**
  * Access resolution result — deterministic state machine output
  */
+/**
+ * Access resolution result — deterministic state machine output
+ * 
+ * SAFE GOLD CONTRACT:
+ * - No redirectTo (navigation is AccessGate's responsibility)
+ * - debugCode for auditing, never shown in UI
+ */
 export type AccessResult =
   | { state: 'ALLOWED' }
   | { state: 'LOADING' }
-  | { state: 'DENIED'; reason: AccessDeniedReason; redirectTo?: string }
-  | { state: 'ERROR'; error: string; reason: AccessDeniedReason };
+  | { state: 'DENIED'; reason: AccessDeniedReason }
+  | { state: 'ERROR'; error: string; reason: AccessDeniedReason; debugCode?: string };
 
 /**
  * Context required for access resolution
