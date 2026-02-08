@@ -366,13 +366,17 @@ export default function AthleteGradingsPage() {
                             <h3 className="font-semibold text-lg">
                               {level?.display_name}
                             </h3>
-                            <Badge variant="outline">
-                              {level?.grading_schemes?.sport_type}
-                            </Badge>
+                            {level?.grading_schemes?.sport_type && (
+                              <Badge variant="outline">
+                                {level.grading_schemes.sport_type}
+                              </Badge>
+                            )}
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {level?.grading_schemes?.name}
-                          </p>
+                          {level?.grading_schemes?.name && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {level.grading_schemes.name}
+                            </p>
+                          )}
                           
                           <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
                             <div className="flex items-center gap-1">
@@ -457,7 +461,7 @@ export default function AthleteGradingsPage() {
                   <SelectContent>
                     {schemes?.map((scheme) => (
                       <SelectItem key={scheme.id} value={scheme.id}>
-                        {scheme.name} ({scheme.sport_type})
+                        {scheme.sport_type ? `${scheme.name} (${scheme.sport_type})` : scheme.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

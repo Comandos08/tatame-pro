@@ -631,7 +631,7 @@ export default function AthleteArea() {
                         <div>
                           <p className="font-medium">{diploma.grading_levels?.display_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {diploma.grading_levels?.grading_schemes?.sport_type} • {formatDate(diploma.promotion_date)}
+                            {[diploma.grading_levels?.grading_schemes?.sport_type, formatDate(diploma.promotion_date)].filter(Boolean).join(' • ')}
                           </p>
                         </div>
                       </div>
