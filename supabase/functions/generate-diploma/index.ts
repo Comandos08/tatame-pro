@@ -55,12 +55,47 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { athleteId, gradingLevelId, academyId, coachId, promotionDate, notes, officiality_override }: GenerateDiplomaRequest = await req.json();
+    // PI-D5.B: Parse and validate input
+    let body: GenerateDiplomaRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid request' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
+    const { athleteId, gradingLevelId, academyId, coachId, promotionDate, notes, officiality_override } = body;
+
+    // PI-D5.B: Validate UUID format for all IDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
     if (!athleteId || !gradingLevelId || !promotionDate) {
       return new Response(
-        JSON.stringify({ error: 'athleteId, gradingLevelId, and promotionDate are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Missing required fields' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!uuidRegex.test(athleteId) || !uuidRegex.test(gradingLevelId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid ID format' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (academyId && !uuidRegex.test(academyId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid academy ID format' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (coachId && !uuidRegex.test(coachId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid coach ID format' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -73,8 +108,8 @@ serve(async (req) => {
 
     if (athleteError || !athlete) {
       return new Response(
-        JSON.stringify({ error: 'Athlete not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Athlete not found' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -90,16 +125,16 @@ serve(async (req) => {
 
     if (levelError || !gradingLevel) {
       return new Response(
-        JSON.stringify({ error: 'Grading level not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Grading level not found' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate same tenant
     if (athlete.tenant_id !== gradingLevel.tenant_id) {
       return new Response(
-        JSON.stringify({ error: 'Athlete and grading level must belong to the same tenant' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Invalid tenant context' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -114,8 +149,8 @@ serve(async (req) => {
 
     if (tenantError || !tenant) {
       return new Response(
-        JSON.stringify({ error: 'Tenant not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Tenant not found' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -348,8 +383,8 @@ serve(async (req) => {
     if (serialError) {
       console.error('Error generating serial number:', serialError);
       return new Response(
-        JSON.stringify({ error: 'Failed to generate serial number' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -494,8 +529,8 @@ serve(async (req) => {
     if (pdfUploadError) {
       console.error('PDF upload error:', pdfUploadError);
       return new Response(
-        JSON.stringify({ error: 'Failed to upload PDF' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -590,8 +625,8 @@ serve(async (req) => {
     if (diplomaError) {
       console.error('Diploma insert error:', diplomaError);
       return new Response(
-        JSON.stringify({ error: 'Failed to create diploma record' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -666,11 +701,11 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
+    // PI-D5.B: Neutral error - no stack trace, no semantic info
     console.error('Error generating diploma:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: 'Diploma generation failed' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
