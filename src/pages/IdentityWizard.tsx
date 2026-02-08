@@ -23,7 +23,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useToast } from '@/hooks/use-toast';
-import { useIdentity, CompleteWizardPayload } from '@/contexts/IdentityContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 
 type WizardStep = 1 | 2 | 3;
@@ -34,7 +34,7 @@ export default function IdentityWizard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
-  const { identityState, completeWizard, setIdentityError } = useIdentity();
+  const { identityState, createTenant, joinExistingTenant, setIdentityError } = useIdentity();
 
   // Wizard state
   const [step, setStep] = useState<WizardStep>(1);
@@ -60,7 +60,7 @@ export default function IdentityWizard() {
     }
   }, [identityState, navigate]);
 
-  // Complete wizard via backend
+  // Complete wizard via backend — PI-ONB-001: Use explicit methods
   const handleComplete = async () => {
     if (!joinMode || !profileType) {
       toast({
@@ -93,41 +93,30 @@ export default function IdentityWizard() {
     setIsSubmitting(true);
 
     try {
-      const payload: CompleteWizardPayload = {
-        joinMode,
-        profileType,
-        ...(joinMode === 'existing' && { inviteCode: inviteCode.trim() }),
-        ...(joinMode === 'new' && { newOrgName: newOrgName.trim() }),
-      };
+      // PI-ONB-001: Use explicit methods instead of generic completeWizard
+      if (joinMode === 'new') {
+        const result = await createTenant({ orgName: newOrgName.trim() });
 
-      const result = await completeWizard(payload);
+        if (result.success && result.redirectPath) {
+          toast({
+            title: 'Organização criada!',
+            description: 'Sua organização foi criada com sucesso.',
+          });
+          navigate(result.redirectPath, { replace: true });
+        } else if (result.error) {
+          handleWizardError(result.error);
+        }
+      } else if (joinMode === 'existing') {
+        const result = await joinExistingTenant({ tenantCode: inviteCode.trim() });
 
-      if (result.success && result.redirectPath) {
-        toast({
-          title: 'Configuração concluída!',
-          description: 'Sua conta foi configurada com sucesso.',
-        });
-        navigate(result.redirectPath, { replace: true });
-      } else if (result.error) {
-        // Handle specific errors
-        if (result.error.code === 'INVITE_INVALID') {
+        if (result.success && result.redirectPath) {
           toast({
-            title: 'Código inválido',
-            description: 'O código de convite não foi encontrado ou está inativo.',
-            variant: 'destructive',
+            title: 'Solicitação enviada!',
+            description: 'Sua solicitação foi enviada para análise.',
           });
-        } else if (result.error.code === 'SLUG_TAKEN') {
-          toast({
-            title: 'Nome já utilizado',
-            description: 'Este nome de organização já está em uso. Escolha outro.',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Erro',
-            description: result.error.message || 'Falha ao finalizar configuração.',
-            variant: 'destructive',
-          });
+          navigate(result.redirectPath, { replace: true });
+        } else if (result.error) {
+          handleWizardError(result.error);
         }
       }
     } catch (err) {
@@ -140,6 +129,55 @@ export default function IdentityWizard() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // PI-ONB-001: Handle specific error codes
+  const handleWizardError = (error: { code: string; message: string }) => {
+    const errorMessages: Record<string, { title: string; description: string }> = {
+      'TENANT_NOT_FOUND': {
+        title: 'Organização não encontrada',
+        description: 'O código informado não corresponde a nenhuma organização.',
+      },
+      'TENANT_INACTIVE': {
+        title: 'Organização inativa',
+        description: 'Esta organização não está ativa para novos membros.',
+      },
+      'ALREADY_REQUESTED': {
+        title: 'Solicitação pendente',
+        description: 'Sua solicitação já está em análise.',
+      },
+      'ALREADY_MEMBER': {
+        title: 'Já é membro',
+        description: 'Você já faz parte desta organização.',
+      },
+      'ONBOARDING_FORBIDDEN': {
+        title: 'Acesso bloqueado',
+        description: 'Não foi possível solicitar entrada. Contate a administração.',
+      },
+      'INVITE_INVALID': {
+        title: 'Código inválido',
+        description: 'O código de convite não foi encontrado ou está inativo.',
+      },
+      'SLUG_TAKEN': {
+        title: 'Nome já utilizado',
+        description: 'Este nome de organização já está em uso. Escolha outro.',
+      },
+      'VALIDATION_ERROR': {
+        title: 'Dados inválidos',
+        description: error.message || 'Verifique os dados informados.',
+      },
+    };
+
+    const msg = errorMessages[error.code] || {
+      title: 'Erro',
+      description: error.message || 'Falha ao finalizar configuração.',
+    };
+
+    toast({
+      title: msg.title,
+      description: msg.description,
+      variant: 'destructive',
+    });
   };
 
   // Step navigation
