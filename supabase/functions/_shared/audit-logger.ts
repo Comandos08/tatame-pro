@@ -104,6 +104,22 @@ export const AUDIT_EVENTS = {
   DOCUMENT_VERIFIED_PUBLIC: 'DOCUMENT_VERIFIED_PUBLIC',
   SUPERADMIN_ACTION: 'SUPERADMIN_ACTION',
   
+  // PI-D5-FEDERATION1.0: Federation Audit Events
+  FEDERATION_CREATED: 'FEDERATION_CREATED',
+  FEDERATION_STATUS_CHANGED: 'FEDERATION_STATUS_CHANGED',
+  TENANT_JOINED_FEDERATION: 'TENANT_JOINED_FEDERATION',
+  TENANT_LEFT_FEDERATION: 'TENANT_LEFT_FEDERATION',
+  FEDERATION_ROLE_ASSIGNED: 'FEDERATION_ROLE_ASSIGNED',
+  FEDERATION_ROLE_REVOKED: 'FEDERATION_ROLE_REVOKED',
+  
+  // PI-D5-COUNCIL1.0: Council Audit Events
+  COUNCIL_CREATED: 'COUNCIL_CREATED',
+  COUNCIL_MEMBER_ADDED: 'COUNCIL_MEMBER_ADDED',
+  COUNCIL_MEMBER_REMOVED: 'COUNCIL_MEMBER_REMOVED',
+  COUNCIL_DECISION_CREATED: 'COUNCIL_DECISION_CREATED',
+  COUNCIL_DECISION_APPROVED: 'COUNCIL_DECISION_APPROVED',
+  COUNCIL_DECISION_REJECTED: 'COUNCIL_DECISION_REJECTED',
+  
   // Youth transition events
   YOUTH_AUTO_TRANSITION: 'YOUTH_AUTO_TRANSITION',
 } as const;
@@ -123,6 +139,8 @@ export type AuditCategory =
   | 'AUTH' 
   | 'ROLES' 
   | 'STORAGE'
+  | 'FEDERATION'
+  | 'COUNCIL'
   | 'OTHER';
 
 /**
@@ -137,6 +155,8 @@ function detectCategory(eventType: string): AuditCategory {
   if (eventType.startsWith('LOGIN_') || eventType.startsWith('PASSWORD_')) return 'AUTH';
   if (eventType.startsWith('ROLES_')) return 'ROLES';
   if (eventType.startsWith('TMP_') || eventType.startsWith('DIGITAL_')) return 'STORAGE';
+  if (eventType.startsWith('FEDERATION_') || eventType.startsWith('TENANT_JOINED_') || eventType.startsWith('TENANT_LEFT_')) return 'FEDERATION';
+  if (eventType.startsWith('COUNCIL_')) return 'COUNCIL';
   return 'OTHER';
 }
 

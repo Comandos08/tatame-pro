@@ -486,6 +486,137 @@ export type Database = {
           },
         ]
       }
+      council_decisions: {
+        Row: {
+          council_id: string
+          created_at: string
+          created_by: string | null
+          decision_type: Database["public"]["Enums"]["council_decision_type"]
+          description: string | null
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["council_decision_status"]
+          target_tenant_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          council_id: string
+          created_at?: string
+          created_by?: string | null
+          decision_type: Database["public"]["Enums"]["council_decision_type"]
+          description?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["council_decision_status"]
+          target_tenant_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          council_id?: string
+          created_at?: string
+          created_by?: string | null
+          decision_type?: Database["public"]["Enums"]["council_decision_type"]
+          description?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["council_decision_status"]
+          target_tenant_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "council_decisions_council_id_fkey"
+            columns: ["council_id"]
+            isOneToOne: false
+            referencedRelation: "councils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "council_decisions_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "council_decisions_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      council_members: {
+        Row: {
+          council_id: string
+          joined_at: string
+          role: Database["public"]["Enums"]["council_role"]
+          user_id: string
+        }
+        Insert: {
+          council_id: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["council_role"]
+          user_id: string
+        }
+        Update: {
+          council_id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["council_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "council_members_council_id_fkey"
+            columns: ["council_id"]
+            isOneToOne: false
+            referencedRelation: "councils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      councils: {
+        Row: {
+          created_at: string
+          description: string | null
+          federation_id: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          federation_id: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          federation_id?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "councils_federation_id_fkey"
+            columns: ["federation_id"]
+            isOneToOne: false
+            referencedRelation: "federations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decision_logs: {
         Row: {
           created_at: string
@@ -1460,6 +1591,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      federation_roles: {
+        Row: {
+          created_at: string
+          federation_id: string
+          id: string
+          role: Database["public"]["Enums"]["federation_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          federation_id: string
+          id?: string
+          role: Database["public"]["Enums"]["federation_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          federation_id?: string
+          id?: string
+          role?: Database["public"]["Enums"]["federation_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "federation_roles_federation_id_fkey"
+            columns: ["federation_id"]
+            isOneToOne: false
+            referencedRelation: "federations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      federation_tenants: {
+        Row: {
+          federation_id: string
+          joined_at: string
+          left_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          federation_id: string
+          joined_at?: string
+          left_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          federation_id?: string
+          joined_at?: string
+          left_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "federation_tenants_federation_id_fkey"
+            columns: ["federation_id"]
+            isOneToOne: false
+            referencedRelation: "federations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "federation_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "federation_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      federations: {
+        Row: {
+          country_code: string | null
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          slug: string
+          status: Database["public"]["Enums"]["federation_status"]
+          updated_at: string
+        }
+        Insert: {
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          slug: string
+          status?: Database["public"]["Enums"]["federation_status"]
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          status?: Database["public"]["Enums"]["federation_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       grading_levels: {
         Row: {
@@ -2664,8 +2903,20 @@ export type Database = {
         Args: { _athlete_id: string }
         Returns: boolean
       }
+      can_act_as_federation: {
+        Args: { _federation_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_approve_membership: {
         Args: { _membership_id: string }
+        Returns: boolean
+      }
+      can_view_federation: {
+        Args: { _federation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_tenant: {
+        Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
       coach_has_issued_diploma: {
@@ -2741,6 +2992,14 @@ export type Database = {
         }[]
       }
       get_user_tenant_id: { Args: never; Returns: string }
+      has_federation_role: {
+        Args: {
+          _federation_id: string
+          _role: Database["public"]["Enums"]["federation_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2749,6 +3008,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_council_member: {
+        Args: { _council_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_federation_admin: { Args: { _user_id: string }; Returns: boolean }
       is_head_coach_of_academy: {
         Args: { _academy_id: string }
         Returns: boolean
@@ -2820,6 +3084,12 @@ export type Database = {
         | "TRIAL_EXPIRED"
         | "PENDING_DELETE"
       category_gender: "MALE" | "FEMALE" | "MIXED"
+      council_decision_status: "OPEN" | "APPROVED" | "REJECTED"
+      council_decision_type:
+        | "TENANT_ADMISSION"
+        | "TENANT_SUSPENSION"
+        | "POLICY_APPROVAL"
+      council_role: "CHAIR" | "MEMBER"
       digital_card_status:
         | "DRAFT"
         | "ACTIVE"
@@ -2842,6 +3112,8 @@ export type Database = {
         | "FINISHED"
         | "ARCHIVED"
         | "CANCELLED"
+      federation_role: "FED_ADMIN" | "COUNCIL_MEMBER" | "OBSERVER"
+      federation_status: "ACTIVE" | "SUSPENDED"
       gender_type: "MALE" | "FEMALE" | "OTHER"
       guardian_relationship: "PARENT" | "GUARDIAN" | "OTHER"
       institutional_document_type: "digital_card" | "diploma"
@@ -3007,6 +3279,13 @@ export const Constants = {
         "PENDING_DELETE",
       ],
       category_gender: ["MALE", "FEMALE", "MIXED"],
+      council_decision_status: ["OPEN", "APPROVED", "REJECTED"],
+      council_decision_type: [
+        "TENANT_ADMISSION",
+        "TENANT_SUSPENSION",
+        "POLICY_APPROVAL",
+      ],
+      council_role: ["CHAIR", "MEMBER"],
       digital_card_status: [
         "DRAFT",
         "ACTIVE",
@@ -3032,6 +3311,8 @@ export const Constants = {
         "ARCHIVED",
         "CANCELLED",
       ],
+      federation_role: ["FED_ADMIN", "COUNCIL_MEMBER", "OBSERVER"],
+      federation_status: ["ACTIVE", "SUSPENDED"],
       gender_type: ["MALE", "FEMALE", "OTHER"],
       guardian_relationship: ["PARENT", "GUARDIAN", "OTHER"],
       institutional_document_type: ["digital_card", "diploma"],
