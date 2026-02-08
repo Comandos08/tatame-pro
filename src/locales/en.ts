@@ -301,6 +301,13 @@ export const en: Record<string, string> = {
   'status.neutral': 'Neutral',
   'status.pending': 'Pending',
 
+  // Grading Officiality Governance (PI-POL-001C)
+  'grading.noActiveMembership.title': 'Athlete without active membership',
+  'grading.noActiveMembership.desc': 'Issuing an official diploma requires ACTIVE membership.',
+  'grading.unofficial': 'Unofficial',
+  'grading.official': 'Official',
+  'grading.membershipRequired': 'This athlete needs an active membership to issue an official diploma.',
+
   // TenantLanding features
   'tenant.featureAffiliation': 'Athlete Affiliation',
   'tenant.featureAffiliationDesc': 'Register and keep your membership up to date',

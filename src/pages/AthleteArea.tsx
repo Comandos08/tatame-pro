@@ -80,6 +80,7 @@ interface GradingData {
   id: string;
   promotion_date: string;
   notes: string | null;
+  is_official: boolean;
   grading_levels: {
     id: string;
     code: string;
@@ -104,6 +105,7 @@ interface GradingData {
     serial_number: string;
     pdf_url: string | null;
     status: string;
+    is_official: boolean;
   } | null;
 }
 
@@ -113,6 +115,7 @@ interface DiplomaData {
   promotion_date: string;
   status: string;
   pdf_url: string | null;
+  is_official: boolean;
   grading_levels: {
     display_name: string;
     grading_schemes: {
@@ -213,13 +216,14 @@ export default function AthleteArea() {
           id,
           promotion_date,
           notes,
+          is_official,
           grading_levels:grading_level_id (
             id, code, display_name, order_index,
             grading_schemes:grading_scheme_id (id, name, sport_type)
           ),
           academies:academy_id (id, name),
           coaches:coach_id (id, full_name),
-          diplomas:diploma_id (id, serial_number, pdf_url, status)
+          diplomas:diploma_id (id, serial_number, pdf_url, status, is_official)
         `)
         .eq('athlete_id', athlete.id)
         .eq('tenant_id', tenant.id)
@@ -245,6 +249,7 @@ export default function AthleteArea() {
           promotion_date,
           status,
           pdf_url,
+          is_official,
           grading_levels:grading_level_id (
             display_name,
             grading_schemes:grading_scheme_id (sport_type)
@@ -629,7 +634,18 @@ export default function AthleteArea() {
                           <Award className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <p className="font-medium">{diploma.grading_levels?.display_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{diploma.grading_levels?.display_name}</p>
+                            {/* PI-POL-001C: Badge for unofficial diplomas */}
+                            {diploma.is_official === false && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-warning border-warning"
+                              >
+                                {t('grading.unofficial')}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {[diploma.grading_levels?.grading_schemes?.sport_type, formatDate(diploma.promotion_date)].filter(Boolean).join(' • ')}
                           </p>
@@ -718,11 +734,20 @@ export default function AthleteArea() {
                           <div className={`flex-1 pb-6 ${index === gradings.length - 1 ? 'pb-0' : ''}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <h4 className="font-semibold">{level?.display_name}</h4>
                                   {isLatest && (
                                     <Badge variant="default" className="text-xs">
                                       {t('athleteArea.currentGrading')}
+                                    </Badge>
+                                  )}
+                                  {/* PI-POL-001C: Badge for unofficial gradings */}
+                                  {grading.is_official === false && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs text-warning border-warning"
+                                    >
+                                      {t('grading.unofficial')}
                                     </Badge>
                                   )}
                                 </div>
