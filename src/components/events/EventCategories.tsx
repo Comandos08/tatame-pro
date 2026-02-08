@@ -66,13 +66,13 @@ export function EventCategories({
   const formatGender = (gender: string | null) => {
     switch (gender) {
       case 'MALE':
-        return t('events.categories.male') || 'Masculino';
+        return t('events.categories.male');
       case 'FEMALE':
-        return t('events.categories.female') || 'Feminino';
+        return t('events.categories.female');
       case 'MIXED':
-        return t('events.categories.mixed') || 'Misto';
+        return t('events.categories.mixed');
       default:
-        return t('events.categories.any') || 'Qualquer';
+        return t('events.categories.any');
     }
   };
 
@@ -94,11 +94,11 @@ export function EventCategories({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
-          {t('events.categories.title') || 'Categorias'}
+          {t('events.categories.title')}
           {!canModify && (
             <Badge variant="secondary" className="ml-2">
               <Lock className="h-3 w-3 mr-1" />
-              {t('events.categories.locked') || 'Bloqueado'}
+              {t('events.categories.locked')}
             </Badge>
           )}
         </CardTitle>
@@ -110,10 +110,10 @@ export function EventCategories({
         {categories.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>{t('events.categories.empty') || 'Nenhuma categoria criada.'}</p>
+            <p>{t('events.categories.empty')}</p>
             {canModify && (
               <p className="text-sm mt-2">
-                {t('events.categories.emptyHint') || 'Adicione categorias para organizar as inscrições.'}
+                {t('events.categories.emptyHint')}
               </p>
             )}
           </div>
@@ -121,16 +121,16 @@ export function EventCategories({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('events.categories.name') || 'Nome'}</TableHead>
-                <TableHead>{t('events.categories.gender') || 'Gênero'}</TableHead>
-                <TableHead>{t('events.categories.age') || 'Idade'}</TableHead>
-                <TableHead>{t('events.categories.weight') || 'Peso'}</TableHead>
+                <TableHead>{t('events.categories.name')}</TableHead>
+                <TableHead>{t('events.categories.gender')}</TableHead>
+                <TableHead>{t('events.categories.age')}</TableHead>
+                <TableHead>{t('events.categories.weight')}</TableHead>
                 <TableHead className="text-center">
-                  {t('events.categories.registrations') || 'Inscritos'}
+                  {t('events.categories.registrations')}
                 </TableHead>
                 {canModify && (
                   <TableHead className="text-right">
-                    {t('common.actions') || 'Ações'}
+                    {t('common.actions')}
                   </TableHead>
                 )}
               </TableRow>
@@ -178,14 +178,14 @@ export function EventCategories({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {t('events.categories.edit') || 'Editar Categoria'}
+                {t('events.categories.edit')}
               </DialogTitle>
             </DialogHeader>
             {editingCategory && (
               <div className="text-sm text-muted-foreground">
-                <p>{t('events.categories.editHint') || 'Use o formulário de criação para modificar categorias.'}</p>
+                <p>{t('events.categories.editHint')}</p>
                 <p className="mt-2">
-                  <strong>{t('events.categories.currentName') || 'Nome atual'}:</strong> {editingCategory.name}
+                  <strong>{t('events.categories.currentName')}:</strong> {editingCategory.name}
                 </p>
               </div>
             )}

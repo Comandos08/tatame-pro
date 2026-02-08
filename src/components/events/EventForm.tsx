@@ -99,7 +99,7 @@ export function EventForm({
       <Card>
         <CardContent className="py-8 text-center">
           <p className="text-muted-foreground">
-            {t('events.form.readOnly') || 'Eventos publicados não podem ser editados.'}
+            {t('events.form.readOnly')}
           </p>
         </CardContent>
       </Card>
@@ -111,8 +111,8 @@ export function EventForm({
       <CardHeader>
         <CardTitle>
           {mode === 'create'
-            ? (t('events.form.createTitle') || 'Criar Evento')
-            : (t('events.form.editTitle') || 'Editar Evento')}
+            ? t('events.form.createTitle')
+            : t('events.form.editTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -124,10 +124,10 @@ export function EventForm({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('events.form.name') || 'Nome do Evento'}</FormLabel>
+                  <FormLabel>{t('events.form.name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('events.form.namePlaceholder') || 'Ex: Campeonato Regional 2026'}
+                      placeholder={t('events.form.namePlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -142,10 +142,10 @@ export function EventForm({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('events.form.description') || 'Descrição'}</FormLabel>
+                  <FormLabel>{t('events.form.description')}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder={t('events.form.descriptionPlaceholder') || 'Detalhes do evento...'}
+                      placeholder={t('events.form.descriptionPlaceholder')}
                       rows={4}
                       {...field}
                     />
@@ -164,7 +164,7 @@ export function EventForm({
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {t('events.form.startDate') || 'Data de Início'}
+                      {t('events.form.startDate')}
                     </FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
@@ -181,7 +181,7 @@ export function EventForm({
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {t('events.form.endDate') || 'Data de Término'}
+                      {t('events.form.endDate')}
                     </FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
@@ -200,11 +200,11 @@ export function EventForm({
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    {t('events.form.location') || 'Local'}
+                    {t('events.form.location')}
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('events.form.locationPlaceholder') || 'Endereço do evento'}
+                      placeholder={t('events.form.locationPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -220,7 +220,7 @@ export function EventForm({
                 name="registrationOpensAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.form.registrationOpens') || 'Inscrições Abrem'}</FormLabel>
+                    <FormLabel>{t('events.form.registrationOpens')}</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
                     </FormControl>
@@ -234,7 +234,7 @@ export function EventForm({
                 name="registrationClosesAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('events.form.registrationCloses') || 'Inscrições Fecham'}</FormLabel>
+                    <FormLabel>{t('events.form.registrationCloses')}</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
                     </FormControl>
@@ -252,13 +252,13 @@ export function EventForm({
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    {t('events.form.maxParticipants') || 'Máximo de Participantes'}
+                    {t('events.form.maxParticipants')}
                   </FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       min={0}
-                      placeholder={t('events.form.maxParticipantsPlaceholder') || 'Sem limite'}
+                      placeholder={t('events.form.maxParticipantsPlaceholder')}
                       {...field}
                       value={field.value ?? ''}
                       onChange={(e) => {
@@ -279,9 +279,9 @@ export function EventForm({
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
-                    <FormLabel>{t('events.form.isPublic') || 'Evento Público'}</FormLabel>
+                    <FormLabel>{t('events.form.isPublic')}</FormLabel>
                     <p className="text-sm text-muted-foreground">
-                      {t('events.form.isPublicDescription') || 'Visível para todos quando publicado'}
+                      {t('events.form.isPublicDescription')}
                     </p>
                   </div>
                   <FormControl>
@@ -295,14 +295,14 @@ export function EventForm({
             <div className="flex justify-end gap-3 pt-4">
               {onCancel && (
                 <Button type="button" variant="outline" onClick={onCancel}>
-                  {t('common.cancel') || 'Cancelar'}
+                  {t('common.cancel')}
                 </Button>
               )}
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {mode === 'create'
-                  ? (t('events.form.create') || 'Criar Evento')
-                  : (t('events.form.save') || 'Salvar Alterações')}
+                  ? t('events.form.create')
+                  : t('events.form.save')}
               </Button>
             </div>
           </form>
