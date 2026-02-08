@@ -385,6 +385,18 @@ export const en: Record<string, string> = {
   'billing.openPortalError': 'Error opening payment portal',
   'billing.totalPaid': 'Total Paid',
   'billing.totalPending': 'Total Pending',
+
+  // PI-BILL-ENV-001 — Billing Environment Governance
+  'billing.env.mismatch.title': 'Billing environment mismatch',
+  'billing.env.mismatch.desc': 'The system detected an inconsistency between the Stripe key and environment configuration.',
+  'billing.env.keyUnknown.title': 'Stripe key not recognized',
+  'billing.env.keyUnknown.desc': 'The configured Stripe key does not have a valid format (expected sk_test_* or sk_live_*).',
+  'billing.env.configMissing.title': 'Environment configuration missing',
+  'billing.env.configMissing.desc': 'The billing environment configuration was not found in the system.',
+  'billing.env.priceNotConfigured.title': 'Price not configured',
+  'billing.env.priceNotConfigured.desc': 'The selected plan has no price configured for the current environment.',
+  'billing.env.priceNotFound.title': 'Price not found in Stripe',
+  'billing.env.priceNotFound.desc': 'The configured price does not exist in the current Stripe environment.',
   'billing.nextInvoice': 'Next Invoice',
   'billing.dueDate': 'Due Date',
   'billing.noOpenInvoices': 'No open invoices',
