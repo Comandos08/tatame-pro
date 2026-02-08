@@ -311,6 +311,17 @@ export const ptBR = {
   'grading.official': 'Oficial',
   'grading.membershipRequired': 'Este atleta precisa de filiação ativa para emitir diploma oficial.',
 
+  // PI-POL-001D — Override (Courtesy)
+  'grading.registerOnly': 'Registrar Graduação',
+  'grading.registerOnly.success': 'Graduação registrada com sucesso',
+  'grading.registerAndIssue': 'Registrar e Gerar Diploma',
+  'grading.override.title': 'Autorizar como oficial (cortesia)',
+  'grading.override.desc': 'Conceder oficialidade administrativa mesmo sem filiação ativa',
+  'grading.override.reasonLabel': 'Motivo da cortesia',
+  'grading.override.reasonPlaceholder': 'Descreva o motivo para a autorização...',
+  'grading.override.forbidden': 'Permissão insuficiente para autorizar cortesia',
+  'grading.override.reasonTooShort': 'Motivo deve ter pelo menos 8 caracteres',
+
   // TenantLanding features
   'tenant.featureAffiliation': 'Filiação de Atletas',
   'tenant.featureAffiliationDesc': 'Cadastre-se e mantenha sua filiação em dia',

@@ -308,6 +308,17 @@ export const es: Record<string, string> = {
   'grading.official': 'Oficial',
   'grading.membershipRequired': 'Este atleta necesita afiliación activa para emitir un diploma oficial.',
 
+  // PI-POL-001D — Override (Courtesy)
+  'grading.registerOnly': 'Registrar Graduación',
+  'grading.registerOnly.success': 'Graduación registrada exitosamente',
+  'grading.registerAndIssue': 'Registrar y Emitir Diploma',
+  'grading.override.title': 'Autorizar como oficial (cortesía)',
+  'grading.override.desc': 'Otorgar oficialidad administrativa incluso sin afiliación activa',
+  'grading.override.reasonLabel': 'Motivo de la cortesía',
+  'grading.override.reasonPlaceholder': 'Describa el motivo de la autorización...',
+  'grading.override.forbidden': 'Permiso insuficiente para autorizar cortesía',
+  'grading.override.reasonTooShort': 'El motivo debe tener al menos 8 caracteres',
+
   // TenantLanding features
   'tenant.featureAffiliation': 'Afiliación de Atletas',
   'tenant.featureAffiliationDesc': 'Regístrese y mantenga su afiliación al día',
