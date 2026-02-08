@@ -160,6 +160,7 @@ export type Database = {
           diploma_id: string | null
           grading_level_id: string
           id: string
+          is_official: boolean
           notes: string | null
           promotion_date: string
           tenant_id: string
@@ -173,6 +174,7 @@ export type Database = {
           diploma_id?: string | null
           grading_level_id: string
           id?: string
+          is_official?: boolean
           notes?: string | null
           promotion_date?: string
           tenant_id: string
@@ -186,6 +188,7 @@ export type Database = {
           diploma_id?: string | null
           grading_level_id?: string
           id?: string
+          is_official?: boolean
           notes?: string | null
           promotion_date?: string
           tenant_id?: string
@@ -651,6 +654,7 @@ export type Database = {
           created_at: string | null
           grading_level_id: string
           id: string
+          is_official: boolean
           issued_at: string | null
           pdf_url: string | null
           promotion_date: string
@@ -671,6 +675,7 @@ export type Database = {
           created_at?: string | null
           grading_level_id: string
           id?: string
+          is_official?: boolean
           issued_at?: string | null
           pdf_url?: string | null
           promotion_date: string
@@ -691,6 +696,7 @@ export type Database = {
           created_at?: string | null
           grading_level_id?: string
           id?: string
+          is_official?: boolean
           issued_at?: string | null
           pdf_url?: string | null
           promotion_date?: string
