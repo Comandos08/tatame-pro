@@ -18,6 +18,7 @@ export type IdentityState = "loading" | "wizard_required" | "resolved" | "supera
 export interface IdentityError {
   code:
     | "TENANT_NOT_FOUND"
+    | "TENANT_INACTIVE"
     | "INVITE_INVALID"
     | "PERMISSION_DENIED"
     | "IMPERSONATION_INVALID"
@@ -27,6 +28,10 @@ export interface IdentityError {
     | "NO_ROLES_ASSIGNED"      // Profile exists, wizard done, no roles
     | "BILLING_BLOCKED"        // Tenant inactive due to billing
     | "IDENTITY_TIMEOUT"       // Distinct timeout error (12s hard timeout)
+    | "ALREADY_REQUESTED"      // Membership already pending
+    | "ALREADY_MEMBER"         // User already member of tenant
+    | "ONBOARDING_FORBIDDEN"   // Cannot join (rejected/cancelled)
+    | "NOT_IMPLEMENTED"        // Feature not implemented
     | "UNKNOWN";
   message: string;
 }
@@ -35,6 +40,52 @@ export interface TenantInfo {
   id: string;
   slug: string;
   name: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAYLOADS & RESULTS — PI-ONB-001
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** @deprecated Use createTenant or joinExistingTenant instead */
+export interface CompleteWizardPayload {
+  joinMode: "existing" | "new";
+  inviteCode?: string;
+  newOrgName?: string;
+  profileType: "admin" | "athlete";
+}
+
+/** @deprecated Use CreateTenantResult or JoinExistingTenantResult instead */
+export interface CompleteWizardResult {
+  success: boolean;
+  tenant?: TenantInfo;
+  role?: "ADMIN_TENANT" | "ATHLETE";
+  redirectPath?: string;
+  error?: IdentityError;
+}
+
+// New explicit payloads (PI-ONB-001)
+export interface CreateTenantPayload {
+  orgName: string;
+}
+
+export interface JoinExistingTenantPayload {
+  tenantCode: string;
+}
+
+export interface CreateTenantResult {
+  success: boolean;
+  tenant?: TenantInfo;
+  role?: "ADMIN_TENANT";
+  redirectPath?: string;
+  error?: IdentityError;
+}
+
+export interface JoinExistingTenantResult {
+  success: boolean;
+  tenant?: TenantInfo;
+  role?: "ATHLETE";
+  redirectPath?: string;
+  error?: IdentityError;
 }
 
 interface IdentityContextType {
@@ -47,24 +98,13 @@ interface IdentityContextType {
   role: "ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
+  /** @deprecated Use createTenant or joinExistingTenant instead */
   completeWizard: (payload: CompleteWizardPayload) => Promise<CompleteWizardResult>;
+  // New explicit methods (PI-ONB-001)
+  createTenant: (payload: CreateTenantPayload) => Promise<CreateTenantResult>;
+  joinExistingTenant: (payload: JoinExistingTenantPayload) => Promise<JoinExistingTenantResult>;
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
-}
-
-export interface CompleteWizardPayload {
-  joinMode: "existing" | "new";
-  inviteCode?: string;
-  newOrgName?: string;
-  profileType: "admin" | "athlete";
-}
-
-export interface CompleteWizardResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ADMIN_TENANT" | "ATHLETE";
-  redirectPath?: string;
-  error?: IdentityError;
 }
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
@@ -387,6 +427,194 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // NEW EXPLICIT METHODS — PI-ONB-001
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  const createTenant = async (payload: CreateTenantPayload): Promise<CreateTenantResult> => {
+    if (!session?.user?.id) {
+      return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
+    }
+
+    if (inFlightAbortRef.current) {
+      inFlightAbortRef.current();
+      inFlightAbortRef.current = null;
+    }
+
+    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
+    inFlightAbortRef.current = abort;
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
+      }
+
+      if (!isMountedRef.current) {
+        return { success: false, error: { code: "UNKNOWN", message: "Component unmounted" } };
+      }
+
+      setIdentityState("loading");
+      setError(null);
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: "CREATE_TENANT", payload }),
+        signal,
+      });
+
+      if (signal.aborted) {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." });
+        }
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." } };
+      }
+
+      const result = await resp.json();
+
+      if (result?.status === "RESOLVED") {
+        applyResult(result);
+        return {
+          success: true,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
+        };
+      }
+
+      if (result?.status === "ERROR") {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError(result.error || { code: "UNKNOWN", message: "Falha ao criar organização" });
+        }
+        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao criar organização" } };
+      }
+
+      if (isMountedRef.current) {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Resposta inesperada ao criar organização." });
+      }
+      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao criar organização." } };
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." });
+        }
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." } };
+      }
+
+      console.error("[IdentityContext] createTenant error:", err);
+      if (isMountedRef.current) {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Falha ao criar organização." });
+      }
+      return { success: false, error: { code: "UNKNOWN", message: "Falha ao criar organização." } };
+    } finally {
+      clear();
+      inFlightAbortRef.current = null;
+    }
+  };
+
+  const joinExistingTenant = async (payload: JoinExistingTenantPayload): Promise<JoinExistingTenantResult> => {
+    if (!session?.user?.id) {
+      return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
+    }
+
+    if (inFlightAbortRef.current) {
+      inFlightAbortRef.current();
+      inFlightAbortRef.current = null;
+    }
+
+    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
+    inFlightAbortRef.current = abort;
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
+      }
+
+      if (!isMountedRef.current) {
+        return { success: false, error: { code: "UNKNOWN", message: "Component unmounted" } };
+      }
+
+      setIdentityState("loading");
+      setError(null);
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: "JOIN_EXISTING_TENANT", payload }),
+        signal,
+      });
+
+      if (signal.aborted) {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." });
+        }
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." } };
+      }
+
+      const result = await resp.json();
+
+      if (result?.status === "RESOLVED") {
+        applyResult(result);
+        return {
+          success: true,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
+        };
+      }
+
+      if (result?.status === "ERROR") {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError(result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" });
+        }
+        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" } };
+      }
+
+      if (isMountedRef.current) {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." });
+      }
+      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." } };
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        if (isMountedRef.current) {
+          setIdentityState("error");
+          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." });
+        }
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." } };
+      }
+
+      console.error("[IdentityContext] joinExistingTenant error:", err);
+      if (isMountedRef.current) {
+        setIdentityState("error");
+        setError({ code: "UNKNOWN", message: "Falha ao entrar na organização." });
+      }
+      return { success: false, error: { code: "UNKNOWN", message: "Falha ao entrar na organização." } };
+    } finally {
+      clear();
+      inFlightAbortRef.current = null;
+    }
+  };
+
   const setIdentityError = (newError: IdentityError) => {
     if (!isMountedRef.current) return;
     setError(newError);
@@ -412,6 +640,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         redirectPath,
         refreshIdentity,
         completeWizard,
+        createTenant,
+        joinExistingTenant,
         setIdentityError,
         clearError,
       }}
