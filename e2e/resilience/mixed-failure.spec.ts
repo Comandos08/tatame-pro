@@ -5,18 +5,31 @@
  * and validates recovery behavior.
  * 
  * SAFE GOLD: No mutations, validates existing behavior.
+ * Uses data-* selectors exclusively (no class-based selectors).
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { loginAsSuperAdmin } from '../fixtures/auth.fixture';
 import { logTestStep, logTestAssertion } from '../helpers/testLogger';
+
+/**
+ * Block ALL Supabase realtime patterns (SAFE GOLD)
+ * Comprehensive coverage of WebSocket endpoints
+ */
+async function blockAllRealtimePatterns(page: Page): Promise<void> {
+  await page.route('**/realtime/**', route => route.abort());
+  await page.route('**/realtime-v1/**', route => route.abort());
+  await page.route('**/realtime/v1/websocket**', route => route.abort());
+  await page.route('**/.supabase.co/realtime/**', route => route.abort());
+  await page.route('**/realtime-v1.websocket/**', route => route.abort());
+}
 
 test.describe('Mixed Failure Resilience', () => {
   test('B.3.1: Both realtime and polling fail - UI survives', async ({ page }) => {
     logTestStep('RESILIENCE', 'Testing complete infrastructure failure');
     
-    // Block realtime
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     // Block polling
     await page.route('**/rest/v1/observability_critical_events*', route => {
@@ -42,7 +55,7 @@ test.describe('Mixed Failure Resilience', () => {
     await expect(alertBadge).toBeVisible();
     await alertBadge.click();
     
-    // Panel should open even if empty
+    // Panel should open even if empty (use role="dialog" for accessibility)
     const panel = page.locator('[role="dialog"]');
     await expect(panel).toBeVisible();
     
@@ -54,8 +67,8 @@ test.describe('Mixed Failure Resilience', () => {
     
     let pollingBlocked = true;
     
-    // Block realtime permanently for this test
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime permanently for this test (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     // Block polling initially, then allow
     await page.route('**/rest/v1/observability_critical_events*', route => {
@@ -139,8 +152,8 @@ test.describe('Mixed Failure Resilience', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', err => pageErrors.push(err.message));
     
-    // Block realtime
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     // Intermittent polling failures
     let failNext = true;
@@ -193,8 +206,8 @@ test.describe('Mixed Failure Resilience', () => {
       });
     });
     
-    // Block realtime
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     // Fail polling
     await page.route('**/rest/v1/observability_critical_events*', route => {
@@ -219,5 +232,34 @@ test.describe('Mixed Failure Resilience', () => {
     // But this is optional - main check is no crashes
     
     logTestAssertion('RESILIENCE', `Console messages captured: ${consoleMessages.length}`, true);
+  });
+  
+  test('B.3.6: Connection state reflects failures accurately', async ({ page }) => {
+    logTestStep('RESILIENCE', 'Testing connection state accuracy under failure');
+    
+    // Block all realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+    
+    // Open panel
+    const alertBadge = page.locator('button:has(svg.lucide-bell)');
+    await alertBadge.click();
+    await page.waitForTimeout(500);
+    
+    // Use data-conn-state for deterministic check (SAFE GOLD)
+    const connState = page.locator('[data-conn-state]');
+    await expect(connState.first()).toBeVisible();
+    
+    const state = await connState.first().getAttribute('data-conn-state');
+    
+    // When realtime is blocked, should NOT show "live"
+    expect(state).not.toBe('live');
+    expect(['syncing', 'polling']).toContain(state);
+    
+    logTestAssertion('RESILIENCE', `Connection state: ${state}`, true);
   });
 });

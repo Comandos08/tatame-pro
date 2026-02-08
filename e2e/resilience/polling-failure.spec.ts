@@ -5,6 +5,7 @@
  * graceful error handling without crashes.
  * 
  * SAFE GOLD: No mutations, validates existing behavior.
+ * Uses data-* selectors exclusively (no class-based selectors).
  */
 
 import { test, expect } from '@playwright/test';
@@ -71,6 +72,7 @@ test.describe('Polling Failure Resilience', () => {
       await page.waitForTimeout(500);
       
       // Should show something (loading, empty, or error state) - not crash
+      // Use role="dialog" for accessibility (SAFE GOLD)
       const panel = page.locator('[role="dialog"]');
       await expect(panel).toBeVisible();
     }
@@ -156,8 +158,8 @@ test.describe('Polling Failure Resilience', () => {
     await alertBadge.click();
     await page.waitForTimeout(500);
     
-    // Should show empty state
-    const emptyState = page.locator('text=/all clear|tudo certo|todo bien/i');
+    // Should show empty state using data-testid (SAFE GOLD)
+    const emptyState = page.locator('[data-testid="alerts-empty-state"]');
     await expect(emptyState).toBeVisible();
     
     logTestAssertion('RESILIENCE', 'Empty response shows empty state', true);

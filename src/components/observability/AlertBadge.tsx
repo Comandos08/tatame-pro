@@ -73,6 +73,7 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
                 ? 'bg-success' 
                 : 'bg-muted-foreground animate-pulse'
             )}
+            data-conn-state={isRealtimeConnected ? 'live' : 'syncing'}
             title={isRealtimeConnected 
               ? t('observability.realtime.connected') 
               : t('observability.realtime.syncing')

@@ -163,18 +163,26 @@ export function AlertsPanel({
               {t('observability.alerts.title')}
             </SheetTitle>
             <div className="flex items-center gap-1">
-              {/* Connection status badge */}
-              {isRealtimeConnected ? (
-                <Badge variant="outline" className="text-success border-success text-[10px] px-1.5">
-                  <Wifi className="h-3 w-3 mr-1" />
-                  {t('observability.realtime.live')}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5">
-                  <WifiOff className="h-3 w-3 mr-1" />
-                  {t('observability.realtime.polling')}
-                </Badge>
-              )}
+          {/* Connection status badge */}
+          {isRealtimeConnected ? (
+            <Badge 
+              variant="outline" 
+              className="text-success border-success text-[10px] px-1.5"
+              data-conn-state="live"
+            >
+              <Wifi className="h-3 w-3 mr-1" />
+              {t('observability.realtime.live')}
+            </Badge>
+          ) : (
+            <Badge 
+              variant="outline" 
+              className="text-muted-foreground text-[10px] px-1.5"
+              data-conn-state="polling"
+            >
+              <WifiOff className="h-3 w-3 mr-1" />
+              {t('observability.realtime.polling')}
+            </Badge>
+          )}
               
               <Button
                 variant="ghost"
@@ -209,22 +217,26 @@ export function AlertsPanel({
               <span className="text-sm font-medium text-primary">
                 {newEventsCount} {t('observability.realtime.newEvents')}
               </span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={markNewEventsAsSeen}
-                className="h-7 text-xs"
-              >
-                <Eye className="h-3 w-3 mr-1" />
-                {t('observability.realtime.markSeen')}
-              </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={markNewEventsAsSeen}
+              className="h-7 text-xs"
+              data-testid="mark-seen-button"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              {t('observability.realtime.markSeen')}
+            </Button>
             </div>
           )}
         </SheetHeader>
         
         <ScrollArea className="h-[calc(100vh-180px)] mt-4">
           {sortedAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <div 
+              className="flex flex-col items-center justify-center py-12 text-muted-foreground"
+              data-testid="alerts-empty-state"
+            >
               <Bell className="h-12 w-12 mb-4 opacity-20" />
               <p className="text-sm">{t('observability.alerts.allClear')}</p>
               <p className="text-xs mt-1">{t('observability.alerts.allClearHint')}</p>

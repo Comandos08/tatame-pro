@@ -5,6 +5,7 @@
  * Validates P4.2 realtime infrastructure UX.
  * 
  * SAFE GOLD: No mutations to business data.
+ * Uses data-* selectors exclusively (no class-based selectors).
  */
 
 import { test, expect } from '@playwright/test';
@@ -37,16 +38,18 @@ test.describe('Observability UI', () => {
       // Wait for realtime to attempt connection
       await page.waitForTimeout(2000);
       
-      // Should show either connected (bg-success) or syncing (animate-pulse) indicator
-      const connectedIndicator = page.locator('[class*="bg-success"]');
-      const syncingIndicator = page.locator('[class*="animate-pulse"]');
+      // Use data-conn-state instead of class selectors (SAFE GOLD)
+      const liveIndicator = page.locator('[data-conn-state="live"]');
+      const syncingIndicator = page.locator('[data-conn-state="syncing"]');
+      const pollingIndicator = page.locator('[data-conn-state="polling"]');
       
-      const hasConnected = await connectedIndicator.count() > 0;
+      const hasLive = await liveIndicator.count() > 0;
       const hasSyncing = await syncingIndicator.count() > 0;
+      const hasPolling = await pollingIndicator.count() > 0;
       
-      expect(hasConnected || hasSyncing).toBe(true);
+      expect(hasLive || hasSyncing || hasPolling).toBe(true);
       
-      logTestAssertion('E2E', 'Connection indicator visible', hasConnected || hasSyncing);
+      logTestAssertion('E2E', `Connection state detected: live=${hasLive}, syncing=${hasSyncing}, polling=${hasPolling}`, true);
     });
     
     test('A.1.3: displays count when alerts exist', async ({ page }) => {
@@ -81,9 +84,9 @@ test.describe('Observability UI', () => {
       const alertBadge = page.locator('button:has(svg.lucide-bell)');
       await alertBadge.click();
       
-      // Panel should open (Sheet component)
-      const panelTitle = page.locator('text=/alertas|alerts/i').first();
-      await expect(panelTitle).toBeVisible({ timeout: 3000 });
+      // Panel should open (use role="dialog" for accessibility)
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog).toBeVisible({ timeout: 3000 });
       
       logTestAssertion('E2E', 'AlertsPanel opened', true);
     });
@@ -98,15 +101,16 @@ test.describe('Observability UI', () => {
       // Open panel
       const alertBadge = page.locator('button:has(svg.lucide-bell)');
       await alertBadge.click();
-      await page.waitForTimeout(500);
+      
+      // Verify dialog is open using role (SAFE GOLD)
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog).toBeVisible({ timeout: 3000 });
       
       // Press Escape
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
       
-      // Panel should be closed (Sheet content not visible)
-      const sheetContent = page.locator('[data-state="open"]');
-      await expect(sheetContent).not.toBeVisible({ timeout: 2000 });
+      // Dialog should be hidden
+      await expect(dialog).toBeHidden({ timeout: 2000 });
       
       logTestAssertion('E2E', 'AlertsPanel closed on ESC', true);
     });
@@ -126,73 +130,75 @@ test.describe('Observability UI', () => {
       // Try to dismiss first alert if any exists
       const firstAlert = page.locator('[data-alert-id]').first();
       
-      if (await firstAlert.isVisible({ timeout: 2000 })) {
-        const alertId = await firstAlert.getAttribute('data-alert-id');
-        
-        const dismissButton = firstAlert.locator('[data-dismiss-alert]');
-        if (await dismissButton.isVisible()) {
-          await dismissButton.click();
-          await page.waitForTimeout(500);
-          
-          // Verify localStorage was updated
-          const dismissedIds = await page.evaluate(() => {
-            return JSON.parse(localStorage.getItem('tatame_dismissed_alerts') || '[]');
-          });
-          
-          expect(dismissedIds).toContain(alertId);
-          
-          // Reload page
-          await page.reload();
-          await page.waitForLoadState('networkidle');
-          
-          // Re-open panel
-          await alertBadge.click();
-          await page.waitForTimeout(500);
-          
-          // Alert should not reappear
-          const reappearedAlert = page.locator(`[data-alert-id="${alertId}"]`);
-          await expect(reappearedAlert).not.toBeVisible();
-          
-          logTestAssertion('E2E', 'Dismissed alert does not reappear', true);
-        } else {
-          logTestAssertion('E2E', 'No dismiss button found (skipped)', true);
-        }
-      } else {
-        logTestAssertion('E2E', 'No alerts to dismiss (skipped)', true);
+      // SAFE GOLD: Skip if no alerts available
+      if (!(await firstAlert.isVisible({ timeout: 2000 }))) {
+        test.skip(true, 'No alerts available to test dismiss persistence');
+        return;
       }
+      
+      const alertId = await firstAlert.getAttribute('data-alert-id');
+      
+      const dismissButton = firstAlert.locator('[data-dismiss-alert]');
+      if (!(await dismissButton.isVisible())) {
+        test.skip(true, 'No dismiss button found');
+        return;
+      }
+      
+      await dismissButton.click();
+      await page.waitForTimeout(500);
+      
+      // Verify localStorage was updated
+      const dismissedIds = await page.evaluate(() => {
+        return JSON.parse(localStorage.getItem('tatame_dismissed_alerts') || '[]');
+      });
+      
+      expect(dismissedIds).toContain(alertId);
+      
+      // Reload page
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+      
+      // Re-open panel
+      await alertBadge.click();
+      await page.waitForTimeout(500);
+      
+      // Alert should not reappear
+      const reappearedAlert = page.locator(`[data-alert-id="${alertId}"]`);
+      await expect(reappearedAlert).not.toBeVisible();
+      
+      logTestAssertion('E2E', 'Dismissed alert does not reappear', true);
     });
     
-    test('A.1.7: empty state displays correctly', async ({ page }) => {
-      logTestStep('E2E', 'Testing empty state');
+    test('A.1.7: empty state displays correctly when mocked', async ({ page }) => {
+      logTestStep('E2E', 'Testing deterministic empty state');
+      
+      // Mock empty response BEFORE navigation (SAFE GOLD)
+      await page.route('**/rest/v1/observability_critical_events*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([]),
+        });
+      });
       
       await loginAsSuperAdmin(page);
       await page.goto('/admin/health');
       await page.waitForLoadState('networkidle');
-      
-      // Dismiss all alerts first (if any) to reach empty state
-      await page.evaluate(() => {
-        // Store many fake dismissed IDs to ensure empty state
-        const existingIds = JSON.parse(localStorage.getItem('tatame_dismissed_alerts') || '[]');
-        // We don't know the IDs, but we can check if panel shows empty state
-      });
       
       // Open panel
       const alertBadge = page.locator('button:has(svg.lucide-bell)');
       await alertBadge.click();
       await page.waitForTimeout(500);
       
-      // Check for alerts or empty state
-      const alerts = page.locator('[data-alert-id]');
-      const alertCount = await alerts.count();
+      // Assert empty state is shown using testid (SAFE GOLD)
+      const emptyState = page.locator('[data-testid="alerts-empty-state"]');
+      await expect(emptyState).toBeVisible();
       
-      if (alertCount === 0) {
-        // Should show "all clear" message
-        const emptyState = page.locator('text=/all clear|tudo certo|todo bien/i');
-        await expect(emptyState).toBeVisible();
-        logTestAssertion('E2E', 'Empty state displayed', true);
-      } else {
-        logTestAssertion('E2E', `Has ${alertCount} alerts (not empty)`, true);
-      }
+      // Also verify text content (any supported locale)
+      const emptyText = page.locator('text=/all clear|tudo certo|todo bien/i');
+      await expect(emptyText).toBeVisible();
+      
+      logTestAssertion('E2E', 'Empty state displayed deterministically', true);
     });
     
     test('A.1.8: severity ordering is correct', async ({ page }) => {
@@ -207,14 +213,15 @@ test.describe('Observability UI', () => {
       await alertBadge.click();
       await page.waitForTimeout(500);
       
-      // Get all alert severities
+      // Get all alert severities using data-* attribute (SAFE GOLD)
       const severities = await page.evaluate(() => {
         return Array.from(document.querySelectorAll('[data-alert-severity]'))
           .map(el => el.getAttribute('data-alert-severity'));
       });
       
+      // SAFE GOLD: Skip if insufficient data
       if (severities.length < 2) {
-        logTestAssertion('E2E', 'Not enough alerts to test ordering (skipped)', true);
+        test.skip(true, 'Insufficient alerts to validate ordering (need at least 2)');
         return;
       }
       
@@ -256,16 +263,14 @@ test.describe('Observability UI', () => {
       await alertBadge.click();
       await page.waitForTimeout(500);
       
-      // Check for connection badge (Live or Polling)
-      const liveBadge = page.locator('text=/live|ao vivo/i');
-      const pollingBadge = page.locator('text=/polling/i');
+      // Use data-conn-state for deterministic check (SAFE GOLD)
+      const connState = page.locator('[data-conn-state]');
+      await expect(connState.first()).toBeVisible();
       
-      const hasLive = await liveBadge.isVisible();
-      const hasPolling = await pollingBadge.isVisible();
+      const state = await connState.first().getAttribute('data-conn-state');
+      expect(['live', 'polling', 'syncing']).toContain(state);
       
-      expect(hasLive || hasPolling).toBe(true);
-      
-      logTestAssertion('E2E', `Connection status: ${hasLive ? 'Live' : 'Polling'}`, true);
+      logTestAssertion('E2E', `Connection status: ${state}`, true);
     });
     
     test('A.1.10: refresh button works', async ({ page }) => {
@@ -280,19 +285,45 @@ test.describe('Observability UI', () => {
       await alertBadge.click();
       await page.waitForTimeout(500);
       
-      // Find refresh button
+      // Find refresh button (icon button selector allowed)
       const refreshButton = page.locator('button:has(svg.lucide-refresh-cw)').first();
       await expect(refreshButton).toBeVisible();
       
       // Click refresh
       await refreshButton.click();
       
-      // Button should show loading state (animate-spin)
-      // Note: This may be too fast to catch reliably
-      
       await page.waitForTimeout(1000);
       
       logTestAssertion('E2E', 'Refresh button works', true);
+    });
+    
+    test('A.1.11: mark as seen button works', async ({ page }) => {
+      logTestStep('E2E', 'Testing mark as seen button');
+      
+      await loginAsSuperAdmin(page);
+      await page.goto('/admin/health');
+      await page.waitForLoadState('networkidle');
+      
+      // Open panel
+      const alertBadge = page.locator('button:has(svg.lucide-bell)');
+      await alertBadge.click();
+      await page.waitForTimeout(500);
+      
+      // Use data-testid for mark seen button (SAFE GOLD)
+      const markSeenButton = page.locator('[data-testid="mark-seen-button"]');
+      
+      if (await markSeenButton.isVisible()) {
+        await markSeenButton.click();
+        await page.waitForTimeout(500);
+        
+        // After clicking, the button should disappear (no new events)
+        await expect(markSeenButton).not.toBeVisible();
+        
+        logTestAssertion('E2E', 'Mark as seen button works', true);
+      } else {
+        // No new events to mark as seen
+        logTestAssertion('E2E', 'No new events to mark as seen (skipped)', true);
+      }
     });
   });
 });
