@@ -145,6 +145,7 @@ Deve retornar 2 linhas. Se não retornar, execute os CREATE EXTENSION acima.
 | `cleanup-expired-tenants-daily` | Remove tenants PENDING_DELETE após 7 dias | 03:00 | 🔴 Alta |
 | `cleanup-tmp-documents-daily` | Remove arquivos tmp/ > 7 dias | 03:30 | 🟡 Média |
 | `transition-youth-to-adult-daily` | Transiciona menores que completaram 18 anos | 03:15 | 🟡 Média |
+| `cleanup-pending-payment-memberships-daily` | Cancela filiações com pagamento pendente > 24h | 03:45 | 🟡 Média |
 | `cleanup-abandoned-memberships-daily` | Remove filiações DRAFT > 24h | 04:00 | 🟡 Média |
 | `check-membership-renewal-daily` | Envia lembretes de renovação | 09:00 | 🟡 Média |
 | `check-trial-ending-daily` | Notifica tenants sobre trial | 10:00 | 🟡 Média |
@@ -301,6 +302,31 @@ SELECT cron.schedule(
 - ❌ NÃO deleta guardian ou guardian_links
 - ✅ Apenas atualiza `applicant_data.is_minor = false`
 - ✅ Preserva histórico do guardian em `applicant_data.youth_transition`
+
+#### cleanup-pending-payment-memberships (diário às 03:45 UTC)
+Cancela filiações que iniciaram checkout mas não concluíram pagamento em 24h.
+
+**⚠️ IMPORTANTE:** Este job usa autenticação via header `x-cron-secret`.
+
+```sql
+SELECT cron.schedule(
+  'cleanup-pending-payment-memberships-daily',
+  '45 3 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://kotxhtveuegrywzyvdnl.supabase.co/functions/v1/cleanup-pending-payment-memberships',
+    headers:='{"Content-Type": "application/json", "x-cron-secret": "' || current_setting('app.cron_secret') || '"}'::jsonb,
+    body:='{"scheduled": true}'::jsonb
+  );
+  $$
+);
+```
+
+**Regras SAFE GOLD:**
+- ❌ NÃO toca em Stripe (sessions, invoices)
+- ❌ NÃO remove dados fisicamente
+- ✅ Apenas atualiza `status → CANCELLED`
+- ✅ 100% auditável e idempotente
 
 ---
 

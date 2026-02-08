@@ -2330,4 +2330,8 @@ export const en: Record<string, string> = {
   'rankings.adjustFilters': 'Try adjusting the filters to see more results.',
   'rankings.noActiveAcademies': 'No academies with active athletes yet.',
 
+  // P3.MEMBERSHIP.PENDING.GC — Platform Health
+  'platformHealth.pendingPaymentGC': 'Clean Pending Payments',
+  'platformHealth.pendingPaymentCleaned': 'Pending payments cleaned',
+
 };

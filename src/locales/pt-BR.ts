@@ -2309,6 +2309,10 @@ export const ptBR = {
   'rankings.adjustFilters': 'Tente ajustar os filtros para ver mais resultados.',
   'rankings.noActiveAcademies': 'Nenhuma academia com atletas ativos ainda.',
 
+  // P3.MEMBERSHIP.PENDING.GC — Platform Health
+  'platformHealth.pendingPaymentGC': 'Limpar Pag. Pendentes',
+  'platformHealth.pendingPaymentCleaned': 'Pgto. pendentes limpos',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

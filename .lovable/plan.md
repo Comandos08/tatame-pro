@@ -1,14 +1,23 @@
 
-# Plano: P3.MEMBERSHIP.PENDING.GC (SAFE GOLD)
+# Plano: P3.MEMBERSHIP.PENDING.GC (SAFE GOLD) — ✅ IMPLEMENTADO
+
+## Status: CONCLUÍDO
+
+Implementação completa em 2026-02-08. Todos os arquivos criados/modificados:
+
+| Arquivo | Status |
+|---------|--------|
+| `supabase/functions/cleanup-pending-payment-memberships/index.ts` | ✅ Criado |
+| `supabase/functions/_shared/audit-logger.ts` | ✅ Atualizado |
+| `supabase/config.toml` | ✅ Atualizado |
+| `src/components/admin/PlatformHealthCard.tsx` | ✅ Atualizado |
+| `src/locales/pt-BR.ts`, `en.ts`, `es.ts` | ✅ Atualizados |
+| `docs/operacao-configuracoes.md` | ✅ Atualizado |
+| `docs/BUSINESS-FLOWS.md` | ✅ Atualizado |
+
+---
 
 ## Resumo do Diagnóstico
-
-### Análise do Codebase
-
-| Componente | Estado | Arquivo de Referência |
-|------------|--------|----------------------|
-| **Edge Function Template** | `cleanup-abandoned-memberships` | ✅ Padrão exato a seguir |
-| **Audit Logger** | AUDIT_EVENTS | ✅ Padrão consolidado |
 | **PlatformHealthCard** | 4 jobs já monitorados | ✅ Padrão visual estabelecido |
 | **config.toml** | `verify_jwt = false` | ✅ Padrão para cron jobs |
 | **Documentação** | `docs/operacao-configuracoes.md` | ✅ Tabela e SQLs |
