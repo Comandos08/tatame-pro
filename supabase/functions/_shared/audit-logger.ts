@@ -105,6 +105,7 @@ export const AUDIT_EVENTS = {
   SUPERADMIN_ACTION: 'SUPERADMIN_ACTION',
   
   // PI-D5-FEDERATION1.0: Federation Audit Events
+  // ⚠️ CRITICAL (PI-D5.A): All federation events MUST include metadata.federation_id
   FEDERATION_CREATED: 'FEDERATION_CREATED',
   FEDERATION_STATUS_CHANGED: 'FEDERATION_STATUS_CHANGED',
   TENANT_JOINED_FEDERATION: 'TENANT_JOINED_FEDERATION',
@@ -113,6 +114,7 @@ export const AUDIT_EVENTS = {
   FEDERATION_ROLE_REVOKED: 'FEDERATION_ROLE_REVOKED',
   
   // PI-D5-COUNCIL1.0: Council Audit Events
+  // ⚠️ CRITICAL (PI-D5.A): All council events MUST include metadata.federation_id AND metadata.council_id
   COUNCIL_CREATED: 'COUNCIL_CREATED',
   COUNCIL_MEMBER_ADDED: 'COUNCIL_MEMBER_ADDED',
   COUNCIL_MEMBER_REMOVED: 'COUNCIL_MEMBER_REMOVED',
@@ -163,6 +165,11 @@ function detectCategory(eventType: string): AuditCategory {
 /**
  * Standard metadata fields that should be included when applicable.
  * Not all fields are required for every event - include what's relevant.
+ * 
+ * ⚠️ PI-D5.A MANDATORY FIELDS:
+ *   - FEDERATION_* events: MUST include federation_id
+ *   - COUNCIL_* events: MUST include federation_id AND council_id
+ *   - TENANT_JOINED/LEFT_FEDERATION: MUST include federation_id
  */
 export interface AuditMetadata {
   // Entity IDs (include when applicable)
@@ -173,6 +180,10 @@ export interface AuditMetadata {
   diploma_id?: string;
   grading_id?: string;
   invoice_id?: string;
+  
+  // Federation/Council IDs (PI-D5.A - MANDATORY for federative events)
+  federation_id?: string;
+  council_id?: string;
   
   // Actor information
   actor_profile_id?: string;
@@ -256,6 +267,22 @@ export async function createAuditLog(
   try {
     // Auto-detect category if not provided
     const category = entry.metadata?.category || detectCategory(entry.event_type);
+    
+    // PI-D5.A: Validate mandatory federation_id for federative events
+    const isFederationEvent = entry.event_type.startsWith('FEDERATION_') || 
+                               entry.event_type.startsWith('TENANT_JOINED_') ||
+                               entry.event_type.startsWith('TENANT_LEFT_');
+    const isCouncilEvent = entry.event_type.startsWith('COUNCIL_');
+    
+    if (isFederationEvent && !entry.metadata?.federation_id) {
+      console.error(`[AUDIT-LOGGER] PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id`);
+      return { success: false, error: `PI-D5.A: ${entry.event_type} requires metadata.federation_id` };
+    }
+    
+    if (isCouncilEvent && (!entry.metadata?.federation_id || !entry.metadata?.council_id)) {
+      console.error(`[AUDIT-LOGGER] PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id AND metadata.council_id`);
+      return { success: false, error: `PI-D5.A: ${entry.event_type} requires metadata.federation_id AND metadata.council_id` };
+    }
     
     // Ensure metadata includes a timestamp if not provided
     const metadata: AuditMetadata = {

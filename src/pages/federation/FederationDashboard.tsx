@@ -54,7 +54,7 @@ export default function FederationDashboard() {
     enabled: !!slug && !authLoading,
   });
 
-  // Fetch federation tenants
+  // Fetch federation tenants (LIMIT 50 - PI-D5.A)
   const { data: tenants } = useQuery({
     queryKey: ['federation-tenants', federation?.id],
     queryFn: async () => {
@@ -67,7 +67,8 @@ export default function FederationDashboard() {
           tenant:tenants(id, name, slug, is_active, created_at)
         `)
         .eq('federation_id', federation!.id)
-        .is('left_at', null);
+        .is('left_at', null)
+        .limit(50);
       
       if (error) throw error;
       return data;
@@ -75,14 +76,15 @@ export default function FederationDashboard() {
     enabled: !!federation?.id,
   });
 
-  // Fetch councils
+  // Fetch councils (LIMIT 50 - PI-D5.A)
   const { data: councils } = useQuery({
     queryKey: ['federation-councils', federation?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('councils')
         .select('id, name, description, created_at')
-        .eq('federation_id', federation!.id);
+        .eq('federation_id', federation!.id)
+        .limit(50);
       
       if (error) throw error;
       return data;
@@ -113,7 +115,7 @@ export default function FederationDashboard() {
     enabled: !!councils && councils.length > 0,
   });
 
-  // Fetch aggregated document stats (from tenants)
+  // Fetch aggregated document stats (from tenants) - LIMIT 1000 per query - PI-D5.A
   const { data: docStats } = useQuery({
     queryKey: ['federation-doc-stats', tenants],
     queryFn: async () => {
@@ -125,11 +127,13 @@ export default function FederationDashboard() {
         supabase
           .from('digital_cards')
           .select('id, status', { count: 'exact' })
-          .in('tenant_id', tenantIds),
+          .in('tenant_id', tenantIds)
+          .limit(1000),
         supabase
           .from('diplomas')
           .select('id, status', { count: 'exact' })
-          .in('tenant_id', tenantIds),
+          .in('tenant_id', tenantIds)
+          .limit(1000),
       ]);
 
       const cards = cardsRes.data || [];

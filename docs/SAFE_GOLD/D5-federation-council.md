@@ -2,7 +2,7 @@
 
 **Status:** 🟢 IMPLEMENTADO  
 **Modo:** SAFE GOLD  
-**Versão:** 1.0  
+**Versão:** 1.0.1 (PI-D5.A Hardening)  
 **Data:** 2026-02-08
 
 ---
@@ -156,14 +156,44 @@ can_act_as_federation(user_id, federation_id)
 
 ---
 
+## 🔒 PI-D5.A — Hardening Final (v1.0.1)
+
+### A.1 Normalização de Auditoria
+
+- Eventos federativos DEVEM incluir `metadata.federation_id`
+- Eventos de conselho DEVEM incluir `metadata.federation_id` E `metadata.council_id`
+- Validação em runtime no `createAuditLog()` — falha se ausente
+
+### A.2 RLS Blindado
+
+| Tabela | Regra |
+|--------|-------|
+| `federations` | SELECT apenas para superadmin ou `federation_roles` |
+| `federation_tenants` | SELECT apenas para FED_ADMIN, COUNCIL_MEMBER ou superadmin |
+| `councils` | SELECT escopado por `federation_id` |
+| `council_decisions` | SELECT escopado por `council_id` |
+
+### A.3 LIMIT Explícito
+
+Todas as queries federativas têm LIMIT hard:
+- `federation_tenants`: 50
+- `councils`: 50
+- `council_decisions`: 10
+- `audit_logs` (federativo): 20
+- `digital_cards/diplomas` (agregado): 1000
+
+---
+
 ## 🏦 Certificação
 
 ```
-PI-D5-FEDERATION1.0 + PI-D5-COUNCIL1.0 + PI-D5-MULTITENANT2.0
+PI-D5-FEDERATION1.0 + PI-D5-COUNCIL1.0 + PI-D5-MULTITENANT2.0 + PI-D5.A
 🏛️ CAMADA FEDERATIVA ATIVA
 👁️ READ-ONLY DASHBOARD
 🔐 PAPÉIS ISOLADOS
-📜 AUDITORIA COMPLETA
+📜 AUDITORIA COMPLETA + VALIDAÇÃO RUNTIME
+🛡️ RLS BLINDADO
+⚡ QUERIES COM LIMIT HARD
 🌍 PRONTO PARA ESCALA INTERNACIONAL
 ```
 
