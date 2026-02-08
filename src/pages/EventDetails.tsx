@@ -183,6 +183,7 @@ export default function EventDetails() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
+        data-testid="event-detail"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
@@ -193,7 +194,7 @@ export default function EventDetails() {
                 {t('common.back')}
               </Link>
             </Button>
-            <h1 className="text-2xl font-display font-bold">{event.name}</h1>
+            <h1 className="text-2xl font-display font-bold" data-testid="event-title">{event.name}</h1>
             {event.sport_type && (
               <Badge variant="outline" className="mt-2">{event.sport_type}</Badge>
             )}

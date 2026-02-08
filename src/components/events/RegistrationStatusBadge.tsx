@@ -64,6 +64,8 @@ export function RegistrationStatusBadge({
           sizeVariants[size],
           className
         )}
+        data-testid="registration-state-badge"
+        data-registration-state={status}
       >
         {t('common.unknown')}
       </Badge>
@@ -84,6 +86,8 @@ export function RegistrationStatusBadge({
         sizeVariants[size],
         className
       )}
+      data-testid="registration-state-badge"
+      data-registration-state={status}
     >
       {t(config.labelKey as any)}
     </Badge>
