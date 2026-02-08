@@ -4,7 +4,8 @@ import { CheckCircle2, XCircle, AlertCircle, Search, Shield } from "lucide-react
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-
+import { useI18n } from "@/contexts/I18nContext";
+import { formatDate } from "@/lib/i18n/formatters";
 type VerifyResponse =
   | {
       valid: true;
@@ -28,7 +29,7 @@ export default function PublicVerifyDocument() {
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<VerifyState>("loading");
   const [data, setData] = useState<VerifyResponse | null>(null);
-
+  const { t, locale } = useI18n();
   useEffect(() => {
     async function verifyDocument() {
       if (!token) {
@@ -75,21 +76,23 @@ export default function PublicVerifyDocument() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md overflow-hidden">
-        {state === "loading" && <LoadingState />}
-        {state === "valid" && data?.valid && <ValidState data={data} />}
-        {state === "invalid" && <InvalidState />}
-        {state === "revoked" && <RevokedState />}
-        {state === "not_found" && <NotFoundState />}
+        {state === "loading" && <LoadingState t={t} />}
+        {state === "valid" && data?.valid && <ValidState data={data} t={t} locale={locale} />}
+        {state === "invalid" && <InvalidState t={t} />}
+        {state === "revoked" && <RevokedState t={t} />}
+        {state === "not_found" && <NotFoundState t={t} />}
       </Card>
     </div>
   );
 }
 
-function LoadingState() {
+type TFunction = (key: string, params?: Record<string, string>) => string;
+
+function LoadingState({ t }: { t: TFunction }) {
   return (
     <CardContent className="py-12 text-center">
       <Search className="h-12 w-12 mx-auto text-muted-foreground animate-pulse mb-4" />
-      <p className="text-muted-foreground">Verificando documento...</p>
+      <p className="text-muted-foreground">{t('publicVerify.loading')}</p>
     </CardContent>
   );
 }
@@ -106,15 +109,15 @@ interface ValidData {
   valid_until?: string | null;
 }
 
-function ValidState({ data }: { data: ValidData }) {
-  const documentLabel = data.document_type === "digital_card" ? "Carteirinha Digital" : "Diploma";
+function ValidState({ data, t, locale }: { data: ValidData; t: TFunction; locale: string }) {
+  const documentLabel = t(`publicVerify.documentType.${data.document_type}`);
 
   return (
     <>
       {/* Success Banner */}
       <div className="bg-primary py-6 px-4 text-center">
         <CheckCircle2 className="h-16 w-16 mx-auto text-primary-foreground mb-2" />
-        <h1 className="text-2xl font-bold text-primary-foreground">Documento Válido</h1>
+        <h1 className="text-2xl font-bold text-primary-foreground">{t('publicVerify.valid.title')}</h1>
       </div>
 
       <CardContent className="py-6 space-y-4">
@@ -136,23 +139,23 @@ function ValidState({ data }: { data: ValidData }) {
         {/* Issuer */}
         <div className="border-t pt-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Instituição</span>
+            <span className="text-muted-foreground">{t('publicVerify.institution')}</span>
             <span className="font-medium">{data.issuer_name}</span>
           </div>
           {data.sport_type && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Modalidade</span>
+              <span className="text-muted-foreground">{t('publicVerify.sport')}</span>
               <span className="font-medium">{data.sport_type}</span>
             </div>
           )}
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Emitido em</span>
-            <span className="font-medium">{formatDisplayDate(data.issued_at)}</span>
+            <span className="text-muted-foreground">{t('publicVerify.issuedAt')}</span>
+            <span className="font-medium">{formatDate(data.issued_at, locale)}</span>
           </div>
           {data.valid_until && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Válido até</span>
-              <span className="font-medium">{formatDisplayDate(data.valid_until)}</span>
+              <span className="text-muted-foreground">{t('publicVerify.validUntil')}</span>
+              <span className="font-medium">{formatDate(data.valid_until, locale)}</span>
             </div>
           )}
         </div>
@@ -161,7 +164,7 @@ function ValidState({ data }: { data: ValidData }) {
         <div className="border-t pt-4">
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Shield className="h-4 w-4" />
-            <span>Documento válido conforme registros oficiais.</span>
+            <span>{t('publicVerify.trustSeal')}</span>
           </div>
         </div>
       </CardContent>
@@ -169,71 +172,62 @@ function ValidState({ data }: { data: ValidData }) {
   );
 }
 
-function InvalidState() {
+function InvalidState({ t }: { t: TFunction }) {
   return (
     <>
       <div className="bg-destructive py-6 px-4 text-center">
         <XCircle className="h-16 w-16 mx-auto text-destructive-foreground mb-2" />
-        <h1 className="text-2xl font-bold text-destructive-foreground">Documento Inválido</h1>
+        <h1 className="text-2xl font-bold text-destructive-foreground">{t('publicVerify.invalid.title')}</h1>
       </div>
       <CardContent className="py-8 text-center">
         <p className="text-muted-foreground">
-          Este documento não pôde ser validado. Ele pode estar suspenso, expirado ou a
-          instituição emissora não está ativa.
+          {t('publicVerify.invalid.desc')}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Shield className="h-4 w-4" />
-          <span>Verificação realizada em tempo real.</span>
+          <span>{t('publicVerify.realTimeVerification')}</span>
         </div>
       </CardContent>
     </>
   );
 }
 
-function RevokedState() {
+function RevokedState({ t }: { t: TFunction }) {
   return (
     <>
       <div className="bg-accent py-6 px-4 text-center">
         <AlertCircle className="h-16 w-16 mx-auto text-accent-foreground mb-2" />
-        <h1 className="text-2xl font-bold text-accent-foreground">Documento Revogado</h1>
+        <h1 className="text-2xl font-bold text-accent-foreground">{t('publicVerify.revoked.title')}</h1>
       </div>
       <CardContent className="py-8 text-center">
         <p className="text-muted-foreground">
-          Este documento foi revogado pela instituição emissora e não é mais válido.
+          {t('publicVerify.revoked.desc')}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Shield className="h-4 w-4" />
-          <span>Verificação realizada em tempo real.</span>
+          <span>{t('publicVerify.realTimeVerification')}</span>
         </div>
       </CardContent>
     </>
   );
 }
 
-function NotFoundState() {
+function NotFoundState({ t }: { t: TFunction }) {
   return (
     <>
       <div className="bg-muted py-6 px-4 text-center">
         <Search className="h-16 w-16 mx-auto text-muted-foreground mb-2" />
-        <h1 className="text-2xl font-bold text-foreground">Documento Não Encontrado</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('publicVerify.notFound.title')}</h1>
       </div>
       <CardContent className="py-8 text-center">
         <p className="text-muted-foreground">
-          Não foi possível encontrar um documento com este código. Verifique se o link está
-          correto ou se o QR Code foi escaneado corretamente.
+          {t('publicVerify.notFound.desc')}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Shield className="h-4 w-4" />
-          <span>Verificação realizada em tempo real.</span>
+          <span>{t('publicVerify.realTimeVerification')}</span>
         </div>
       </CardContent>
     </>
   );
-}
-
-// Use formatDate from centralized formatters
-// Note: This public page uses pt-BR as default since it doesn't have i18n context
-import { formatDate as formatDateUtil } from '@/lib/i18n/formatters';
-function formatDisplayDate(dateStr: string): string {
-  return formatDateUtil(dateStr, 'pt-BR');
 }

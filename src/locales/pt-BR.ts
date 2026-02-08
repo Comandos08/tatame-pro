@@ -18,6 +18,25 @@ export const ptBR = {
   'nav.globalAdmin': 'Admin Global',
   'nav.rankings': 'Rankings',
   'nav.about': 'Sobre',
+  'nav.events': 'Eventos',
+
+  // Public Verification
+  'publicVerify.loading': 'Verificando documento...',
+  'publicVerify.valid.title': 'Documento Válido',
+  'publicVerify.invalid.title': 'Documento Inválido',
+  'publicVerify.revoked.title': 'Documento Revogado',
+  'publicVerify.notFound.title': 'Documento Não Encontrado',
+  'publicVerify.documentType.digital_card': 'Carteirinha Digital',
+  'publicVerify.documentType.diploma': 'Diploma',
+  'publicVerify.institution': 'Instituição',
+  'publicVerify.sport': 'Modalidade',
+  'publicVerify.issuedAt': 'Emitido em',
+  'publicVerify.validUntil': 'Válido até',
+  'publicVerify.trustSeal': 'Documento válido conforme registros oficiais.',
+  'publicVerify.invalid.desc': 'Este documento não pôde ser validado. Ele pode estar suspenso, expirado ou a instituição emissora não está ativa.',
+  'publicVerify.revoked.desc': 'Este documento foi revogado pela instituição emissora e não é mais válido.',
+  'publicVerify.notFound.desc': 'Não foi possível encontrar um documento com este código. Verifique se o link está correto ou se o QR Code foi escaneado corretamente.',
+  'publicVerify.realTimeVerification': 'Verificação realizada em tempo real.',
 
   // Common
   'common.loading': 'Carregando...',
@@ -933,9 +952,6 @@ export const ptBR = {
   'portal.viewAllEvents': 'Ver todos os eventos',
   'portal.upcomingEvents': 'Próximos Eventos',
   'portal.myResults': 'Meus Resultados',
-  
-  // Navegação - Eventos
-  'nav.events': 'Eventos',
   
   // Eventos - Admin
   'events.title': 'Eventos',

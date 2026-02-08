@@ -18,6 +18,25 @@ export const es: Record<string, string> = {
   'nav.globalAdmin': 'Admin Global',
   'nav.rankings': 'Rankings',
   'nav.about': 'Acerca de',
+  'nav.events': 'Eventos',
+
+  // Public Verification
+  'publicVerify.loading': 'Verificando documento...',
+  'publicVerify.valid.title': 'Documento Válido',
+  'publicVerify.invalid.title': 'Documento Inválido',
+  'publicVerify.revoked.title': 'Documento Revocado',
+  'publicVerify.notFound.title': 'Documento No Encontrado',
+  'publicVerify.documentType.digital_card': 'Carnet Digital',
+  'publicVerify.documentType.diploma': 'Diploma',
+  'publicVerify.institution': 'Institución',
+  'publicVerify.sport': 'Deporte',
+  'publicVerify.issuedAt': 'Emitido el',
+  'publicVerify.validUntil': 'Válido hasta',
+  'publicVerify.trustSeal': 'Documento verificado según registros oficiales.',
+  'publicVerify.invalid.desc': 'Este documento no pudo ser validado. Puede estar suspendido, expirado o la institución emisora no está activa.',
+  'publicVerify.revoked.desc': 'Este documento ha sido revocado por la institución emisora y ya no es válido.',
+  'publicVerify.notFound.desc': 'No se pudo encontrar un documento con este código. Verifique si el enlace es correcto o si el código QR fue escaneado correctamente.',
+  'publicVerify.realTimeVerification': 'Verificación en tiempo real.',
 
   // Common
   'common.loading': 'Cargando...',
@@ -935,9 +954,6 @@ export const es: Record<string, string> = {
   'portal.viewAllEvents': 'Ver todos los eventos',
   'portal.upcomingEvents': 'Próximos Eventos',
   'portal.myResults': 'Mis Resultados',
-  
-  // Navegación - Eventos
-  'nav.events': 'Eventos',
   
   // Eventos - Admin
   'events.title': 'Eventos',
