@@ -15,6 +15,8 @@ interface DigitalCardData {
   valid_until: string | null;
   content_hash_sha256: string | null;
   membership_id: string;
+  /** PI-D3-DOCS1.0: Public verification token */
+  public_token?: string | null;
 }
 
 interface DigitalCardSectionProps {
@@ -84,6 +86,7 @@ export function DigitalCardSection({
           validUntil={digitalCard.valid_until}
           pdfUrl={digitalCard.pdf_url}
           contentHash={digitalCard.content_hash_sha256}
+          publicToken={digitalCard.public_token}
         />
       </CardContent>
     </Card>

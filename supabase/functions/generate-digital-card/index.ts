@@ -381,6 +381,29 @@ serve(async (req) => {
       throw new Error(`Failed to create digital card: ${cardError.message}`);
     }
 
+    // PI-D3-DOCS1.0: Generate public verification token for the card
+    let publicToken: string | null = null;
+    try {
+      const { data: tokenResult, error: tokenError } = await supabase.rpc(
+        "generate_document_token",
+        {
+          p_document_type: "digital_card",
+          p_document_id: digitalCard.id,
+          p_tenant_id: tenant.id,
+        }
+      );
+      
+      if (tokenError) {
+        console.error("Failed to generate public token:", tokenError);
+      } else {
+        publicToken = tokenResult;
+        console.log("Generated public token for card:", digitalCard.id);
+      }
+    } catch (tokenGenError) {
+      // Non-fatal: token generation failure shouldn't fail card creation
+      console.error("Token generation error (non-fatal):", tokenGenError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -389,6 +412,7 @@ serve(async (req) => {
           qrCodeUrl: qrUrl.publicUrl,
           pdfUrl: pdfUrl.publicUrl,
           contentHash: contentHash,
+          publicToken: publicToken,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }

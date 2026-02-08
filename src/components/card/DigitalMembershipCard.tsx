@@ -21,6 +21,8 @@ interface DigitalMembershipCardProps {
   validUntil: string | null;
   pdfUrl?: string | null;
   contentHash?: string | null;
+  /** PI-D3-DOCS1.0: Opaque public token for verification QR code */
+  publicToken?: string | null;
 }
 
 export function DigitalMembershipCard({
@@ -34,6 +36,7 @@ export function DigitalMembershipCard({
   validUntil,
   pdfUrl,
   contentHash,
+  publicToken,
 }: DigitalMembershipCardProps) {
   const { t, locale } = useI18n();
 
@@ -45,7 +48,11 @@ export function DigitalMembershipCard({
     }
   };
 
-  const verificationUrl = `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
+  // PI-D3-DOCS1.0: Use public token for verification URL if available
+  // Fallback to legacy membership verification URL for backwards compatibility
+  const verificationUrl = publicToken
+    ? `${window.location.origin}/verify/${publicToken}`
+    : `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
 
   const getStatusConfig = () => {
     const status = membershipStatus.toUpperCase();
