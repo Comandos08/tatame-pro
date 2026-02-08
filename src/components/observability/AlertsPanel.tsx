@@ -69,11 +69,15 @@ function AlertItem({
   if (alert.dismissed) return null;
   
   return (
-    <div className={cn(
-      'p-3 rounded-lg border relative',
-      config.bg,
-      config.border,
-    )}>
+    <div 
+      className={cn(
+        'p-3 rounded-lg border relative',
+        config.bg,
+        config.border,
+      )}
+      data-alert-id={alert.id}
+      data-alert-severity={alert.severity}
+    >
       <div className="flex items-start gap-3">
         <Icon className={cn('h-5 w-5 mt-0.5', config.color)} />
         <div className="flex-1 min-w-0">
@@ -93,6 +97,7 @@ function AlertItem({
           size="icon"
           className="h-6 w-6 opacity-50 hover:opacity-100"
           onClick={() => onDismiss(alert.id)}
+          data-dismiss-alert={alert.id}
         >
           <X className="h-4 w-4" />
         </Button>

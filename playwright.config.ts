@@ -20,9 +20,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+  
+  // P4.3.D: Enhanced reporting
   reporter: [
-    ['html', { open: 'never' }],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
     ['list'],
+    ['json', { outputFile: 'test-results/results.json' }],
   ],
   
   // Global timeout for each test
@@ -51,6 +54,25 @@ export default defineConfig({
     {
       name: 'mobile',
       use: { ...devices['Pixel 5'] },
+    },
+    // P4.3.B: Resilience tests (no auto-retry to detect flakiness)
+    {
+      name: 'resilience',
+      testDir: './e2e/resilience',
+      use: { ...devices['Desktop Chrome'] },
+      retries: 0,
+    },
+    // P4.3.C: Contract tests
+    {
+      name: 'contract',
+      testDir: './e2e/contract',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // P4.3.A: Observability UI tests
+    {
+      name: 'observability',
+      testDir: './e2e/observability',
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
   
