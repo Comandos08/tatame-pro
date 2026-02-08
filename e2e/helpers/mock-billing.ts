@@ -7,6 +7,20 @@
 
 import { Page } from '@playwright/test';
 
+/* ======================================================
+   SAFE GOLD — DETERMINISTIC CONSTANTS
+   ====================================================== */
+
+export const FIXED_TIMESTAMP_ISO = '2026-02-07T12:00:00.000Z';
+
+export const FIXED_IDS = {
+  BILLING_ID: 'billing-safe-gold-01',
+  CUSTOMER_ID: 'cus_safe_gold_01',
+  SUBSCRIPTION_ID: 'sub_safe_gold_01',
+  INVOICE_ID: 'inv_safe_gold_01',
+  STRIPE_INVOICE_ID: 'in_safe_gold_01',
+};
+
 export interface MockBillingData {
   id: string;
   tenant_id: string;
@@ -126,14 +140,14 @@ export async function mockBillingBase(
   });
 }
 
-/** Factory: create billing data */
+/** Factory: create billing data (DETERMINISTIC) */
 export function makeBillingData(
   tenantId: string,
   status: string,
   options: Partial<MockBillingData> = {}
 ): MockBillingData {
   return {
-    id: `billing-${Date.now()}`,
+    id: FIXED_IDS.BILLING_ID,
     tenant_id: tenantId,
     status,
     plan_name: 'Growth',
@@ -142,13 +156,13 @@ export function makeBillingData(
     trial_ends_at: null,
     current_period_end: null,
     scheduled_delete_at: null,
-    stripe_customer_id: `cus_test_${Date.now()}`,
-    stripe_subscription_id: `sub_test_${Date.now()}`,
+    stripe_customer_id: FIXED_IDS.CUSTOMER_ID,
+    stripe_subscription_id: FIXED_IDS.SUBSCRIPTION_ID,
     ...options,
   };
 }
 
-/** Factory: create invoice data */
+/** Factory: create invoice data (DETERMINISTIC) */
 export function makeInvoiceData(
   tenantId: string,
   status: string,
@@ -156,16 +170,16 @@ export function makeInvoiceData(
   options: Partial<MockInvoiceData> = {}
 ): MockInvoiceData {
   return {
-    id: `inv-${Date.now()}`,
+    id: FIXED_IDS.INVOICE_ID,
     tenant_id: tenantId,
-    stripe_invoice_id: `in_test_${Date.now()}`,
+    stripe_invoice_id: FIXED_IDS.STRIPE_INVOICE_ID,
     amount_cents: amountCents,
     currency: 'BRL',
     status,
     due_date: null,
-    paid_at: status === 'paid' ? new Date().toISOString() : null,
+    paid_at: status === 'paid' ? FIXED_TIMESTAMP_ISO : null,
     hosted_invoice_url: 'https://invoice.stripe.com/test',
-    created_at: new Date().toISOString(),
+    created_at: FIXED_TIMESTAMP_ISO,
     ...options,
   };
 }
