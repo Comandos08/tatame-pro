@@ -1,498 +1,575 @@
 
-# P4.1 — OBSERVABILITY.CORE (MASTER PLAN)
+
+# P4.2 — OBSERVABILITY.REALTIME (SAFE GOLD)
 
 ## Diagnóstico do Codebase Atual
 
 ### Infraestrutura Existente
 
-| Componente | Estado | Observação |
-|------------|--------|------------|
-| **audit_logs** | ✅ Completo | 40+ event types, Edge Functions integradas |
-| **decision_logs** | ✅ Completo | Hash chain SHA-256, tamper detection |
-| **security_events** | ✅ Completo | Rate limit, cross-tenant, auth failures |
-| **security_timeline** (view) | ✅ Completo | Unifica decision_logs + security_events |
-| **webhook_events** | ✅ Completo | Stripe webhook tracking |
-| **PlatformHealthCard** | ✅ Funcional | Job status + billing metrics (Superadmin) |
-| **SystemHealthCard** | ⚠️ Limitado | Apenas tenant-scoped, métricas básicas |
-| **SecurityTimeline** | ✅ Funcional | UI para security_timeline view |
-| **TenantDiagnostics** | ✅ Funcional | Read-only tenant diagnostics |
-| **AdminDiagnostics** | ✅ Funcional | Platform-wide diagnostics |
-| **formatSecurityEvent** | ✅ Completo | Human-readable security events |
-| **formatAuditEvent** | ✅ Completo | Human-readable audit events |
-| **logger.ts** | ✅ Básico | Environment-aware logging |
-| **error-report.ts** | ✅ Básico | Error buffer + future Sentry hook |
+| Componente | Estado | Localização |
+|------------|--------|-------------|
+| **AlertContext** | ✅ Funcional (polling 5min) | `src/contexts/AlertContext.tsx` |
+| **AlertBadge** | ✅ Simples | `src/components/observability/AlertBadge.tsx` |
+| **AlertsPanel** | ✅ Sheet com dismiss | `src/components/observability/AlertsPanel.tsx` |
+| **AdminHealthDashboard** | ✅ Read-only | `src/pages/AdminHealthDashboard.tsx` |
+| **observability_critical_events** | ✅ View SQL | Migração anterior |
+| **AppProviders** | ❌ Sem AlertProvider | `src/contexts/AppProviders.tsx` |
+| **Realtime channels** | ❌ Nenhum | - |
+| **notify-critical-alert** | ❌ Não existe | - |
 
 ### Gaps Identificados
 
-| Gap | Impacto | Prioridade |
-|-----|---------|------------|
-| Sem padronização de `category` em audit_logs | Queries lentas | P4.1.A |
-| Sem view materializada para jobs | Performance | P4.1.B |
-| Sem health status consolidado (OK/DEGRADED/CRITICAL) | UX admin | P4.1.B |
-| Dashboard disperso (cards separados) | Contexto fragmentado | P4.1.C |
-| Sem flags de alerta persistentes | Alertas manuais | P4.1.D |
-| Sem hook reutilizável para health status | Duplicação | P4.1.B |
+1. **AlertProvider não está no AppProviders** — precisa adicionar
+2. **Nenhum realtime configurado** — audit_logs não está em supabase_realtime
+3. **Sem idempotência** — duplicatas possíveis se realtime + polling colidem
+4. **Sem indicador de conexão** — UX não mostra estado da conexão
 
 ---
 
-## Arquitetura P4.1
+## Arquitetura P4.2
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│                      EDGE FUNCTIONS                               │
-│  (audit-logger.ts, decision-logger.ts, security-logger.ts)       │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │ INSERT
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    DATA LAYER (Existing)                          │
-│  audit_logs | decision_logs | security_events | webhook_events   │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              P4.1.A — OBSERVABILITY VIEWS                         │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   │
-│  │ observability_  │  │ job_execution_  │  │ event_category_ │   │
-│  │ unified_events  │  │ summary         │  │ index           │   │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘   │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              P4.1.B — HEALTH STATUS ENGINE                        │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ useSystemHealthStatus() hook                                 │ │
-│  │ → OK | DEGRADED | CRITICAL                                   │ │
-│  │ → reasons[], recommendations[]                               │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              P4.1.C — ADMIN HEALTH DASHBOARD                      │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐     │
-│  │ JobsCard  │  │ Billing   │  │ Membership│  │ Alerts    │     │
-│  │           │  │ Card      │  │ Card      │  │ Card      │     │
-│  └───────────┘  └───────────┘  └───────────┘  └───────────┘     │
-│  READ-ONLY • ZERO MUTATIONS • AUTO-REFRESH                       │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              P4.1.D — ALERT FLAGS (FUTURE-READY)                  │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ AlertContext → badges, banners, indicators                  │ │
-│  │ Prepared for: Realtime | Webhooks | Slack                   │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│              SUPABASE REALTIME (INSERT only)                  │
+│  audit_logs (filtered by severity/category)                   │
+└──────────────────────────────┬────────────────────────────────┘
+                               │ postgres_changes
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│              REALTIME ADAPTER                                  │
+│  subscribeObservabilityRealtime()                              │
+│   - Supabase channel                                           │
+│   - INSERT filter (server-side if possible)                    │
+│   - Client-side severity filter                                │
+│   - Idempotency cache (seen IDs, 1h TTL)                       │
+│   - Returns unsubscribe() callback                             │
+└──────────────────────────────┬────────────────────────────────┘
+                               │ onEvent callback
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│              AlertContext (Upgraded)                           │
+│  NEW: isRealtimeConnected                                      │
+│  NEW: lastRealtimeEventAt                                      │
+│  NEW: newEventsCount                                           │
+│  NEW: markNewEventsAsSeen()                                    │
+│  KEPT: polling fallback (5 min)                                │
+│  KEPT: dismissedIds persistence (localStorage)                 │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│              UI COMPONENTS                                     │
+│  AlertBadge: + "live" indicator                                │
+│  AlertsPanel: + "X new events" header + "mark seen" button     │
+│  AdminHealthDashboard: + AlertsPanel integration               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## P4.1.A — OBSERVABILITY.DATA.MODEL
+## Tarefas de Implementação
 
-### Objetivo
-Normalizar, categorizar e indexar dados para queries rápidas.
+### P4.2.A — REALTIME.CORE (Subscriptions)
 
-### Tarefas
-
-#### Tarefa A.1: Adicionar `category` ao audit_logs
+#### Tarefa A.1: Habilitar Realtime para audit_logs
 
 **Migração SQL:**
 ```sql
--- Add category column for efficient filtering
-ALTER TABLE audit_logs 
-ADD COLUMN IF NOT EXISTS category TEXT;
+-- Enable realtime for audit_logs (INSERT events only)
+ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
 
--- Create index for category
-CREATE INDEX IF NOT EXISTS idx_audit_logs_category 
-ON audit_logs(category) WHERE category IS NOT NULL;
-
--- Backfill categories based on event_type patterns
-UPDATE audit_logs SET category = 
-  CASE 
-    WHEN event_type LIKE 'MEMBERSHIP_%' THEN 'MEMBERSHIP'
-    WHEN event_type LIKE 'TENANT_%' OR event_type LIKE 'BILLING_%' THEN 'BILLING'
-    WHEN event_type LIKE 'JOB_%' THEN 'JOB'
-    WHEN event_type LIKE 'DIPLOMA_%' OR event_type LIKE 'GRADING_%' THEN 'GRADING'
-    WHEN event_type LIKE 'IMPERSONATION_%' THEN 'SECURITY'
-    WHEN event_type LIKE 'LOGIN_%' OR event_type LIKE 'PASSWORD_%' THEN 'AUTH'
-    WHEN event_type LIKE 'ROLES_%' THEN 'ROLES'
-    ELSE 'OTHER'
-  END
-WHERE category IS NULL;
-
--- Create trigger to auto-set category on INSERT
-CREATE OR REPLACE FUNCTION set_audit_log_category()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.category IS NULL THEN
-    NEW.category := CASE 
-      WHEN NEW.event_type LIKE 'MEMBERSHIP_%' THEN 'MEMBERSHIP'
-      WHEN NEW.event_type LIKE 'TENANT_%' OR NEW.event_type LIKE 'BILLING_%' THEN 'BILLING'
-      WHEN NEW.event_type LIKE 'JOB_%' THEN 'JOB'
-      WHEN NEW.event_type LIKE 'DIPLOMA_%' OR NEW.event_type LIKE 'GRADING_%' THEN 'GRADING'
-      WHEN NEW.event_type LIKE 'IMPERSONATION_%' THEN 'SECURITY'
-      WHEN NEW.event_type LIKE 'LOGIN_%' OR NEW.event_type LIKE 'PASSWORD_%' THEN 'AUTH'
-      WHEN NEW.event_type LIKE 'ROLES_%' THEN 'ROLES'
-      ELSE 'OTHER'
-    END;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_audit_log_category
-BEFORE INSERT ON audit_logs
-FOR EACH ROW EXECUTE FUNCTION set_audit_log_category();
+-- Optional: Also enable for decision_logs if needed
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.decision_logs;
 ```
 
-#### Tarefa A.2: Criar View `job_execution_summary`
+**SAFE GOLD:** Apenas INSERT é usado. Nenhum UPDATE/DELETE exposto.
 
-**Migração SQL:**
-```sql
-CREATE OR REPLACE VIEW job_execution_summary AS
-SELECT 
-  event_type,
-  -- Last successful run
-  MAX(CASE WHEN (metadata->>'status') = 'COMPLETED' THEN created_at END) AS last_success_at,
-  -- Last failure
-  MAX(CASE WHEN (metadata->>'status') = 'FAILED' THEN created_at END) AS last_failure_at,
-  -- Counts in last 24h
-  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS runs_24h,
-  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours' 
-                    AND (metadata->>'status') = 'COMPLETED') AS success_24h,
-  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours' 
-                    AND (metadata->>'status') = 'FAILED') AS failures_24h,
-  -- Items processed in last 24h
-  COALESCE(SUM((metadata->>'processed')::int) 
-    FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'), 0) AS items_processed_24h,
-  -- Counts in last 7d
-  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS runs_7d,
-  COALESCE(SUM((metadata->>'processed')::int) 
-    FILTER (WHERE created_at > NOW() - INTERVAL '7 days'), 0) AS items_processed_7d
-FROM audit_logs
-WHERE event_type LIKE 'JOB_%_RUN'
-GROUP BY event_type;
+#### Tarefa A.2: Criar Realtime Adapter
 
-COMMENT ON VIEW job_execution_summary IS 'Aggregated job execution metrics for observability';
-```
-
-#### Tarefa A.3: Criar View `observability_critical_events`
-
-**Migração SQL:**
-```sql
-CREATE OR REPLACE VIEW observability_critical_events AS
-SELECT 
-  id,
-  'AUDIT' AS source,
-  event_type,
-  category,
-  tenant_id,
-  created_at,
-  metadata,
-  CASE 
-    WHEN event_type IN ('TENANT_PAYMENT_FAILED', 'MEMBERSHIP_PAYMENT_RETRY_FAILED') THEN 'HIGH'
-    WHEN event_type LIKE '%_FAILED' OR event_type LIKE '%_ERROR' THEN 'MEDIUM'
-    ELSE 'LOW'
-  END AS severity
-FROM audit_logs
-WHERE 
-  event_type LIKE '%_FAILED' 
-  OR event_type LIKE '%_ERROR'
-  OR event_type IN ('TENANT_PAYMENT_FAILED', 'MEMBERSHIP_PAYMENT_RETRY_FAILED')
-  AND created_at > NOW() - INTERVAL '7 days'
-
-UNION ALL
-
-SELECT 
-  id,
-  'DECISION' AS source,
-  decision_type AS event_type,
-  'SECURITY' AS category,
-  tenant_id,
-  created_at,
-  metadata,
-  severity::text
-FROM decision_logs
-WHERE 
-  severity IN ('HIGH', 'CRITICAL')
-  AND created_at > NOW() - INTERVAL '7 days'
-
-ORDER BY created_at DESC
-LIMIT 100;
-
-COMMENT ON VIEW observability_critical_events IS 'Critical events requiring attention from the last 7 days';
-```
-
-#### Tarefa A.4: Atualizar audit-logger.ts com Category
-
-**Arquivo:** `supabase/functions/_shared/audit-logger.ts`
-
-Adicionar campo `category` ao `AuditMetadata` e auto-detect no `createAuditLog`:
+**Arquivo:** `src/lib/observability/realtime.ts`
 
 ```typescript
-// Add to AuditMetadata interface
-category?: 'MEMBERSHIP' | 'BILLING' | 'JOB' | 'GRADING' | 'SECURITY' | 'AUTH' | 'ROLES' | 'OTHER';
+/**
+ * 🔔 Observability Realtime Adapter — P4.2.A
+ * 
+ * Subscribes to real-time observability events from Supabase.
+ * Uses idempotency cache to prevent duplicates.
+ * Returns unsubscribe callback for cleanup.
+ */
 
-// Add category detection helper
-function detectCategory(eventType: string): string {
-  if (eventType.startsWith('MEMBERSHIP_')) return 'MEMBERSHIP';
-  if (eventType.startsWith('TENANT_') || eventType.startsWith('BILLING_')) return 'BILLING';
-  if (eventType.startsWith('JOB_')) return 'JOB';
-  if (eventType.startsWith('DIPLOMA_') || eventType.startsWith('GRADING_')) return 'GRADING';
-  if (eventType.startsWith('IMPERSONATION_')) return 'SECURITY';
-  if (eventType.startsWith('LOGIN_') || eventType.startsWith('PASSWORD_')) return 'AUTH';
-  if (eventType.startsWith('ROLES_')) return 'ROLES';
-  return 'OTHER';
-}
-```
+import { supabase } from '@/integrations/supabase/client';
+import { Alert, EventSeverity } from '@/types/observability';
 
----
+// LRU-style cache for seen event IDs (1h TTL)
+const SEEN_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const seenEventsCache = new Map<string, number>();
 
-## P4.1.B — JOBS & SYSTEM HEALTH
-
-### Objetivo
-Classificar saúde do sistema em estados explícitos: OK | DEGRADED | CRITICAL
-
-### Tarefas
-
-#### Tarefa B.1: Criar Hook `useSystemHealthStatus`
-
-**Arquivo:** `src/hooks/useSystemHealthStatus.ts`
-
-```typescript
-export type HealthStatus = 'OK' | 'DEGRADED' | 'CRITICAL' | 'UNKNOWN';
-
-export interface HealthCheck {
-  name: string;
-  status: HealthStatus;
-  lastCheck: string | null;
-  reason?: string;
-  recommendation?: string;
+// Cleanup old entries periodically
+function cleanupSeenCache() {
+  const now = Date.now();
+  for (const [id, timestamp] of seenEventsCache) {
+    if (now - timestamp > SEEN_CACHE_TTL_MS) {
+      seenEventsCache.delete(id);
+    }
+  }
 }
 
-export interface SystemHealth {
-  overall: HealthStatus;
-  checks: HealthCheck[];
-  summary: {
-    ok: number;
-    degraded: number;
-    critical: number;
+// Check if event was already seen (idempotency)
+function wasEventSeen(id: string): boolean {
+  return seenEventsCache.has(id);
+}
+
+// Mark event as seen
+function markEventSeen(id: string): void {
+  seenEventsCache.set(id, Date.now());
+}
+
+// Transform raw event to Alert format (pure function)
+function toAlert(event: Record<string, unknown>): Alert | null {
+  // ... transform logic similar to AlertContext
+}
+
+// Severity filter (HIGH/CRITICAL only for realtime)
+const REALTIME_SEVERITIES: EventSeverity[] = ['HIGH', 'CRITICAL'];
+
+export interface RealtimeSubscription {
+  unsubscribe: () => void;
+  isConnected: () => boolean;
+}
+
+export interface RealtimeOptions {
+  onEvent: (alert: Alert) => void;
+  onConnectionChange?: (connected: boolean) => void;
+  onError?: (error: Error) => void;
+}
+
+export function subscribeObservabilityRealtime(
+  options: RealtimeOptions
+): RealtimeSubscription {
+  let isConnected = false;
+  
+  const channel = supabase
+    .channel('observability-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'audit_logs',
+        // Filter critical events (server-side when supported)
+      },
+      (payload) => {
+        const event = payload.new as Record<string, unknown>;
+        const eventId = event.id as string;
+        
+        // Idempotency check
+        if (wasEventSeen(eventId)) {
+          return;
+        }
+        markEventSeen(eventId);
+        
+        // Transform and filter
+        const alert = toAlert(event);
+        if (alert && REALTIME_SEVERITIES.includes(alert.severity)) {
+          options.onEvent(alert);
+        }
+      }
+    )
+    .subscribe((status) => {
+      const connected = status === 'SUBSCRIBED';
+      if (connected !== isConnected) {
+        isConnected = connected;
+        options.onConnectionChange?.(connected);
+      }
+    });
+  
+  // Cleanup cache periodically
+  const cacheCleanupInterval = setInterval(cleanupSeenCache, 60000);
+  
+  return {
+    unsubscribe: () => {
+      clearInterval(cacheCleanupInterval);
+      supabase.removeChannel(channel);
+    },
+    isConnected: () => isConnected,
   };
-  updatedAt: string;
 }
 ```
 
-**Lógica de Classificação:**
-- **CRITICAL**: Job não executou em 48h+ ou 3+ billing failures em 24h
-- **DEGRADED**: Job atrasado 24-48h ou billing issues presentes
-- **OK**: Todos os jobs executando, sem billing issues críticos
-
-#### Tarefa B.2: Criar Componente `HealthStatusIndicator`
-
-**Arquivo:** `src/components/observability/HealthStatusIndicator.tsx`
-
-Componente visual simples:
-- 🟢 OK - "Sistemas operacionais"
-- 🟡 DEGRADED - "Atenção necessária"
-- 🔴 CRITICAL - "Ação imediata requerida"
-
-#### Tarefa B.3: Criar Componente `JobsHealthCard`
-
-**Arquivo:** `src/components/observability/JobsHealthCard.tsx`
-
-Refatorar lógica do PlatformHealthCard em componente dedicado:
-- Status de cada job (last_run, success/failure)
-- Indicador visual por job
-- Tooltips explicativos
-- Auto-refresh (5 min)
-
-#### Tarefa B.4: Criar Tipos Canônicos
-
-**Arquivo:** `src/types/observability.ts`
-
-```typescript
-export type EventCategory = 
-  | 'MEMBERSHIP' 
-  | 'BILLING' 
-  | 'JOB' 
-  | 'GRADING' 
-  | 'SECURITY' 
-  | 'AUTH' 
-  | 'ROLES' 
-  | 'OTHER';
-
-export type EventSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-
-export interface ObservabilityEvent {
-  id: string;
-  source: 'AUDIT' | 'DECISION' | 'SECURITY';
-  event_type: string;
-  category: EventCategory;
-  severity: EventSeverity;
-  tenant_id: string | null;
-  created_at: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface JobStatus {
-  job_name: string;
-  last_success_at: string | null;
-  last_failure_at: string | null;
-  status: 'OK' | 'DELAYED' | 'FAILED' | 'NEVER_RAN';
-  runs_24h: number;
-  items_processed_24h: number;
-}
-```
+**Garantias:**
+- ✅ Idempotência via cache de IDs (1h TTL)
+- ✅ Cleanup garantido via `unsubscribe()`
+- ✅ Fallback: se realtime falhar, polling continua
+- ✅ Sem side-effects fora do callback
 
 ---
 
-## P4.1.C — ADMIN HEALTH DASHBOARD
+### P4.2.B — ALERTS.REALTIME (AlertContext Upgrade)
 
-### Objetivo
-UI consolidada, read-only, para admin entender estado do sistema em 30 segundos.
+#### Tarefa B.1: Adicionar AlertProvider ao AppProviders
 
-### Tarefas
+**Arquivo:** `src/contexts/AppProviders.tsx`
 
-#### Tarefa C.1: Criar Página `AdminHealthDashboard`
-
-**Arquivo:** `src/pages/AdminHealthDashboard.tsx`
-
-Layout:
-```
-┌────────────────────────────────────────────────────────────────┐
-│  🟢 System Status: OPERATIONAL              [Refresh] [30s ago]│
-├────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ Jobs Health  │  │   Billing    │  │ Memberships  │         │
-│  │  5/5 OK      │  │ 12 Active    │  │ 45 Active    │         │
-│  │  [Details]   │  │ 2 Issues     │  │ 3 Pending    │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-├────────────────────────────────────────────────────────────────┤
-│  Recent Critical Events (last 24h)                             │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ 🔴 TENANT_PAYMENT_FAILED - tenant_xyz - 2h ago           │ │
-│  │ 🟡 JOB delayed: cleanup_abandoned - 26h ago              │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────┘
-```
-
-#### Tarefa C.2: Adicionar Cards Individuais
-
-**Arquivos:**
-- `src/components/observability/BillingHealthCard.tsx`
-- `src/components/observability/MembershipHealthCard.tsx`
-- `src/components/observability/CriticalEventsCard.tsx`
-
-Cada card:
-- Métricas key (count, status)
-- Indicador visual (badge/color)
-- Link para detalhes
-- Zero ações destrutivas
-
-#### Tarefa C.3: Adicionar Rota no AppRouter
-
-**Arquivo:** `src/routes/AppRouter.tsx`
-
+Adicionar import e wrapper:
 ```tsx
-// Superadmin only route
-<Route path="/admin/health" element={<AdminHealthDashboard />} />
+import { AlertProvider } from './AlertContext';
+
+// Wrap children with AlertProvider (inside IdentityProvider)
+<AlertProvider>
+  {children}
+</AlertProvider>
 ```
 
-#### Tarefa C.4: Adicionar Link no AdminDashboard
-
-**Arquivo:** `src/pages/AdminDashboard.tsx`
-
-Adicionar card de navegação para `/admin/health`:
-```tsx
-<Card onClick={() => navigate('/admin/health')} className="cursor-pointer">
-  <CardHeader>
-    <Activity className="h-5 w-5" />
-    <CardTitle>System Health</CardTitle>
-    <CardDescription>Real-time platform monitoring</CardDescription>
-  </CardHeader>
-</Card>
-```
-
----
-
-## P4.1.D — ALERTS (MANUAL → FUTURE REALTIME)
-
-### Objetivo
-Preparar infraestrutura de alertas sem implementar notificações automáticas.
-
-### Tarefas
-
-#### Tarefa D.1: Criar `AlertContext`
+#### Tarefa B.2: Upgrade AlertContext Interface
 
 **Arquivo:** `src/contexts/AlertContext.tsx`
 
+Adicionar ao `AlertContextValue`:
 ```typescript
-export interface Alert {
-  id: string;
-  type: 'JOB_FAILURE' | 'BILLING_ISSUE' | 'SECURITY_BREACH' | 'MEMBERSHIP_SPIKE';
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  title: string;
-  description: string;
-  timestamp: string;
-  dismissed: boolean;
-  tenant_id?: string;
-}
-
-export interface AlertContextValue {
+interface AlertContextValue {
+  // Existing
   alerts: Alert[];
   activeCount: number;
   criticalCount: number;
+  isLoading: boolean;
   dismissAlert: (id: string) => void;
   refreshAlerts: () => void;
+  clearDismissed: () => void;
+  
+  // NEW: Realtime state
+  isRealtimeConnected: boolean;
+  lastRealtimeEventAt: string | null;
+  newEventsCount: number;
+  markNewEventsAsSeen: () => void;
 }
 ```
 
-#### Tarefa D.2: Criar Hook `useAlerts`
+#### Tarefa B.3: Implementar Realtime Subscription no AlertProvider
 
-**Arquivo:** `src/hooks/useAlerts.ts`
+**Arquivo:** `src/contexts/AlertContext.tsx`
 
-Hook que:
-- Faz query em `observability_critical_events`
-- Transforma em estrutura `Alert`
-- Armazena dismissed state em localStorage
-- Auto-refresh (5 min)
+Adicionar useEffect para subscription:
+```typescript
+// Realtime subscription
+useEffect(() => {
+  const subscription = subscribeObservabilityRealtime({
+    onEvent: (alert) => {
+      // Add to alerts if not dismissed
+      if (!dismissedIds.has(alert.id)) {
+        setRealtimeAlerts(prev => {
+          // Merge avoiding duplicates
+          if (prev.some(a => a.id === alert.id)) return prev;
+          return [alert, ...prev].slice(0, 50); // Cap at 50
+        });
+        setNewEventsCount(prev => prev + 1);
+        setLastRealtimeEventAt(new Date().toISOString());
+      }
+    },
+    onConnectionChange: (connected) => {
+      setIsRealtimeConnected(connected);
+    },
+  });
+  
+  return () => subscription.unsubscribe();
+}, [dismissedIds]);
+```
 
-#### Tarefa D.3: Criar Componente `AlertBadge`
+#### Tarefa B.4: Merge Alerts (polling + realtime)
+
+Função pura para merge:
+```typescript
+function mergeAlerts(
+  pollingAlerts: Alert[],
+  realtimeAlerts: Alert[],
+  dismissedIds: Set<string>
+): Alert[] {
+  const merged = new Map<string, Alert>();
+  
+  // Add polling alerts first
+  for (const alert of pollingAlerts) {
+    merged.set(alert.id, { ...alert, dismissed: dismissedIds.has(alert.id) });
+  }
+  
+  // Add realtime alerts (newer, may override)
+  for (const alert of realtimeAlerts) {
+    if (!merged.has(alert.id)) {
+      merged.set(alert.id, { ...alert, dismissed: dismissedIds.has(alert.id) });
+    }
+  }
+  
+  // Sort by severity then timestamp
+  return Array.from(merged.values())
+    .sort((a, b) => {
+      const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      const diff = (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3);
+      if (diff !== 0) return diff;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+}
+```
+
+---
+
+### P4.2.C — UX.REALTIME (Sutil e Profissional)
+
+#### Tarefa C.1: Upgrade AlertBadge
 
 **Arquivo:** `src/components/observability/AlertBadge.tsx`
 
-Badge para header/sidebar mostrando count de alertas ativos.
+Adicionar indicador de conexão:
+```tsx
+// Import Wifi, WifiOff from lucide-react
 
-#### Tarefa D.4: Criar Componente `AlertsPanel`
+const { isRealtimeConnected, newEventsCount } = alertContext;
+
+// Add small indicator next to badge
+{isRealtimeConnected ? (
+  <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-success rounded-full" 
+        title={t('observability.realtime.connected')} />
+) : (
+  <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-muted-foreground rounded-full animate-pulse"
+        title={t('observability.realtime.syncing')} />
+)}
+```
+
+#### Tarefa C.2: Upgrade AlertsPanel
 
 **Arquivo:** `src/components/observability/AlertsPanel.tsx`
 
-Panel slide-out/modal listando alertas:
-- Ordenados por severidade → timestamp
-- Botão dismiss (não apaga, marca como dismissed)
-- Link para details
+Adicionar header "new events":
+```tsx
+const { newEventsCount, markNewEventsAsSeen, isRealtimeConnected } = useAlerts();
 
-#### Tarefa D.5: Documentar Hook Points para Realtime
+// In header, after SheetDescription:
+{newEventsCount > 0 && (
+  <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 mt-2">
+    <span className="text-sm font-medium text-primary">
+      {newEventsCount} {t('observability.realtime.newEvents')}
+    </span>
+    <Button variant="ghost" size="sm" onClick={markNewEventsAsSeen}>
+      {t('observability.realtime.markSeen')}
+    </Button>
+  </div>
+)}
+
+// Connection status indicator in header
+{isRealtimeConnected ? (
+  <Badge variant="outline" className="text-success border-success">
+    <Wifi className="h-3 w-3 mr-1" /> {t('observability.realtime.live')}
+  </Badge>
+) : (
+  <Badge variant="outline" className="text-muted-foreground">
+    <WifiOff className="h-3 w-3 mr-1" /> {t('observability.realtime.polling')}
+  </Badge>
+)}
+```
+
+#### Tarefa C.3: Integrar AlertsPanel no AdminHealthDashboard
+
+**Arquivo:** `src/pages/AdminHealthDashboard.tsx`
+
+Adicionar AlertsPanel no header:
+```tsx
+import { AlertsPanel, AlertBadge } from '@/components/observability';
+
+// In header, after refresh button:
+<AlertsPanel 
+  trigger={<AlertBadge showZero className="ml-2" />}
+/>
+```
+
+---
+
+### P4.2.D — EXTERNAL HOOKS (OFF by default)
+
+#### Tarefa D.1: Criar Edge Function Stub
+
+**Arquivo:** `supabase/functions/notify-critical-alert/index.ts`
+
+```typescript
+/**
+ * 🔔 notify-critical-alert — P4.2.D
+ * 
+ * Stub for external alert notifications.
+ * OFF by default — requires explicit enablement.
+ * 
+ * Future integrations:
+ * - Slack webhook
+ * - Email notifications
+ * - PagerDuty
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface AlertPayload {
+  event_id: string;
+  event_type: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  tenant_id?: string;
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Validate service role (internal only)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.includes('service_role')) {
+      return new Response(
+        JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const payload: AlertPayload = await req.json();
+
+    // Validate payload
+    if (!payload.event_id || !payload.event_type || !payload.severity) {
+      return new Response(
+        JSON.stringify({ error: 'INVALID_PAYLOAD' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // STUB: Log to webhook_events for now (external integrations OFF)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    await supabase.from('webhook_events').insert({
+      event_type: 'ALERT_NOTIFICATION_STUB',
+      payload: payload,
+      status: 'LOGGED',
+    });
+
+    // TODO: Future integrations
+    // if (Deno.env.get('SLACK_WEBHOOK_URL')) { ... }
+    // if (Deno.env.get('ALERT_EMAIL_ENABLED') === 'true') { ... }
+
+    return new Response(
+      JSON.stringify({ 
+        ok: true, 
+        status: 'LOGGED',
+        message: 'External notifications are OFF. Event logged for future integration.'
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('[notify-critical-alert] Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'INTERNAL_ERROR' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+```
+
+#### Tarefa D.2: Registrar no config.toml
+
+**Arquivo:** `supabase/config.toml`
+
+```toml
+[functions.notify-critical-alert]
+verify_jwt = false
+```
+
+#### Tarefa D.3: Atualizar Documentação
 
 **Arquivo:** `docs/OBSERVABILITY.md`
 
+Adicionar seção P4.2:
 ```markdown
-## Future Realtime Integration
+## P4.2 — Realtime Infrastructure
 
 ### Supabase Realtime
-- Subscribe to `audit_logs` INSERT WHERE category = 'CRITICAL'
-- Trigger AlertContext.refreshAlerts()
 
-### Webhook Integration
-- Endpoint: POST /api/alerts/webhook
-- Payload: { type, severity, details }
+The platform uses Supabase Realtime for instant alert delivery:
 
-### Slack/Email (Future)
-- Edge Function: notify-critical-alert
-- Triggered by: audit_log with severity = CRITICAL
+```typescript
+// Client-side subscription
+const subscription = subscribeObservabilityRealtime({
+  onEvent: (alert) => { ... },
+  onConnectionChange: (connected) => { ... },
+});
+
+// Cleanup
+subscription.unsubscribe();
+```
+
+**Channel:** `observability-realtime`
+**Table:** `audit_logs` (INSERT only)
+**Filter:** HIGH/CRITICAL severity events
+
+### Idempotency
+
+Events are deduplicated using a client-side LRU cache:
+- Cache key: event ID
+- TTL: 1 hour
+- Max size: ~1000 entries
+
+### Connection States
+
+| State | Badge | Fallback |
+|-------|-------|----------|
+| Connected | 🟢 Live | — |
+| Disconnected | 🟡 Syncing | Polling (5 min) |
+| Error | 🔴 Offline | Polling (5 min) |
+
+### External Hooks (Future)
+
+The `notify-critical-alert` edge function is prepared for:
+
+**Payload Schema:**
+```json
+{
+  "event_id": "uuid",
+  "event_type": "TENANT_PAYMENT_FAILED",
+  "severity": "CRITICAL",
+  "tenant_id": "uuid",
+  "metadata": {},
+  "timestamp": "ISO-8601"
+}
+```
+
+**Planned Integrations (OFF by default):**
+- Slack Webhook
+- Email (via Resend)
+- PagerDuty
+- Custom webhooks
+
+**Enabling (Future):**
+1. Set `SLACK_WEBHOOK_URL` secret
+2. Trigger via database trigger or cron job
+3. Monitor via `webhook_events` table
+```
+
+---
+
+### P4.2.E — LOCALIZATION
+
+#### Tarefa E.1: Adicionar Chaves i18n
+
+**Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
+
+```typescript
+// P4.2 — Realtime
+'observability.realtime.connected': 'Connected',
+'observability.realtime.syncing': 'Syncing...',
+'observability.realtime.live': 'Live',
+'observability.realtime.polling': 'Polling',
+'observability.realtime.newEvents': 'new event(s)',
+'observability.realtime.markSeen': 'Mark as seen',
 ```
 
 ---
@@ -501,104 +578,102 @@ Panel slide-out/modal listando alertas:
 
 ### Novos Arquivos
 
-| Arquivo | PI | Descrição |
-|---------|-----|-----------|
-| `supabase/migrations/YYYYMMDD_observability_data_model.sql` | A | Views e indexes |
-| `src/hooks/useSystemHealthStatus.ts` | B | Health status hook |
-| `src/types/observability.ts` | B | Tipos canônicos |
-| `src/components/observability/HealthStatusIndicator.tsx` | B | Status visual |
-| `src/components/observability/JobsHealthCard.tsx` | B | Jobs card refatorado |
-| `src/components/observability/BillingHealthCard.tsx` | C | Billing metrics |
-| `src/components/observability/MembershipHealthCard.tsx` | C | Membership metrics |
-| `src/components/observability/CriticalEventsCard.tsx` | C | Critical events list |
-| `src/components/observability/index.ts` | C | Barrel export |
-| `src/pages/AdminHealthDashboard.tsx` | C | Dashboard consolidado |
-| `src/contexts/AlertContext.tsx` | D | Alert state management |
-| `src/hooks/useAlerts.ts` | D | Alert hook |
-| `src/components/observability/AlertBadge.tsx` | D | Alert counter badge |
-| `src/components/observability/AlertsPanel.tsx` | D | Alert list panel |
-| `docs/OBSERVABILITY.md` | D | Documentação técnica |
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/lib/observability/realtime.ts` | Adapter realtime + idempotência |
+| `supabase/functions/notify-critical-alert/index.ts` | Stub webhook OFF |
 
 ### Arquivos a Modificar
 
-| Arquivo | PI | Mudança |
-|---------|-----|---------|
-| `supabase/functions/_shared/audit-logger.ts` | A | Adicionar category |
-| `src/pages/AdminDashboard.tsx` | C | Link para health dashboard |
-| `src/routes/AppRouter.tsx` | C | Nova rota /admin/health |
-| `src/locales/pt-BR.ts` | B,C,D | ~30 novas chaves |
-| `src/locales/en.ts` | B,C,D | ~30 novas chaves |
-| `src/locales/es.ts` | B,C,D | ~30 novas chaves |
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/config.toml` | Adicionar notify-critical-alert |
+| `src/contexts/AppProviders.tsx` | Adicionar AlertProvider |
+| `src/contexts/AlertContext.tsx` | Realtime subscription + merge |
+| `src/components/observability/AlertBadge.tsx` | Indicador "live" |
+| `src/components/observability/AlertsPanel.tsx` | "New events" header |
+| `src/pages/AdminHealthDashboard.tsx` | Integrar AlertsPanel |
+| `src/lib/observability/index.ts` | Export realtime adapter |
+| `docs/OBSERVABILITY.md` | Seção P4.2 |
+| `src/locales/pt-BR.ts` | ~6 chaves |
+| `src/locales/en.ts` | ~6 chaves |
+| `src/locales/es.ts` | ~6 chaves |
+
+### Migração SQL
+
+| Migração | Descrição |
+|----------|-----------|
+| `YYYYMMDD_enable_realtime_audit_logs.sql` | Habilitar realtime para audit_logs |
 
 ---
 
 ## Critérios de Aceitação
 
-### P4.1.A — Data Model
-- [ ] Column `category` existe em audit_logs
-- [ ] Trigger auto-popula category
-- [ ] View `job_execution_summary` criada
-- [ ] View `observability_critical_events` criada
-- [ ] Backfill executado sem erros
+### Realtime Core
+- [ ] `audit_logs` adicionado a `supabase_realtime`
+- [ ] `subscribeObservabilityRealtime()` funciona
+- [ ] Idempotência previne duplicatas
+- [ ] `unsubscribe()` limpa recursos
 
-### P4.1.B — Health Status
-- [ ] Hook `useSystemHealthStatus` retorna OK/DEGRADED/CRITICAL
-- [ ] Classificação baseada em regras determinísticas
-- [ ] Tipos canônicos exportados
-- [ ] `JobsHealthCard` funcional
+### AlertContext Upgrade
+- [ ] `isRealtimeConnected` reflete estado
+- [ ] `newEventsCount` incrementa para eventos novos
+- [ ] `markNewEventsAsSeen()` zera contador
+- [ ] Polling fallback permanece (5 min)
+- [ ] Dismissed respeitado mesmo com realtime
 
-### P4.1.C — Dashboard
-- [ ] Página `/admin/health` acessível
-- [ ] 4 cards visíveis: Jobs, Billing, Memberships, Events
-- [ ] Zero mutations (read-only)
-- [ ] Auto-refresh funcionando
-- [ ] Link no AdminDashboard
+### UX
+- [ ] Badge mostra indicador "live" / "syncing"
+- [ ] Panel mostra "X new events" quando aplicável
+- [ ] "Mark as seen" funciona
+- [ ] Zero toasts automáticos
 
-### P4.1.D — Alerts
-- [ ] `AlertContext` provê alertas
-- [ ] `AlertBadge` mostra count
-- [ ] Dismiss persiste em localStorage
-- [ ] Documentação de hook points criada
+### External Hooks
+- [ ] Edge function existe e valida payload
+- [ ] Nenhuma integração externa ativa
+- [ ] Docs com payload canônico
 
-### Invariantes SAFE GOLD
+### SAFE GOLD Invariants
 - [ ] Nenhuma mutação de dados de negócio
-- [ ] Nenhum efeito colateral em fluxos existentes
-- [ ] RLS aplicado em todas as views
-- [ ] Performance: queries < 500ms
+- [ ] Polling fallback garante resiliência
+- [ ] Cleanup garantido (no memory leaks)
+- [ ] Sem navigate() em handlers realtime
+- [ ] P3/P4.1 flows intocados
 
 ---
 
 ## Ordem de Execução
 
 ```text
-P4.1.A (Data Model)
+1. Migração SQL (enable realtime for audit_logs)
     │
-    ├── Migração SQL (views, indexes)
-    ├── Backfill categories
-    └── Update audit-logger.ts
-         │
-         ▼
-P4.1.B (Health Status)
+    ▼
+2. P4.2.A — Realtime Adapter
+    │ src/lib/observability/realtime.ts
     │
-    ├── Types (observability.ts)
-    ├── Hook (useSystemHealthStatus)
-    └── Components (HealthStatusIndicator, JobsHealthCard)
-         │
-         ▼
-P4.1.C (Dashboard)
+    ▼
+3. P4.2.B — AlertContext Upgrade
+    │ src/contexts/AlertContext.tsx
+    │ src/contexts/AppProviders.tsx
     │
-    ├── Page (AdminHealthDashboard)
-    ├── Cards (Billing, Membership, Events)
-    ├── Route (/admin/health)
-    └── Link no AdminDashboard
-         │
-         ▼
-P4.1.D (Alerts)
+    ▼
+4. P4.2.C — UX Polish
+    │ AlertBadge.tsx
+    │ AlertsPanel.tsx
+    │ AdminHealthDashboard.tsx
     │
-    ├── Context (AlertContext)
-    ├── Hook (useAlerts)
-    ├── Components (AlertBadge, AlertsPanel)
-    └── Documentation (OBSERVABILITY.md)
+    ▼
+5. P4.2.D — External Hooks
+    │ notify-critical-alert/index.ts
+    │ config.toml
+    │ docs/OBSERVABILITY.md
+    │
+    ▼
+6. P4.2.E — Localization
+    │ pt-BR.ts, en.ts, es.ts
+    │
+    ▼
+DONE
 ```
 
 ---
@@ -607,13 +682,14 @@ P4.1.D (Alerts)
 
 Este PI **NÃO**:
 - Altera fluxos de negócio (P3 intocado)
-- Cria dependências circulares
-- Modifica estado de memberships/billing
-- Expõe PII (apenas aggregates e event types)
-- Bloqueia operações existentes
+- Envia notificações externas automaticamente
+- Depende de realtime para funcionar
+- Cria side-effects fora do AlertContext
+- Expõe dados sensíveis via realtime
 
-Este PI **APENAS**:
-- Lê dados existentes
-- Cria views read-only
-- Adiciona UI de observação
-- Prepara infraestrutura para alertas futuros
+Este PI **SIM**:
+- Reduz latência de alertas de 5min para segundos
+- Mantém polling como fallback robusto
+- Prepara infraestrutura para integrações futuras
+- Adiciona UX sutil e profissional
+
