@@ -347,8 +347,16 @@ export function YouthMembershipForm() {
     }).format(cents / 100);
   };
 
+  // SAFE GOLD Y1.0: Derive deterministic view state
+  const viewState = isLoading || authLoading ? 'LOADING' : 'READY';
+
   return (
-    <div className="min-h-screen bg-background">
+    <div 
+      className="min-h-screen bg-background"
+      data-testid="membership-youth-form"
+      data-membership-type="YOUTH"
+      data-membership-view-state={viewState}
+    >
       <div className="container max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <motion.div
