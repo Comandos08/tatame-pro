@@ -86,11 +86,14 @@ export function exportToCsv<T extends Record<string, any>>(
 
 /**
  * Format a date string for CSV export
+ * Note: CSV exports use 'pt-BR' as default for data consistency
+ * Use formatDate from @/lib/i18n/formatters for UI display
  */
-export function formatDateForCsv(dateString: string | null | undefined): string {
+export function formatDateForCsv(dateString: string | null | undefined, locale: string = 'pt-BR'): string {
   if (!dateString) return '';
   try {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
+    return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'short' }).format(new Date(dateString));
   } catch {
     return dateString || '';
   }
@@ -98,9 +101,15 @@ export function formatDateForCsv(dateString: string | null | undefined): string 
 
 /**
  * Format currency for CSV export
+ * Note: CSV exports default to BRL for data consistency
  */
-export function formatCurrencyForCsv(cents: number | null | undefined, currency = 'BRL'): string {
+export function formatCurrencyForCsv(cents: number | null | undefined, currency = 'BRL', locale: string = 'pt-BR'): string {
   if (cents === null || cents === undefined) return '';
   const value = cents / 100;
-  return `${currency} ${value.toFixed(2)}`;
+  const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
+  return new Intl.NumberFormat(intlLocale, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  }).format(value);
 }

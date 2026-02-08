@@ -2528,4 +2528,18 @@ export const es: Record<string, string> = {
   'access.unknownError': 'Error Inesperado',
   'access.unknownErrorDesc': 'Ocurrió un error al verificar el acceso. Inténtelo de nuevo.',
 
+  // P7.1 — NotFound Contextual
+  'notFound.admin.title': 'Página administrativa no encontrada',
+  'notFound.admin.desc': 'Esta página del panel administrativo no existe o fue movida.',
+  'notFound.admin.cta': 'Volver al Admin',
+  'notFound.tenant.title': 'Página no encontrada',
+  'notFound.tenant.desc': 'La página que busca no existe o fue movida.',
+  'notFound.tenant.cta': 'Volver al Dashboard',
+  'notFound.public.title': 'Página no encontrada',
+  'notFound.public.desc': 'La página que busca no existe o fue movida.',
+  'notFound.public.cta': 'Volver al inicio',
+
+  // P7.1 — Identity Error Default Enhanced
+  'identityError.default.hint': 'Puede intentarlo de nuevo, cerrar sesión y volver a entrar, o contactar al soporte si el problema persiste.',
+
 };
