@@ -4,6 +4,7 @@
  * Generates and downloads CSV files from structured data.
  */
 
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 export interface CsvColumn<T> {
   key: keyof T | string;
   label: string;
@@ -85,31 +86,17 @@ export function exportToCsv<T extends Record<string, any>>(
 }
 
 /**
- * Format a date string for CSV export
- * Note: CSV exports use 'pt-BR' as default for data consistency
- * Use formatDate from @/lib/i18n/formatters for UI display
+ * Format date for CSV export using centralized formatter
  */
 export function formatDateForCsv(dateString: string | null | undefined, locale: string = 'pt-BR'): string {
   if (!dateString) return '';
-  try {
-    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
-    return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'short' }).format(new Date(dateString));
-  } catch {
-    return dateString || '';
-  }
+  return formatDate(dateString, locale, { dateStyle: 'short' });
 }
 
 /**
- * Format currency for CSV export
- * Note: CSV exports default to BRL for data consistency
+ * Format currency for CSV export using centralized formatter
  */
 export function formatCurrencyForCsv(cents: number | null | undefined, currency = 'BRL', locale: string = 'pt-BR'): string {
   if (cents === null || cents === undefined) return '';
-  const value = cents / 100;
-  const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
-  return new Intl.NumberFormat(intlLocale, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(value);
+  return formatCurrency(cents, locale, currency);
 }

@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, Calendar, FileText } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
-import { format } from 'date-fns';
-import { ptBR, enUS, es } from 'date-fns/locale';
+import { formatDate as formatDateUtil } from '@/lib/i18n/formatters';
 
 interface GradingData {
   id: string;
@@ -22,23 +21,8 @@ interface GradingHistoryCardProps {
 export function GradingHistoryCard({ gradings }: GradingHistoryCardProps) {
   const { t, locale } = useI18n();
 
-  const getDateLocale = () => {
-    switch (locale) {
-      case 'en':
-        return enUS;
-      case 'es':
-        return es;
-      default:
-        return ptBR;
-    }
-  };
-
   const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'dd MMM yyyy', { locale: getDateLocale() });
-    } catch {
-      return dateStr;
-    }
+    return formatDateUtil(dateStr, locale);
   };
 
   return (

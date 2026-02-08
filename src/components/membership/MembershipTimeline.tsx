@@ -1,11 +1,10 @@
 import React, { useMemo } from "react";
-import { format } from "date-fns";
-import { ptBR, enUS, es } from "date-fns/locale";
 import { FileText, CheckCircle, CreditCard, Calendar, XCircle, AlertCircle, Clock } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useI18n } from "@/contexts/I18nContext";
+import { formatDate as formatDateUtil } from "@/lib/i18n/formatters";
 
 /* ======================================================
    Types
@@ -45,25 +44,8 @@ export function MembershipTimeline({ membership }: MembershipTimelineProps) {
 
   /* ---------------- Locale helpers ---------------- */
 
-  const getDateLocale = () => {
-    switch (locale) {
-      case "en":
-        return enUS;
-      case "es":
-        return es;
-      default:
-        return ptBR;
-    }
-  };
-
   const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), "dd MMM yyyy", {
-        locale: getDateLocale(),
-      });
-    } catch {
-      return dateStr;
-    }
+    return formatDateUtil(dateStr, locale);
   };
 
   /* ---------------- Timeline build ---------------- */

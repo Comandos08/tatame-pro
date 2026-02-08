@@ -19,21 +19,12 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatSecurityEvent, getSeverityVariant, SecurityTimelineEntry } from '@/lib/formatSecurityEvent';
-import { format, formatDistanceToNow } from 'date-fns';
-import { ptBR, enUS, es } from 'date-fns/locale';
+import { formatDateTime, formatRelativeTime } from '@/lib/i18n/formatters';
 
 const ITEMS_PER_PAGE = 25;
 
 type SeverityFilter = 'all' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 type SourceFilter = 'all' | 'DECISION' | 'EVENT';
-
-const getDateLocale = (locale: string) => {
-  switch (locale) {
-    case 'pt-BR': return ptBR;
-    case 'es': return es;
-    default: return enUS;
-  }
-};
 
 const EventIcon = ({ icon }: { icon: string }) => {
   switch (icon) {
@@ -49,7 +40,6 @@ const EventIcon = ({ icon }: { icon: string }) => {
 export default function SecurityTimeline() {
   const { tenant } = useTenant();
   const { t, locale } = useI18n();
-  const dateLocale = getDateLocale(locale);
 
   const [events, setEvents] = useState<SecurityTimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,10 +288,7 @@ export default function SecurityTimeline() {
                             </p>
                           </div>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDistanceToNow(new Date(entry.created_at), {
-                              addSuffix: true,
-                              locale: dateLocale,
-                            })}
+                            {formatRelativeTime(entry.created_at, locale)}
                           </span>
                         </div>
 
@@ -321,7 +308,7 @@ export default function SecurityTimeline() {
 
                         {/* Timestamp */}
                         <p className="text-xs text-muted-foreground mt-2">
-                          {format(new Date(entry.created_at), 'PPpp', { locale: dateLocale })}
+                          {formatDateTime(entry.created_at, locale)}
                         </p>
                       </div>
                     </div>

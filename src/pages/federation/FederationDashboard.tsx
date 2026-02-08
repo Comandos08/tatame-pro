@@ -29,13 +29,14 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { LoadingState } from '@/components/ux';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 
 export default function FederationDashboard() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { currentUser, isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
+  const { locale } = useI18n();
 
   // Fetch federation data
   const { data: federation, isLoading: fedLoading, error: fedError } = useQuery({
@@ -404,7 +405,7 @@ export default function FederationDashboard() {
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mt-2">
-                            {format(new Date(decision.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            {formatDateTime(decision.created_at, locale)}
                           </p>
                         </div>
                       );
@@ -444,7 +445,7 @@ export default function FederationDashboard() {
                     {auditLogs.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="font-mono text-xs">
-                          {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                          {formatDateTime(log.created_at, locale)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{log.event_type}</Badge>

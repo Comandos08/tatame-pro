@@ -42,8 +42,9 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { LoadingState } from '@/components/ux';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { subDays, startOfDay, endOfDay } from 'date-fns';
+import { useI18n } from '@/contexts/I18nContext';
+import { formatDate, formatDateTime } from '@/lib/i18n/formatters';
 
 // PI-D4-AUDIT1.0 + PI-D5: Closed list of critical events
 const CRITICAL_EVENTS = [
@@ -142,6 +143,7 @@ interface TenantInfo {
 export default function AuditLog() {
   const navigate = useNavigate();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
+  const { locale } = useI18n();
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState('');
@@ -390,20 +392,20 @@ export default function AuditLog() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="justify-start text-left font-normal">
                       <Calendar className="h-4 w-4 mr-2" />
-                      {format(dateRange.from, 'dd/MM', { locale: ptBR })} - {format(dateRange.to, 'dd/MM', { locale: ptBR })}
+                      {formatDate(dateRange.from, locale, { dateStyle: 'short' })} - {formatDate(dateRange.to, locale, { dateStyle: 'short' })}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarComponent
                       mode="range"
                       selected={{ from: dateRange.from, to: dateRange.to }}
+                      defaultMonth={dateRange.from}
                       onSelect={(range) => {
                         if (range?.from && range?.to) {
                           setDateRange({ from: range.from, to: range.to });
                         }
                       }}
                       numberOfMonths={2}
-                      locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>
@@ -451,7 +453,7 @@ export default function AuditLog() {
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="font-mono text-xs">
-                              {format(new Date(log.created_at), "dd/MM/yy HH:mm:ss", { locale: ptBR })}
+                              {formatDateTime(log.created_at, locale)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

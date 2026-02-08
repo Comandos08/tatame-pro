@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { ptBR, enUS, es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, ArrowLeft, Trophy, Filter, History } from 'lucide-react';
+
+import { formatDate } from '@/lib/i18n/formatters';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,14 +46,6 @@ export default function PortalEvents() {
   const [yearFilter, setYearFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showWithResults, setShowWithResults] = useState<boolean>(false);
-
-  const getDateLocale = () => {
-    switch (locale) {
-      case 'en': return enUS;
-      case 'es': return es;
-      default: return ptBR;
-    }
-  };
 
   // Query athlete
   const { data: athlete, isLoading: athleteLoading, error: athleteError } = useQuery<AthleteData | null>({
@@ -319,7 +311,7 @@ export default function PortalEvents() {
                               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {format(new Date(reg.event.start_date), "dd MMM yyyy", { locale: getDateLocale() })}
+                                  {formatDate(reg.event.start_date, locale)}
                                 </span>
                                 {reg.event.location && (
                                   <span className="flex items-center gap-1">
@@ -376,7 +368,7 @@ export default function PortalEvents() {
                           <div className="space-y-1">
                             <p className="font-medium">{result.event?.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {result.category?.name} • {format(new Date(result.event?.start_date), "MMM yyyy", { locale: getDateLocale() })}
+                              {result.category?.name} • {formatDate(result.event?.start_date, locale, { dateStyle: 'short' })}
                             </p>
                           </div>
                           {getPositionBadge(result.position)}
