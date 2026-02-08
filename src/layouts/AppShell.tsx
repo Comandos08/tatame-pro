@@ -54,6 +54,7 @@ import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/
 import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
 import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normalize';
 import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
+import { normalizeAuditViewState } from '@/domain/audit/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import type { FeatureKey } from '@/lib/accessMatrix';
 interface AppShellProps {
@@ -163,6 +164,12 @@ export function AppShell({ children }: AppShellProps) {
   const analyticsViewState = normalizeAnalyticsState(isOnAnalyticsRoute ? { ready: true } : null);
   const analyticsMetrics = deriveActiveMetrics(pathname);
 
+  // AUDIT SAFE GOLD AUDIT2.0: derive audit state deterministically
+  const isAuditRoute = pathname.includes('/audit');
+  const auditViewState = normalizeAuditViewState(isAuditRoute ? { ready: true } : null);
+  const auditEntity = isAuditRoute ? 'TENANT' : '';
+  const auditLevel = 'INFO';
+
   return (
     <div 
       className="min-h-screen bg-background"
@@ -186,6 +193,11 @@ export function AppShell({ children }: AppShellProps) {
       data-analytics-view-state={analyticsViewState}
       data-analytics-metrics={analyticsMetrics.join(',')}
       data-analytics-route={isOnAnalyticsRoute ? pathname : ''}
+      data-audit-context={isAuditRoute ? 'ACTIVE' : ''}
+      data-audit-view-state={auditViewState}
+      data-audit-entity={auditEntity}
+      data-audit-level={auditLevel}
+      data-audit-route={isAuditRoute ? pathname : ''}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
