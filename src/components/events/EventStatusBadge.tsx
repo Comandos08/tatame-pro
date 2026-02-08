@@ -44,6 +44,8 @@ export function EventStatusBadge({ status, size = 'default', className }: EventS
         sizeVariants[size],
         className
       )}
+      data-testid="event-state-badge"
+      data-event-state={status}
     >
       {label}
     </Badge>

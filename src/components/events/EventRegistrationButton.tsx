@@ -154,7 +154,7 @@ export function EventRegistrationButton({
   // State 2: Not authenticated
   if (!isAuthenticated) {
     return (
-      <Button asChild variant="default" className="w-full">
+      <Button asChild variant="default" className="w-full" data-testid="event-login-to-register">
         <Link to={`/${resolvedTenantSlug}/login?next=/${resolvedTenantSlug}/events/${eventId}`}>
           {t('events.loginToRegister')}
         </Link>
@@ -218,6 +218,7 @@ export function EventRegistrationButton({
               size="sm"
               onClick={() => setShowCancelDialog(true)}
               disabled={cancelMutation.isPending}
+              data-testid="event-cancel-registration-button"
             >
               {cancelMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -296,6 +297,7 @@ export function EventRegistrationButton({
         variant="tenant"
         disabled={!selectedCategory || registerMutation.isPending}
         onClick={() => registerMutation.mutate(selectedCategory)}
+        data-testid="event-register-button"
       >
         {registerMutation.isPending ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

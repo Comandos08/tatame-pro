@@ -42,7 +42,7 @@ export function EventCard({
   const showRegistrationCta = !isAdmin && canRegisterForEvent(event.status as EventStatus);
 
   return (
-    <Card className={cn('overflow-hidden hover:shadow-md transition-shadow', className)}>
+    <Card className={cn('overflow-hidden hover:shadow-md transition-shadow', className)} data-event-id={event.id} data-event-state={event.status}>
       {/* Banner */}
       {event.banner_url ? (
         <div className="aspect-video w-full overflow-hidden">
@@ -95,15 +95,15 @@ export function EventCard({
       
       <CardFooter className="pt-2">
         {showRegistrationCta ? (
-          <Button asChild className="w-full">
-            <Link to={detailsLink}>
+          <Button asChild className="w-full" data-testid="event-open">
+            <Link to={detailsLink} data-testid="event-open-link">
               {t('events.registerNow')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         ) : (
-        <Button variant="tenant-outline" asChild className="w-full">
-          <Link to={detailsLink}>
+        <Button variant="tenant-outline" asChild className="w-full" data-testid="event-open">
+          <Link to={detailsLink} data-testid="event-open-link">
               {t('common.view')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
