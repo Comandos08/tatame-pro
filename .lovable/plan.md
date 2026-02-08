@@ -1,604 +1,451 @@
 
-# PI-POL-001D — Autorizacao Institucional Explicita (Cortesia/Override)
+
+# PI-BILL-ENV-001 — Governança Determinística de Ambiente Stripe (FINAL)
 
 ## Resumo Executivo
 
-Este PI separa a acao de "Registrar Graduacao" (fato esportivo) da acao de "Emitir Diploma Oficial" (ato institucional), mantendo o enforcement fail-closed do PI-POL-001B mas adicionando um mecanismo de override explicito, auditavel e governado para emissao de diploma por cortesia administrativa.
+Este PI implementa uma camada de governança explícita para billing Stripe garantindo que:
+- A Edge Function **nunca** tente usar um `price_id` LIVE com `sk_test` (ou o inverso)
+- Toda criação/alteração de assinatura é **determinística**, fail-closed e auditável
+- O ambiente Stripe é um **contrato do sistema** (não uma suposição)
+- Erros de configuração retornam HTTP 200 com `error_code` estável
 
 ---
 
-## Estado Atual (Diagnostico)
+## Ajustes Incorporados (15/15)
 
-| Componente | Status Atual |
-|------------|--------------|
-| Edge Function `generate-diploma` | Bloqueia se !ACTIVE (PI-POL-001B). Sem mecanismo de override |
-| Frontend `AthleteGradingsPage` | Botao unico "Registrar e Gerar Diploma" |
-| Insercao direta em `athlete_gradings` | NAO EXISTE na UI (apenas via edge function) |
-| Mecanismo de override | NAO EXISTE |
-| Chaves i18n de override | NAO EXISTEM |
+| Ajuste | Descrição | Implementação |
+|--------|-----------|---------------|
+| **Ajuste 1** | Diferenciar audit de BILLING_KEY_UNKNOWN | Evento separado `BILLING_KEY_UNKNOWN_BLOCKED` |
+| **Ajuste 2** | Preflight opcional via feature flag | `ENABLE_STRIPE_PREFLIGHT=true` para habilitar |
+| **Ajuste 3** | Proteção contra múltiplos rows no singleton | Log WARN se houver > 1 row |
 
 ---
 
-## Arquitetura da Solucao
+## Escopo de Modificações (7 arquivos + 1 migração)
 
-```text
-FLUXO ATUAL (PI-POL-001B)
--------------------------------------------------
-ADMIN -> "Registrar Graduacao"
-            |
-            v
-      Edge Function
-            |
-     +------+------+
-     |             |
-     v             v
-   ACTIVE       !ACTIVE
-     |             |
-     v             v
-  Diploma      BLOQUEADO
-  Grading     (sem saida)
-  is_official=true
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| SQL Migration | CREATE | Tabelas `billing_environment_config` e `subscription_plans` |
+| `supabase/functions/_shared/stripeEnv.ts` | CREATE | Helper de validação de ambiente |
+| `supabase/functions/_shared/audit-logger.ts` | MODIFY | 6 novos eventos de billing env |
+| `supabase/functions/create-tenant-subscription/index.ts` | MODIFY | Pre-flight checks + guardrails |
+| `src/locales/pt-BR.ts` | MODIFY | Mensagens de erro env mismatch |
+| `src/locales/en.ts` | MODIFY | Mensagens de erro env mismatch |
+| `src/locales/es.ts` | MODIFY | Mensagens de erro env mismatch |
 
+---
 
-FLUXO PROPOSTO (PI-POL-001D)
--------------------------------------------------
-ADMIN -> Escolhe acao:
+## 1. Migração SQL
 
-OPCAO A: "Registrar Graduacao"
-     |
-     v
-  INSERT direto em athlete_gradings
-  diploma_id = null
-  is_official = false
-     |
-     v
-  Toast "Graduacao registrada"
-  (sem diploma)
+```sql
+-- PI-BILL-ENV-001: Global billing environment config (singleton)
+CREATE TABLE IF NOT EXISTS public.billing_environment_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  stripe_env text NOT NULL CHECK (stripe_env IN ('test', 'live')) DEFAULT 'test',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
+-- Enforce single-row semantics
+CREATE UNIQUE INDEX IF NOT EXISTS billing_environment_config_singleton
+ON public.billing_environment_config ((true));
 
-OPCAO B: "Registrar e Gerar Diploma"
-     |
-     v
-  Edge Function generate-diploma
-     |
-     +-------+-------+
-     |               |
-     v               v
-   ACTIVE        !ACTIVE
-     |               |
-     v               +-------+-------+
-  Diploma                    |       |
-  Grading                    v       v
-  is_official=true      override?  sem override
-                             |       |
-                             v       v
-                         valida   BLOQUEADO
-                         motivo   (MEMBERSHIP_REQUIRED)
-                         role
-                             |
-                         +---+---+
-                         |       |
-                         v       v
-                       OK     FORBIDDEN
-                         |       |
-                         v       v
-                     Diploma   BLOQUEADO
-                     Grading   (OFFICIALITY_OVERRIDE_FORBIDDEN)
-                     is_official=true
-                     + audit log
+-- Seed default to 'test' (SAFE GOLD: mais seguro)
+INSERT INTO public.billing_environment_config (stripe_env)
+SELECT 'test'
+WHERE NOT EXISTS (SELECT 1 FROM public.billing_environment_config);
+
+-- RLS: Apenas leitura para service role
+ALTER TABLE public.billing_environment_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can read billing_environment_config"
+ON public.billing_environment_config FOR SELECT
+TO service_role
+USING (true);
+
+-- PI-BILL-ENV-001: Subscription plans with environment-aware price IDs
+CREATE TABLE IF NOT EXISTS public.subscription_plans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  name text NOT NULL,
+  stripe_price_id_test text NULL,
+  stripe_price_id_live text NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  billing_interval text NOT NULL CHECK (billing_interval IN ('monthly', 'annual')) DEFAULT 'annual',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscription_plans_active ON public.subscription_plans (is_active);
+CREATE INDEX IF NOT EXISTS idx_subscription_plans_code ON public.subscription_plans (code);
+
+-- Seed initial plans with known price IDs (LIVE only, TEST null)
+INSERT INTO public.subscription_plans (code, name, billing_interval, stripe_price_id_test, stripe_price_id_live) VALUES
+  ('FEDERATION_MONTHLY', 'Plano Federação Mensal', 'monthly', NULL, 'price_1SrOU8HH533PC5Ddq3h54ooX'),
+  ('FEDERATION_ANNUAL', 'Plano Federação Anual', 'annual', NULL, 'price_1SrPnhHH533PC5DdmXxmsrRk')
+ON CONFLICT (code) DO NOTHING;
+
+-- RLS: Service role only
+ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can read subscription_plans"
+ON public.subscription_plans FOR SELECT
+TO service_role
+USING (true);
 ```
 
 ---
 
-## Escopo de Modificacoes (5 arquivos)
+## 2. Helper `stripeEnv.ts` (CREATE)
 
-### 1. Edge Function — `supabase/functions/generate-diploma/index.ts`
-
-#### 1.1 Atualizar interface `GenerateDiplomaRequest`
-
-Adicionar campo opcional `officiality_override`:
+### Interface
 
 ```typescript
-interface GenerateDiplomaRequest {
-  athleteId: string;
-  gradingLevelId: string;
-  academyId?: string;
-  coachId?: string;
-  promotionDate: string;
-  notes?: string;
-  officiality_override?: {
-    enabled: boolean;
-    reason: string;
-    granted_by_profile_id: string;
-  };
+export type StripeEnv = 'test' | 'live';
+
+export interface EnvValidationResult {
+  ok: true;
+  keyEnv: StripeEnv;
+  configEnv: StripeEnv;
+} | {
+  ok: false;
+  error_code: 'BILLING_ENV_MISMATCH' | 'BILLING_KEY_UNKNOWN' | 'BILLING_CONFIG_MISSING';
+  keyEnv: StripeEnv | 'unknown';
+  configEnv: StripeEnv | null;
+  message: string;
+}
+
+export interface PriceResolutionResult {
+  ok: true;
+  priceId: string;
+  planCode: string;
+  planName: string;
+} | {
+  ok: false;
+  error_code: 'BILLING_PRICE_NOT_CONFIGURED' | 'BILLING_PLAN_NOT_FOUND';
+  message: string;
+}
+
+// Ajuste 1: Separate error codes for diagnostic granularity
+export function inferKeyEnv(secretKey: string): StripeEnv | 'unknown';
+
+// Ajuste 3: Logs WARN if multiple rows in singleton
+export async function getStripeEnvConfig(supabase): Promise<StripeEnv | null>;
+
+export async function validateStripeEnv(supabase, secretKey): Promise<EnvValidationResult>;
+
+export async function resolvePriceId(supabase, planType, stripeEnv): Promise<PriceResolutionResult>;
+
+// Ajuste 2: Feature flag for preflight
+export function isPreflightEnabled(): boolean;
+```
+
+### Implementação com Ajustes
+
+```typescript
+// Ajuste 3: Defensive singleton check
+export async function getStripeEnvConfig(supabase): Promise<StripeEnv | null> {
+  const { data, error } = await supabase
+    .from('billing_environment_config')
+    .select('stripe_env')
+    .limit(2);  // Fetch 2 to detect corruption
+  
+  if (!data || data.length === 0) return null;
+  
+  // Ajuste 3: Log WARN if corrupted
+  if (data.length > 1) {
+    console.warn(
+      '[STRIPE-ENV] ⚠️ SINGLETON CORRUPTION: billing_environment_config has multiple rows. ' +
+      'Expected 1, found ' + data.length + '. Using first row.'
+    );
+  }
+  
+  return data[0].stripe_env as StripeEnv;
+}
+
+// Ajuste 2: Feature flag for preflight
+export function isPreflightEnabled(): boolean {
+  return Deno.env.get('ENABLE_STRIPE_PREFLIGHT') === 'true';
 }
 ```
 
-#### 1.2 Modificar logica PI-POL-001B para aceitar override
+---
 
-**Localizacao:** Apos linha 192 (onde `hasActiveMembership` e determinado)
+## 3. Novos Eventos de Audit (Ajuste 1)
 
-Substituir o bloco de bloqueio por logica condicional:
+Adicionar ao `AUDIT_EVENTS` em `audit-logger.ts`:
+
+```typescript
+// Billing environment governance (PI-BILL-ENV-001)
+BILLING_ENV_MISMATCH_BLOCKED: 'BILLING_ENV_MISMATCH_BLOCKED',
+BILLING_KEY_UNKNOWN_BLOCKED: 'BILLING_KEY_UNKNOWN_BLOCKED',  // Ajuste 1: Separado
+BILLING_CONFIG_MISSING_BLOCKED: 'BILLING_CONFIG_MISSING_BLOCKED',
+BILLING_PRICE_NOT_CONFIGURED_BLOCKED: 'BILLING_PRICE_NOT_CONFIGURED_BLOCKED',
+BILLING_STRIPE_PRICE_LOOKUP_FAILED: 'BILLING_STRIPE_PRICE_LOOKUP_FAILED',
+BILLING_ENV_VALIDATED: 'BILLING_ENV_VALIDATED',
+```
+
+---
+
+## 4. Edge Function `create-tenant-subscription/index.ts`
+
+### 4.1 Adicionar Imports
+
+```typescript
+import { 
+  validateStripeEnv, 
+  resolvePriceId, 
+  isPreflightEnabled 
+} from "../_shared/stripeEnv.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+```
+
+### 4.2 Remover `getPriceId` Hardcoded
+
+Remover linhas 14-27 (funções `getPriceId` e `getPlanName`)
+
+### 4.3 Inserir Pre-flight Validation (após linha 99)
 
 ```typescript
 // ─────────────────────────────────────────────────────────────
-// PI-POL-001D — OFFICIALITY OVERRIDE (COURTESY)
-// Contract: HTTP 200 always. Override requires ADMIN role + valid reason.
+// PI-BILL-ENV-001 — STRIPE ENVIRONMENT VALIDATION (PRE-FLIGHT)
+// Contract: HTTP 200 always. Fail-closed on any env mismatch.
 // ─────────────────────────────────────────────────────────────
 
-const override = officiality_override;
-let overrideApplied = false;
+const envValidation = await validateStripeEnv(supabase, stripeSecretKey);
 
-if (!hasActiveMembership) {
-  // Check if override is being requested
-  if (override?.enabled === true) {
-    // Validate override parameters
-    const overrideReason = (override.reason || '').trim();
-    const grantedBy = override.granted_by_profile_id;
-
-    if (!grantedBy || overrideReason.length < 8) {
-      console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: invalid parameters");
-      
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenantId,
-        event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
-        category: 'GRADING',
-        level: 'WARN',
-        metadata: {
-          athlete_id: athleteId,
-          profile_id: profileId,
-          grading_level_id: gradingLevelId,
-          rule: 'OFFICIALITY_OVERRIDE',
-          decision: 'BLOCKED',
-          reason: 'INVALID_OVERRIDE_PARAMETERS',
-          override_reason_length: overrideReason.length,
-          granted_by: grantedBy || null
-        }
-      });
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
-          message: 'Override requires valid reason (min 8 chars) and grantor ID.'
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+if (!envValidation.ok) {
+  logStep("Environment validation failed", { 
+    error_code: envValidation.error_code,
+    keyEnv: envValidation.keyEnv,
+    configEnv: envValidation.configEnv
+  });
+  
+  // Ajuste 1: Map error_code to specific audit event
+  let auditEvent = AUDIT_EVENTS.BILLING_ENV_MISMATCH_BLOCKED;
+  if (envValidation.error_code === 'BILLING_KEY_UNKNOWN') {
+    auditEvent = AUDIT_EVENTS.BILLING_KEY_UNKNOWN_BLOCKED;
+  } else if (envValidation.error_code === 'BILLING_CONFIG_MISSING') {
+    auditEvent = AUDIT_EVENTS.BILLING_CONFIG_MISSING_BLOCKED;
+  }
+  
+  await createAuditLog(supabase, {
+    event_type: auditEvent,
+    tenant_id: tenantId,
+    metadata: {
+      error_code: envValidation.error_code,
+      key_env: envValidation.keyEnv,
+      config_env: envValidation.configEnv,
+      plan_type: planType || 'annual',
+      decision: 'BLOCKED',
+      source: 'create-tenant-subscription'
     }
+  });
+  
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error_code: envValidation.error_code,
+      message: envValidation.message
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+  );
+}
 
-    // Validate role of grantor (ADMIN_TENANT or SUPERADMIN_GLOBAL)
-    const roleCheck = await requireTenantRole(
-      supabase,
-      req.headers.get('Authorization'),
-      tenantId,
-      ['ADMIN_TENANT', 'STAFF_ORGANIZACAO']
-    );
+logStep("Environment validation passed", { 
+  keyEnv: envValidation.keyEnv, 
+  configEnv: envValidation.configEnv 
+});
+```
 
-    if (!roleCheck.allowed && !roleCheck.isGlobalSuperadmin) {
-      console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: insufficient permissions");
-      
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenantId,
-        event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
-        category: 'GRADING',
-        level: 'WARN',
-        metadata: {
-          athlete_id: athleteId,
-          profile_id: profileId,
-          grading_level_id: gradingLevelId,
-          rule: 'OFFICIALITY_OVERRIDE',
-          decision: 'BLOCKED',
-          reason: 'INSUFFICIENT_PERMISSIONS',
-          grantor_id: grantedBy,
-          user_roles: roleCheck.roles
-        }
-      });
+### 4.4 Resolver Price ID via Banco
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
-          message: 'Override requires ADMIN or SUPERADMIN permissions.'
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+```typescript
+// ─────────────────────────────────────────────────────────────
+// PI-BILL-ENV-001 — RESOLVE PRICE ID FROM DATABASE
+// ─────────────────────────────────────────────────────────────
+
+const priceResolution = await resolvePriceId(
+  supabase, 
+  planType || 'annual', 
+  envValidation.configEnv
+);
+
+if (!priceResolution.ok) {
+  logStep("Price resolution failed", { 
+    error_code: priceResolution.error_code,
+    planType: planType || 'annual',
+    stripeEnv: envValidation.configEnv
+  });
+  
+  await createAuditLog(supabase, {
+    event_type: AUDIT_EVENTS.BILLING_PRICE_NOT_CONFIGURED_BLOCKED,
+    tenant_id: tenantId,
+    metadata: {
+      error_code: priceResolution.error_code,
+      plan_type: planType || 'annual',
+      stripe_env: envValidation.configEnv,
+      decision: 'BLOCKED',
+      source: 'create-tenant-subscription'
     }
+  });
+  
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error_code: priceResolution.error_code,
+      message: priceResolution.message
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+  );
+}
 
-    // Override approved
-    console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override approved - proceeding with official diploma");
-    overrideApplied = true;
+const priceId = priceResolution.priceId;
+const planName = priceResolution.planName;
 
-  } else {
-    // No override requested - apply standard MEMBERSHIP_REQUIRED block
-    console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
+logStep("Price resolved from database", { 
+  priceId, 
+  planName, 
+  planCode: priceResolution.planCode 
+});
+```
+
+### 4.5 Preflight Price Check (Ajuste 2: Condicional)
+
+```typescript
+// ─────────────────────────────────────────────────────────────
+// PI-BILL-ENV-001 — PREFLIGHT: VERIFY PRICE EXISTS IN STRIPE
+// Ajuste 2: Controlled by ENABLE_STRIPE_PREFLIGHT feature flag
+// ─────────────────────────────────────────────────────────────
+
+if (isPreflightEnabled()) {
+  try {
+    await stripe.prices.retrieve(priceId);
+    logStep("Preflight price check passed", { priceId });
+  } catch (priceError: unknown) {
+    const errorMessage = priceError instanceof Error ? priceError.message : String(priceError);
     
-    await supabase.from('audit_logs').insert({
+    logStep("Preflight price check failed", { priceId, error: errorMessage });
+    
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.BILLING_STRIPE_PRICE_LOOKUP_FAILED,
       tenant_id: tenantId,
-      event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
-      category: 'GRADING',
-      level: 'WARN',
       metadata: {
-        athlete_id: athleteId,
-        profile_id: profileId,
-        grading_level_id: gradingLevelId,
-        rule: 'MEMBERSHIP_REQUIRED',
+        price_id: priceId,
+        stripe_env: envValidation.configEnv,
+        plan_type: planType || 'annual',
+        error: errorMessage,
         decision: 'BLOCKED',
-        reason: 'NO_ACTIVE_MEMBERSHIP'
+        source: 'create-tenant-subscription'
       }
     });
-
+    
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'MEMBERSHIP_REQUIRED',
-        message: 'Official diploma requires ACTIVE membership.'
+        error_code: 'BILLING_STRIPE_PRICE_NOT_FOUND',
+        message: 'Stripe price not found in current environment. Check billing configuration.'
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   }
-}
-```
-
-#### 1.3 Adicionar import do `requireTenantRole`
-
-**Localizacao:** Topo do arquivo (apos linha 10)
-
-```typescript
-import { requireTenantRole } from "../_shared/requireTenantRole.ts";
-```
-
-#### 1.4 Registrar audit log de sucesso com override
-
-Antes de retornar sucesso (apos insercao do diploma), se `overrideApplied === true`:
-
-```typescript
-// Log override success
-if (overrideApplied) {
-  await supabase.from('audit_logs').insert({
-    tenant_id: tenantId,
-    event_type: 'DIPLOMA_ISSUED_OFFICIAL_OVERRIDE',
-    category: 'GRADING',
-    level: 'INFO',
-    metadata: {
-      athlete_id: athleteId,
-      profile_id: profileId,
-      diploma_id: diploma.id,
-      grading_level_id: gradingLevelId,
-      override_reason: officiality_override?.reason,
-      granted_by_profile_id: officiality_override?.granted_by_profile_id,
-      decision: 'ALLOWED_VIA_OVERRIDE'
-    }
-  });
+} else {
+  logStep("Preflight price check skipped (ENABLE_STRIPE_PREFLIGHT not set)");
 }
 ```
 
 ---
 
-### 2. Frontend Admin — `src/pages/AthleteGradingsPage.tsx`
+## 5. i18n — Mensagens de Erro
 
-#### 2.1 Adicionar imports necessarios
-
-```typescript
-import { Switch } from '@/components/ui/switch';
-import { useAuth } from '@/contexts/AuthContext';
-```
-
-#### 2.2 Atualizar estado do form
-
-Adicionar campos para override e acao separada:
+### pt-BR.ts
 
 ```typescript
-const [overrideEnabled, setOverrideEnabled] = useState(false);
-const [overrideReason, setOverrideReason] = useState('');
+// PI-BILL-ENV-001 — Billing Environment Governance
+'billing.env.mismatch.title': 'Ambiente de cobrança inconsistente',
+'billing.env.mismatch.desc': 'O sistema detectou uma inconsistência entre a chave Stripe e a configuração de ambiente.',
+'billing.env.keyUnknown.title': 'Chave Stripe não reconhecida',
+'billing.env.keyUnknown.desc': 'A chave Stripe configurada não possui formato válido (esperado sk_test_* ou sk_live_*).',
+'billing.env.configMissing.title': 'Configuração de ambiente ausente',
+'billing.env.configMissing.desc': 'A configuração de ambiente de cobrança não foi encontrada no sistema.',
+'billing.env.priceNotConfigured.title': 'Preço não configurado',
+'billing.env.priceNotConfigured.desc': 'O plano selecionado não possui preço configurado para o ambiente atual.',
+'billing.env.priceNotFound.title': 'Preço não encontrado no Stripe',
+'billing.env.priceNotFound.desc': 'O preço configurado não existe no ambiente Stripe atual.',
 ```
 
-#### 2.3 Obter currentUser para profile_id
+### en.ts
 
 ```typescript
-const { currentUser } = useAuth();
+// PI-BILL-ENV-001 — Billing Environment Governance
+'billing.env.mismatch.title': 'Billing environment mismatch',
+'billing.env.mismatch.desc': 'The system detected an inconsistency between the Stripe key and environment configuration.',
+'billing.env.keyUnknown.title': 'Stripe key not recognized',
+'billing.env.keyUnknown.desc': 'The configured Stripe key does not have a valid format (expected sk_test_* or sk_live_*).',
+'billing.env.configMissing.title': 'Environment configuration missing',
+'billing.env.configMissing.desc': 'The billing environment configuration was not found in the system.',
+'billing.env.priceNotConfigured.title': 'Price not configured',
+'billing.env.priceNotConfigured.desc': 'The selected plan has no price configured for the current environment.',
+'billing.env.priceNotFound.title': 'Price not found in Stripe',
+'billing.env.priceNotFound.desc': 'The configured price does not exist in the current Stripe environment.',
 ```
 
-#### 2.4 Criar funcao para registrar apenas graduacao
+### es.ts
 
 ```typescript
-const handleRegisterGradingOnly = async () => {
-  if (!formData.grading_level_id || !athleteId || !tenant?.id) {
-    toast.error('Selecione um nivel de graduacao');
-    return;
-  }
-
-  setIsGenerating(true);
-  try {
-    const { error } = await supabase
-      .from('athlete_gradings')
-      .insert({
-        tenant_id: tenant.id,
-        athlete_id: athleteId,
-        grading_level_id: formData.grading_level_id,
-        academy_id: formData.academy_id || null,
-        coach_id: formData.coach_id || null,
-        promotion_date: formData.promotion_date,
-        notes: formData.notes || null,
-        diploma_id: null,
-        is_official: false,
-      });
-
-    if (error) throw error;
-
-    queryClient.invalidateQueries({ queryKey: ['athlete-gradings', athleteId] });
-    toast.success(t('grading.registerOnly.success'));
-    setIsDialogOpen(false);
-    // Reset form...
-  } catch (error) {
-    toast.error(t('common.error'));
-  } finally {
-    setIsGenerating(false);
-  }
-};
-```
-
-#### 2.5 Modificar `handleSubmit` para enviar override
-
-```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!formData.grading_level_id || !athleteId) {
-    toast.error('Selecione um nivel de graduacao');
-    return;
-  }
-
-  setIsGenerating(true);
-  try {
-    const body: any = {
-      athleteId,
-      gradingLevelId: formData.grading_level_id,
-      academyId: formData.academy_id || undefined,
-      coachId: formData.coach_id || undefined,
-      promotionDate: formData.promotion_date,
-      notes: formData.notes || undefined,
-    };
-
-    // PI-POL-001D: Include override if enabled
-    if (overrideEnabled && !hasActiveMembership) {
-      body.officiality_override = {
-        enabled: true,
-        reason: overrideReason.trim(),
-        granted_by_profile_id: currentUser?.id,
-      };
-    }
-
-    const response = await supabase.functions.invoke('generate-diploma', { body });
-
-    if (response.error) throw new Error(response.error.message);
-
-    const result = response.data;
-    if (!result.success) {
-      if (result.error === 'MEMBERSHIP_REQUIRED') {
-        toast.error(t('grading.membershipRequired'));
-        return;
-      }
-      if (result.error === 'OFFICIALITY_OVERRIDE_FORBIDDEN') {
-        toast.error(t('grading.override.forbidden'));
-        return;
-      }
-      throw new Error(result.error || 'Erro ao gerar diploma');
-    }
-
-    // Reset state and close dialog...
-  } catch (error) {
-    // error handling...
-  } finally {
-    setIsGenerating(false);
-  }
-};
-```
-
-#### 2.6 Modificar DialogFooter com 2 botoes
-
-```tsx
-<DialogFooter className="flex flex-col sm:flex-row gap-2">
-  {/* Botao A: Registrar apenas graduacao */}
-  <Button
-    type="button"
-    variant="outline"
-    onClick={handleRegisterGradingOnly}
-    disabled={isGenerating || !formData.grading_level_id}
-  >
-    {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-    {t('grading.registerOnly')}
-  </Button>
-
-  {/* Botao B: Registrar e gerar diploma */}
-  <Button
-    type="submit"
-    disabled={
-      isGenerating ||
-      !formData.grading_level_id ||
-      (!hasActiveMembership && !overrideEnabled) ||
-      (!hasActiveMembership && overrideEnabled && overrideReason.trim().length < 8)
-    }
-  >
-    {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-    {t('grading.registerAndIssue')}
-  </Button>
-</DialogFooter>
-```
-
-#### 2.7 Adicionar secao de override no form (quando !hasActiveMembership)
-
-Inserir apos o banner de governanca existente, dentro do Dialog:
-
-```tsx
-{/* PI-POL-001D: Override section */}
-{hasActiveMembership === false && (
-  <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
-    <div className="flex items-center justify-between">
-      <div>
-        <Label htmlFor="override-switch" className="font-medium">
-          {t('grading.override.title')}
-        </Label>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('grading.override.desc')}
-        </p>
-      </div>
-      <Switch
-        id="override-switch"
-        checked={overrideEnabled}
-        onCheckedChange={setOverrideEnabled}
-      />
-    </div>
-
-    {overrideEnabled && (
-      <div className="space-y-2">
-        <Label htmlFor="override-reason">
-          {t('grading.override.reasonLabel')} *
-        </Label>
-        <Textarea
-          id="override-reason"
-          value={overrideReason}
-          onChange={(e) => setOverrideReason(e.target.value)}
-          placeholder={t('grading.override.reasonPlaceholder')}
-          rows={3}
-          className={overrideReason.trim().length > 0 && overrideReason.trim().length < 8 ? 'border-destructive' : ''}
-        />
-        {overrideReason.trim().length > 0 && overrideReason.trim().length < 8 && (
-          <p className="text-sm text-destructive">
-            {t('grading.override.reasonTooShort')}
-          </p>
-        )}
-      </div>
-    )}
-  </div>
-)}
+// PI-BILL-ENV-001 — Billing Environment Governance
+'billing.env.mismatch.title': 'Entorno de facturación inconsistente',
+'billing.env.mismatch.desc': 'El sistema detectó una inconsistencia entre la clave Stripe y la configuración de entorno.',
+'billing.env.keyUnknown.title': 'Clave Stripe no reconocida',
+'billing.env.keyUnknown.desc': 'La clave Stripe configurada no tiene un formato válido (esperado sk_test_* o sk_live_*).',
+'billing.env.configMissing.title': 'Configuración de entorno ausente',
+'billing.env.configMissing.desc': 'La configuración de entorno de facturación no fue encontrada en el sistema.',
+'billing.env.priceNotConfigured.title': 'Precio no configurado',
+'billing.env.priceNotConfigured.desc': 'El plan seleccionado no tiene precio configurado para el entorno actual.',
+'billing.env.priceNotFound.title': 'Precio no encontrado en Stripe',
+'billing.env.priceNotFound.desc': 'El precio configurado no existe en el entorno Stripe actual.',
 ```
 
 ---
 
-### 3. Locales — Chaves i18n
+## Matriz de Error Codes (Contrato Final)
 
-#### pt-BR.ts (apos linha 312)
-
-```typescript
-// PI-POL-001D — Override (Courtesy)
-'grading.registerOnly': 'Registrar Graduacao',
-'grading.registerOnly.success': 'Graduacao registrada com sucesso',
-'grading.registerAndIssue': 'Registrar e Gerar Diploma',
-'grading.override.title': 'Autorizar como oficial (cortesia)',
-'grading.override.desc': 'Conceder oficialidade administrativa mesmo sem filiacao ativa',
-'grading.override.reasonLabel': 'Motivo da cortesia',
-'grading.override.reasonPlaceholder': 'Descreva o motivo para a autorizacao...',
-'grading.override.forbidden': 'Permissao insuficiente para autorizar cortesia',
-'grading.override.reasonTooShort': 'Motivo deve ter pelo menos 8 caracteres',
-```
-
-#### en.ts (apos linha 309)
-
-```typescript
-// PI-POL-001D — Override (Courtesy)
-'grading.registerOnly': 'Register Grading',
-'grading.registerOnly.success': 'Grading registered successfully',
-'grading.registerAndIssue': 'Register and Issue Diploma',
-'grading.override.title': 'Authorize as official (courtesy)',
-'grading.override.desc': 'Grant administrative officiality even without active membership',
-'grading.override.reasonLabel': 'Courtesy reason',
-'grading.override.reasonPlaceholder': 'Describe the reason for authorization...',
-'grading.override.forbidden': 'Insufficient permission to authorize courtesy',
-'grading.override.reasonTooShort': 'Reason must be at least 8 characters',
-```
-
-#### es.ts (apos linha 309)
-
-```typescript
-// PI-POL-001D — Override (Courtesy)
-'grading.registerOnly': 'Registrar Graduacion',
-'grading.registerOnly.success': 'Graduacion registrada exitosamente',
-'grading.registerAndIssue': 'Registrar y Emitir Diploma',
-'grading.override.title': 'Autorizar como oficial (cortesia)',
-'grading.override.desc': 'Otorgar oficialidad administrativa incluso sin afiliacion activa',
-'grading.override.reasonLabel': 'Motivo de la cortesia',
-'grading.override.reasonPlaceholder': 'Describa el motivo de la autorizacion...',
-'grading.override.forbidden': 'Permiso insuficiente para autorizar cortesia',
-'grading.override.reasonTooShort': 'El motivo debe tener al menos 8 caracteres',
-```
-
----
-
-## Arquivos Modificados (Resumo)
-
-| Arquivo | Tipo | Descricao |
-|---------|------|-----------|
-| `supabase/functions/generate-diploma/index.ts` | MODIFY | Override gate + audit logs |
-| `src/pages/AthleteGradingsPage.tsx` | MODIFY | 2 botoes + secao override + insert direto |
-| `src/locales/pt-BR.ts` | MODIFY | Chaves de override |
-| `src/locales/en.ts` | MODIFY | Chaves de override |
-| `src/locales/es.ts` | MODIFY | Chaves de override |
-
----
-
-## Eventos de Auditoria (Novos)
-
-| Evento | Quando | Level |
-|--------|--------|-------|
-| `DIPLOMA_ISSUED_OFFICIAL_OVERRIDE` | Diploma emitido via override | INFO |
-| `DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN` | Override rejeitado (parametros ou permissao) | WARN |
+| Error Code | Quando | Audit Event (Ajuste 1) |
+|------------|--------|------------------------|
+| `BILLING_KEY_UNKNOWN` | Key vazia ou malformada | `BILLING_KEY_UNKNOWN_BLOCKED` |
+| `BILLING_CONFIG_MISSING` | Tabela config vazia | `BILLING_CONFIG_MISSING_BLOCKED` |
+| `BILLING_ENV_MISMATCH` | key env ≠ config env | `BILLING_ENV_MISMATCH_BLOCKED` |
+| `BILLING_PLAN_NOT_FOUND` | Plano não existe | `BILLING_PRICE_NOT_CONFIGURED_BLOCKED` |
+| `BILLING_PRICE_NOT_CONFIGURED` | price_id null para env | `BILLING_PRICE_NOT_CONFIGURED_BLOCKED` |
+| `BILLING_STRIPE_PRICE_NOT_FOUND` | price.retrieve falha | `BILLING_STRIPE_PRICE_LOOKUP_FAILED` |
 
 ---
 
 ## Invariantes SAFE GOLD Garantidas
 
-| Invariante | Como e Atendida |
+| Invariante | Como é Atendida |
 |------------|-----------------|
-| HTTP 200 sempre | Todos os returns mantidos com status 200 |
-| Fail-closed | Override invalido = bloqueio |
-| Zero side effects no bloqueio | Return antes de qualquer insert |
-| Audit obrigatorio | 3 pontos de audit (sucesso, parametros, permissao) |
-| Erro code estavel | `MEMBERSHIP_REQUIRED`, `OFFICIALITY_OVERRIDE_FORBIDDEN` |
-| Determinismo | Mesmos inputs = mesma decisao |
+| HTTP 200 sempre | Todos os returns usam status: 200 |
+| Error codes estáveis | Enum fechado de error_code |
+| Fail-closed | Qualquer inconsistência bloqueia |
+| Zero side effects no bloqueio | Return antes de qualquer Stripe API call |
+| Audit obrigatório | Todos os bloqueios geram audit log |
+| Determinismo | Mesmos inputs = mesma decisão |
+| Default seguro | `stripe_env` default = 'test' |
+| Ajuste 1 | Eventos de audit granulares por tipo de erro |
+| Ajuste 2 | Preflight condicional via feature flag |
+| Ajuste 3 | Log WARN em singleton corrompido |
 
 ---
 
-## Matriz de Permissoes (Contrato Final)
+## Ordem de Execução
 
-| Cenario | Registrar Graduacao | Diploma Oficial |
-|---------|---------------------|-----------------|
-| ACTIVE membership | SIM (is_official via diploma) | SIM (is_official=true) |
-| Sem ACTIVE, sem override | SIM (is_official=false, diploma_id=null) | NAO (MEMBERSHIP_REQUIRED) |
-| Sem ACTIVE, com override valido | SIM (is_official=true via diploma) | SIM (is_official=true + audit) |
-| Sem ACTIVE, override invalido | SIM (is_official=false) | NAO (OFFICIALITY_OVERRIDE_FORBIDDEN) |
-
----
-
-## Criterios de Aceitacao (Teste Manual)
-
-### 1. Atleta sem ACTIVE — Registrar apenas graduacao
-- Botao "Registrar Graduacao" funciona
-- Cria `athlete_gradings` com `is_official=false` e `diploma_id=null`
-- Toast de sucesso exibido
-
-### 2. Atleta sem ACTIVE — Override por ADMIN
-- Switch de override visivel
-- Textarea de motivo obrigatorio (min 8 chars)
-- Botao "Registrar e Gerar Diploma" habilitado quando switch ON + motivo valido
-- Diploma emitido com `is_official=true`
-- Audit log `DIPLOMA_ISSUED_OFFICIAL_OVERRIDE` criado
-
-### 3. Override sem permissao
-- Retorna `OFFICIALITY_OVERRIDE_FORBIDDEN` (HTTP 200)
-- Audit log `DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN` criado
-- Toast amigavel exibido
-
-### 4. Atleta com ACTIVE
-- Fluxo padrao do PI-POL-001B permanece intacto
-- Override nao e necessario
-
----
-
-## Ordem de Execucao (Deterministica)
-
-1. Atualizar `src/locales/pt-BR.ts`
-2. Atualizar `src/locales/en.ts`
-3. Atualizar `src/locales/es.ts`
-4. Atualizar `supabase/functions/generate-diploma/index.ts`
+1. Executar migração SQL
+2. Criar helper `_shared/stripeEnv.ts`
+3. Atualizar `_shared/audit-logger.ts` com novos eventos
+4. Atualizar `create-tenant-subscription/index.ts`
 5. Deploy Edge Function
-6. Atualizar `src/pages/AthleteGradingsPage.tsx`
-7. Teste manual dos 4 cenarios
+6. Atualizar locales (pt-BR, en, es)
+7. Teste manual dos cenários A-D
+
