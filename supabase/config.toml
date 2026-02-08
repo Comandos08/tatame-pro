@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.cancel-membership-manual]
 verify_jwt = false
+
+[functions.reactivate-membership-manual]
+verify_jwt = false

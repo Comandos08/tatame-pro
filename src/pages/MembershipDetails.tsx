@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Building2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -107,6 +108,10 @@ export default function MembershipDetailsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Reactivate dialog state
+  const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false);
+  const [reactivateReason, setReactivateReason] = useState('');
+
   // Cancel mutation
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -137,6 +142,42 @@ export default function MembershipDetailsPage() {
       setCancelReason('');
       toast.success(t('membership.cancel.success'));
       navigate(`/${tenantSlug}/app/memberships`);
+    },
+    onError: (error) => {
+      toast.error(error.message || t('common.error'));
+    },
+  });
+
+  // Reactivate mutation
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      if (!membershipId || reactivateReason.trim().length < 5) {
+        throw new Error(t('membership.reactivate.reasonMinLength'));
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        'reactivate-membership-manual',
+        {
+          body: {
+            membershipId,
+            reason: reactivateReason.trim(),
+            impersonationId: impersonationSession?.impersonationId || undefined,
+          },
+        }
+      );
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Failed to reactivate');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['membership'] });
+      queryClient.invalidateQueries({ queryKey: ['membership-last-cancel-event'] });
+      setIsReactivateDialogOpen(false);
+      setReactivateReason('');
+      toast.success(t('membership.reactivate.success'));
     },
     onError: (error) => {
       toast.error(error.message || t('common.error'));
@@ -175,6 +216,46 @@ export default function MembershipDetailsPage() {
     },
     enabled: !!membershipId,
   });
+
+  // Fetch last cancellation audit event to determine if manual cancel
+  const { data: lastCancelEvent } = useQuery({
+    queryKey: ['membership-last-cancel-event', membershipId],
+    queryFn: async () => {
+      if (!membershipId || membership?.status !== 'CANCELLED') return null;
+      
+      const { data } = await supabase
+        .from('audit_logs')
+        .select('event_type, metadata')
+        .eq('event_type', 'MEMBERSHIP_MANUAL_CANCELLED')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      // Find matching log for this membership
+      const match = data?.find((log) => {
+        const meta = log.metadata as { membership_id?: string } | null;
+        return meta?.membership_id === membershipId;
+      });
+      
+      return match || null;
+    },
+    enabled: !!membershipId && membership?.status === 'CANCELLED',
+  });
+
+  // Can reactivate only if:
+  // - User is staff/admin
+  // - Status is CANCELLED
+  // - payment_status !== PAID
+  // - Last cancel event was MANUAL (not GC)
+  const canReactivateManually = isStaffOrCoach && 
+    membership?.status === 'CANCELLED' &&
+    membership?.payment_status !== 'PAID' &&
+    lastCancelEvent?.event_type === 'MEMBERSHIP_MANUAL_CANCELLED';
+
+  // Can cancel manually (existing logic)
+  const canCancelManually = isStaffOrCoach && 
+    membership && 
+    ['DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW'].includes(membership.status) && 
+    membership.payment_status !== 'PAID';
 
   // Fetch athlete gradings
   const { data: gradings, isLoading: gradingsLoading } = useQuery({
@@ -281,9 +362,7 @@ export default function MembershipDetailsPage() {
                           label={PAYMENT_STATUS_LABELS[membership.payment_status]}
                         />
                         {/* Manual Cancel Button - only for eligible statuses */}
-                        {isStaffOrCoach && 
-                          ['DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW'].includes(membership.status) && 
-                          membership.payment_status !== 'PAID' && (
+                        {canCancelManually && (
                           <Button
                             variant="destructive"
                             size="sm"
@@ -291,6 +370,18 @@ export default function MembershipDetailsPage() {
                           >
                             <XCircle className="h-4 w-4 mr-2" />
                             {t('membership.cancel.title')}
+                          </Button>
+                        )}
+                        {/* Manual Reactivate Button - only for manually cancelled memberships */}
+                        {canReactivateManually && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsReactivateDialogOpen(true)}
+                            className="text-primary border-primary hover:bg-primary/10"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            {t('membership.reactivate.title')}
                           </Button>
                         )}
                       </div>
@@ -614,6 +705,78 @@ export default function MembershipDetailsPage() {
                 <>
                   <XCircle className="h-4 w-4 mr-2" />
                   {t('membership.cancel.confirm')}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reactivate Membership Dialog */}
+      <Dialog open={isReactivateDialogOpen} onOpenChange={setIsReactivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <RotateCcw className="h-5 w-5" />
+              {t('membership.reactivate.confirmTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('membership.reactivate.confirmDesc')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm">
+              <p className="font-medium text-primary mb-2">
+                {t('membership.reactivate.infoTitle')}
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                <li>{t('membership.reactivate.infoBackToDraft')}</li>
+                <li>{t('membership.reactivate.infoNoAutoPayment')}</li>
+                <li>{t('membership.reactivate.infoAudited')}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reactivate-reason">
+                {t('membership.reactivate.reason')} <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="reactivate-reason"
+                placeholder={t('membership.reactivate.reasonPlaceholder')}
+                value={reactivateReason}
+                onChange={(e) => setReactivateReason(e.target.value)}
+                rows={3}
+              />
+              {reactivateReason.length > 0 && reactivateReason.length < 5 && (
+                <p className="text-xs text-destructive">
+                  {t('membership.reactivate.reasonMinLength')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsReactivateDialogOpen(false)}
+              disabled={reactivateMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={() => reactivateMutation.mutate()}
+              disabled={reactivateMutation.isPending || reactivateReason.trim().length < 5}
+            >
+              {reactivateMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t('common.loading')}
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {t('membership.reactivate.confirm')}
                 </>
               )}
             </Button>

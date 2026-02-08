@@ -2352,4 +2352,18 @@ export const en: Record<string, string> = {
   'membership.cancel.confirm': 'Confirm cancellation',
   'membership.cancel.success': 'Membership cancelled successfully',
 
+  // P3.MEMBERSHIP.MANUAL.REACTIVATE — Manual Reactivation
+  'membership.reactivate.title': 'Reactivate membership',
+  'membership.reactivate.confirmTitle': 'Confirm reactivation',
+  'membership.reactivate.confirmDesc': 'The membership will return to the initial state (DRAFT).',
+  'membership.reactivate.infoTitle': 'Important',
+  'membership.reactivate.infoBackToDraft': 'The membership will return to DRAFT status',
+  'membership.reactivate.infoNoAutoPayment': 'Payment will NOT be automatically reopened',
+  'membership.reactivate.infoAudited': 'The reactivation will be recorded in the history',
+  'membership.reactivate.reason': 'Reactivation reason',
+  'membership.reactivate.reasonPlaceholder': 'Describe the reason for reactivation...',
+  'membership.reactivate.reasonMinLength': 'Reason must be at least 5 characters',
+  'membership.reactivate.confirm': 'Confirm reactivation',
+  'membership.reactivate.success': 'Membership reactivated successfully',
+
 };
