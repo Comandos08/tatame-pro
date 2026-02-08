@@ -2483,6 +2483,26 @@ export const ptBR = {
   'observability.realtime.newEvents': 'novo(s) evento(s)',
   'observability.realtime.markSeen': 'Marcar como visto',
 
+  // Access Gate (PI-GUARD-CENTRAL)
+  'access.notAuthenticated': 'Autenticação Necessária',
+  'access.notAuthenticatedDesc': 'Você precisa estar logado para acessar esta página.',
+  'access.tenantRequired': 'Organização Necessária',
+  'access.tenantRequiredDesc': 'Esta página requer o contexto de uma organização.',
+  'access.tenantBlocked': 'Organização Suspensa',
+  'access.tenantBlockedDesc': 'Esta organização está temporariamente bloqueada. Entre em contato com o suporte.',
+  'access.roleDenied': 'Acesso Negado',
+  'access.roleDeniedDesc': 'Você não tem permissão para acessar esta funcionalidade.',
+  'access.billingBlocked': 'Faturamento Bloqueado',
+  'access.billingBlockedDesc': 'O acesso está bloqueado devido a pendências de faturamento.',
+  'access.wizardRequired': 'Configuração Necessária',
+  'access.wizardRequiredDesc': 'Complete a configuração inicial para continuar.',
+  'access.onboardingRequired': 'Onboarding Necessário',
+  'access.onboardingRequiredDesc': 'Complete a configuração da organização para acessar esta área.',
+  'access.timeout': 'Tempo Esgotado',
+  'access.timeoutDesc': 'A verificação de acesso demorou muito. Tente novamente.',
+  'access.unknownError': 'Erro Inesperado',
+  'access.unknownErrorDesc': 'Ocorreu um erro ao verificar o acesso. Tente novamente.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
