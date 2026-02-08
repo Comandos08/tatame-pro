@@ -41,24 +41,31 @@ jobs:
           fi
           echo "✅ No Date.now() found"
 
-      - name: Validate Edge Functions — No new Date() without ISO
+      - name: Validate Edge Functions — No unsafe new Date()
         run: |
           echo "🔍 Checking for unsafe new Date() usage..."
-          # Allow new Date(isoString) but flag new Date() with no args
-          if grep -rn "new Date()" supabase/functions --include="*.ts" 2>/dev/null | grep -v "new Date(" | head -5; then
-            echo "⚠️ Warning: Potential non-deterministic Date usage detected"
+          # Block any new Date(...) that is NOT an explicit ISO literal
+          if grep -rn "new Date(" supabase/functions --include="*.ts" 2>/dev/null \
+            | grep -Ev "new Date\(['\"][0-9]{4}-[0-9]{2}-[0-9]{2}T" \
+            | grep -Ev "_shared/|_tests/"; then
+            echo "❌ Unsafe new Date() usage detected — only ISO literals allowed"
+            echo "✔️ Allowed: new Date('2026-01-01T00:00:00.000Z')"
+            echo "❌ Forbidden: new Date(), new Date(timestamp), new Date(variable)"
+            exit 1
           fi
-          echo "✅ Date usage check complete"
+          echo "✅ Deterministic Date usage enforced"
 
-      - name: Validate Edge Functions — No console.log in production
+      - name: Validate Edge Functions — No console.log
         run: |
-          echo "🔍 Checking for console.log statements..."
-          # Count but don't fail - just warn
-          LOG_COUNT=$(grep -rn "console\.log" supabase/functions --include="*.ts" 2>/dev/null | wc -l)
-          if [ "$LOG_COUNT" -gt 10 ]; then
-            echo "⚠️ Warning: $LOG_COUNT console.log statements found — consider cleanup"
+          echo "🔍 Checking for console.log in Edge Functions..."
+          # Exclude test files from check
+          if grep -rn "console\.log" supabase/functions --include="*.ts" 2>/dev/null \
+            | grep -Ev "_tests/|\.test\.ts"; then
+            echo "❌ console.log proibido em SAFE GOLD — use observability"
+            echo "📝 Use audit_logs or decision_logs for production logging"
+            exit 1
           fi
-          echo "✅ Console log check complete"
+          echo "✅ No console.log found"
 
       - name: Validate config.toml exists
         run: |
