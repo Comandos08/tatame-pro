@@ -1,297 +1,449 @@
 
 
-# PI-D5-GTM1.0 — Go-to-Market Institucional
+# PI-D6.0 — Core Stability & Architecture Hardening
 
 **Status:** PLAN (Aguardando aprovacao)
-**Escopo:** Posicionamento institucional publico + narrativa de apresentacao
-**Impacto funcional:** Nenhum (apenas documentacao)
-**Arquivos a criar:** 1 (docs/GTM-INSTITUCIONAL.md)
-**Risco de regressao:** Nulo
+**Escopo:** Fluxos criticos + blindagem arquitetural
+**Impacto funcional:** Baixo (correcoes estruturais, sem features novas)
+**Risco de regressao:** Controlado (escopo fechado + criterios explicitos)
 
 ---
 
-## 1. Contexto e Alinhamento
+## 1. Diagnostico do Estado Atual
 
-### 1.1 Documentos Existentes Analisados
+### 1.1 Arquitetura de Seguranca Existente
 
-| Documento | Status | Relacao com GTM |
-|-----------|--------|-----------------|
-| `docs/SALES-NARRATIVE.md` | Canonico | Narrativa de vendas (5 min) - **mais comercial** |
-| `docs/PRODUCT-SCOPE.md` | Canonico | Definicao de escopo - referencia |
-| `src/locales/pt-BR.ts` (about.*) | Atualizado PI-D5-ABOUT1.x | Textos institucionais - **base** |
-| `src/pages/About.tsx` | Atualizado PI-D5-ABOUT1.2 | Estrutura visual - referencia |
-
-### 1.2 Diferenca Fundamental
+O sistema ja possui uma base solida de seguranca documentada em:
 
 ```text
-SALES-NARRATIVE.md         GTM-INSTITUCIONAL.md
-       |                           |
-       v                           v
-   VENDER                     POSICIONAR
-   (converter)                (explicar)
-       |                           |
-   "Se isso e o que          "Isso e o que
-    voce precisa, vamos       o Tatame e."
-    conversar."
+docs/
+├── SSF-CONSTITUTION.md      — Documento constitucional (imutavel)
+├── HARDENING.md             — P3 COMPLETE (v1.4.0)
+├── SECURITY-AUTH-CONTRACT.md — Auth state machine
+├── SECURITY/threat-model.md — Modelo de ameacas formal
+└── SAFE_GOLD/T1.0-*.md      — Contratos de tenant lifecycle
 ```
 
-O GTM Institucional nao substitui o SALES-NARRATIVE — ele o complementa como camada anterior (posicionamento) que nao pressupoe intencao de compra.
+### 1.2 Edge Functions Criticas Analisadas
 
----
+| Funcao | Status | Gaps Identificados |
+|--------|--------|-------------------|
+| `complete-tenant-onboarding` | ✅ COMPLETO | Contrato explicito, rollback atomico, auditoria |
+| `generate-digital-card` | ⚠️ PARCIAL | **NAO valida tenant.status antes de emissao** |
+| `generate-diploma` | ⚠️ PARCIAL | Valida billing, mas **NAO valida tenant.lifecycle_status** |
+| `verify-document` | ✅ COMPLETO | Usa Golden Rule (isInstitutionalDocumentValid) |
+| `verify-digital-card` | ✅ COMPLETO | Usa Golden Rule |
+| `resolve-identity-wizard` | ✅ COMPLETO | CREATE_TENANT cria em status=SETUP corretamente |
 
-## 2. Arquitetura do Documento
+### 1.3 Invariantes Existentes (Documentadas)
 
-### 2.1 Estrutura Proposta
+**SAFE GOLD ja define:**
+- Tenant lifecycle: SETUP → ACTIVE → BLOCKED
+- Mutation boundaries para tabelas protegidas
+- Golden Rule para documentos (tenant ACTIVE + billing OK + doc ACTIVE)
 
-```text
-docs/GTM-INSTITUCIONAL.md
-|
-+-- 1. Proposito (o que e este documento)
-|
-+-- 2. Mensagem Central (1 frase)
-|
-+-- 3. Roteiro de 90 Segundos
-|       |-- Bloco 1: Contexto (20s)
-|       |-- Bloco 2: Posicao (25s)
-|       |-- Bloco 3: Estrutura (25s)
-|       |-- Bloco 4: Confianca (20s)
-|
-+-- 4. Demo Institucional (5 min)
-|       |-- Principios da demo
-|       |-- Ordem fixa
-|       |-- O que mostrar vs. o que NAO mostrar
-|
-+-- 5. Microcopy Institucional
-|       |-- Headlines permitidas
-|       |-- Frases proibidas
-|
-+-- 6. Adaptacoes por Idioma (EN / ES)
-|
-+-- 7. Criterios de Uso
-```
+**Federation (PI-D5.A):**
+- Eventos federativos exigem `federation_id` nos metadados
+- Auditoria valida campos obrigatorios
 
----
-
-## 3. Conteudo Proposto
-
-### 3.1 Mensagem Central (1 frase)
+### 1.4 Gaps Criticos Identificados
 
 ```text
-"O Tatame e uma infraestrutura institucional para registro,
-governanca e preservacao do historico dos esportes de combate."
-```
+┌────────────────────────────────────────────────────────────────┐
+│ GAP 1: EMISSAO DE DOCUMENTO SEM VALIDACAO DE TENANT STATUS    │
+│                                                                │
+│ generate-digital-card e generate-diploma NAO verificam se     │
+│ tenant.lifecycle_status === 'ACTIVE' antes de emitir.         │
+│                                                                │
+│ Risco: Documento emitido para tenant em SETUP ou BLOCKED.     │
+└────────────────────────────────────────────────────────────────┘
 
-**Validacao:**
-- Nao promete
-- Nao compara
-- Nao vende
-- Nao disputa poder
-- Define territorio
+┌────────────────────────────────────────────────────────────────┐
+│ GAP 2: FEDERACAO SEM EDGE FUNCTIONS DEDICADAS                 │
+│                                                                │
+│ federation_tenants (vinculo fed↔org) nao tem Edge Function.   │
+│ Operacoes de JOIN/LEAVE podem ocorrer diretamente via RLS.    │
+│                                                                │
+│ Risco: Historico federativo nao auditado explicitamente.      │
+└────────────────────────────────────────────────────────────────┘
 
-### 3.2 Roteiro de 90 Segundos
+┌────────────────────────────────────────────────────────────────┐
+│ GAP 3: INVARIANTES NAO CENTRALIZADAS                          │
+│                                                                │
+│ Invariantes estao espalhadas em docs diferentes.              │
+│ Nao existe um INVARIANTS.md canonical.                        │
+│                                                                │
+│ Risco: Violacao acidental por falta de visibilidade.          │
+└────────────────────────────────────────────────────────────────┘
 
-#### Bloco 1 — Contexto (20s)
-
-> "Os esportes de combate cresceram globalmente, mas seu historico institucional ainda e fragmentado. Registros, graduacoes, vinculos e decisoes dependem de pessoas, gestoes e documentos dispersos."
-
-**Objetivo:** Mostrar que o problema e estrutural, nao operacional.
-
-#### Bloco 2 — Posicao do Tatame (25s)
-
-> "O Tatame nao e uma federacao e nao substitui entidades existentes. Ele atua como uma camada institucional neutra, oferecendo registro estruturado, rastreabilidade e preservacao historica para o ecossistema."
-
-**Objetivo:** Dizer onde o Tatame se encaixa — sem competir.
-
-#### Bloco 3 — Estrutura (25s)
-
-> "A infraestrutura respeita as camadas do esporte: federacoes e conselhos definem normas, organizacoes executam, individuos constroem seu historico. O Tatame apenas registra, preserva e conecta essas camadas."
-
-**Objetivo:** Mostrar que existe ordem (alinhado com about.ecosystem.*).
-
-#### Bloco 4 — Confianca e Longo Prazo (20s)
-
-> "Os registros sao auditaveis, verificaveis e independentes de gestoes especificas. O foco nao e tecnologia, mas continuidade institucional."
-
-**Objetivo:** Fechar com legitimidade.
-
----
-
-### 3.3 Demo Institucional (5 minutos)
-
-#### Principios
-
-| Principio | Descricao |
-|-----------|-----------|
-| **Nao e tour** | Nao mostrar todas as telas |
-| **Nao e feature-driven** | Mostrar conceitos, nao botoes |
-| **Comprovacao de conceito** | "Isso existe, funciona assim" |
-| **Institucional** | Falar como se apresentasse a um regulador |
-
-#### Ordem Fixa
-
-| Etapa | Tempo | O que Mostrar | O que NAO Mostrar |
-|-------|-------|---------------|-------------------|
-| 1. Dashboard | 60s | Visao macro, camadas | Numeros, metricas |
-| 2. Federacao/Conselho | 60s | Estrutura hierarquica | Configuracoes internas |
-| 3. Registro/Vinculo | 90s | Rastreabilidade de historico | Formularios completos |
-| 4. Verificacao Publica | 60s | QR Code, validacao externa | Processo de emissao |
-| 5. Encerramento | 30s | Retorno a mensagem-mae | Features adicionais |
-
-#### Script de Transicao
-
-```text
-Dashboard → "Aqui temos visao das camadas do ecossistema..."
-Fed/Conselho → "Essa e a estrutura institucional..."
-Registro → "Cada registro preserva historico verificavel..."
-Verificacao → "Qualquer pessoa pode validar externamente..."
-Encerramento → "Isso e infraestrutura institucional para o esporte."
+┌────────────────────────────────────────────────────────────────┐
+│ GAP 4: CONTRATOS DE EDGE FUNCTIONS NAO DOCUMENTADOS           │
+│                                                                │
+│ Funcoes criticas nao tem INPUT/PRE/POST documentado inline.   │
+│                                                                │
+│ Risco: Comportamento inesperado, dificil manutencao.          │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 3.4 Microcopy Institucional
+## 2. Estrategia de Execucao
 
-#### Headlines Permitidas
-
-| Headline | Uso |
-|----------|-----|
-| "Infraestrutura institucional para o esporte" | Geral |
-| "Registro, governanca e preservacao historica" | Tecnico |
-| "Uma camada neutra para o ecossistema esportivo" | Posicionamento |
-| "Governanca e rastreabilidade para esportes de combate" | Especifico |
-
-#### Frases Proibidas (alinhado com About)
-
-| Proibido | Motivo |
-|----------|--------|
-| "Gerencie sua federacao" | SaaS |
-| "Aumente eficiencia" | Marketing |
-| "Controle seus dados" | Operacional |
-| "Plataforma completa" | Comercial |
-| "Tudo em um so lugar" | Marketing |
-| "Solucao integrada" | SaaS |
-| "Digitalize sua organizacao" | Operacional |
-
----
-
-### 3.5 Adaptacoes por Idioma
-
-#### EN — Institutional GTM
+### 2.1 Divisao em Sub-PIs
 
 ```text
-Mensagem central:
-"Tatame is institutional infrastructure for registration,
-governance and historical preservation in combat sports."
-
-Headline principal:
-"Institutional infrastructure for sport"
-```
-
-#### ES — GTM Institucional
-
-```text
-Mensaje central:
-"Tatame es una infraestructura institucional para el registro,
-la gobernanza y la preservacion historica de los deportes de combate."
-
-Headline principal:
-"Infraestructura institucional para el deporte"
+PI-D6.0 (Este Plano)
+    │
+    ├── PI-D6.1 — Core Stability (Fluxos Criticos)
+    │       ├── 6.1.1 — Tenant lifecycle validation em emissao
+    │       ├── 6.1.2 — Federation Edge Functions (JOIN/LEAVE)
+    │       └── 6.1.3 — Verificacao publica hardening
+    │
+    └── PI-D6.2 — Architecture Hardening (Contratos e Invariantes)
+            ├── 6.2.1 — INVARIANTS.md canonical
+            ├── 6.2.2 — Edge Function contracts inline
+            └── 6.2.3 — requireTenantActive shared utility
 ```
 
 ---
 
-## 4. Relacao com Documentos Existentes
+## 3. Bloco A — Core Stability (PI-D6.1)
 
-### 4.1 Hierarquia Documental
+### 3.1 Tenant Lifecycle Validation em Emissao
 
-```text
-PRODUCT-SCOPE.md (autoridade maxima)
-       |
-       v
-SALES-NARRATIVE.md (vendas)
-       |
-       v
-GTM-INSTITUCIONAL.md (posicionamento) <-- ESTE DOCUMENTO
-       |
-       v
-About Page (publico)
+**Problema:**
+- `generate-digital-card` e `generate-diploma` NAO verificam `tenant.lifecycle_status`
+- Documento pode ser emitido para tenant em SETUP ou BLOCKED
+
+**Solucao:**
+
+Criar utility compartilhada e aplicar em ambas funcoes:
+
+```typescript
+// supabase/functions/_shared/requireTenantActive.ts
+export async function requireTenantActive(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<{ allowed: boolean; status: string | null; error?: string }> {
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('lifecycle_status')
+    .eq('id', tenantId)
+    .maybeSingle();
+
+  if (error || !tenant) {
+    return { allowed: false, status: null, error: 'Tenant not found' };
+  }
+
+  if (tenant.lifecycle_status !== 'ACTIVE') {
+    return { 
+      allowed: false, 
+      status: tenant.lifecycle_status,
+      error: `Tenant not active: ${tenant.lifecycle_status}` 
+    };
+  }
+
+  return { allowed: true, status: 'ACTIVE' };
+}
 ```
 
-### 4.2 Quando Usar Cada Um
+**Aplicacao:**
 
-| Documento | Quando Usar |
-|-----------|-------------|
-| PRODUCT-SCOPE.md | Decisoes de produto, validacao de escopo |
-| SALES-NARRATIVE.md | Conversa de vendas, objecoes, fechamento |
-| GTM-INSTITUCIONAL.md | Apresentacao inicial, demo, material publico |
-| About Page | Visitante do site, primeiro contato |
+| Funcao | Alteracao |
+|--------|-----------|
+| `generate-digital-card` | Adicionar `requireTenantActive()` antes de emissao |
+| `generate-diploma` | Adicionar `requireTenantActive()` antes de emissao |
+
+**Resposta para tenant nao-ACTIVE:**
+```json
+{
+  "success": false,
+  "error": "Operation blocked",
+  "code": "TENANT_NOT_ACTIVE"
+}
+```
+
+### 3.2 Federation Edge Functions (JOIN/LEAVE)
+
+**Problema:**
+- Vinculos `federation_tenants` podem ser criados/removidos diretamente
+- Historico federativo nao e auditado explicitamente
+
+**Solucao:**
+
+Criar duas Edge Functions dedicadas:
+
+#### 3.2.1 `join-federation`
+
+```typescript
+// supabase/functions/join-federation/index.ts
+// CONTRACT:
+// INPUT: { tenantId: UUID, federationId: UUID }
+// PRE: tenant.lifecycle_status === 'ACTIVE'
+// PRE: federation.status === 'ACTIVE'
+// PRE: requester has FED_ADMIN or ADMIN_TENANT role
+// POST: federation_tenants row created
+// POST: audit event TENANT_JOINED_FEDERATION with federation_id
+```
+
+#### 3.2.2 `leave-federation`
+
+```typescript
+// supabase/functions/leave-federation/index.ts
+// CONTRACT:
+// INPUT: { tenantId: UUID, federationId: UUID, reason: string }
+// PRE: vinculo exists and is ACTIVE
+// PRE: requester has FED_ADMIN or ADMIN_TENANT role
+// POST: federation_tenants.status = 'LEFT' (soft delete)
+// POST: audit event TENANT_LEFT_FEDERATION with federation_id
+```
+
+**Principios:**
+- NUNCA apagar vinculo (soft history)
+- SEMPRE auditar com `metadata.federation_id`
+- Estados derivados do historico, nao o contrario
+
+### 3.3 Verificacao Publica Hardening
+
+**Status Atual:** ✅ JA COMPLETO
+
+Ambas funcoes (`verify-document`, `verify-digital-card`) ja seguem:
+- HTTP 200 sempre
+- Mensagem neutra unica para falha
+- Golden Rule aplicada
+
+**Acao:** Apenas validar via E2E que todos os cenarios retornam resposta neutra:
+- Token invalido
+- Documento inexistente
+- Documento revogado
+- Tenant bloqueado
 
 ---
 
-## 5. Criterios de Uso
+## 4. Bloco B — Architecture Hardening (PI-D6.2)
 
-### 5.1 Este documento DEVE ser usado para
+### 4.1 INVARIANTS.md Canonical
 
-- Primeira reuniao com federacao
-- Demo institucional (5 min)
-- Apresentacao para conselho/regulador
-- Base para material do site
-- Treinamento de equipe
+**Problema:**
+Invariantes estao espalhadas em:
+- `docs/PRODUCT-SAFETY.md` (invariantes de UX)
+- `docs/SSF-CONSTITUTION.md` (principios)
+- `e2e/contract/README.md` (invariantes de teste)
+- Varias Edge Functions (inline)
 
-### 5.2 Este documento NAO substitui
+**Solucao:**
+Criar `docs/SECURITY/INVARIANTS.md` como ponto unico:
 
-- SALES-NARRATIVE.md (para fechamento)
-- PRODUCT-SCOPE.md (para decisoes)
-- Documentacao tecnica
+```markdown
+# TATAME Pro — System Invariants
+
+## I1. Document Validity (Golden Rule)
+Documento valido SOMENTE se:
+- tenant.lifecycle_status === 'ACTIVE'
+- billing.status ∈ ['ACTIVE', 'TRIALING']
+- document.status ∈ ['ACTIVE', 'ISSUED']
+- document.revoked_at === null
+
+## I2. Federation Governance
+- Federacao nunca existe sem federation_roles
+- Vinculo tenant↔federation e imutavel (soft history)
+- Eventos federativos exigem metadata.federation_id
+
+## I3. Audit Trail
+- audit_logs e append-only (DELETE/UPDATE bloqueados)
+- Acoes institucionais exigem auditoria
+- Eventos federativos exigem federation_id
+- Eventos de conselho exigem federation_id + council_id
+
+## I4. Tenant Lifecycle
+- Tenant em SETUP: operacoes destrutivas bloqueadas
+- Tenant em BLOCKED: todas operacoes bloqueadas
+- Transicao SETUP→ACTIVE: atomica com billing bootstrap
+
+## I5. RLS Independence
+- Seguranca nunca depende de frontend
+- Guards sao defense-in-depth, nao unica camada
+- RLS em todas tabelas sensivel
+
+## I6. Error Neutrality (Public Endpoints)
+- HTTP 200 sempre em endpoints publicos
+- Mensagem neutra unica para qualquer falha
+- Zero vazamento semantico
+```
+
+### 4.2 Edge Function Contracts Inline
+
+**Problema:**
+Funcoes criticas nao tem contrato documentado de forma padronizada.
+
+**Solucao:**
+Adicionar JSDoc padronizado no topo de cada funcao critica:
+
+```typescript
+/**
+ * @contract generate-digital-card
+ * 
+ * INPUT:
+ *   - membershipId: UUID (obrigatorio)
+ * 
+ * PRECONDITIONS:
+ *   - tenant.lifecycle_status === 'ACTIVE'
+ *   - billing.status ∈ ['ACTIVE', 'TRIALING']
+ *   - membership.payment_status === 'PAID'
+ *   - membership.status ∈ ['PENDING_REVIEW', 'APPROVED', 'ACTIVE']
+ * 
+ * POSTCONDITIONS:
+ *   - digital_cards row created
+ *   - document_public_tokens row created
+ *   - audit event DOCUMENT_ISSUED logged
+ * 
+ * ERRORS:
+ *   - All errors return HTTP 200 with { success: false }
+ *   - No stack traces exposed
+ */
+```
+
+**Funcoes a documentar:**
+1. `generate-digital-card`
+2. `generate-diploma`
+3. `complete-tenant-onboarding`
+4. `approve-membership`
+5. `verify-document`
+6. `start-impersonation`
+
+### 4.3 requireTenantActive Shared Utility
+
+Criar em `supabase/functions/_shared/requireTenantActive.ts`:
+
+```typescript
+/**
+ * Validates that tenant is in ACTIVE lifecycle status.
+ * FAIL-CLOSED: Any error = blocked access.
+ * 
+ * @usage
+ * const check = await requireTenantActive(supabase, tenantId);
+ * if (!check.allowed) {
+ *   return tenantNotActiveResponse(check.status);
+ * }
+ */
+export async function requireTenantActive(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<TenantActiveCheckResult>;
+
+export function tenantNotActiveResponse(
+  status: string | null
+): Response;
+```
 
 ---
 
-## 6. Arquivos Afetados
+## 5. Arquivos a Criar/Modificar
 
-| Arquivo | Acao |
-|---------|------|
-| `docs/GTM-INSTITUCIONAL.md` | **CRIAR** |
+### 5.1 Arquivos a Criar
 
-**Nenhum outro arquivo sera alterado.**
+| Arquivo | Descricao |
+|---------|-----------|
+| `docs/SECURITY/INVARIANTS.md` | Invariantes canonicas centralizadas |
+| `supabase/functions/_shared/requireTenantActive.ts` | Utility para validar tenant ACTIVE |
+| `supabase/functions/join-federation/index.ts` | Edge Function para vinculo fed↔org |
+| `supabase/functions/leave-federation/index.ts` | Edge Function para saida de federacao |
+
+### 5.2 Arquivos a Modificar
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/generate-digital-card/index.ts` | Adicionar requireTenantActive + contrato JSDoc |
+| `supabase/functions/generate-diploma/index.ts` | Adicionar requireTenantActive + contrato JSDoc |
+| `supabase/functions/complete-tenant-onboarding/index.ts` | Adicionar contrato JSDoc (ja tem logica ok) |
+| `supabase/functions/approve-membership/index.ts` | Adicionar contrato JSDoc |
+| `supabase/functions/verify-document/index.ts` | Adicionar contrato JSDoc (ja tem logica ok) |
+| `supabase/functions/start-impersonation/index.ts` | Adicionar contrato JSDoc |
+
+### 5.3 Arquivos de Teste
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `e2e/contract/tenant-active-guard.spec.ts` | Validar que emissao bloqueia para SETUP/BLOCKED |
+| `e2e/contract/federation-lifecycle.spec.ts` | Validar JOIN/LEAVE e auditoria |
 
 ---
 
-## 7. Criterios de Aceite (SAFE GOLD)
+## 6. Criterios de Aceite (SAFE GOLD)
 
 | Criterio | Validacao |
 |----------|-----------|
-| Nao soa comercial | Zero palavras de venda |
-| Nao soa SaaS | Zero jargao de produto |
-| Serve para reuniao institucional | Pode ser lido em voz alta |
-| Sustenta demo curta | Roteiro fecha em 5 min |
-| Coerente com About | Nenhuma contradicao com about.* |
-| Escalavel | Versoes EN / ES incluidas |
-| Alinhado com SALES-NARRATIVE | Complementa, nao contradiz |
+| Fluxos criticos previsiveis | Nenhuma emissao para tenant nao-ACTIVE |
+| Nenhuma decisao implicita | Todos contratos documentados inline |
+| Seguranca independente de UI | requireTenantActive no backend |
+| Auditoria obrigatoria | JOIN/LEAVE federativos auditados |
+| Erros neutros | Verificacao publica nao vaza info |
+| Sistema extensivel | INVARIANTS.md canonical |
 
 ---
 
-## 8. Proximo Passo apos Aprovacao
+## 7. Ordem de Execucao
 
-Criacao do arquivo `docs/GTM-INSTITUCIONAL.md` com todo o conteudo acima estruturado em formato markdown canonico.
+```text
+PI-D6.1.1 — requireTenantActive utility
+    ↓
+PI-D6.1.2 — Aplicar em generate-digital-card e generate-diploma
+    ↓
+PI-D6.1.3 — Edge Functions join-federation e leave-federation
+    ↓
+PI-D6.2.1 — INVARIANTS.md canonical
+    ↓
+PI-D6.2.2 — Contratos JSDoc em Edge Functions
+    ↓
+E2E — tenant-active-guard.spec.ts e federation-lifecycle.spec.ts
+```
+
+---
+
+## 8. Fora de Escopo (Hard Freeze)
+
+| Item | Motivo |
+|------|--------|
+| UX / UI | Nao e objetivo deste PI |
+| Microcopy | Nao e objetivo deste PI |
+| Layout | Nao e objetivo deste PI |
+| Novos dashboards | Nao e objetivo deste PI |
+| Features novas | Este PI remove fragilidade, nao adiciona funcionalidade |
+| Otimizacao prematura | Foco em correcao, nao performance |
+
+---
+
+## 9. Proximo Passo
+
+Se aprovado, execucao sera feita em etapas:
+
+1. **PI-D6.1.1** — Criar `requireTenantActive.ts`
+2. **PI-D6.1.2** — Aplicar em `generate-digital-card` e `generate-diploma`
+3. **PI-D6.1.3** — Criar Edge Functions de federacao
+4. **PI-D6.2.1** — Criar `INVARIANTS.md`
+5. **PI-D6.2.2** — Documentar contratos JSDoc
+6. **E2E** — Testes de contrato
+
+Cada etapa sera um PI menor, testavel e reversivel.
 
 ---
 
 ## Resumo Executivo
 
-Este PI cria o documento `docs/GTM-INSTITUCIONAL.md` que serve como alicerce do posicionamento institucional do Tatame, complementando o SALES-NARRATIVE.md existente.
+Este PI consolida a estabilidade arquitetural do Tatame atraves de:
 
-**Diferencial:**
-- SALES-NARRATIVE = como vender
-- GTM-INSTITUCIONAL = como explicar (sem pressupor intencao de compra)
+1. **Core Stability (D6.1):**
+   - Validacao de tenant.lifecycle_status antes de emissao de documentos
+   - Edge Functions dedicadas para governanca federativa (JOIN/LEAVE)
+   - Confirmacao de hardening em verificacao publica
 
-**Conteudo:**
-1. Mensagem central (1 frase)
-2. Roteiro de 90 segundos
-3. Estrutura de demo de 5 minutos
-4. Microcopy institucional (permitido/proibido)
-5. Adaptacoes EN/ES
+2. **Architecture Hardening (D6.2):**
+   - INVARIANTS.md canonical centralizado
+   - Contratos JSDoc padronizados em Edge Functions
+   - Utility compartilhada `requireTenantActive`
 
-**Impacto funcional:** Zero
-**Arquivos criados:** 1
-**Risco de regressao:** Nulo
+**Impacto funcional:** Baixo (correcoes estruturais)
+**Arquivos criados:** 4
+**Arquivos modificados:** 6
+**Risco de regressao:** Controlado (SAFE GOLD)
 
