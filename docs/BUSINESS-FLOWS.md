@@ -350,6 +350,67 @@ Garantir que novos tenants configurem o mínimo necessário antes de operar.
 | 03:45 | cleanup-pending-payment-memberships | Cancela filiações PENDING_PAYMENT > 24h |
 | 04:00 | cleanup-abandoned-memberships | Remove filiações abandonadas |
 | 09:00 | check-membership-renewal | Lembretes de renovação |
+
+---
+
+## 9. Retry de Pagamento (Membership)
+
+Permite que uma filiação cancelada por timeout volte ao fluxo de pagamento 
+sem criar nova membership.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CANCELLED + NOT_PAID                         │
+│                  (cancellation_reason: payment_timeout)         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (usuário clica "Tentar novamente")
+┌─────────────────────────────────────────────────────────────────┐
+│                  retry-membership-payment                        │
+│                                                                  │
+│  Validações:                                                     │
+│  ✓ status === CANCELLED                                          │
+│  ✓ payment_status === NOT_PAID                                   │
+│  ✓ tenant boundary (membership.tenant.slug === tenantSlug)       │
+│  ✓ ownership (applicant_profile_id === currentUser.id)           │
+│  ✓ cancellation_reason === 'payment_timeout' (via audit_logs)   │
+│                                                                  │
+│  Fluxo:                                                          │
+│  1. UPDATE status → PENDING_PAYMENT (race-safe)                  │
+│  2. CREATE Stripe Checkout Session                               │
+│     → On failure: ROLLBACK status → CANCELLED                   │
+│  3. UPDATE stripe_checkout_session_id                            │
+│  4. LOG MEMBERSHIP_PAYMENT_RETRY                                 │
+│                                                                  │
+│  Auditoria:                                                      │
+│  • previous_stripe_session_id                                    │
+│  • new_stripe_session_id                                         │
+│  • cancellation_reason                                           │
+│  • rolled_back (se aplicável)                                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      PENDING_PAYMENT                             │
+│                (com nova Stripe session)                         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (pagamento confirmado)
+┌─────────────────────────────────────────────────────────────────┐
+│                   PENDING_REVIEW + PAID                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Princípios SAFE GOLD:**
+- ❌ NÃO cria nova membership
+- ❌ NÃO apaga histórico
+- ❌ NÃO toca em memberships pagas
+- ❌ NÃO permite retry de cancelamentos manuais
+- ✅ Rollback transacional se Stripe falhar
+- ✅ Validação de tenant boundary
+- ✅ Validação de ownership
+- ✅ Versionamento de session IDs
+- ✅ Mantém auditabilidade completa
 | 10:00 | check-trial-ending | Notificações de trial |
 
 ---

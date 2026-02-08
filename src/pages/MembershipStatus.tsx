@@ -4,16 +4,23 @@
  * 
  * Handles states: PENDING_REVIEW, APPROVED, ACTIVE, REJECTED, CANCELLED
  * Route: /:tenantSlug/membership/status
+ * 
+ * Features:
+ * - Retry payment for CANCELLED + NOT_PAID memberships (P3.RETRY.PAYMENT)
+ * - Double-click protection with retryInitiated state
+ * - CAPTCHA validation via TurnstileWidget
  */
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, ArrowLeft, Loader2, CheckCircle2, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Clock, ArrowLeft, Loader2, CheckCircle2, XCircle, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
+import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -24,6 +31,7 @@ type MembershipStatusValue = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTE
 interface MembershipData {
   id: string;
   status: MembershipStatusValue;
+  payment_status: 'PAID' | 'NOT_PAID' | null;
   created_at: string;
   rejection_reason?: string | null;
 }
@@ -102,6 +110,12 @@ export default function MembershipStatus() {
   
   const [membership, setMembership] = useState<MembershipData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Retry payment states (AJUSTE #5)
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retryInitiated, setRetryInitiated] = useState(false);
 
   // Fetch most recent membership for this user
   useEffect(() => {
@@ -125,7 +139,7 @@ export default function MembershipStatus() {
 
         if (athleteData?.id) {
           const result = await (supabase.from('memberships') as any)
-            .select('id, status, created_at, rejection_reason')
+            .select('id, status, payment_status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('athlete_id', athleteData.id)
             .order('created_at', { ascending: false })
@@ -134,7 +148,7 @@ export default function MembershipStatus() {
           data = result?.data as MembershipData | null;
         } else {
           const result = await (supabase.from('memberships') as any)
-            .select('id, status, created_at, rejection_reason')
+            .select('id, status, payment_status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('applicant_profile_id', currentUser.id)
             .order('created_at', { ascending: false })
@@ -182,6 +196,12 @@ export default function MembershipStatus() {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING_REVIEW;
   const IconComponent = config.icon;
 
+  // Determine if retry payment is available (CANCELLED + NOT_PAID + not initiated)
+  const canRetryPayment = 
+    status === 'CANCELLED' && 
+    membership.payment_status === 'NOT_PAID' &&
+    !retryInitiated;
+
   const createdDate = membership.created_at
     ? new Date(membership.created_at).toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -189,6 +209,66 @@ export default function MembershipStatus() {
         year: 'numeric',
       })
     : null;
+
+  // Handler for retry payment (AJUSTE #5 - double-click protection)
+  const handleRetryPayment = async () => {
+    // Prevent double-click
+    if (isRetrying || retryInitiated) {
+      return;
+    }
+    
+    if (!captchaToken) {
+      toast.error(t('membership.errorCaptchaRequired'));
+      return;
+    }
+    
+    setIsRetrying(true);
+    setRetryError(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'retry-membership-payment',
+        {
+          body: {
+            membershipId: membership.id,
+            tenantSlug,
+            successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
+            cancelUrl: `${window.location.origin}/${tenantSlug}/membership/status`,
+            captchaToken,
+          },
+        }
+      );
+      
+      if (error || data?.error) {
+        const errorMsg = data?.error || error?.message || 'Unknown error';
+        
+        // Check if retry was already initiated by another click
+        if (errorMsg.includes('STATUS_CHANGED') || errorMsg.includes('already_pending')) {
+          setRetryInitiated(true);
+          toast.info(t('membership.retryAlreadyInitiated'));
+          return;
+        }
+        
+        throw new Error(errorMsg);
+      }
+      
+      if (!data?.url) {
+        throw new Error('No checkout URL returned');
+      }
+      
+      // Mark as initiated before redirecting
+      setRetryInitiated(true);
+      window.location.href = data.url;
+      
+    } catch (err) {
+      console.error('Retry payment error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to retry payment';
+      setRetryError(errorMessage);
+      toast.error(t('membership.errorPaymentSession'));
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const handleCtaClick = () => {
     switch (config.ctaType) {
@@ -287,8 +367,57 @@ export default function MembershipStatus() {
                 </div>
               )}
 
-              {/* CTA Button */}
-              {config.showCta ? (
+              {/* Retry Payment Section (CANCELLED + NOT_PAID) */}
+              {canRetryPayment && !retryInitiated && (
+                <div className="space-y-4">
+                  <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 text-sm text-left">
+                    <p className="font-medium text-warning mb-1">
+                      {t('membership.retryPaymentTitle')}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {t('membership.retryPaymentDesc')}
+                    </p>
+                  </div>
+                  
+                  <TurnstileWidget
+                    onSuccess={(token) => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
+                  
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleRetryPayment}
+                    disabled={isRetrying || !captchaToken}
+                  >
+                    {isRetrying ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        {t('common.loading')}
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {t('membership.retryPayment')}
+                      </>
+                    )}
+                  </Button>
+                  
+                  {retryError && (
+                    <p className="text-sm text-destructive text-center">{retryError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Message when retry was already initiated (AJUSTE #5) */}
+              {retryInitiated && status === 'CANCELLED' && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm text-center">
+                  <p className="text-primary font-medium">{t('membership.retryAlreadyInitiated')}</p>
+                </div>
+              )}
+
+              {/* CTA Button - show only if not eligible for retry */}
+              {!canRetryPayment && !retryInitiated && config.showCta && (
                 <Button
                   className="w-full"
                   size="lg"
@@ -297,7 +426,9 @@ export default function MembershipStatus() {
                   {getCtaLabel()}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-              ) : (
+              )}
+              
+              {!canRetryPayment && !retryInitiated && !config.showCta && (
                 <Button
                   disabled
                   className="w-full"
@@ -313,8 +444,8 @@ export default function MembershipStatus() {
                 </p>
               )}
 
-              {/* Contact organization link for rejected/cancelled */}
-              {(status === 'REJECTED' || status === 'CANCELLED') && (
+              {/* Contact organization link for rejected/cancelled (when retry not available) */}
+              {(status === 'REJECTED' || (status === 'CANCELLED' && !canRetryPayment && !retryInitiated)) && (
                 <Button
                   variant="ghost"
                   className="w-full"

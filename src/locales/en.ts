@@ -138,6 +138,10 @@ export const en: Record<string, string> = {
   'membership.errorRateLimit': 'Too many attempts. Please wait a few minutes.',
   'membership.errorCaptchaRequired': 'Please complete the security verification.',
   'membership.loginRequired': 'Please log in to continue with payment.',
+  'membership.retryPayment': 'Retry payment',
+  'membership.retryPaymentTitle': 'Payment not completed',
+  'membership.retryPaymentDesc': 'Your previous payment was not completed. You can try again without losing your data.',
+  'membership.retryAlreadyInitiated': 'A new payment attempt has already been initiated.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Minor Athlete Membership',
