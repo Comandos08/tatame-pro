@@ -53,6 +53,7 @@ import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
 import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
 import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normalize';
+import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import type { FeatureKey } from '@/lib/accessMatrix';
 interface AppShellProps {
@@ -157,6 +158,11 @@ export function AppShell({ children }: AppShellProps) {
   const exportViewState = normalizeExportViewState(isOnExportRoute ? 'READY' : null);
   const exportType = isOnExportRoute ? (pathname.includes('/pdf') ? 'PDF' : 'CSV') : '';
 
+  // ANALYTICS SAFE GOLD ANALYTICS2.0: derive analytics state deterministically
+  const isOnAnalyticsRoute = isAnalyticsRoute(pathname);
+  const analyticsViewState = normalizeAnalyticsState(isOnAnalyticsRoute ? { ready: true } : null);
+  const analyticsMetrics = deriveActiveMetrics(pathname);
+
   return (
     <div 
       className="min-h-screen bg-background"
@@ -177,6 +183,9 @@ export function AppShell({ children }: AppShellProps) {
       data-export-type={exportType}
       data-export-view-state={exportViewState}
       data-export-route={isOnExportRoute ? pathname : ''}
+      data-analytics-view-state={analyticsViewState}
+      data-analytics-metrics={analyticsMetrics.join(',')}
+      data-analytics-route={isOnAnalyticsRoute ? pathname : ''}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
