@@ -382,6 +382,18 @@ export const es: Record<string, string> = {
   'billing.incompleteDesc': 'Su suscripción está incompleta. Por favor, complete el pago para activar.',
   'billing.unpaidDesc': 'Su suscripción está suspendida por falta de pago. Contáctenos para resolver.',
   'billing.validUntil': 'Válido hasta: {date}',
+
+  // PI-BILL-ENV-001 — Billing Environment Governance
+  'billing.env.mismatch.title': 'Entorno de facturación inconsistente',
+  'billing.env.mismatch.desc': 'El sistema detectó una inconsistencia entre la clave Stripe y la configuración de entorno.',
+  'billing.env.keyUnknown.title': 'Clave Stripe no reconocida',
+  'billing.env.keyUnknown.desc': 'La clave Stripe configurada no tiene un formato válido (esperado sk_test_* o sk_live_*).',
+  'billing.env.configMissing.title': 'Configuración de entorno ausente',
+  'billing.env.configMissing.desc': 'La configuración de entorno de facturación no fue encontrada en el sistema.',
+  'billing.env.priceNotConfigured.title': 'Precio no configurado',
+  'billing.env.priceNotConfigured.desc': 'El plan seleccionado no tiene precio configurado para el entorno actual.',
+  'billing.env.priceNotFound.title': 'Precio no encontrado en Stripe',
+  'billing.env.priceNotFound.desc': 'El precio configurado no existe en el entorno Stripe actual.',
   'billing.openPortalError': 'Error al abrir el portal de pago',
   'billing.totalPaid': 'Total Pagado',
   'billing.totalPending': 'Total Pendiente',

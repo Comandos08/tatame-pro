@@ -383,6 +383,18 @@ export const ptBR = {
   'billing.openPortalError': 'Erro ao abrir portal de pagamento',
   'billing.totalPaid': 'Total Pago',
   'billing.totalPending': 'Total Pendente',
+
+  // PI-BILL-ENV-001 — Billing Environment Governance
+  'billing.env.mismatch.title': 'Ambiente de cobrança inconsistente',
+  'billing.env.mismatch.desc': 'O sistema detectou uma inconsistência entre a chave Stripe e a configuração de ambiente.',
+  'billing.env.keyUnknown.title': 'Chave Stripe não reconhecida',
+  'billing.env.keyUnknown.desc': 'A chave Stripe configurada não possui formato válido (esperado sk_test_* ou sk_live_*).',
+  'billing.env.configMissing.title': 'Configuração de ambiente ausente',
+  'billing.env.configMissing.desc': 'A configuração de ambiente de cobrança não foi encontrada no sistema.',
+  'billing.env.priceNotConfigured.title': 'Preço não configurado',
+  'billing.env.priceNotConfigured.desc': 'O plano selecionado não possui preço configurado para o ambiente atual.',
+  'billing.env.priceNotFound.title': 'Preço não encontrado no Stripe',
+  'billing.env.priceNotFound.desc': 'O preço configurado não existe no ambiente Stripe atual.',
   'billing.nextInvoice': 'Próxima Fatura',
   'billing.dueDate': 'Vencimento',
   'billing.noOpenInvoices': 'Sem faturas abertas',

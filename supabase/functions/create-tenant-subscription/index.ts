@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { 
+  validateStripeEnv, 
+  resolvePriceId, 
+  isPreflightEnabled 
+} from "../_shared/stripeEnv.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,22 +15,6 @@ const corsHeaders = {
 
 // Trial period in days for new tenants (Growth Trial Strategy)
 const TRIAL_PERIOD_DAYS = 7;
-
-// Price IDs from environment - support monthly and annual plans
-const getPriceId = (planType: 'monthly' | 'annual' | null): string => {
-  const monthlyPrice = Deno.env.get("STRIPE_PRICE_MONTHLY");
-  const yearlyPrice = Deno.env.get("STRIPE_PRICE_YEARLY");
-  
-  if (planType === 'monthly' && monthlyPrice) {
-    return monthlyPrice;
-  }
-  // Default to annual
-  return yearlyPrice || "price_1SrPnhHH533PC5DdmXxmsrRk";
-};
-
-const getPlanName = (planType: 'monthly' | 'annual' | null): string => {
-  return planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
-};
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
@@ -107,10 +97,103 @@ serve(async (req) => {
       throw new Error("Missing tenantId");
     }
 
-    // Get price ID from environment based on plan type
-    const priceId = getPriceId(planType || 'annual');
-    const planName = getPlanName(planType || 'annual');
-    logStep("Creating subscription", { tenantId, priceId, planType: planType || 'annual', planName });
+    // ─────────────────────────────────────────────────────────────
+    // PI-BILL-ENV-001 — STRIPE ENVIRONMENT VALIDATION (PRE-FLIGHT)
+    // Contract: HTTP 200 always. Fail-closed on any env mismatch.
+    // ─────────────────────────────────────────────────────────────
+
+    const envValidation = await validateStripeEnv(supabase, stripeSecretKey);
+
+    if (!envValidation.ok) {
+      logStep("Environment validation failed", { 
+        error_code: envValidation.error_code,
+        keyEnv: envValidation.keyEnv,
+        configEnv: envValidation.configEnv
+      });
+      
+      // Ajuste 1: Map error_code to specific audit event
+      let auditEvent = AUDIT_EVENTS.BILLING_ENV_MISMATCH_BLOCKED;
+      if (envValidation.error_code === 'BILLING_KEY_UNKNOWN') {
+        auditEvent = AUDIT_EVENTS.BILLING_KEY_UNKNOWN_BLOCKED;
+      } else if (envValidation.error_code === 'BILLING_CONFIG_MISSING') {
+        auditEvent = AUDIT_EVENTS.BILLING_CONFIG_MISSING_BLOCKED;
+      }
+      
+      await createAuditLog(supabase, {
+        event_type: auditEvent,
+        tenant_id: tenantId,
+        metadata: {
+          error_code: envValidation.error_code,
+          key_env: envValidation.keyEnv,
+          config_env: envValidation.configEnv,
+          plan_type: planType || 'annual',
+          decision: 'BLOCKED',
+          source: 'create-tenant-subscription'
+        }
+      });
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error_code: envValidation.error_code,
+          message: envValidation.message
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    logStep("Environment validation passed", { 
+      keyEnv: envValidation.keyEnv, 
+      configEnv: envValidation.configEnv 
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // PI-BILL-ENV-001 — RESOLVE PRICE ID FROM DATABASE
+    // ─────────────────────────────────────────────────────────────
+
+    const priceResolution = await resolvePriceId(
+      supabase, 
+      planType || 'annual', 
+      envValidation.configEnv
+    );
+
+    if (!priceResolution.ok) {
+      logStep("Price resolution failed", { 
+        error_code: priceResolution.error_code,
+        planType: planType || 'annual',
+        stripeEnv: envValidation.configEnv
+      });
+      
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BILLING_PRICE_NOT_CONFIGURED_BLOCKED,
+        tenant_id: tenantId,
+        metadata: {
+          error_code: priceResolution.error_code,
+          plan_type: planType || 'annual',
+          stripe_env: envValidation.configEnv,
+          decision: 'BLOCKED',
+          source: 'create-tenant-subscription'
+        }
+      });
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error_code: priceResolution.error_code,
+          message: priceResolution.message
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    const priceId = priceResolution.priceId;
+    const planName = priceResolution.planName;
+
+    logStep("Price resolved from database", { 
+      priceId, 
+      planName, 
+      planCode: priceResolution.planCode 
+    });
 
     // Get tenant data
     const { data: tenant, error: tenantError } = await supabase
@@ -128,6 +211,46 @@ serve(async (req) => {
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-08-27.basil",
     });
+
+    // ─────────────────────────────────────────────────────────────
+    // PI-BILL-ENV-001 — PREFLIGHT: VERIFY PRICE EXISTS IN STRIPE
+    // Ajuste 2: Controlled by ENABLE_STRIPE_PREFLIGHT feature flag
+    // ─────────────────────────────────────────────────────────────
+
+    if (isPreflightEnabled()) {
+      try {
+        await stripe.prices.retrieve(priceId);
+        logStep("Preflight price check passed", { priceId });
+      } catch (priceError: unknown) {
+        const errorMessage = priceError instanceof Error ? priceError.message : String(priceError);
+        
+        logStep("Preflight price check failed", { priceId, error: errorMessage });
+        
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.BILLING_STRIPE_PRICE_LOOKUP_FAILED,
+          tenant_id: tenantId,
+          metadata: {
+            price_id: priceId,
+            stripe_env: envValidation.configEnv,
+            plan_type: planType || 'annual',
+            error: errorMessage,
+            decision: 'BLOCKED',
+            source: 'create-tenant-subscription'
+          }
+        });
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error_code: 'BILLING_STRIPE_PRICE_NOT_FOUND',
+            message: 'Stripe price not found in current environment. Check billing configuration.'
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+    } else {
+      logStep("Preflight price check skipped (ENABLE_STRIPE_PREFLIGHT not set)");
+    }
 
     // Check/create Stripe customer - handle mode mismatch (live vs test)
     let stripeCustomerId = tenant.stripe_customer_id;

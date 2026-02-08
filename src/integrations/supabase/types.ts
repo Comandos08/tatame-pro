@@ -407,6 +407,27 @@ export type Database = {
           },
         ]
       }
+      billing_environment_config: {
+        Row: {
+          created_at: string
+          id: string
+          stripe_env: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          stripe_env?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          stripe_env?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coaches: {
         Row: {
           created_at: string | null
@@ -2001,6 +2022,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_plans: {
+        Row: {
+          billing_interval: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          stripe_price_id_live: string | null
+          stripe_price_id_test: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_interval?: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          stripe_price_id_live?: string | null
+          stripe_price_id_test?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_interval?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          stripe_price_id_live?: string | null
+          stripe_price_id_test?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       superadmin_impersonations: {
         Row: {
