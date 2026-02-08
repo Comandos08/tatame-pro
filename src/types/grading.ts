@@ -36,6 +36,7 @@ export interface AthleteGrading {
   promotion_date: string;
   notes: string | null;
   diploma_id: string | null;
+  is_official: boolean;
   created_at: string;
   updated_at: string;
   grading_levels?: GradingLevel;

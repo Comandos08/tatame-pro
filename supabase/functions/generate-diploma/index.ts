@@ -61,7 +61,7 @@ serve(async (req) => {
     // Fetch athlete data
     const { data: athlete, error: athleteError } = await supabase
       .from('athletes')
-      .select('id, full_name, tenant_id')
+      .select('id, full_name, tenant_id, profile_id')
       .eq('id', athleteId)
       .single();
 
@@ -131,6 +131,95 @@ serve(async (req) => {
     }
 
     console.log("[GENERATE-DIPLOMA] Billing status OK:", billingCheck.status);
+
+    // ─────────────────────────────────────────────────────────────
+    // PI-POL-001B — MEMBERSHIP REQUIRED (OFFICIAL DIPLOMA)
+    // Contract: HTTP 200 always. Fail-closed.
+    // ─────────────────────────────────────────────────────────────
+
+    const profileId = athlete?.profile_id ?? null;
+
+    // Case 1: Athlete has no profile_id (fail-closed)
+    if (!profileId) {
+      console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: athlete.profile_id is null");
+      
+      await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
+        event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
+        category: 'GRADING',
+        level: 'WARN',
+        metadata: {
+          athlete_id: athleteId,
+          profile_id: null,
+          grading_level_id: gradingLevelId,
+          rule: 'MEMBERSHIP_REQUIRED',
+          decision: 'BLOCKED',
+          reason: 'ATHLETE_PROFILE_ID_NULL'
+        }
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'MEMBERSHIP_REQUIRED',
+          message: 'Official diploma requires ACTIVE membership.'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Case 2: Check for ACTIVE membership
+    let hasActiveMembership = false;
+
+    try {
+      const { data: activeMembership, error: membershipErr } = await supabase
+        .from('memberships')
+        .select('id')
+        .eq('applicant_profile_id', profileId)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'ACTIVE')
+        .maybeSingle();
+
+      if (membershipErr) {
+        console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup error:', membershipErr);
+        hasActiveMembership = false; // fail-closed
+      } else {
+        hasActiveMembership = !!activeMembership;
+      }
+    } catch (e) {
+      console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup exception:', e);
+      hasActiveMembership = false; // fail-closed
+    }
+
+    if (!hasActiveMembership) {
+      console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
+      
+      await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
+        event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
+        category: 'GRADING',
+        level: 'WARN',
+        metadata: {
+          athlete_id: athleteId,
+          profile_id: profileId,
+          grading_level_id: gradingLevelId,
+          rule: 'MEMBERSHIP_REQUIRED',
+          decision: 'BLOCKED',
+          reason: 'NO_ACTIVE_MEMBERSHIP'
+        }
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'MEMBERSHIP_REQUIRED',
+          message: 'Official diploma requires ACTIVE membership.'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log("[GENERATE-DIPLOMA][PI-POL-001B] Membership check OK - proceeding with official diploma");
 
     // Fetch academy if provided
     let academyName = null;
@@ -398,6 +487,7 @@ serve(async (req) => {
         status: 'ISSUED',
         issued_at: issuedAt,
         content_hash_sha256: contentHash,
+        is_official: true,
       })
       .select()
       .single();
@@ -422,6 +512,7 @@ serve(async (req) => {
         promotion_date: promotionDate,
         notes: notes || null,
         diploma_id: diploma.id,
+        is_official: true,
       })
       .select()
       .single();
