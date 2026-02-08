@@ -1,8 +1,8 @@
 # 🔐 HARDENING.md — Security, Stability & Best Practices
 
-**Version:** 1.3.0 (SSF Baseline Locked)  
-**Last Updated:** 2026-01-27  
-**Status:** ✅ BASELINE CONFIRMED & LOCKED
+**Version:** 1.4.0 (P3 Formally Closed)  
+**Last Updated:** 2026-02-08  
+**Status:** ✅ P3 HARDENING COMPLETE — BASELINE LOCKED
 
 This document describes the hardening measures implemented to ensure security, stability, and reliability of the application.
 
@@ -344,6 +344,48 @@ bunx vitest run
 
 ## Changelog
 
+### v1.4.0 — P3 Formally Closed (2026-02-08)
+
+**STATUS: P3 HARDENING AUDIT COMPLETE**
+
+✅ Full P3 audit completed with ZERO vulnerabilities identified.
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| Authentication | ✅ COMPLIANT | IdentityGate + AuthCallback follow SSF contract |
+| Navigation/Guards | ✅ COMPLIANT | Gate hierarchy correct, no bypasses |
+| Tenant/Billing Resolution | ✅ COMPLIANT | All states handled, restrictive fallback |
+| Wizard/Onboarding | ✅ COMPLIANT | Flags verified correctly |
+| Logs/Observability | ✅ COMPLIANT | Decision logs and audit logs implemented |
+
+**P3 Membership Governance (NEW):**
+
+| Action | Audit Event | Final Status |
+|--------|-------------|--------------|
+| Manual Cancel | `MEMBERSHIP_MANUAL_CANCELLED` | CANCELLED |
+| Manual Reactivate | `MEMBERSHIP_MANUAL_REACTIVATED` | DRAFT |
+
+**Security Contract:**
+- Manual reactivation ONLY allowed for manual cancellations (not GC)
+- Paid memberships cannot be reactivated
+- Reason required (min 5 chars)
+- Full audit trail with actor role and IP
+
+**P3 Closure Declaration:**
+```
+╔════════════════════════════════════════════════════════════════╗
+║                P3 — FORMAL CLOSURE                              ║
+╠════════════════════════════════════════════════════════════════╣
+║ Date: 2026-02-08                                                ║
+║ Status: COMPLETE                                                ║
+║ Critical Vulnerabilities: ZERO                                  ║
+║ Known Bypasses: ZERO                                            ║
+║ Next Review: P4 or significant architectural change             ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+---
+
 ### v1.3.0 — SSF Baseline Locked (2026-01-27)
 
 **STATUS: SSF BASELINE CONFIRMED & LOCKED**
@@ -401,15 +443,16 @@ bunx vitest run
 
 ---
 
-## 🔏 SSF BASELINE DECLARATION
+## 🔏 P3 CLOSURE DECLARATION
 
 ```
-STATUS: SSF BASELINE v1.0.0 LOCKED
-DATE: 2026-01-27
+STATUS: P3 HARDENING v1.4.0 CLOSED
+DATE: 2026-02-08
+CONTRACT: AUTH → IDENTITY → TENANT → BILLING → APP
 NEXT CHANGE: ONLY VIA CONSTITUTIONAL REVIEW
 ```
 
-> Este sistema agora se recusa a funcionar fora do contrato SSF.
+> O sistema opera exclusivamente dentro do contrato. Sem atalhos. Sem exceções.
 
 ---
 
