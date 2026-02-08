@@ -87,7 +87,33 @@ DEPLOY (only if all passed)
 | No DROP TABLE | `grep DROP TABLE` | ✅ |
 | No TRUNCATE | `grep TRUNCATE` | ✅ |
 | No Date.now() | `grep Date.now()` | ✅ |
+| No unsafe new Date() | Only ISO literals allowed | ✅ |
+| No console.log | Use observability instead | ✅ |
 | Config exists | `config.toml` | ✅ |
+
+---
+
+## CI1.0.1 — Final Seal (Jails)
+
+### Date Determinism
+
+| Pattern | Status |
+|---------|--------|
+| `new Date('2026-01-01T00:00:00.000Z')` | ✅ ALLOWED |
+| `new Date()` | ❌ BLOCKED |
+| `new Date(timestamp)` | ❌ BLOCKED |
+| `new Date(variable)` | ❌ BLOCKED |
+| `Date.now()` | ❌ BLOCKED |
+
+### Logging Control
+
+| Pattern | Status |
+|---------|--------|
+| `console.log` in Edge Functions | ❌ BLOCKED |
+| `console.log` in test files | ✅ ALLOWED |
+| `audit_logs` / `decision_logs` | ✅ REQUIRED |
+
+**Any violation blocks CI.**
 
 ---
 
@@ -188,7 +214,10 @@ After CI1.0:
 
 ---
 
-**CI1.0 — SAFE GOLD v1.0**
+**CI1.0.1 — SAFE GOLD v1.0.1**
+🧊 FULLY SEALED
+🧊 ZERO BRECHAS
+🧊 GOVERNANÇA REAL
 ✅ BLOQUEANTE
 ✅ DETERMINÍSTICO
 🚫 SEM BYPASS
