@@ -8,6 +8,7 @@ import {
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
+import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -37,6 +38,11 @@ interface GenerateDiplomaRequest {
   coachId?: string;
   promotionDate: string;
   notes?: string;
+  officiality_override?: {
+    enabled: boolean;
+    reason: string;
+    granted_by_profile_id: string;
+  };
 }
 
 serve(async (req) => {
@@ -49,7 +55,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { athleteId, gradingLevelId, academyId, coachId, promotionDate, notes }: GenerateDiplomaRequest = await req.json();
+    const { athleteId, gradingLevelId, academyId, coachId, promotionDate, notes, officiality_override }: GenerateDiplomaRequest = await req.json();
 
     if (!athleteId || !gradingLevelId || !promotionDate) {
       return new Response(
@@ -191,32 +197,121 @@ serve(async (req) => {
       hasActiveMembership = false; // fail-closed
     }
 
-    if (!hasActiveMembership) {
-      console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
-      
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenantId,
-        event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
-        category: 'GRADING',
-        level: 'WARN',
-        metadata: {
-          athlete_id: athleteId,
-          profile_id: profileId,
-          grading_level_id: gradingLevelId,
-          rule: 'MEMBERSHIP_REQUIRED',
-          decision: 'BLOCKED',
-          reason: 'NO_ACTIVE_MEMBERSHIP'
-        }
-      });
+    // ─────────────────────────────────────────────────────────────
+    // PI-POL-001D — OFFICIALITY OVERRIDE (COURTESY)
+    // Contract: HTTP 200 always. Override requires ADMIN role + valid reason.
+    // ─────────────────────────────────────────────────────────────
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'MEMBERSHIP_REQUIRED',
-          message: 'Official diploma requires ACTIVE membership.'
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const override = officiality_override;
+    let overrideApplied = false;
+
+    if (!hasActiveMembership) {
+      // Check if override is being requested
+      if (override?.enabled === true) {
+        // Validate override parameters
+        const overrideReason = (override.reason || '').trim();
+        const grantedBy = override.granted_by_profile_id;
+
+        if (!grantedBy || overrideReason.length < 8) {
+          console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: invalid parameters");
+          
+          await supabase.from('audit_logs').insert({
+            tenant_id: tenantId,
+            event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
+            category: 'GRADING',
+            level: 'WARN',
+            metadata: {
+              athlete_id: athleteId,
+              profile_id: profileId,
+              grading_level_id: gradingLevelId,
+              rule: 'OFFICIALITY_OVERRIDE',
+              decision: 'BLOCKED',
+              reason: 'INVALID_OVERRIDE_PARAMETERS',
+              override_reason_length: overrideReason.length,
+              granted_by: grantedBy || null
+            }
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
+              message: 'Override requires valid reason (min 8 chars) and grantor ID.'
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Validate role of grantor (ADMIN_TENANT or SUPERADMIN_GLOBAL)
+        const roleCheck = await requireTenantRole(
+          supabase,
+          req.headers.get('Authorization'),
+          tenantId,
+          ['ADMIN_TENANT', 'STAFF_ORGANIZACAO']
+        );
+
+        if (!roleCheck.allowed && !roleCheck.isGlobalSuperadmin) {
+          console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: insufficient permissions");
+          
+          await supabase.from('audit_logs').insert({
+            tenant_id: tenantId,
+            event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
+            category: 'GRADING',
+            level: 'WARN',
+            metadata: {
+              athlete_id: athleteId,
+              profile_id: profileId,
+              grading_level_id: gradingLevelId,
+              rule: 'OFFICIALITY_OVERRIDE',
+              decision: 'BLOCKED',
+              reason: 'INSUFFICIENT_PERMISSIONS',
+              grantor_id: grantedBy,
+              user_roles: roleCheck.roles
+            }
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
+              message: 'Override requires ADMIN or SUPERADMIN permissions.'
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Override approved
+        console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override approved - proceeding with official diploma");
+        overrideApplied = true;
+
+      } else {
+        // No override requested - apply standard MEMBERSHIP_REQUIRED block
+        console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
+        
+        await supabase.from('audit_logs').insert({
+          tenant_id: tenantId,
+          event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
+          category: 'GRADING',
+          level: 'WARN',
+          metadata: {
+            athlete_id: athleteId,
+            profile_id: profileId,
+            grading_level_id: gradingLevelId,
+            rule: 'MEMBERSHIP_REQUIRED',
+            decision: 'BLOCKED',
+            reason: 'NO_ACTIVE_MEMBERSHIP'
+          }
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'MEMBERSHIP_REQUIRED',
+            message: 'Official diploma requires ACTIVE membership.'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     console.log("[GENERATE-DIPLOMA][PI-POL-001B] Membership check OK - proceeding with official diploma");
@@ -520,6 +615,25 @@ serve(async (req) => {
     if (gradingError) {
       console.error('Grading insert error:', gradingError);
       // Don't fail - diploma was created successfully
+    }
+
+    // PI-POL-001D: Log override success if applicable
+    if (overrideApplied) {
+      await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
+        event_type: 'DIPLOMA_ISSUED_OFFICIAL_OVERRIDE',
+        category: 'GRADING',
+        level: 'INFO',
+        metadata: {
+          athlete_id: athleteId,
+          profile_id: profileId,
+          diploma_id: diploma.id,
+          grading_level_id: gradingLevelId,
+          override_reason: officiality_override?.reason,
+          granted_by_profile_id: officiality_override?.granted_by_profile_id,
+          decision: 'ALLOWED_VIA_OVERRIDE'
+        }
+      });
     }
 
     // Send notification email to athlete about new grading

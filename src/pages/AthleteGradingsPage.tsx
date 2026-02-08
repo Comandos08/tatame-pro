@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -65,9 +67,15 @@ export default function AthleteGradingsPage() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const { t } = useI18n();
+  const { currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // PI-POL-001D: Override state
+  const [overrideEnabled, setOverrideEnabled] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  
   const [formData, setFormData] = useState({
     grading_scheme_id: '',
     grading_level_id: '',
@@ -200,6 +208,56 @@ export default function AthleteGradingsPage() {
     enabled: !!tenant?.id,
   });
 
+  // PI-POL-001D: Register grading only (no diploma)
+  const handleRegisterGradingOnly = async () => {
+    if (!formData.grading_level_id || !athleteId || !tenant?.id) {
+      toast.error(t('grading.membershipRequired'));
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { error } = await supabase
+        .from('athlete_gradings')
+        .insert({
+          tenant_id: tenant.id,
+          athlete_id: athleteId,
+          grading_level_id: formData.grading_level_id,
+          academy_id: formData.academy_id || null,
+          coach_id: formData.coach_id || null,
+          promotion_date: formData.promotion_date,
+          notes: formData.notes || null,
+          diploma_id: null,
+          is_official: false,
+        });
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ['athlete-gradings', athleteId] });
+      toast.success(t('grading.registerOnly.success'));
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast.error(t('common.error'));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Reset form helper
+  const resetForm = () => {
+    setFormData({
+      grading_scheme_id: '',
+      grading_level_id: '',
+      academy_id: '',
+      coach_id: '',
+      promotion_date: new Date().toISOString().split('T')[0],
+      notes: '',
+    });
+    setOverrideEnabled(false);
+    setOverrideReason('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.grading_level_id || !athleteId) {
@@ -209,15 +267,27 @@ export default function AthleteGradingsPage() {
 
     setIsGenerating(true);
     try {
+      // Build request body
+      const body: Record<string, unknown> = {
+        athleteId,
+        gradingLevelId: formData.grading_level_id,
+        academyId: formData.academy_id || undefined,
+        coachId: formData.coach_id || undefined,
+        promotionDate: formData.promotion_date,
+        notes: formData.notes || undefined,
+      };
+
+      // PI-POL-001D: Include override if enabled and no active membership
+      if (overrideEnabled && hasActiveMembership === false) {
+        body.officiality_override = {
+          enabled: true,
+          reason: overrideReason.trim(),
+          granted_by_profile_id: currentUser?.id,
+        };
+      }
+
       const response = await supabase.functions.invoke('generate-diploma', {
-        body: {
-          athleteId,
-          gradingLevelId: formData.grading_level_id,
-          academyId: formData.academy_id || undefined,
-          coachId: formData.coach_id || undefined,
-          promotionDate: formData.promotion_date,
-          notes: formData.notes || undefined,
-        },
+        body,
       });
 
       if (response.error) {
@@ -231,20 +301,18 @@ export default function AthleteGradingsPage() {
           toast.error(t('grading.membershipRequired'));
           return;
         }
+        // PI-POL-001D: Handle override forbidden
+        if (result.error === 'OFFICIALITY_OVERRIDE_FORBIDDEN') {
+          toast.error(t('grading.override.forbidden'));
+          return;
+        }
         throw new Error(result.error || 'Erro ao gerar diploma');
       }
 
       queryClient.invalidateQueries({ queryKey: ['athlete-gradings', athleteId] });
       toast.success('Graduação registrada e diploma gerado!');
       setIsDialogOpen(false);
-      setFormData({
-        grading_scheme_id: '',
-        grading_level_id: '',
-        academy_id: '',
-        coach_id: '',
-        promotion_date: new Date().toISOString().split('T')[0],
-        notes: '',
-      });
+      resetForm();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
       toast.error('Erro: ' + message);
@@ -589,14 +657,73 @@ export default function AthleteGradingsPage() {
                   rows={3}
                 />
               </div>
+
+              {/* PI-POL-001D: Override section */}
+              {hasActiveMembership === false && (
+                <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="override-switch" className="font-medium">
+                        {t('grading.override.title')}
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {t('grading.override.desc')}
+                      </p>
+                    </div>
+                    <Switch
+                      id="override-switch"
+                      checked={overrideEnabled}
+                      onCheckedChange={setOverrideEnabled}
+                    />
+                  </div>
+
+                  {overrideEnabled && (
+                    <div className="space-y-2">
+                      <Label htmlFor="override-reason">
+                        {t('grading.override.reasonLabel')} *
+                      </Label>
+                      <Textarea
+                        id="override-reason"
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder={t('grading.override.reasonPlaceholder')}
+                        rows={3}
+                        className={overrideReason.trim().length > 0 && overrideReason.trim().length < 8 ? 'border-destructive' : ''}
+                      />
+                      {overrideReason.trim().length > 0 && overrideReason.trim().length < 8 && (
+                        <p className="text-sm text-destructive">
+                          {t('grading.override.reasonTooShort')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isGenerating || !formData.grading_level_id}>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              {/* Botão A: Registrar apenas graduação */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRegisterGradingOnly}
+                disabled={isGenerating || !formData.grading_level_id}
+              >
                 {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Registrar e Gerar Diploma
+                {t('grading.registerOnly')}
+              </Button>
+
+              {/* Botão B: Registrar e gerar diploma */}
+              <Button
+                type="submit"
+                disabled={
+                  isGenerating ||
+                  !formData.grading_level_id ||
+                  (hasActiveMembership === false && !overrideEnabled) ||
+                  (hasActiveMembership === false && overrideEnabled && overrideReason.trim().length < 8)
+                }
+              >
+                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('grading.registerAndIssue')}
               </Button>
             </DialogFooter>
           </form>
