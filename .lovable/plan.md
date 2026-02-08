@@ -1,70 +1,118 @@
 
-
-# PI E1.0 — EVENTS SAFE GOLD v1.0 (IMPLEMENTATION)
+# PI A1.0 — ATHLETE PORTAL SAFE GOLD v1.0 (IMPLEMENTATION)
 
 ## Pre-Condition Check: ✅ PASSED
 
-The Events module exists with all required components:
-- `src/pages/EventsList.tsx` ✅
-- `src/pages/EventDetails.tsx` ✅
-- `src/pages/PublicEventDetails.tsx` ✅
-- `src/components/events/EventCard.tsx` ✅
-- `src/components/events/EventStatusBadge.tsx` ✅
-- `src/components/events/RegistrationStatusBadge.tsx` ✅
-- `src/components/events/EventRegistrationButton.tsx` ✅
-- `e2e/fixtures/auth.fixture.ts` ✅
-- `e2e/helpers/testLogger.ts` ✅
+| Requirement | File | Status |
+|-------------|------|--------|
+| Portal Page | `src/pages/AthletePortal.tsx` | ✅ EXISTS |
+| Portal Events | `src/pages/PortalEvents.tsx` | ✅ EXISTS |
+| Portal Components | `src/components/portal/*` | ✅ EXISTS |
+| Auth Fixtures | `e2e/fixtures/auth.fixture.ts` | ✅ EXISTS |
+| Test Logger | `e2e/helpers/testLogger.ts` | ✅ EXISTS |
+| Freeze Time | `e2e/helpers/freeze-time.ts` | ✅ EXISTS (from PI E1.0) |
+
+### Key Findings
+
+| Component | Current State | PI A1.0 Action |
+|-----------|--------------|----------------|
+| `AthletePortal.tsx` | No `data-*` attributes | Add portal view state + membership state |
+| `MembershipStatusCard.tsx` | No `data-*` attributes | Add `data-testid` + `data-membership-state` |
+| `DigitalCardSection.tsx` | No `data-*` attributes | Add `data-testid` + `data-card-state` |
+| `PortalAccessGate.tsx` | Has internal GateState | Leverage for view state instrumentation |
+| Auth Fixtures | Has `loginAsApprovedAthlete` | ✅ Ready to use |
+
+---
+
+## Architecture
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│                PI A1.0 ATHLETE PORTAL SAFE GOLD               │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  PART 1 — Domain Types (SAFE GOLD Subset)                     │
+│  └── src/types/athlete-portal-state.ts                        │
+│      (PortalViewState, MembershipState, CardState)            │
+│                                                               │
+│  PART 2 — Normalizers (Pure Functions)                        │
+│  └── src/domain/athlete-portal/normalize.ts                   │
+│      (assertPortalViewState, assertMembershipState, etc.)     │
+│                                                               │
+│  PART 3 — UI Instrumentation (data-* attributes)              │
+│  ├── AthletePortal.tsx                                        │
+│  │   └── data-testid="athlete-portal"                         │
+│  │   └── data-portal-view-state="READY|LOADING|EMPTY|ERROR"   │
+│  ├── MembershipStatusCard.tsx                                 │
+│  │   └── data-testid="portal-membership-card"                 │
+│  │   └── data-membership-state="ACTIVE|EXPIRING|EXPIRED|NONE" │
+│  ├── DigitalCardSection.tsx                                   │
+│  │   └── data-testid="portal-digital-card"                    │
+│  │   └── data-card-state="VALID|INVALID|NONE"                 │
+│  ├── MyEventsCard.tsx                                         │
+│  │   └── data-testid="portal-events-list"                     │
+│  └── PortalEvents.tsx                                         │
+│      └── data-testid="portal-events"                          │
+│                                                               │
+│  PART 4 — E2E Helpers                                         │
+│  ├── e2e/helpers/freeze-time.ts (REUSE from E1.0)             │
+│  └── e2e/helpers/mock-athlete-portal.ts (NEW)                 │
+│                                                               │
+│  PART 5 — Contract Tests                                      │
+│  └── e2e/contract/athlete-portal-contract.spec.ts             │
+│      (A.C.1 to A.C.6)                                         │
+│                                                               │
+│  PART 6 — Resilience Tests                                    │
+│  └── e2e/resilience/athlete-portal-failure.spec.ts            │
+│      (A.R.1 to A.R.5)                                         │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## PART 1 — SAFE GOLD State Contract
 
-### File: `src/types/events-state.ts` (NEW)
+### File: `src/types/athlete-portal-state.ts` (NEW)
 
-Creates a deliberately reduced SUBSET for E2E tests. This is NOT the full domain - it is a stability contract.
+Creates a deliberately reduced SUBSET for E2E tests. This is NOT the full domain.
 
 ```typescript
 /**
- * EVENTS SAFE GOLD — v1.0
+ * ATHLETE PORTAL SAFE GOLD — v1.0
  *
- * Este arquivo define o CONTRATO MÍNIMO e ESTÁVEL
- * usado por testes E2E e instrumentação de UI.
- *
- * ⚠️ IMPORTANTE:
- * - Este NÃO é o domínio completo.
- * - É um SUBSET deliberadamente reduzido.
- * - Nenhum novo estado pode ser adicionado aqui sem novo PI SAFE GOLD.
+ * Contrato mínimo e estável para instrumentação + E2E.
+ * ⚠️ Não é o domínio completo. É um SUBSET congelado.
+ * Qualquer expansão exige novo PI SAFE GOLD.
  */
 
-export type EventState =
-  | 'DRAFT'
-  | 'PUBLISHED'
-  | 'ONGOING'
-  | 'FINISHED'
-  | 'CANCELED';
+export type PortalViewState =
+  | 'LOADING'
+  | 'READY'
+  | 'EMPTY'
+  | 'ERROR';
 
-export type RegistrationState =
-  | 'PENDING'
-  | 'CONFIRMED'
-  | 'CANCELED';
+export type MembershipState =
+  | 'ACTIVE'
+  | 'EXPIRING'
+  | 'EXPIRED'
+  | 'NONE';
 
-export type ConnectionPolicy =
-  | 'REALTIME'
-  | 'POLLING'
-  | 'OFFLINE';
+export type CardState =
+  | 'VALID'
+  | 'INVALID'
+  | 'NONE';
 
-export const SAFE_EVENT_STATES: readonly EventState[] = [
-  'DRAFT',
-  'PUBLISHED',
-  'ONGOING',
-  'FINISHED',
-  'CANCELED',
+export const SAFE_PORTAL_VIEW_STATES: readonly PortalViewState[] = [
+  'LOADING', 'READY', 'EMPTY', 'ERROR',
 ] as const;
 
-export const SAFE_REGISTRATION_STATES: readonly RegistrationState[] = [
-  'PENDING',
-  'CONFIRMED',
-  'CANCELED',
+export const SAFE_MEMBERSHIP_STATES: readonly MembershipState[] = [
+  'ACTIVE', 'EXPIRING', 'EXPIRED', 'NONE',
+] as const;
+
+export const SAFE_CARD_STATES: readonly CardState[] = [
+  'VALID', 'INVALID', 'NONE',
 ] as const;
 ```
 
@@ -72,31 +120,55 @@ export const SAFE_REGISTRATION_STATES: readonly RegistrationState[] = [
 
 ## PART 2 — Normalizer Functions
 
-### File: `src/domain/events/normalize.ts` (NEW)
+### File: `src/domain/athlete-portal/normalize.ts` (NEW)
 
-Creates directory `src/domain/events/` and adds pure normalizers.
+Creates directory `src/domain/athlete-portal/` and adds pure normalizers.
 
 ```typescript
-import type { EventState, RegistrationState } from '@/types/events-state';
+import type {
+  PortalViewState,
+  MembershipState,
+  CardState,
+} from '@/types/athlete-portal-state';
 
-const EVENT_STATES: EventState[] = [
-  'DRAFT', 'PUBLISHED', 'ONGOING', 'FINISHED', 'CANCELED',
-];
+const VIEW: PortalViewState[] = ['LOADING','READY','EMPTY','ERROR'];
+const MEM: MembershipState[] = ['ACTIVE','EXPIRING','EXPIRED','NONE'];
+const CARD: CardState[] = ['VALID','INVALID','NONE'];
 
-const REGISTRATION_STATES: RegistrationState[] = [
-  'PENDING', 'CONFIRMED', 'CANCELED',
-];
-
-export function assertEventState(v: string): EventState {
-  return EVENT_STATES.includes(v as EventState)
-    ? (v as EventState)
-    : 'DRAFT';
+export function assertPortalViewState(v: string): PortalViewState {
+  return VIEW.includes(v as PortalViewState) ? (v as PortalViewState) : 'ERROR';
 }
 
-export function assertRegistrationState(v: string): RegistrationState {
-  return REGISTRATION_STATES.includes(v as RegistrationState)
-    ? (v as RegistrationState)
-    : 'PENDING';
+export function assertMembershipState(v: string): MembershipState {
+  return MEM.includes(v as MembershipState) ? (v as MembershipState) : 'NONE';
+}
+
+export function assertCardState(v: string): CardState {
+  return CARD.includes(v as CardState) ? (v as CardState) : 'NONE';
+}
+
+/**
+ * Derive membership state from data (pure, no Date.now())
+ */
+export function deriveMembershipState(input: {
+  hasMembership: boolean;
+  isActive?: boolean;
+  isExpiringSoon?: boolean;
+  isExpired?: boolean;
+}): MembershipState {
+  if (!input.hasMembership) return 'NONE';
+  if (input.isExpired) return 'EXPIRED';
+  if (input.isExpiringSoon) return 'EXPIRING';
+  if (input.isActive) return 'ACTIVE';
+  return 'NONE';
+}
+
+export function deriveCardState(input: {
+  hasCard: boolean;
+  isValid?: boolean;
+}): CardState {
+  if (!input.hasCard) return 'NONE';
+  return input.isValid ? 'VALID' : 'INVALID';
 }
 ```
 
@@ -104,155 +176,129 @@ export function assertRegistrationState(v: string): RegistrationState {
 
 ## PART 3 — UI Instrumentation
 
-### 3.1 EventsList.tsx
+### 3.1 AthletePortal.tsx
 
-| Line | Change |
-|------|--------|
-| 177 | Add `data-testid="events-list"` to grid div |
-| 159 | Add `data-testid="events-empty-state"` to empty Card |
+**Location**: Lines 205-304
 
-### 3.2 EventCard.tsx
+Add `data-testid="athlete-portal"` and `data-portal-view-state` to the PortalLayout wrapper. The state is derived from the PortalAccessGate's internal logic.
 
-| Line | Change |
-|------|--------|
-| 45 | Add `data-event-id={event.id}` and `data-event-state={event.status}` to Card |
-| 105-106 | Add `data-testid="event-open"` to Button/Link |
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| PortalLayout | `data-testid="athlete-portal"` | Static |
+| PortalLayout | `data-portal-view-state` | Derived from loading/error/ready state |
+| Renew Button | `data-testid="portal-renew-membership"` | Static |
 
-### 3.3 EventStatusBadge.tsx
+### 3.2 MembershipStatusCard.tsx
 
-| Line | Change |
-|------|--------|
-| 39 | Add `data-testid="event-state-badge"` and `data-event-state={status}` to Badge |
+**Location**: Lines 70-108
 
-### 3.4 RegistrationStatusBadge.tsx
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| Card | `data-testid="portal-membership-card"` | Static |
+| Card | `data-membership-state` | Derived from `status` prop |
 
-| Line | Change |
-|------|--------|
-| 59-66 | Add `data-testid="registration-state-badge"` and `data-registration-state={status}` to unknown status Badge |
-| 78-89 | Add same attributes to main Badge element |
+### 3.3 DigitalCardSection.tsx
 
-### 3.5 EventDetails.tsx
+**Location**: Lines 48-85
 
-| Line | Change |
-|------|--------|
-| 182 | Add `data-testid="event-detail"` to motion.div |
-| 196 | Add `data-testid="event-title"` to h1 |
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| Card | `data-testid="portal-digital-card"` | Static |
+| Card | `data-card-state` | `VALID` if digitalCard exists, `NONE` for empty state |
+| View Full Card Link | `data-testid="portal-open-digital-card"` | Static |
 
-### 3.6 EventRegistrationButton.tsx
+### 3.4 MyEventsCard.tsx
 
-| Line | Change |
-|------|--------|
-| 216 | Add `data-testid="event-cancel-registration-button"` to cancel Button |
-| 294 | Add `data-testid="event-register-button"` to register Button |
-| 157 | Add `data-testid="event-login-to-register"` to login Button |
+**Location**: Lines 153-250
+
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| Card | `data-testid="portal-events-list"` | Static |
+
+### 3.5 PortalEvents.tsx
+
+**Location**: Lines 173-393
+
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| PortalLayout | `data-testid="portal-events"` | Static |
 
 ---
 
 ## PART 4 — E2E Helpers
 
-### File: `e2e/helpers/freeze-time.ts` (NEW)
+### 4.1 Freeze Time
 
-```typescript
-import { Page } from '@playwright/test';
+**File**: `e2e/helpers/freeze-time.ts` — ✅ REUSE (already exists from PI E1.0)
 
-export async function freezeTime(
-  page: Page,
-  iso: string = '2026-02-07T12:00:00.000Z'
-): Promise<void> {
-  await page.addInitScript((timestamp) => {
-    const frozenNow = new Date(timestamp).getTime();
-    Date.now = () => frozenNow;
-    const OriginalDate = Date;
-    // @ts-ignore
-    window.Date = class extends OriginalDate {
-      constructor(...args: any[]) {
-        if (args.length === 0) {
-          super(frozenNow);
-        } else {
-          // @ts-ignore
-          super(...args);
-        }
-      }
-      static now() {
-        return frozenNow;
-      }
-    };
-  }, iso);
-}
-```
+### 4.2 Mock Athlete Portal
 
-### File: `e2e/helpers/mock-events.ts` (NEW)
+**File**: `e2e/helpers/mock-athlete-portal.ts` (NEW)
 
-Creates factory for mocking events endpoints. Key features:
-- All mocks return SAFE GOLD states only
-- Maps extended states (REGISTRATION_OPEN, ARCHIVED) to SAFE subset
-- Provides `mockEventsList`, `mockEventDetail`, `mockRegistrations`
-- Provides `createMockEvent` factory
+Key functions:
+- `mockPortalBase(page, mocks)` — Intercepts `/rest/v1/athletes`, `/rest/v1/memberships`, `/rest/v1/digital_cards`, `/rest/v1/profiles`
+- `makeProfile(id, tenantId)` — Factory for mock profile
+- `makeAthlete(id, tenantId)` — Factory for mock athlete
+- `makeMembership(id, tenantId, athleteId, status, validUntil)` — Factory for mock membership
+- `makeDigitalCard(id, tenantId, athleteId, status, url)` — Factory for mock digital card
 
 ---
 
 ## PART 5 — Contract Tests
 
-### File: `e2e/contract/events-contract.spec.ts` (NEW)
+### File: `e2e/contract/athlete-portal-contract.spec.ts` (NEW)
 
-**Required Tests:**
+**Note**: Uses `loginAsApprovedAthlete` (not `loginAsAthlete`)
 
-| ID | Name | Description |
-|----|------|-------------|
-| E.C.1 | List renders deterministically | freezeTime → mock → login → assert `[data-testid="events-list"]` visible |
-| E.C.2 | Event state enum compliance | Assert all `[data-event-state]` values ∈ SAFE_EVENT_STATES |
-| E.C.3 | Multi-tenant isolation | Mock tenant A events, verify tenant B events not visible |
-| E.C.4 | Mutation boundary enforcement | Intercept REST, FAIL if POST/PUT/DELETE to protected tables |
-| E.C.5 | Navigation stability | Record `framenavigated`, wait 10s, assert URL unchanged |
+| ID | Test Name | Description |
+|----|-----------|-------------|
+| A.C.1 | Renders deterministically | freezeTime → mock → login → assert `[data-testid="athlete-portal"]` visible |
+| A.C.2 | Portal view state SAFE GOLD | Assert `data-portal-view-state` ∈ SAFE_PORTAL_VIEW_STATES |
+| A.C.3 | Membership state SAFE GOLD | Assert `data-membership-state` ∈ SAFE_MEMBERSHIP_STATES (when card exists) |
+| A.C.4 | Card state SAFE GOLD | Assert `data-card-state` ∈ SAFE_CARD_STATES (when card exists) |
+| A.C.5 | Mutation boundary | FAIL if POST/PUT/PATCH/DELETE to protected tables during browsing |
+| A.C.6 | Navigation stability | No async redirects for 10 seconds |
 
-**Protected Tables (mutation = FAIL):**
-- athletes, profiles, academies, tenants, memberships, digital_cards, user_roles
-
-**Allowed Mutations:**
-- events, event_registrations, event_categories
+**Protected Tables (mutation = FAIL)**:
+- profiles, athletes, academies, tenants, memberships, digital_cards, user_roles
 
 ---
 
 ## PART 6 — Resilience Tests
 
-### File: `e2e/resilience/events-failure.spec.ts` (NEW)
+### File: `e2e/resilience/athlete-portal-failure.spec.ts` (NEW)
 
-**Required Tests:**
-
-| ID | Name | Mock | Assertion |
-|----|------|------|-----------|
-| E.R.1 | 403 Forbidden | route → 403 | body visible, no error boundary |
-| E.R.2 | 500 Server Error | route → 500 | body visible, content > 50 chars |
-| E.R.3 | Network timeout | route → 15s delay | body visible, no crash |
-| E.R.4 | Invalid JSON | route → malformed body | body visible, no white screen |
-| E.R.5 | Mixed failures | events 503, categories 200 | body visible, navigable |
+| ID | Test Name | Mock | Assertion |
+|----|-----------|------|-----------|
+| A.R.1 | 403 Forbidden | route profiles/athletes → 403 | body visible, no crash |
+| A.R.2 | 500 Server Error | route memberships → 500 | body visible, content > 20 chars |
+| A.R.3 | Network timeout | route memberships → 15s delay | body visible, no crash |
+| A.R.4 | Invalid JSON | route digital_cards → malformed | body visible, no white screen |
+| A.R.5 | Mixed failures | profiles 200, memberships 503 | body visible, content > 10 chars |
 
 ---
 
 ## Files Summary
 
-### New Files (7)
+### New Files (5)
 
 | File | Description |
 |------|-------------|
-| `src/types/events-state.ts` | SAFE GOLD state contract (subset) |
-| `src/domain/events/normalize.ts` | Pure normalizer functions |
-| `e2e/helpers/freeze-time.ts` | Time control for deterministic tests |
-| `e2e/helpers/mock-events.ts` | Events mock factory |
-| `e2e/contract/events-contract.spec.ts` | Contract tests (E.C.1-5) |
-| `e2e/resilience/events-failure.spec.ts` | Resilience tests (E.R.1-5) |
-| `e2e/behavior/README.md` | Policy documentation placeholder |
+| `src/types/athlete-portal-state.ts` | SAFE GOLD state contract (subset) |
+| `src/domain/athlete-portal/normalize.ts` | Pure normalizer functions |
+| `e2e/helpers/mock-athlete-portal.ts` | Portal mock factory |
+| `e2e/contract/athlete-portal-contract.spec.ts` | Contract tests (A.C.1-6) |
+| `e2e/resilience/athlete-portal-failure.spec.ts` | Resilience tests (A.R.1-5) |
 
-### Modified Files (7)
+### Modified Files (5)
 
 | File | Changes |
 |------|---------|
-| `src/pages/EventsList.tsx` | Add `data-testid` (lines 159, 177) |
-| `src/pages/EventDetails.tsx` | Add `data-testid` (lines 182, 196) |
-| `src/components/events/EventCard.tsx` | Add `data-event-id`, `data-event-state`, `data-testid` |
-| `src/components/events/EventStatusBadge.tsx` | Add `data-testid`, `data-event-state` |
-| `src/components/events/RegistrationStatusBadge.tsx` | Add `data-testid`, `data-registration-state` |
-| `src/components/events/EventRegistrationButton.tsx` | Add `data-testid` to buttons |
+| `src/pages/AthletePortal.tsx` | Add `data-testid`, `data-portal-view-state`, `data-testid="portal-renew-membership"` |
+| `src/components/portal/MembershipStatusCard.tsx` | Add `data-testid`, `data-membership-state` |
+| `src/components/portal/DigitalCardSection.tsx` | Add `data-testid`, `data-card-state` |
+| `src/components/portal/MyEventsCard.tsx` | Add `data-testid="portal-events-list"` |
+| `src/pages/PortalEvents.tsx` | Add `data-testid="portal-events"` |
 
 ---
 
@@ -260,37 +306,51 @@ Creates factory for mocking events endpoints. Key features:
 
 ```text
 1. Create SAFE GOLD state contract
-    │ src/types/events-state.ts
+    │ src/types/athlete-portal-state.ts
     │
     ▼
 2. Create normalizer functions
-    │ src/domain/events/normalize.ts
+    │ src/domain/athlete-portal/normalize.ts
     │
     ▼
 3. Instrument UI components (data-* only)
-    │ EventsList.tsx
-    │ EventCard.tsx
-    │ EventDetails.tsx
-    │ EventStatusBadge.tsx
-    │ RegistrationStatusBadge.tsx
-    │ EventRegistrationButton.tsx
+    │ AthletePortal.tsx
+    │ MembershipStatusCard.tsx
+    │ DigitalCardSection.tsx
+    │ MyEventsCard.tsx
+    │ PortalEvents.tsx
     │
     ▼
-4. Create E2E helpers
-    │ e2e/helpers/freeze-time.ts
-    │ e2e/helpers/mock-events.ts
+4. Create E2E mock helper
+    │ e2e/helpers/mock-athlete-portal.ts
+    │ (Reuse e2e/helpers/freeze-time.ts)
     │
     ▼
 5. Create contract tests
-    │ e2e/contract/events-contract.spec.ts
+    │ e2e/contract/athlete-portal-contract.spec.ts
     │
     ▼
 6. Create resilience tests
-    │ e2e/resilience/events-failure.spec.ts
+    │ e2e/resilience/athlete-portal-failure.spec.ts
     │
     ▼
-PI E1.0 CLOSED
+PI A1.0 CLOSED
 ```
+
+---
+
+## Acceptance Criteria (ALL REQUIRED)
+
+| Criterion | Validation |
+|-----------|------------|
+| ✅ No visual/behavioral changes | UI functions identically |
+| ✅ No existing tests break | All current E2E pass |
+| ✅ Contract A.C.1-6 pass | Green |
+| ✅ Resilience A.R.1-5 pass | Green |
+| ✅ Zero CSS-based selectors | All tests use `data-*` |
+| ✅ Strict enum subset | SAFE_PORTAL_VIEW_STATES, SAFE_MEMBERSHIP_STATES, SAFE_CARD_STATES |
+| ✅ No mutations during browsing | A.C.5 validates |
+| ✅ Navigation stable | A.C.6 validates |
 
 ---
 
@@ -303,7 +363,6 @@ This PI **DOES NOT**:
 - Modify database schema
 - Remove existing tests
 - Use date/time heuristics
-- Re-export or alias EventStatus from src/types/event.ts
 - Add states beyond the SAFE GOLD subset
 
 This PI **ONLY**:
@@ -311,4 +370,3 @@ This PI **ONLY**:
 - Creates pure type definitions (subset)
 - Creates deterministic E2E tests
 - Validates existing behavior via mocks
-
