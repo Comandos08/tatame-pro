@@ -151,7 +151,7 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
   };
 
   return (
-    <Card>
+    <Card data-testid="portal-events-list">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />

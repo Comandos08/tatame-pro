@@ -36,17 +36,22 @@ export function DigitalCardSection({
   // Empty / pending state
   if (!digitalCard) {
     return (
-      <PortalEmptyState
-        title={t("portal.digitalCard")}
-        description={t("portal.emptyDigitalCard")}
-        icon={CreditCard}
-      />
+      <div data-testid="portal-digital-card" data-card-state="NONE">
+        <PortalEmptyState
+          title={t("portal.digitalCard")}
+          description={t("portal.emptyDigitalCard")}
+          icon={CreditCard}
+        />
+      </div>
     );
   }
 
   // Normal state
   return (
-    <Card>
+    <Card
+      data-testid="portal-digital-card"
+      data-card-state="VALID"
+    >
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -59,7 +64,7 @@ export function DigitalCardSection({
 
           {showFullCardLink && (
             <Link to={`/${tenantSlug}/portal/card`}>
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1" data-testid="portal-open-digital-card">
                 {t("portal.viewFullCard")}
                 <ArrowRight className="h-4 w-4" />
               </Button>

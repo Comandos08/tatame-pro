@@ -202,12 +202,23 @@ export default function AthletePortal() {
 
   if (!tenant) return null;
 
+  // Derive SAFE GOLD portal view state
+  const portalViewState = isLoading
+    ? 'LOADING'
+    : athleteError
+      ? 'ERROR'
+      : !athlete || !membership
+        ? 'EMPTY'
+        : 'READY';
+
   return (
     <PortalLayout
       athleteName={athlete?.full_name || "Atleta"}
       tenantName={tenant.name}
       tenantLogo={tenant.logoUrl}
       tenantSlug={tenant.slug}
+      data-testid="athlete-portal"
+      data-portal-view-state={portalViewState}
     >
       <PortalAccessGate
         athlete={athlete ?? null}
@@ -256,7 +267,7 @@ export default function AthletePortal() {
             <AlertDescription className="flex items-center justify-between gap-4">
               <span>{t("portal.renewReminder")}</span>
               <Link to={`/${tenantSlug}/membership/renew`}>
-                <Button variant="link" size="sm" className="gap-2 p-0">
+                <Button variant="link" size="sm" className="gap-2 p-0" data-testid="portal-renew-membership">
                   <RefreshCw className="h-4 w-4" />
                   {t("portal.renewNow")}
                 </Button>

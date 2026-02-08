@@ -67,8 +67,19 @@ export function MembershipStatusCard({ status, type, startDate, endDate }: Membe
 
   /* ---------------- Render ---------------- */
 
+  // Derive SAFE GOLD membership state for instrumentation
+  const deriveSafeGoldState = (): 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'NONE' => {
+    if (!normalizedStatus) return 'NONE';
+    if (normalizedStatus === 'EXPIRED') return 'EXPIRED';
+    if (normalizedStatus === 'ACTIVE' || normalizedStatus === 'APPROVED') return 'ACTIVE';
+    return 'NONE';
+  };
+
   return (
-    <Card>
+    <Card
+      data-testid="portal-membership-card"
+      data-membership-state={deriveSafeGoldState()}
+    >
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <CreditCard className="h-5 w-5 text-primary" />
