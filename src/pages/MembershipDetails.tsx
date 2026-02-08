@@ -603,12 +603,14 @@ export default function MembershipDetailsPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold">{level?.display_name}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {scheme?.sport_type}
-                                </Badge>
+                                {scheme?.sport_type && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {scheme.sport_type}
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-muted-foreground mt-1">
-                                {scheme?.name} • {formatDate(grading.promotion_date)}
+                                {[scheme?.name, formatDate(grading.promotion_date)].filter(Boolean).join(' • ')}
                               </p>
                               {(academy || coach) && (
                                 <p className="text-xs text-muted-foreground mt-1">
