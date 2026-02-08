@@ -1,26 +1,42 @@
 
-# PI A1.0 — ATHLETE PORTAL SAFE GOLD v1.0 (IMPLEMENTATION)
+# PI B1.0 — BILLING SAFE GOLD v1.0 (IMPLEMENTATION)
 
-## Pre-Condition Check: ✅ PASSED
+## Pre-Condition Check: ✅ ALL PASSED
 
-| Requirement | File | Status |
-|-------------|------|--------|
-| Portal Page | `src/pages/AthletePortal.tsx` | ✅ EXISTS |
-| Portal Events | `src/pages/PortalEvents.tsx` | ✅ EXISTS |
-| Portal Components | `src/components/portal/*` | ✅ EXISTS |
-| Auth Fixtures | `e2e/fixtures/auth.fixture.ts` | ✅ EXISTS |
-| Test Logger | `e2e/helpers/testLogger.ts` | ✅ EXISTS |
-| Freeze Time | `e2e/helpers/freeze-time.ts` | ✅ EXISTS (from PI E1.0) |
+| Requirement | Evidence | Status |
+|-------------|----------|--------|
+| Billing pages exist | `src/pages/TenantBilling.tsx` | ✅ EXISTS |
+| Stripe client integrated | Edge functions (create-tenant-subscription, stripe-webhook) | ✅ EXISTS |
+| tenant_billing table exists | `src/integrations/supabase/types.ts` (line 2070) | ✅ EXISTS |
+| Auth fixtures exist | `e2e/fixtures/auth.fixture.ts` | ✅ EXISTS |
+| Test logger exists | `e2e/helpers/testLogger.ts` | ✅ EXISTS |
+| Freeze time exists | `e2e/helpers/freeze-time.ts` | ✅ EXISTS (from PI E1.0) |
+| Existing billing tests | `e2e/billing/billing-states.spec.ts` (10 tests) | ✅ EXISTS |
 
 ### Key Findings
 
-| Component | Current State | PI A1.0 Action |
+| Component | Current State | PI B1.0 Action |
 |-----------|--------------|----------------|
-| `AthletePortal.tsx` | No `data-*` attributes | Add portal view state + membership state |
-| `MembershipStatusCard.tsx` | No `data-*` attributes | Add `data-testid` + `data-membership-state` |
-| `DigitalCardSection.tsx` | No `data-*` attributes | Add `data-testid` + `data-card-state` |
-| `PortalAccessGate.tsx` | Has internal GateState | Leverage for view state instrumentation |
-| Auth Fixtures | Has `loginAsApprovedAthlete` | ✅ Ready to use |
+| `TenantBilling.tsx` | No `data-*` attributes | Add `data-billing-root`, view state |
+| `BillingOverviewCard.tsx` | No `data-*` attributes | Add status + source + CTA attributes |
+| `BillingTimeline.tsx` | No `data-*` attributes | Add timeline step attributes |
+| `BillingStatusBanner.tsx` | No `data-*` attributes | Add status badge attributes |
+| `TenantBlockedScreen.tsx` | Has one `data-testid` | Add blocked state + countdown |
+| `resolveTenantBillingState.ts` | Source of truth | Reference for SAFE GOLD subset |
+
+### Existing Status Enum (Domain)
+
+The production code uses these 8 statuses:
+- `ACTIVE`, `TRIALING`, `TRIAL_EXPIRED`, `PENDING_DELETE`, `PAST_DUE`, `CANCELED`, `UNPAID`, `INCOMPLETE`
+
+### SAFE GOLD Subset (Frozen)
+
+For contract testing, we will freeze a reduced subset:
+- `TRIAL` (maps to TRIALING/TRIAL_EXPIRED)
+- `ACTIVE`
+- `PAST_DUE`
+- `CANCELED`
+- `BLOCKED` (maps to PENDING_DELETE/UNPAID/INCOMPLETE)
 
 ---
 
@@ -28,43 +44,42 @@
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
-│                PI A1.0 ATHLETE PORTAL SAFE GOLD               │
+│                PI B1.0 BILLING SAFE GOLD                      │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
 │  PART 1 — Domain Types (SAFE GOLD Subset)                     │
-│  └── src/types/athlete-portal-state.ts                        │
-│      (PortalViewState, MembershipState, CardState)            │
+│  └── src/types/billing-state.ts                               │
+│      (BillingStatus, BillingSource, BillingViewState)         │
 │                                                               │
 │  PART 2 — Normalizers (Pure Functions)                        │
-│  └── src/domain/athlete-portal/normalize.ts                   │
-│      (assertPortalViewState, assertMembershipState, etc.)     │
+│  └── src/domain/billing/normalize.ts                          │
+│      (assertBillingStatus, assertBillingSource, etc.)         │
 │                                                               │
 │  PART 3 — UI Instrumentation (data-* attributes)              │
-│  ├── AthletePortal.tsx                                        │
-│  │   └── data-testid="athlete-portal"                         │
-│  │   └── data-portal-view-state="READY|LOADING|EMPTY|ERROR"   │
-│  ├── MembershipStatusCard.tsx                                 │
-│  │   └── data-testid="portal-membership-card"                 │
-│  │   └── data-membership-state="ACTIVE|EXPIRING|EXPIRED|NONE" │
-│  ├── DigitalCardSection.tsx                                   │
-│  │   └── data-testid="portal-digital-card"                    │
-│  │   └── data-card-state="VALID|INVALID|NONE"                 │
-│  ├── MyEventsCard.tsx                                         │
-│  │   └── data-testid="portal-events-list"                     │
-│  └── PortalEvents.tsx                                         │
-│      └── data-testid="portal-events"                          │
+│  ├── TenantBilling.tsx                                        │
+│  │   └── data-testid="billing-root"                           │
+│  │   └── data-billing-view-state="LOADING|READY|ERROR"        │
+│  ├── BillingOverviewCard.tsx                                  │
+│  │   └── data-testid="billing-card"                           │
+│  │   └── data-billing-status                                  │
+│  │   └── data-billing-source                                  │
+│  ├── BillingTimeline.tsx                                      │
+│  │   └── data-testid="billing-timeline"                       │
+│  └── TenantBlockedScreen.tsx                                  │
+│      └── data-testid="tenant-blocked-screen" (exists)         │
+│      └── data-blocked-reason                                  │
 │                                                               │
 │  PART 4 — E2E Helpers                                         │
 │  ├── e2e/helpers/freeze-time.ts (REUSE from E1.0)             │
-│  └── e2e/helpers/mock-athlete-portal.ts (NEW)                 │
+│  └── e2e/helpers/mock-billing.ts (NEW)                        │
 │                                                               │
 │  PART 5 — Contract Tests                                      │
-│  └── e2e/contract/athlete-portal-contract.spec.ts             │
-│      (A.C.1 to A.C.6)                                         │
+│  └── e2e/contract/billing-contract.spec.ts                    │
+│      (B.C.1 to B.C.5)                                         │
 │                                                               │
 │  PART 6 — Resilience Tests                                    │
-│  └── e2e/resilience/athlete-portal-failure.spec.ts            │
-│      (A.R.1 to A.R.5)                                         │
+│  └── e2e/resilience/billing-failure.spec.ts                   │
+│      (B.R.1 to B.R.5)                                         │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 ```
@@ -73,102 +88,118 @@
 
 ## PART 1 — SAFE GOLD State Contract
 
-### File: `src/types/athlete-portal-state.ts` (NEW)
+### File: `src/types/billing-state.ts` (NEW)
 
-Creates a deliberately reduced SUBSET for E2E tests. This is NOT the full domain.
+Creates a DELIBERATELY REDUCED subset for E2E tests. This is NOT the full domain.
 
 ```typescript
 /**
- * ATHLETE PORTAL SAFE GOLD — v1.0
+ * BILLING SAFE GOLD — v1.0
  *
- * Contrato mínimo e estável para instrumentação + E2E.
- * ⚠️ Não é o domínio completo. É um SUBSET congelado.
+ * Contrato mínimo, estável e congelado.
+ * NÃO representa o domínio completo.
  * Qualquer expansão exige novo PI SAFE GOLD.
+ * 
+ * NOTE: Production code uses src/lib/billing/resolveTenantBillingState.ts
+ * This is a TEST CONTRACT ONLY.
  */
 
-export type PortalViewState =
+export type SafeBillingStatus =
+  | 'TRIAL'
+  | 'ACTIVE'
+  | 'PAST_DUE'
+  | 'CANCELED'
+  | 'BLOCKED';
+
+export type SafeBillingSource =
+  | 'STRIPE'
+  | 'MANUAL';
+
+export type BillingViewState =
   | 'LOADING'
   | 'READY'
-  | 'EMPTY'
   | 'ERROR';
 
-export type MembershipState =
-  | 'ACTIVE'
-  | 'EXPIRING'
-  | 'EXPIRED'
-  | 'NONE';
-
-export type CardState =
-  | 'VALID'
-  | 'INVALID'
-  | 'NONE';
-
-export const SAFE_PORTAL_VIEW_STATES: readonly PortalViewState[] = [
-  'LOADING', 'READY', 'EMPTY', 'ERROR',
+export const SAFE_BILLING_STATUSES: readonly SafeBillingStatus[] = [
+  'TRIAL',
+  'ACTIVE',
+  'PAST_DUE',
+  'CANCELED',
+  'BLOCKED',
 ] as const;
 
-export const SAFE_MEMBERSHIP_STATES: readonly MembershipState[] = [
-  'ACTIVE', 'EXPIRING', 'EXPIRED', 'NONE',
+export const SAFE_BILLING_SOURCES: readonly SafeBillingSource[] = [
+  'STRIPE',
+  'MANUAL',
 ] as const;
 
-export const SAFE_CARD_STATES: readonly CardState[] = [
-  'VALID', 'INVALID', 'NONE',
+export const SAFE_BILLING_VIEW_STATES: readonly BillingViewState[] = [
+  'LOADING',
+  'READY',
+  'ERROR',
 ] as const;
+
+/**
+ * Maps production status to SAFE GOLD subset
+ */
+export const PRODUCTION_TO_SAFE_STATUS: Record<string, SafeBillingStatus> = {
+  'ACTIVE': 'ACTIVE',
+  'TRIALING': 'TRIAL',
+  'TRIAL_EXPIRED': 'TRIAL',
+  'PAST_DUE': 'PAST_DUE',
+  'CANCELED': 'CANCELED',
+  'PENDING_DELETE': 'BLOCKED',
+  'UNPAID': 'BLOCKED',
+  'INCOMPLETE': 'BLOCKED',
+};
 ```
 
 ---
 
 ## PART 2 — Normalizer Functions
 
-### File: `src/domain/athlete-portal/normalize.ts` (NEW)
+### File: `src/domain/billing/normalize.ts` (NEW)
 
-Creates directory `src/domain/athlete-portal/` and adds pure normalizers.
+Creates directory `src/domain/billing/` and adds pure normalizers.
 
 ```typescript
 import type {
-  PortalViewState,
-  MembershipState,
-  CardState,
-} from '@/types/athlete-portal-state';
+  SafeBillingStatus,
+  SafeBillingSource,
+  BillingViewState,
+} from '@/types/billing-state';
 
-const VIEW: PortalViewState[] = ['LOADING','READY','EMPTY','ERROR'];
-const MEM: MembershipState[] = ['ACTIVE','EXPIRING','EXPIRED','NONE'];
-const CARD: CardState[] = ['VALID','INVALID','NONE'];
+import { PRODUCTION_TO_SAFE_STATUS } from '@/types/billing-state';
 
-export function assertPortalViewState(v: string): PortalViewState {
-  return VIEW.includes(v as PortalViewState) ? (v as PortalViewState) : 'ERROR';
-}
-
-export function assertMembershipState(v: string): MembershipState {
-  return MEM.includes(v as MembershipState) ? (v as MembershipState) : 'NONE';
-}
-
-export function assertCardState(v: string): CardState {
-  return CARD.includes(v as CardState) ? (v as CardState) : 'NONE';
-}
+const STATUS: SafeBillingStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'BLOCKED'];
+const SOURCE: SafeBillingSource[] = ['STRIPE', 'MANUAL'];
+const VIEW: BillingViewState[] = ['LOADING', 'READY', 'ERROR'];
 
 /**
- * Derive membership state from data (pure, no Date.now())
+ * Assert billing status belongs to SAFE GOLD subset
  */
-export function deriveMembershipState(input: {
-  hasMembership: boolean;
-  isActive?: boolean;
-  isExpiringSoon?: boolean;
-  isExpired?: boolean;
-}): MembershipState {
-  if (!input.hasMembership) return 'NONE';
-  if (input.isExpired) return 'EXPIRED';
-  if (input.isExpiringSoon) return 'EXPIRING';
-  if (input.isActive) return 'ACTIVE';
-  return 'NONE';
+export function assertBillingStatus(v: string): SafeBillingStatus {
+  // First try direct match
+  if (STATUS.includes(v as SafeBillingStatus)) {
+    return v as SafeBillingStatus;
+  }
+  // Then try production-to-safe mapping
+  const mapped = PRODUCTION_TO_SAFE_STATUS[v.toUpperCase()];
+  return mapped ?? 'BLOCKED';
 }
 
-export function deriveCardState(input: {
-  hasCard: boolean;
-  isValid?: boolean;
-}): CardState {
-  if (!input.hasCard) return 'NONE';
-  return input.isValid ? 'VALID' : 'INVALID';
+export function assertBillingSource(v: string): SafeBillingSource {
+  const upper = v.toUpperCase();
+  if (upper === 'MANUAL_OVERRIDE') return 'MANUAL';
+  return SOURCE.includes(upper as SafeBillingSource)
+    ? (upper as SafeBillingSource)
+    : 'STRIPE';
+}
+
+export function assertBillingViewState(v: string): BillingViewState {
+  return VIEW.includes(v as BillingViewState)
+    ? (v as BillingViewState)
+    : 'ERROR';
 }
 ```
 
@@ -176,52 +207,57 @@ export function deriveCardState(input: {
 
 ## PART 3 — UI Instrumentation
 
-### 3.1 AthletePortal.tsx
+### 3.1 TenantBilling.tsx
 
-**Location**: Lines 205-304
-
-Add `data-testid="athlete-portal"` and `data-portal-view-state` to the PortalLayout wrapper. The state is derived from the PortalAccessGate's internal logic.
+**Location**: Lines 132-277
 
 | Element | Attribute | Value Source |
 |---------|-----------|--------------|
-| PortalLayout | `data-testid="athlete-portal"` | Static |
-| PortalLayout | `data-portal-view-state` | Derived from loading/error/ready state |
-| Renew Button | `data-testid="portal-renew-membership"` | Static |
+| Root div (line 134) | `data-testid="billing-root"` | Static |
+| Root div | `data-billing-view-state` | `isLoading ? 'LOADING' : 'READY'` |
 
-### 3.2 MembershipStatusCard.tsx
+### 3.2 BillingOverviewCard.tsx
 
-**Location**: Lines 70-108
-
-| Element | Attribute | Value Source |
-|---------|-----------|--------------|
-| Card | `data-testid="portal-membership-card"` | Static |
-| Card | `data-membership-state` | Derived from `status` prop |
-
-### 3.3 DigitalCardSection.tsx
-
-**Location**: Lines 48-85
+**Location**: Lines 166-217
 
 | Element | Attribute | Value Source |
 |---------|-----------|--------------|
-| Card | `data-testid="portal-digital-card"` | Static |
-| Card | `data-card-state` | `VALID` if digitalCard exists, `NONE` for empty state |
-| View Full Card Link | `data-testid="portal-open-digital-card"` | Static |
+| Card (line 167) | `data-testid="billing-card"` | Static |
+| Card | `data-billing-status` | `status` from billingState |
+| Card | `data-billing-source` | `billingState.source` |
+| CTA Button (line 197) | `data-testid="billing-cta"` | Static |
+| CTA Button | `data-billing-action` | `cta.action` (upgrade/manage/reactivate) |
 
-### 3.4 MyEventsCard.tsx
+### 3.3 BillingTimeline.tsx
 
-**Location**: Lines 153-250
-
-| Element | Attribute | Value Source |
-|---------|-----------|--------------|
-| Card | `data-testid="portal-events-list"` | Static |
-
-### 3.5 PortalEvents.tsx
-
-**Location**: Lines 173-393
+**Location**: Lines 197-237
 
 | Element | Attribute | Value Source |
 |---------|-----------|--------------|
-| PortalLayout | `data-testid="portal-events"` | Static |
+| Card (line 198/179) | `data-testid="billing-timeline"` | Static |
+| Each step (line 215) | `data-timeline-step` | step.id |
+| Each step | `data-timeline-status` | step.status |
+
+### 3.4 TenantBlockedScreen.tsx
+
+**Location**: Lines 68-288
+
+| Element | Attribute | Current/New |
+|---------|-----------|-------------|
+| Root div | `data-testid="tenant-blocked-screen"` | ✅ Already exists (via existing tests) |
+| Root div | `data-blocked-reason` | NEW: `billingStatus` |
+| Countdown | `data-testid="delete-countdown"` | NEW |
+| Urgent CTA | `data-testid="billing-urgent-cta"` | NEW |
+
+### 3.5 BillingStatusBanner.tsx
+
+**Location**: Lines 205-255
+
+| Element | Attribute | Value Source |
+|---------|-----------|--------------|
+| Alert (line 206) | `data-testid="billing-status-banner"` | Static |
+| Alert | `data-billing-status` | `billing.status` |
+| Manage Button (line 226) | `data-testid="billing-manage-btn"` | Static |
 
 ---
 
@@ -231,50 +267,65 @@ Add `data-testid="athlete-portal"` and `data-portal-view-state` to the PortalLay
 
 **File**: `e2e/helpers/freeze-time.ts` — ✅ REUSE (already exists from PI E1.0)
 
-### 4.2 Mock Athlete Portal
+### 4.2 Mock Billing
 
-**File**: `e2e/helpers/mock-athlete-portal.ts` (NEW)
+**File**: `e2e/helpers/mock-billing.ts` (NEW)
 
 Key functions:
-- `mockPortalBase(page, mocks)` — Intercepts `/rest/v1/athletes`, `/rest/v1/memberships`, `/rest/v1/digital_cards`, `/rest/v1/profiles`
-- `makeProfile(id, tenantId)` — Factory for mock profile
-- `makeAthlete(id, tenantId)` — Factory for mock athlete
-- `makeMembership(id, tenantId, athleteId, status, validUntil)` — Factory for mock membership
-- `makeDigitalCard(id, tenantId, athleteId, status, url)` — Factory for mock digital card
+- `mockTenantBilling(page, billing)` — Intercepts `/rest/v1/tenant_billing*`
+- `mockTenantInvoices(page, invoices)` — Intercepts `/rest/v1/tenant_invoices*`
+- `makeBillingData(status, options)` — Factory for mock billing data
+
+```typescript
+export interface MockBillingData {
+  id: string;
+  tenant_id: string;
+  status: string;
+  is_manual_override: boolean;
+  override_reason: string | null;
+  trial_ends_at: string | null;
+  scheduled_delete_at: string | null;
+  stripe_customer_id: string | null;
+}
+
+export async function mockTenantBilling(
+  page: Page,
+  billing: MockBillingData | null
+): Promise<void>
+```
 
 ---
 
 ## PART 5 — Contract Tests
 
-### File: `e2e/contract/athlete-portal-contract.spec.ts` (NEW)
-
-**Note**: Uses `loginAsApprovedAthlete` (not `loginAsAthlete`)
+### File: `e2e/contract/billing-contract.spec.ts` (NEW)
 
 | ID | Test Name | Description |
 |----|-----------|-------------|
-| A.C.1 | Renders deterministically | freezeTime → mock → login → assert `[data-testid="athlete-portal"]` visible |
-| A.C.2 | Portal view state SAFE GOLD | Assert `data-portal-view-state` ∈ SAFE_PORTAL_VIEW_STATES |
-| A.C.3 | Membership state SAFE GOLD | Assert `data-membership-state` ∈ SAFE_MEMBERSHIP_STATES (when card exists) |
-| A.C.4 | Card state SAFE GOLD | Assert `data-card-state` ∈ SAFE_CARD_STATES (when card exists) |
-| A.C.5 | Mutation boundary | FAIL if POST/PUT/PATCH/DELETE to protected tables during browsing |
-| A.C.6 | Navigation stability | No async redirects for 10 seconds |
+| B.C.1 | Renders deterministically | freezeTime → mock → login → assert `[data-testid="billing-root"]` visible |
+| B.C.2 | Billing status SAFE GOLD | Assert `data-billing-status` ∈ SAFE_BILLING_STATUSES (mapped) |
+| B.C.3 | Billing source SAFE GOLD | Assert `data-billing-source` ∈ SAFE_BILLING_SOURCES |
+| B.C.4 | Mutation boundary | FAIL if POST/PUT/PATCH/DELETE to protected tables during browsing |
+| B.C.5 | Navigation stability | No async redirects for 10 seconds |
 
 **Protected Tables (mutation = FAIL)**:
-- profiles, athletes, academies, tenants, memberships, digital_cards, user_roles
+- tenants, memberships, payments, invoices, subscriptions, user_roles, athletes, profiles
+
+**Note on B.C.2**: Since production uses 8 statuses and SAFE GOLD uses 5, the test will map production statuses to the SAFE subset before assertion.
 
 ---
 
 ## PART 6 — Resilience Tests
 
-### File: `e2e/resilience/athlete-portal-failure.spec.ts` (NEW)
+### File: `e2e/resilience/billing-failure.spec.ts` (NEW)
 
 | ID | Test Name | Mock | Assertion |
 |----|-----------|------|-----------|
-| A.R.1 | 403 Forbidden | route profiles/athletes → 403 | body visible, no crash |
-| A.R.2 | 500 Server Error | route memberships → 500 | body visible, content > 20 chars |
-| A.R.3 | Network timeout | route memberships → 15s delay | body visible, no crash |
-| A.R.4 | Invalid JSON | route digital_cards → malformed | body visible, no white screen |
-| A.R.5 | Mixed failures | profiles 200, memberships 503 | body visible, content > 10 chars |
+| B.R.1 | 403 Forbidden | route tenant_billing → 403 | body visible, no crash |
+| B.R.2 | 500 Server Error | route tenant_billing → 500 | body visible, content > 20 chars |
+| B.R.3 | Network timeout | route tenant_billing → 15s delay | body visible, no crash |
+| B.R.4 | Invalid JSON | route tenant_billing → malformed | body visible, no white screen |
+| B.R.5 | Stripe unavailable | route edge functions → 503 | body visible, fallback UI shown |
 
 ---
 
@@ -284,21 +335,21 @@ Key functions:
 
 | File | Description |
 |------|-------------|
-| `src/types/athlete-portal-state.ts` | SAFE GOLD state contract (subset) |
-| `src/domain/athlete-portal/normalize.ts` | Pure normalizer functions |
-| `e2e/helpers/mock-athlete-portal.ts` | Portal mock factory |
-| `e2e/contract/athlete-portal-contract.spec.ts` | Contract tests (A.C.1-6) |
-| `e2e/resilience/athlete-portal-failure.spec.ts` | Resilience tests (A.R.1-5) |
+| `src/types/billing-state.ts` | SAFE GOLD state contract (subset) |
+| `src/domain/billing/normalize.ts` | Pure normalizer functions |
+| `e2e/helpers/mock-billing.ts` | Billing mock factory |
+| `e2e/contract/billing-contract.spec.ts` | Contract tests (B.C.1-5) |
+| `e2e/resilience/billing-failure.spec.ts` | Resilience tests (B.R.1-5) |
 
 ### Modified Files (5)
 
 | File | Changes |
 |------|---------|
-| `src/pages/AthletePortal.tsx` | Add `data-testid`, `data-portal-view-state`, `data-testid="portal-renew-membership"` |
-| `src/components/portal/MembershipStatusCard.tsx` | Add `data-testid`, `data-membership-state` |
-| `src/components/portal/DigitalCardSection.tsx` | Add `data-testid`, `data-card-state` |
-| `src/components/portal/MyEventsCard.tsx` | Add `data-testid="portal-events-list"` |
-| `src/pages/PortalEvents.tsx` | Add `data-testid="portal-events"` |
+| `src/pages/TenantBilling.tsx` | Add `data-testid`, `data-billing-view-state` |
+| `src/components/billing/BillingOverviewCard.tsx` | Add `data-testid`, `data-billing-status`, `data-billing-source`, `data-billing-action` |
+| `src/components/billing/BillingTimeline.tsx` | Add `data-testid`, `data-timeline-step`, `data-timeline-status` |
+| `src/components/billing/TenantBlockedScreen.tsx` | Add `data-blocked-reason`, `data-testid="delete-countdown"`, `data-testid="billing-urgent-cta"` |
+| `src/components/billing/BillingStatusBanner.tsx` | Add `data-testid="billing-status-banner"`, `data-billing-status` |
 
 ---
 
@@ -306,35 +357,35 @@ Key functions:
 
 ```text
 1. Create SAFE GOLD state contract
-    │ src/types/athlete-portal-state.ts
+    │ src/types/billing-state.ts
     │
     ▼
 2. Create normalizer functions
-    │ src/domain/athlete-portal/normalize.ts
+    │ src/domain/billing/normalize.ts
     │
     ▼
 3. Instrument UI components (data-* only)
-    │ AthletePortal.tsx
-    │ MembershipStatusCard.tsx
-    │ DigitalCardSection.tsx
-    │ MyEventsCard.tsx
-    │ PortalEvents.tsx
+    │ TenantBilling.tsx
+    │ BillingOverviewCard.tsx
+    │ BillingTimeline.tsx
+    │ TenantBlockedScreen.tsx
+    │ BillingStatusBanner.tsx
     │
     ▼
 4. Create E2E mock helper
-    │ e2e/helpers/mock-athlete-portal.ts
+    │ e2e/helpers/mock-billing.ts
     │ (Reuse e2e/helpers/freeze-time.ts)
     │
     ▼
 5. Create contract tests
-    │ e2e/contract/athlete-portal-contract.spec.ts
+    │ e2e/contract/billing-contract.spec.ts
     │
     ▼
 6. Create resilience tests
-    │ e2e/resilience/athlete-portal-failure.spec.ts
+    │ e2e/resilience/billing-failure.spec.ts
     │
     ▼
-PI A1.0 CLOSED
+PI B1.0 CLOSED
 ```
 
 ---
@@ -343,14 +394,16 @@ PI A1.0 CLOSED
 
 | Criterion | Validation |
 |-----------|------------|
-| ✅ No visual/behavioral changes | UI functions identically |
-| ✅ No existing tests break | All current E2E pass |
-| ✅ Contract A.C.1-6 pass | Green |
-| ✅ Resilience A.R.1-5 pass | Green |
+| ✅ Zero visual changes | UI renders identically |
+| ✅ Zero Stripe changes | No edge function modifications |
+| ✅ Zero schema changes | No database modifications |
+| ✅ Contract B.C.1-5 pass | Green |
+| ✅ Resilience B.R.1-5 pass | Green |
 | ✅ Zero CSS-based selectors | All tests use `data-*` |
-| ✅ Strict enum subset | SAFE_PORTAL_VIEW_STATES, SAFE_MEMBERSHIP_STATES, SAFE_CARD_STATES |
-| ✅ No mutations during browsing | A.C.5 validates |
-| ✅ Navigation stable | A.C.6 validates |
+| ✅ Strict enum subset | SAFE_BILLING_STATUSES with mapping |
+| ✅ No mutations during browsing | B.C.4 validates |
+| ✅ Navigation stable | B.C.5 validates |
+| ✅ Existing tests still pass | `e2e/billing/billing-states.spec.ts` green |
 
 ---
 
@@ -361,12 +414,51 @@ This PI **DOES NOT**:
 - Change visual UI
 - Alter business logic
 - Modify database schema
+- Touch Stripe integration
 - Remove existing tests
 - Use date/time heuristics
-- Add states beyond the SAFE GOLD subset
+- Alter billing resolver logic
 
 This PI **ONLY**:
 - Adds `data-*` test instrumentation
 - Creates pure type definitions (subset)
 - Creates deterministic E2E tests
 - Validates existing behavior via mocks
+
+---
+
+## Technical Notes
+
+### Status Mapping Strategy
+
+Production uses 8 statuses, SAFE GOLD uses 5. The mapping:
+
+| Production Status | SAFE GOLD Status |
+|------------------|------------------|
+| ACTIVE | ACTIVE |
+| TRIALING | TRIAL |
+| TRIAL_EXPIRED | TRIAL |
+| PAST_DUE | PAST_DUE |
+| CANCELED | CANCELED |
+| PENDING_DELETE | BLOCKED |
+| UNPAID | BLOCKED |
+| INCOMPLETE | BLOCKED |
+
+This mapping is deterministic and reversible for testing purposes.
+
+### Relationship with Existing Tests
+
+The existing `e2e/billing/billing-states.spec.ts` tests individual status rendering. The new contract tests focus on:
+- **Enum compliance** (mapped to SAFE GOLD subset)
+- **Mutation boundaries** (no writes to protected tables)
+- **Navigation stability** (no async redirects)
+
+Both test suites complement each other.
+
+---
+
+## Declaration
+
+**BILLING SAFE GOLD v1.0 — FROZEN**
+
+Any future changes require a new PI SAFE GOLD.
