@@ -1210,6 +1210,7 @@ export const es: Record<string, string> = {
   'auth.magicLink.title': 'Acceso de Atleta',
   'auth.magicLink.description': 'Ingrese su correo para recibir un enlace de acceso',
   'auth.magicLink.emailLabel': 'Su correo registrado',
+  'auth.magicLink.emailPlaceholder': 'Ingrese su correo registrado',
   'auth.magicLink.button': 'Entrar por correo (sin contraseña)',
   'auth.magicLink.sending': 'Enviando...',
   'auth.magicLink.success': '¡Enlace enviado!',
