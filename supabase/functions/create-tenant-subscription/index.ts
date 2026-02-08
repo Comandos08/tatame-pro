@@ -443,11 +443,37 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    const errorMessage = error instanceof Error ? error.message : "Unknown billing error";
+
+    logStep("Unexpected billing error", { error: errorMessage });
+
+    // PI-BILL-HARD-001 — Normalize unexpected errors (SAFE GOLD)
+    try {
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BILLING_UNEXPECTED_ERROR,
+        tenant_id: null, // tenant may be unknown at this stage
+        metadata: {
+          error: errorMessage,
+          decision: "BLOCKED",
+          source: "create-tenant-subscription",
+          severity: "CRITICAL"
+        }
+      });
+    } catch {
+      // Fail-silent: audit failure must NOT cascade
+      console.error("[BILLING] Failed to audit unexpected error");
+    }
+
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      JSON.stringify({
+        success: false,
+        error_code: "BILLING_UNEXPECTED_ERROR",
+        message: "Unexpected billing error. Please contact support."
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
+      }
     );
   }
 });
