@@ -91,8 +91,8 @@ test.describe('Events Contract — PI E1.0', () => {
   });
 
   test.describe('E.C.2 — Event State Enum Compliance', () => {
-    test('E.C.2.1: all data-event-state values belong to SAFE GOLD subset', async ({ page }) => {
-      logTestStep('CONTRACT', 'Testing event state enum compliance');
+    test('E.C.2.1: all data-event-state values MUST belong to SAFE GOLD subset', async ({ page }) => {
+      logTestStep('CONTRACT', 'Enforcing SAFE GOLD event state contract');
 
       await freezeTime(page, '2026-02-07T12:00:00.000Z');
 
@@ -103,27 +103,28 @@ test.describe('Events Contract — PI E1.0', () => {
       await page.goto(`/${TEST_TENANT_SLUG}/app/events`);
       await page.waitForLoadState('networkidle');
 
-      // Get all event states from DOM
       const stateElements = page.locator('[data-event-state]');
       const count = await stateElements.count();
 
-      if (count > 0) {
-        const states = await stateElements.evaluateAll(elements =>
-          elements.map(el => el.getAttribute('data-event-state'))
-        );
-
-        // Each state must be in SAFE GOLD list
-        for (const state of states) {
-          // Note: The actual app uses extended states like REGISTRATION_OPEN
-          // This test validates what's rendered - it's OK if extended states appear
-          // as long as the UI handles them gracefully
-          expect(state).toBeTruthy();
-        }
-
-        logTestAssertion('CONTRACT', `Found ${states.length} state attributes`, true);
-      } else {
+      if (count === 0) {
         logTestAssertion('CONTRACT', 'No events rendered (empty state)', true);
+        return;
       }
+
+      const states = await stateElements.evaluateAll(elements =>
+        elements.map(el => el.getAttribute('data-event-state'))
+      );
+
+      for (const state of states) {
+        expect(state).toBeTruthy();
+        expect(SAFE_EVENT_STATES).toContain(state);
+      }
+
+      logTestAssertion(
+        'CONTRACT',
+        `All ${states.length} event states comply with SAFE GOLD subset`,
+        true
+      );
     });
   });
 
