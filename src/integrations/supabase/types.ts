@@ -607,6 +607,9 @@ export type Database = {
           pdf_url: string | null
           qr_code_data: string | null
           qr_code_image_url: string | null
+          revoked_at: string | null
+          revoked_reason: string | null
+          status: Database["public"]["Enums"]["digital_card_status"]
           tenant_id: string
           updated_at: string | null
           valid_until: string | null
@@ -619,6 +622,9 @@ export type Database = {
           pdf_url?: string | null
           qr_code_data?: string | null
           qr_code_image_url?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          status?: Database["public"]["Enums"]["digital_card_status"]
           tenant_id: string
           updated_at?: string | null
           valid_until?: string | null
@@ -631,6 +637,9 @@ export type Database = {
           pdf_url?: string | null
           qr_code_data?: string | null
           qr_code_image_url?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          status?: Database["public"]["Enums"]["digital_card_status"]
           tenant_id?: string
           updated_at?: string | null
           valid_until?: string | null
@@ -2300,6 +2309,7 @@ export type Database = {
           diploma_template_url: string | null
           id: string
           is_active: boolean | null
+          lifecycle_status: Database["public"]["Enums"]["tenant_lifecycle_status"]
           logo_url: string | null
           name: string
           onboarding_completed: boolean | null
@@ -2322,6 +2332,7 @@ export type Database = {
           diploma_template_url?: string | null
           id?: string
           is_active?: boolean | null
+          lifecycle_status?: Database["public"]["Enums"]["tenant_lifecycle_status"]
           logo_url?: string | null
           name: string
           onboarding_completed?: boolean | null
@@ -2344,6 +2355,7 @@ export type Database = {
           diploma_template_url?: string | null
           id?: string
           is_active?: boolean | null
+          lifecycle_status?: Database["public"]["Enums"]["tenant_lifecycle_status"]
           logo_url?: string | null
           name?: string
           onboarding_completed?: boolean | null
@@ -2748,6 +2760,12 @@ export type Database = {
         | "TRIAL_EXPIRED"
         | "PENDING_DELETE"
       category_gender: "MALE" | "FEMALE" | "MIXED"
+      digital_card_status:
+        | "DRAFT"
+        | "ACTIVE"
+        | "SUSPENDED"
+        | "EXPIRED"
+        | "REVOKED"
       diploma_status: "DRAFT" | "ISSUED" | "REVOKED"
       document_type:
         | "ID_DOCUMENT"
@@ -2777,6 +2795,7 @@ export type Database = {
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
       payment_status: "NOT_PAID" | "PAID" | "FAILED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+      tenant_lifecycle_status: "SETUP" | "ACTIVE" | "BLOCKED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2927,6 +2946,13 @@ export const Constants = {
         "PENDING_DELETE",
       ],
       category_gender: ["MALE", "FEMALE", "MIXED"],
+      digital_card_status: [
+        "DRAFT",
+        "ACTIVE",
+        "SUSPENDED",
+        "EXPIRED",
+        "REVOKED",
+      ],
       diploma_status: ["DRAFT", "ISSUED", "REVOKED"],
       document_type: [
         "ID_DOCUMENT",
@@ -2959,6 +2985,7 @@ export const Constants = {
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
       payment_status: ["NOT_PAID", "PAID", "FAILED"],
       security_severity: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      tenant_lifecycle_status: ["SETUP", "ACTIVE", "BLOCKED"],
     },
   },
 } as const
