@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { encode } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -403,6 +404,19 @@ serve(async (req) => {
       // Non-fatal: token generation failure shouldn't fail card creation
       console.error("Token generation error (non-fatal):", tokenGenError);
     }
+
+    // PI-D4-AUDIT1.0: Log DOCUMENT_ISSUED event
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.DOCUMENT_ISSUED,
+      tenant_id: tenant.id,
+      profile_id: null, // System-generated
+      metadata: {
+        document_type: 'digital_card',
+        athlete_id: athlete.id,
+        membership_id: membership.id,
+        automatic: false,
+      },
+    });
 
     return new Response(
       JSON.stringify({

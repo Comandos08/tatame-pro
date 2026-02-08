@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 /**
  * PI-D3-DOCS1.0: Public Document Verification Endpoint
+ * PI-D4-AUDIT1.0: Logs DOCUMENT_VERIFIED_PUBLIC event
  * 
  * This endpoint verifies institutional documents using opaque tokens.
  * It applies the Golden Rule for validity and returns minimal public data.
@@ -285,6 +287,18 @@ serve(async (req) => {
         }
       );
     }
+
+    // PI-D4-AUDIT1.0: Log DOCUMENT_VERIFIED_PUBLIC event
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.DOCUMENT_VERIFIED_PUBLIC,
+      tenant_id: tenant.id,
+      metadata: {
+        document_type: tokenData.document_type,
+        // No internal IDs exposed in metadata for security
+        verification_result: validityResult.isValid ? 'VALID' : 'INVALID',
+        automatic: true, // Public API call
+      },
+    });
 
     // Valid document - return minimal public data
     const response: VerifyResponse = {
