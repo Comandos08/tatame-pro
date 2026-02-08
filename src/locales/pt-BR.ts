@@ -2389,6 +2389,14 @@ export const ptBR = {
   'observability.alerts.allClear': 'Tudo certo!',
   'observability.alerts.allClearHint': 'Nenhum evento crítico requer atenção',
   'observability.alerts.clearDismissed': 'Limpar dispensados',
+  
+  // P4.2 — Realtime
+  'observability.realtime.connected': 'Conectado',
+  'observability.realtime.syncing': 'Sincronizando...',
+  'observability.realtime.live': 'Ao vivo',
+  'observability.realtime.polling': 'Polling',
+  'observability.realtime.newEvents': 'novo(s) evento(s)',
+  'observability.realtime.markSeen': 'Marcar como visto',
 
 } as const;
 

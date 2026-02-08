@@ -1,8 +1,9 @@
 /**
- * 🔍 AdminHealthDashboard — P4.1.C
+ * 🔍 AdminHealthDashboard — P4.1.C / P4.2.C
  * 
  * Consolidated health dashboard for Superadmins.
  * READ-ONLY — Zero mutations.
+ * Includes AlertsPanel integration for realtime alerts.
  */
 
 import React from 'react';
@@ -19,7 +20,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   HealthStatusBadge, 
   JobsHealthCard, 
-  CriticalEventsCard 
+  CriticalEventsCard,
+  AlertsPanel,
+  AlertBadge,
 } from '@/components/observability';
 import { LoadingState } from '@/components/ux';
 import { formatDistanceToNow } from 'date-fns';
@@ -213,6 +216,10 @@ export default function AdminHealthDashboard() {
               <RefreshCw className={cn('h-4 w-4 mr-2', isFetching && 'animate-spin')} />
               {t('common.refresh')}
             </Button>
+            {/* P4.2: Alerts Panel integration */}
+            <AlertsPanel 
+              trigger={<AlertBadge showZero className="ml-1" />}
+            />
           </div>
         </div>
       </header>
