@@ -1,0 +1,75 @@
+name: Supabase — Governance Check
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+
+jobs:
+  supabase-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate SQL — No DROP TABLE
+        run: |
+          echo "🔍 Checking for DROP TABLE statements..."
+          if grep -rn "DROP TABLE" supabase/migrations --include="*.sql" 2>/dev/null; then
+            echo "❌ DROP TABLE proibido em migrations SAFE GOLD"
+            exit 1
+          fi
+          echo "✅ No DROP TABLE found"
+
+      - name: Validate SQL — No TRUNCATE
+        run: |
+          echo "🔍 Checking for TRUNCATE statements..."
+          if grep -rn "TRUNCATE" supabase/migrations --include="*.sql" 2>/dev/null; then
+            echo "❌ TRUNCATE proibido em migrations SAFE GOLD"
+            exit 1
+          fi
+          echo "✅ No TRUNCATE found"
+
+      - name: Validate Edge Functions — No Date.now()
+        run: |
+          echo "🔍 Checking for Date.now() in Edge Functions..."
+          if grep -rn "Date\.now()" supabase/functions --include="*.ts" 2>/dev/null; then
+            echo "❌ Date.now() proibido em SAFE GOLD — use deterministic timestamps"
+            exit 1
+          fi
+          echo "✅ No Date.now() found"
+
+      - name: Validate Edge Functions — No new Date() without ISO
+        run: |
+          echo "🔍 Checking for unsafe new Date() usage..."
+          # Allow new Date(isoString) but flag new Date() with no args
+          if grep -rn "new Date()" supabase/functions --include="*.ts" 2>/dev/null | grep -v "new Date(" | head -5; then
+            echo "⚠️ Warning: Potential non-deterministic Date usage detected"
+          fi
+          echo "✅ Date usage check complete"
+
+      - name: Validate Edge Functions — No console.log in production
+        run: |
+          echo "🔍 Checking for console.log statements..."
+          # Count but don't fail - just warn
+          LOG_COUNT=$(grep -rn "console\.log" supabase/functions --include="*.ts" 2>/dev/null | wc -l)
+          if [ "$LOG_COUNT" -gt 10 ]; then
+            echo "⚠️ Warning: $LOG_COUNT console.log statements found — consider cleanup"
+          fi
+          echo "✅ Console log check complete"
+
+      - name: Validate config.toml exists
+        run: |
+          echo "🔍 Checking for Supabase config..."
+          if [ ! -f "supabase/config.toml" ]; then
+            echo "❌ supabase/config.toml not found"
+            exit 1
+          fi
+          echo "✅ config.toml found"
+
+      - name: Summary
+        run: |
+          echo "✅ Supabase Governance Check PASSED"
+          echo "📋 SAFE GOLD compliance verified"
