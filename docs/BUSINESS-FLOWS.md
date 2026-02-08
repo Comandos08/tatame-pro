@@ -587,5 +587,76 @@ Usa campo dedicado `cancellation_reason` (separado de `review_notes`).
 
 ---
 
+## 12. Reativação Manual de Membership
+
+Permite que administradores reativem uma filiação **cancelada manualmente** para corrigir erros administrativos. Esta funcionalidade NÃO se aplica a cancelamentos automáticos (GC).
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ ELEGÍVEL: CANCELLED (somente se último evento = manual)         │
+│ BLOQUEADO: CANCELLED por GC | EXPIRED | ACTIVE | PAID           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (admin clica "Reativar filiação")
+┌─────────────────────────────────────────────────────────────────┐
+│              reactivate-membership-manual                        │
+│                                                                  │
+│  Validações:                                                     │
+│  ✓ JWT validado manualmente                                      │
+│  ✓ Role: ADMIN_TENANT | STAFF_ORGANIZACAO                        │
+│  ✓ Superadmin: impersonation obrigatório                         │
+│  ✓ Tenant boundary                                               │
+│  ✓ status === CANCELLED                                          │
+│  ✓ payment_status !== PAID                                       │
+│  ✓ Último evento = MEMBERSHIP_MANUAL_CANCELLED                   │
+│  ✓ Motivo obrigatório (min 5 chars)                              │
+│                                                                  │
+│  Campos atualizados:                                             │
+│  status → DRAFT                                                  │
+│  cancelled_at → NULL                                             │
+│  cancelled_by_profile_id → NULL                                  │
+│  cancellation_reason → NULL                                      │
+│                                                                  │
+│  Auditoria:                                                      │
+│  MEMBERSHIP_MANUAL_REACTIVATED                                   │
+│  → reactivation_source: 'manual_admin'                           │
+│  → reason: 'motivo obrigatório'                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         DRAFT                                    │
+│            (pode reiniciar fluxo de filiação)                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Princípios SAFE GOLD (Reativação)
+
+- ❌ NÃO apaga histórico de auditoria
+- ❌ NÃO reabre pagamento automaticamente
+- ❌ NÃO reativa cancelamentos por GC
+- ❌ NÃO afeta memberships pagas
+- ❌ NÃO permite cross-tenant
+- ✅ Sempre audita
+- ✅ Sempre exige motivo
+- ✅ Sempre valida papel
+
+### Tabela de Ações Administrativas
+
+| Ação | Evento de Auditoria | Status Final |
+|------|---------------------|--------------|
+| Cancelamento manual | `MEMBERSHIP_MANUAL_CANCELLED` | CANCELLED |
+| Reativação manual | `MEMBERSHIP_MANUAL_REACTIVATED` | DRAFT |
+
+### Diferença de Retry de Pagamento
+
+| Cenário | Ação Permitida |
+|---------|----------------|
+| CANCELLED por GC (payment_timeout) | `retry-membership-payment` → PENDING_PAYMENT |
+| CANCELLED por GC (DRAFT abandoned) | `retry-membership-payment` → PENDING_PAYMENT |
+| **CANCELLED manualmente** | `reactivate-membership-manual` → DRAFT |
+
+---
+
 *Documento atualizado em: 2026-02-08*
-*Versão: 1.1*
+*Versão: 1.2*

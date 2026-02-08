@@ -2331,6 +2331,20 @@ export const ptBR = {
   'membership.cancel.confirm': 'Confirmar cancelamento',
   'membership.cancel.success': 'Filiação cancelada com sucesso',
 
+  // P3.MEMBERSHIP.MANUAL.REACTIVATE — Manual Reactivation
+  'membership.reactivate.title': 'Reativar filiação',
+  'membership.reactivate.confirmTitle': 'Confirmar reativação',
+  'membership.reactivate.confirmDesc': 'A filiação voltará para o estado inicial (DRAFT).',
+  'membership.reactivate.infoTitle': 'Importante',
+  'membership.reactivate.infoBackToDraft': 'A filiação voltará para o estado RASCUNHO',
+  'membership.reactivate.infoNoAutoPayment': 'O pagamento NÃO será reaberto automaticamente',
+  'membership.reactivate.infoAudited': 'A reativação será registrada no histórico',
+  'membership.reactivate.reason': 'Motivo da reativação',
+  'membership.reactivate.reasonPlaceholder': 'Descreva o motivo da reativação...',
+  'membership.reactivate.reasonMinLength': 'O motivo deve ter pelo menos 5 caracteres',
+  'membership.reactivate.confirm': 'Confirmar reativação',
+  'membership.reactivate.success': 'Filiação reativada com sucesso',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
