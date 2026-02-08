@@ -1,3 +1,31 @@
+/**
+ * @contract verify-document
+ * 
+ * SAFE GOLD — PI-D6.2.2: Public Document Verification
+ * 
+ * INPUT:
+ *   - token: UUID (required) - Opaque public verification token
+ * 
+ * PRECONDITIONS:
+ *   - Token exists in document_public_tokens
+ *   - Token is not revoked
+ *   - Document exists (digital_card or diploma)
+ * 
+ * POSTCONDITIONS:
+ *   - Returns validity status (VALID, INVALID, REVOKED, NOT_FOUND)
+ *   - Audit event DOCUMENT_VERIFIED_PUBLIC logged
+ * 
+ * SECURITY:
+ *   - HTTP 200 always (no enumeration via status codes)
+ *   - Neutral error messages (I6)
+ *   - No internal IDs exposed
+ *   - LGPD-compliant name masking
+ * 
+ * INVARIANTS:
+ *   - I1: Golden Rule applied for validity check
+ *   - I6: All failures return same structure, different status_label
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";

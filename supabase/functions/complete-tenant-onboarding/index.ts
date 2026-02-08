@@ -1,4 +1,47 @@
 /**
+ * @contract complete-tenant-onboarding
+ * 
+ * SAFE GOLD — PI-D6.2.2: Tenant Activation (SETUP → ACTIVE)
+ * 
+ * INPUT:
+ *   - tenantId: UUID (required)
+ *   - impersonationId: UUID (optional, for superadmin)
+ * 
+ * PRECONDITIONS:
+ *   - tenant.status === 'SETUP'
+ *   - tenant.onboarding_completed === false
+ *   - tenant has at least 1 sport_type configured
+ *   - tenant has at least 1 academy
+ *   - tenant has at least 1 grading_scheme
+ *   - requester has ADMIN_TENANT or STAFF_ORGANIZACAO role
+ *   - if superadmin, valid impersonation required
+ * 
+ * POSTCONDITIONS:
+ *   - tenant.status = 'ACTIVE'
+ *   - tenant.onboarding_completed = true
+ *   - tenant_billing row created with status = 'TRIALING'
+ *   - audit events: TENANT_ONBOARDING_COMPLETED, TENANT_TRIAL_STARTED
+ * 
+ * ERRORS:
+ *   - 400: Missing tenantId
+ *   - 401: Missing or invalid token
+ *   - 403: Insufficient permissions or invalid impersonation
+ *   - 404: Tenant not found
+ *   - 422: Invalid status or missing requirements
+ *   - 429: Rate limit exceeded
+ *   - 500: Internal error (with rollback)
+ * 
+ * INVARIANTS:
+ *   - I4: Transition SETUP→ACTIVE is atomic with billing bootstrap
+ *   - I3: All transitions are audited
+ * 
+ * SECURITY:
+ *   - Requires ADMIN_TENANT or STAFF_ORGANIZACAO role
+ *   - If superadmin, requires valid impersonation
+ *   - Rate limited: 5 per hour per tenant
+ */
+
+/**
  * 🔐 complete-tenant-onboarding — Tenant Activation Contract (SETUP → ACTIVE)
  * 
  * P3.1 — SINGLE POINT OF TENANT ACTIVATION
