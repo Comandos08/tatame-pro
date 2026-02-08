@@ -40,10 +40,27 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { membershipId }: GenerateCardRequest = await req.json();
+    // PI-D5.B: Parse and validate input
+    let body: GenerateCardRequest;
+    try {
+      body = await req.json();
+    } catch {
+      // Neutral error - no stack trace
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid request" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
 
-    if (!membershipId) {
-      throw new Error("Missing membershipId");
+    const { membershipId } = body;
+
+    // PI-D5.B: Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!membershipId || typeof membershipId !== "string" || !uuidRegex.test(membershipId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid membership ID" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
     }
 
     // Fetch membership with athlete and tenant data
@@ -432,11 +449,11 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    // PI-D5.B: Neutral error - no stack trace, no semantic info
     console.error("Error generating digital card:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      JSON.stringify({ success: false, error: "Card generation failed" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   }
 });

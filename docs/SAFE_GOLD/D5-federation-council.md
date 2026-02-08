@@ -2,7 +2,7 @@
 
 **Status:** 🟢 IMPLEMENTADO  
 **Modo:** SAFE GOLD  
-**Versão:** 1.0.1 (PI-D5.A Hardening)  
+**Versão:** 1.0.2 (PI-D5.B Security Hardening)  
 **Data:** 2026-02-08
 
 ---
@@ -184,16 +184,54 @@ Todas as queries federativas têm LIMIT hard:
 
 ---
 
+## 🛡️ PI-D5.B — Security Hardening (v1.0.2)
+
+### B.1 RLS Deny-by-Default
+
+| Tabela | Regra |
+|--------|-------|
+| `audit_logs` | SELECT: superadmin OU federation role |
+| `document_public_tokens` | SELECT: service_role OU superadmin |
+| `superadmin_impersonations` | ALL: superadmin owns session |
+
+### B.2 Edge Functions Hardening
+
+Todas funções críticas implementam:
+- ✅ Validação de UUID explícita
+- ✅ Erros neutros (HTTP 200, sem stack trace)
+- ✅ Rate limiting (Upstash Redis)
+- ✅ Nenhum raw SQL aceito
+
+Funções auditadas:
+- `verify-document`
+- `generate-digital-card`
+- `generate-diploma`
+- `start-impersonation`
+- `end-impersonation`
+- `validate-impersonation`
+
+### B.3 Threat Model
+
+Documento formal em `docs/SECURITY/threat-model.md`:
+- Ativos protegidos
+- Vetores de ataque
+- Mitigações existentes
+- Riscos aceitos (explícitos)
+
+---
+
 ## 🏦 Certificação
 
 ```
-PI-D5-FEDERATION1.0 + PI-D5-COUNCIL1.0 + PI-D5-MULTITENANT2.0 + PI-D5.A
+PI-D5-FEDERATION1.0 + PI-D5-COUNCIL1.0 + PI-D5-MULTITENANT2.0 + PI-D5.A + PI-D5.B
 🏛️ CAMADA FEDERATIVA ATIVA
 👁️ READ-ONLY DASHBOARD
 🔐 PAPÉIS ISOLADOS
 📜 AUDITORIA COMPLETA + VALIDAÇÃO RUNTIME
-🛡️ RLS BLINDADO
+🛡️ RLS BLINDADO (DENY-BY-DEFAULT)
 ⚡ QUERIES COM LIMIT HARD
+🔒 EDGE FUNCTIONS HARDENED
+📋 THREAT MODEL DOCUMENTADO
 🌍 PRONTO PARA ESCALA INTERNACIONAL
 ```
 
