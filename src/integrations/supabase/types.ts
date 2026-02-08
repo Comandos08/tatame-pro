@@ -1768,6 +1768,30 @@ export type Database = {
           },
         ]
       }
+      observability_dismissed_alerts: {
+        Row: {
+          alert_id: string
+          dismissed_at: string
+          id: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          alert_id: string
+          dismissed_at?: string
+          id?: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          alert_id?: string
+          dismissed_at?: string
+          id?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       password_resets: {
         Row: {
           created_at: string
