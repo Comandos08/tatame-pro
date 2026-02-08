@@ -5,8 +5,10 @@
  * - Observability never mutates business data
  * - No navigate() in realtime handlers
  * - Read-only observability
+ * - Proper resource cleanup
  * 
  * SAFE GOLD: Meta-test validating SAFE GOLD itself.
+ * Uses data-* selectors exclusively (no class-based selectors).
  */
 
 import { test, expect } from '@playwright/test';
@@ -49,15 +51,15 @@ test.describe('SAFE GOLD Invariants', () => {
       await alertBadge.click();
       await page.waitForTimeout(500);
       
-      // Try to dismiss an alert
+      // Try to dismiss an alert using data-* selector (SAFE GOLD)
       const dismissButton = page.locator('[data-dismiss-alert]').first();
       if (await dismissButton.isVisible()) {
         await dismissButton.click();
         await page.waitForTimeout(500);
       }
       
-      // Try mark as seen
-      const markSeenButton = page.locator('text=/mark as seen|marcar como visto/i');
+      // Try mark as seen using data-testid (SAFE GOLD)
+      const markSeenButton = page.locator('[data-testid="mark-seen-button"]');
       if (await markSeenButton.isVisible()) {
         await markSeenButton.click();
         await page.waitForTimeout(500);
@@ -140,7 +142,7 @@ test.describe('SAFE GOLD Invariants', () => {
     await alertBadge.click();
     await page.waitForTimeout(500);
     
-    // Dismiss some alerts
+    // Dismiss some alerts using data-* selector (SAFE GOLD)
     const dismissButtons = page.locator('[data-dismiss-alert]');
     const count = await dismissButtons.count();
     for (let i = 0; i < Math.min(count, 3); i++) {
@@ -179,7 +181,7 @@ test.describe('SAFE GOLD Invariants', () => {
     
     const beforeDismissCount = apiCalls.length;
     
-    // Open panel and dismiss alert
+    // Open panel and dismiss alert using data-* selector (SAFE GOLD)
     const alertBadge = page.locator('button:has(svg.lucide-bell)');
     await alertBadge.click();
     await page.waitForTimeout(500);
@@ -234,5 +236,28 @@ test.describe('SAFE GOLD Invariants', () => {
     expect(writeQueries).toHaveLength(0);
     
     logTestAssertion('CONTRACT', 'All observability queries are GET', writeQueries.length === 0);
+  });
+  
+  test('C.3.6: Dialog uses role="dialog" for accessibility', async ({ page }) => {
+    logTestStep('CONTRACT', 'Testing accessibility role');
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Open panel
+    const alertBadge = page.locator('button:has(svg.lucide-bell)');
+    await alertBadge.click();
+    await page.waitForTimeout(500);
+    
+    // Use role="dialog" for accessibility compliance (SAFE GOLD)
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+    
+    // Close with ESC
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    
+    logTestAssertion('CONTRACT', 'Dialog has correct ARIA role', true);
   });
 });

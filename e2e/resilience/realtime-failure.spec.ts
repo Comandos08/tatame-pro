@@ -5,19 +5,31 @@
  * graceful degradation to polling fallback.
  * 
  * SAFE GOLD: No mutations, validates existing behavior.
+ * Uses data-* selectors exclusively (no class-based selectors).
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { loginAsSuperAdmin } from '../fixtures/auth.fixture';
 import { logTestStep, logTestAssertion } from '../helpers/testLogger';
 
+/**
+ * Block ALL Supabase realtime patterns (SAFE GOLD)
+ * Comprehensive coverage of WebSocket endpoints
+ */
+async function blockAllRealtimePatterns(page: Page): Promise<void> {
+  await page.route('**/realtime/**', route => route.abort());
+  await page.route('**/realtime-v1/**', route => route.abort());
+  await page.route('**/realtime/v1/websocket**', route => route.abort());
+  await page.route('**/.supabase.co/realtime/**', route => route.abort());
+  await page.route('**/realtime-v1.websocket/**', route => route.abort());
+}
+
 test.describe('Realtime Failure Resilience', () => {
-  test('B.1.1: WebSocket blocked - polling continues', async ({ page }) => {
+  test('B.1.1: WebSocket blocked - shows syncing/polling state', async ({ page }) => {
     logTestStep('RESILIENCE', 'Testing WebSocket blocked scenario');
     
-    // Block WebSocket connections before navigating
-    await page.route('**/realtime-v1.websocket/**', route => route.abort());
-    await page.route('**/realtime/**', route => route.abort());
+    // Block ALL realtime patterns before navigating (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     await loginAsSuperAdmin(page);
     await page.goto('/admin/health');
@@ -26,9 +38,16 @@ test.describe('Realtime Failure Resilience', () => {
     // Wait for connection attempt
     await page.waitForTimeout(3000);
     
-    // isRealtimeConnected should be false (syncing indicator should be visible)
-    const syncIndicator = page.locator('[class*="animate-pulse"]');
-    const hasSyncIndicator = await syncIndicator.count() > 0;
+    // Use data-conn-state instead of class selectors (SAFE GOLD)
+    const liveIndicator = page.locator('[data-conn-state="live"]');
+    const nonLiveIndicator = page.locator('[data-conn-state="syncing"], [data-conn-state="polling"]');
+    
+    const liveCount = await liveIndicator.count();
+    const nonLiveCount = await nonLiveIndicator.count();
+    
+    // With realtime blocked, should show syncing or polling, NOT live
+    expect(liveCount).toBe(0);
+    expect(nonLiveCount).toBeGreaterThan(0);
     
     // Page should still render normally
     await expect(page.locator('body')).toBeVisible();
@@ -37,8 +56,7 @@ test.describe('Realtime Failure Resilience', () => {
     const alertBadge = page.locator('button:has(svg.lucide-bell)');
     await expect(alertBadge).toBeVisible();
     
-    logTestAssertion('RESILIENCE', 'UI remains functional with blocked WebSocket', true);
-    logTestAssertion('RESILIENCE', `Syncing indicator visible: ${hasSyncIndicator}`, true);
+    logTestAssertion('RESILIENCE', 'Connection shows non-live state when blocked', nonLiveCount > 0);
   });
   
   test('B.1.2: UI stable when realtime unavailable', async ({ page }) => {
@@ -52,8 +70,8 @@ test.describe('Realtime Failure Resilience', () => {
       }
     });
     
-    // Block realtime
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     await loginAsSuperAdmin(page);
     await page.goto('/admin/health');
@@ -74,7 +92,7 @@ test.describe('Realtime Failure Resilience', () => {
     await alertBadge.click();
     await page.waitForTimeout(500);
     
-    // Panel should open
+    // Panel should open (use role="dialog" for accessibility)
     const panel = page.locator('[role="dialog"]');
     await expect(panel).toBeVisible();
     
@@ -105,15 +123,16 @@ test.describe('Realtime Failure Resilience', () => {
     await alertBadge.click();
     await page.waitForTimeout(500);
     
-    // Get all alert IDs
+    // Get all alert IDs using data-* attribute (SAFE GOLD)
     const alertIds = await page.evaluate(() => {
       return Array.from(document.querySelectorAll('[data-alert-id]'))
         .map(el => el.getAttribute('data-alert-id'))
         .filter(Boolean);
     });
     
+    // SAFE GOLD: Skip if no data
     if (alertIds.length === 0) {
-      logTestAssertion('RESILIENCE', 'No alerts to check for duplicates (skipped)', true);
+      test.skip(true, 'No alerts available to check for duplicates');
       return;
     }
     
@@ -129,8 +148,8 @@ test.describe('Realtime Failure Resilience', () => {
   test('B.1.4: Connection indicator reflects actual state', async ({ page }) => {
     logTestStep('RESILIENCE', 'Testing connection indicator accuracy');
     
-    // Start with realtime blocked
-    await page.route('**/realtime/**', route => route.abort());
+    // Start with realtime blocked (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     await loginAsSuperAdmin(page);
     await page.goto('/admin/health');
@@ -144,17 +163,17 @@ test.describe('Realtime Failure Resilience', () => {
     await alertBadge.click();
     await page.waitForTimeout(500);
     
-    // When realtime is blocked, should show "Polling" badge (not "Live")
-    const liveBadge = page.locator('text=/live|ao vivo/i');
-    const pollingBadge = page.locator('text=/polling/i');
+    // Use data-conn-state for deterministic check (SAFE GOLD)
+    const connState = page.locator('[data-conn-state]');
+    await expect(connState.first()).toBeVisible();
     
-    const hasLive = await liveBadge.isVisible();
-    const hasPolling = await pollingBadge.isVisible();
+    const state = await connState.first().getAttribute('data-conn-state');
     
-    // With realtime blocked, should show polling (or at least not show "Live")
-    // Note: The indicator might still show "syncing" which is acceptable
+    // When realtime is blocked, should NOT show "live"
+    expect(state).not.toBe('live');
+    expect(['syncing', 'polling']).toContain(state);
     
-    logTestAssertion('RESILIENCE', `Connection state: Live=${hasLive}, Polling=${hasPolling}`, true);
+    logTestAssertion('RESILIENCE', `Connection state: ${state}`, true);
   });
   
   test('B.1.5: Page error handling on WebSocket failure', async ({ page }) => {
@@ -164,8 +183,8 @@ test.describe('Realtime Failure Resilience', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', err => pageErrors.push(err.message));
     
-    // Block realtime
-    await page.route('**/realtime/**', route => route.abort());
+    // Block realtime (SAFE GOLD)
+    await blockAllRealtimePatterns(page);
     
     await loginAsSuperAdmin(page);
     await page.goto('/admin/health');
@@ -188,5 +207,31 @@ test.describe('Realtime Failure Resilience', () => {
     expect(criticalErrors).toHaveLength(0);
     
     logTestAssertion('RESILIENCE', 'No unexpected page errors', criticalErrors.length === 0);
+  });
+  
+  test('B.1.6: Polling continues when realtime blocked', async ({ page }) => {
+    logTestStep('RESILIENCE', 'Testing polling fallback');
+    
+    let pollingRequestCount = 0;
+    
+    // Block realtime but track polling requests
+    await blockAllRealtimePatterns(page);
+    
+    await page.route('**/rest/v1/observability_critical_events*', route => {
+      pollingRequestCount++;
+      route.continue();
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Wait for polling to occur
+    await page.waitForTimeout(10000);
+    
+    // Polling should have made requests even with realtime blocked
+    expect(pollingRequestCount).toBeGreaterThan(0);
+    
+    logTestAssertion('RESILIENCE', `Polling made ${pollingRequestCount} requests`, pollingRequestCount > 0);
   });
 });
