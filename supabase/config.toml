@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.retry-membership-payment]
 verify_jwt = false
+
+[functions.cancel-membership-manual]
+verify_jwt = false

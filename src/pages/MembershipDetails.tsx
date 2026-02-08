@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -14,19 +14,33 @@ import {
   Award,
   FileText,
   ExternalLink,
-  Building2
+  Building2,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -40,9 +54,9 @@ import { useI18n } from '@/contexts/I18nContext';
 interface MembershipDetails {
   id: string;
   status: MembershipStatus;
+  payment_status: PaymentStatus;
   start_date: string | null;
   end_date: string | null;
-  payment_status: PaymentStatus;
   price_cents: number;
   currency: string;
   type: string;
@@ -76,8 +90,10 @@ interface MembershipDetails {
 export default function MembershipDetailsPage() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { session: impersonationSession } = useImpersonation();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
 
   const isStaffOrCoach = isGlobalSuperadmin || 
@@ -86,6 +102,46 @@ export default function MembershipDetailsPage() {
       hasRole('STAFF_ORGANIZACAO', tenant.id) ||
       hasRole('COACH_PRINCIPAL', tenant.id)
     ));
+
+  // Cancel dialog state
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Cancel mutation
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!membershipId || cancelReason.trim().length < 5) {
+        throw new Error(t('membership.cancel.reasonMinLength'));
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        'cancel-membership-manual',
+        {
+          body: {
+            membershipId,
+            reason: cancelReason.trim(),
+            impersonationId: impersonationSession?.impersonationId || undefined,
+          },
+        }
+      );
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Failed to cancel');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['membership'] });
+      setIsCancelDialogOpen(false);
+      setCancelReason('');
+      toast.success(t('membership.cancel.success'));
+      navigate(`/${tenantSlug}/app/memberships`);
+    },
+    onError: (error) => {
+      toast.error(error.message || t('common.error'));
+    },
+  });
 
   const { data: membership, isLoading, error } = useQuery({
     queryKey: ['membership', membershipId],
@@ -215,7 +271,7 @@ export default function MembershipDetailsPage() {
                           {tenant.name}
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
                         <StatusBadge 
                           status={membership.status} 
                           label={MEMBERSHIP_STATUS_LABELS[membership.status]}
@@ -224,6 +280,19 @@ export default function MembershipDetailsPage() {
                           status={membership.payment_status} 
                           label={PAYMENT_STATUS_LABELS[membership.payment_status]}
                         />
+                        {/* Manual Cancel Button - only for eligible statuses */}
+                        {isStaffOrCoach && 
+                          ['DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW'].includes(membership.status) && 
+                          membership.payment_status !== 'PAID' && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setIsCancelDialogOpen(true)}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            {t('membership.cancel.title')}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -478,6 +547,79 @@ export default function MembershipDetailsPage() {
           </>
         )}
       </div>
+
+      {/* Cancel Membership Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t('membership.cancel.confirmTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('membership.cancel.confirmDesc')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm">
+              <p className="font-medium text-destructive mb-2">
+                {t('membership.cancel.warningTitle')}
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                <li>{t('membership.cancel.warningNoRetry')}</li>
+                <li>{t('membership.cancel.warningPermanent')}</li>
+                <li>{t('membership.cancel.warningAudited')}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">
+                {t('membership.cancel.reason')} <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="cancel-reason"
+                placeholder={t('membership.cancel.reasonPlaceholder')}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+              />
+              {cancelReason.length > 0 && cancelReason.length < 5 && (
+                <p className="text-xs text-destructive">
+                  {t('membership.cancel.reasonMinLength')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCancelDialogOpen(false)}
+              disabled={cancelMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+            >
+              {cancelMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t('common.loading')}
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  {t('membership.cancel.confirm')}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

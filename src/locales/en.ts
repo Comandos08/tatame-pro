@@ -2338,4 +2338,18 @@ export const en: Record<string, string> = {
   'platformHealth.pendingPaymentGC': 'Clean Pending Payments',
   'platformHealth.pendingPaymentCleaned': 'Pending payments cleaned',
 
+  // P3.MEMBERSHIP.MANUAL.CANCEL — Manual Cancellation
+  'membership.cancel.title': 'Cancel membership',
+  'membership.cancel.confirmTitle': 'Confirm cancellation',
+  'membership.cancel.confirmDesc': 'This action cannot be undone. The membership will be permanently cancelled.',
+  'membership.cancel.warningTitle': 'Warning',
+  'membership.cancel.warningNoRetry': 'The athlete will NOT be able to retry payment',
+  'membership.cancel.warningPermanent': 'This action is permanent and irreversible',
+  'membership.cancel.warningAudited': 'The cancellation will be recorded in the history',
+  'membership.cancel.reason': 'Cancellation reason',
+  'membership.cancel.reasonPlaceholder': 'Describe the reason for cancellation...',
+  'membership.cancel.reasonMinLength': 'Reason must be at least 5 characters',
+  'membership.cancel.confirm': 'Confirm cancellation',
+  'membership.cancel.success': 'Membership cancelled successfully',
+
 };

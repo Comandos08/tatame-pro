@@ -1622,6 +1622,9 @@ export type Database = {
           applicant_data: Json | null
           applicant_profile_id: string | null
           athlete_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_profile_id: string | null
           created_at: string | null
           currency: string
           documents_uploaded: Json | null
@@ -1651,6 +1654,9 @@ export type Database = {
           applicant_data?: Json | null
           applicant_profile_id?: string | null
           athlete_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
           created_at?: string | null
           currency?: string
           documents_uploaded?: Json | null
@@ -1680,6 +1686,9 @@ export type Database = {
           applicant_data?: Json | null
           applicant_profile_id?: string | null
           athlete_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
           created_at?: string | null
           currency?: string
           documents_uploaded?: Json | null

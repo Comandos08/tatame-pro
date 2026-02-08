@@ -2317,6 +2317,20 @@ export const ptBR = {
   'platformHealth.pendingPaymentGC': 'Limpar Pag. Pendentes',
   'platformHealth.pendingPaymentCleaned': 'Pgto. pendentes limpos',
 
+  // P3.MEMBERSHIP.MANUAL.CANCEL — Manual Cancellation
+  'membership.cancel.title': 'Cancelar filiação',
+  'membership.cancel.confirmTitle': 'Confirmar cancelamento',
+  'membership.cancel.confirmDesc': 'Esta ação não pode ser desfeita. A filiação será marcada como cancelada permanentemente.',
+  'membership.cancel.warningTitle': 'Atenção',
+  'membership.cancel.warningNoRetry': 'O atleta NÃO poderá tentar pagar novamente',
+  'membership.cancel.warningPermanent': 'Esta ação é permanente e irrevogável',
+  'membership.cancel.warningAudited': 'O cancelamento será registrado no histórico',
+  'membership.cancel.reason': 'Motivo do cancelamento',
+  'membership.cancel.reasonPlaceholder': 'Descreva o motivo do cancelamento...',
+  'membership.cancel.reasonMinLength': 'O motivo deve ter pelo menos 5 caracteres',
+  'membership.cancel.confirm': 'Confirmar cancelamento',
+  'membership.cancel.success': 'Filiação cancelada com sucesso',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
