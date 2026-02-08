@@ -131,8 +131,23 @@ export default function IdentityWizard() {
     }
   };
 
-  // PI-ONB-001: Handle specific error codes
+  // PI-ONB-001 + PI-UX-003: Handle specific error codes with legacy message blocking
+  const LEGACY_BLOCKED_MESSAGES = [
+    "Only 'new' organization mode is supported.",
+    "Only 'new' organization mode is supported",
+  ];
+
   const handleWizardError = (error: { code: string; message: string }) => {
+    // PI-UX-003: Block legacy technical messages from reaching the user
+    if (error?.message && LEGACY_BLOCKED_MESSAGES.includes(error.message)) {
+      toast({
+        title: 'Erro de configuração',
+        description: 'Não foi possível concluir a solicitação. Tente novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const errorMessages: Record<string, { title: string; description: string }> = {
       'TENANT_NOT_FOUND': {
         title: 'Organização não encontrada',
@@ -162,15 +177,20 @@ export default function IdentityWizard() {
         title: 'Nome já utilizado',
         description: 'Este nome de organização já está em uso. Escolha outro.',
       },
+      'UNSUPPORTED_JOIN_MODE': {
+        title: 'Erro de configuração',
+        description: 'Não foi possível concluir a solicitação. Tente novamente.',
+      },
       'VALIDATION_ERROR': {
         title: 'Dados inválidos',
         description: error.message || 'Verifique os dados informados.',
       },
     };
 
+    // PI-UX-003: Never expose raw error.message to user in fallback
     const msg = errorMessages[error.code] || {
       title: 'Erro',
-      description: error.message || 'Falha ao finalizar configuração.',
+      description: 'Não foi possível concluir a solicitação. Tente novamente.',
     };
 
     toast({
