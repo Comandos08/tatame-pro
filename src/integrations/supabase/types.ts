@@ -2703,6 +2703,15 @@ export type Database = {
         Args: { _academy_id: string }
         Returns: boolean
       }
+      is_institutional_document_valid: {
+        Args: {
+          p_billing_status: string
+          p_document_status: string
+          p_revoked_at?: string
+          p_tenant_status: string
+        }
+        Returns: boolean
+      }
       is_member_of_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
