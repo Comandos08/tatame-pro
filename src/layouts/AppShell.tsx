@@ -49,6 +49,7 @@ import {
 import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
 import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
+import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import type { FeatureKey } from '@/lib/accessMatrix';
 
 interface AppShellProps {
@@ -118,12 +119,17 @@ export function AppShell({ children }: AppShellProps) {
   
   const impersonationState = isImpersonating ? 'ON' : 'OFF';
 
+  // SAFE GOLD T1.0: Derive tenant lifecycle state deterministically
+  const tenantLifecycleState = assertTenantLifecycleState(tenant?.status);
+
   return (
     <div 
       className="min-h-screen bg-background"
       data-testid="app-shell"
       data-impersonation-state={impersonationState}
       data-impersonation-view-state={impersonationViewState}
+      data-tenant-state={tenantLifecycleState}
+      data-tenant-id={tenant?.id ?? ''}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
