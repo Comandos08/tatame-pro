@@ -1,13 +1,16 @@
 /**
- * E1.0 — EVENTS GUARDS v1.0
+ * E1.0.1 — EVENTS GUARDS v1.1
  *
  * Pure functions for event state validation.
  * SAFE GOLD: deterministic, no side effects.
+ * 
+ * HARDENING: All Date operations delegated to src/lib/time.ts
  */
 
 import type { EventEntity, EventPermissions } from './types';
 import type { SafeEventStatus, SafeBracketStatus } from './safeEnums';
 import { isValidEventTransition, isValidBracketTransition } from './safeEnums';
+import { toEpoch } from '@/lib/time';
 
 /**
  * Check if event is editable.
@@ -74,15 +77,15 @@ export function areRegistrationsOpen(
 ): boolean {
   if (event.status !== 'PUBLISHED') return false;
   
-  const now = new Date(currentTimestamp).getTime();
+  const now = toEpoch(currentTimestamp);
   
   if (event.registrationOpensAt) {
-    const opens = new Date(event.registrationOpensAt).getTime();
+    const opens = toEpoch(event.registrationOpensAt);
     if (now < opens) return false;
   }
   
   if (event.registrationClosesAt) {
-    const closes = new Date(event.registrationClosesAt).getTime();
+    const closes = toEpoch(event.registrationClosesAt);
     if (now > closes) return false;
   }
   

@@ -109,10 +109,10 @@ export function EventBrackets({
     };
 
     const labels: Record<SafeBracketStatus, string> = {
-      DRAFT: t('events.brackets.statusDraft') || 'Rascunho',
-      GENERATED: t('events.brackets.statusGenerated') || 'Gerada',
-      PUBLISHED: t('events.brackets.statusPublished') || 'Publicada',
-      LOCKED: t('events.brackets.statusLocked') || 'Travada',
+      DRAFT: t('events.brackets.statusDraft'),
+      GENERATED: t('events.brackets.statusGenerated'),
+      PUBLISHED: t('events.brackets.statusPublished'),
+      LOCKED: t('events.brackets.statusLocked'),
     };
 
     return (
@@ -131,7 +131,7 @@ export function EventBrackets({
     if (!canGenerate) {
       return (
         <p className="text-sm text-muted-foreground">
-          {t('events.brackets.cannotGenerate') || 'Evento não permite geração de chaves.'}
+          {t('events.brackets.cannotGenerate')}
         </p>
       );
     }
@@ -147,7 +147,7 @@ export function EventBrackets({
           ) : (
             <GitBranch className="h-4 w-4 mr-2" />
           )}
-          {t('events.brackets.generate') || 'Gerar Chave'}
+          {t('events.brackets.generate')}
         </Button>
       );
     }
@@ -166,7 +166,7 @@ export function EventBrackets({
             disabled={isGenerating}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            {t('events.brackets.regenerate') || 'Regerar'}
+            {t('events.brackets.regenerate')}
           </Button>
         )}
 
@@ -181,14 +181,14 @@ export function EventBrackets({
             ) : (
               <Upload className="h-4 w-4 mr-2" />
             )}
-            {t('events.brackets.publish') || 'Publicar'}
+            {t('events.brackets.publish')}
           </Button>
         )}
 
         {isLocked && (
           <span className="text-sm text-muted-foreground flex items-center gap-1">
             <Lock className="h-3 w-3" />
-            {t('events.brackets.immutable') || 'Imutável'}
+            {t('events.brackets.immutable')}
           </span>
         )}
       </div>
@@ -201,7 +201,7 @@ export function EventBrackets({
         <CardContent className="py-8 text-center">
           <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p className="text-muted-foreground">
-            {t('events.brackets.noCategories') || 'Crie categorias antes de gerar chaves.'}
+            {t('events.brackets.noCategories')}
           </p>
         </CardContent>
       </Card>
@@ -214,10 +214,10 @@ export function EventBrackets({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GitBranch className="h-5 w-5" />
-            {t('events.brackets.title') || 'Chaves de Competição'}
+            {t('events.brackets.title')}
           </CardTitle>
           <CardDescription>
-            {t('events.brackets.description') || 'Gere e gerencie as chaves para cada categoria.'}
+            {t('events.brackets.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -286,25 +286,25 @@ export function EventBrackets({
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
               {confirmAction?.type === 'generate' &&
-                (t('events.brackets.confirmGenerate') || 'Gerar Chave?')}
+                t('events.brackets.confirmGenerate')}
               {confirmAction?.type === 'regenerate' &&
-                (t('events.brackets.confirmRegenerate') || 'Regerar Chave?')}
+                t('events.brackets.confirmRegenerate')}
               {confirmAction?.type === 'publish' &&
-                (t('events.brackets.confirmPublish') || 'Publicar Chave?')}
+                t('events.brackets.confirmPublish')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.type === 'generate' &&
-                (t('events.brackets.confirmGenerateDesc') || 'Uma nova chave será criada com base nos atletas inscritos.')}
+                t('events.brackets.confirmGenerateDesc')}
               {confirmAction?.type === 'regenerate' &&
-                (t('events.brackets.confirmRegenerateDesc') || 'A chave atual será substituída. Esta ação não pode ser desfeita.')}
+                t('events.brackets.confirmRegenerateDesc')}
               {confirmAction?.type === 'publish' &&
-                (t('events.brackets.confirmPublishDesc') || 'A chave ficará visível publicamente e não poderá mais ser alterada.')}
+                t('events.brackets.confirmPublishDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel') || 'Cancelar'}</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmAction}>
-              {t('common.confirm') || 'Confirmar'}
+              {t('common.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
