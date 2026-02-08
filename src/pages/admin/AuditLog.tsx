@@ -45,7 +45,7 @@ import { LoadingState } from '@/components/ux';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// PI-D4-AUDIT1.0: Closed list of critical events
+// PI-D4-AUDIT1.0 + PI-D5: Closed list of critical events
 const CRITICAL_EVENTS = [
   'TENANT_CREATED',
   'TENANT_CREATED_VIA_WIZARD',
@@ -63,22 +63,40 @@ const CRITICAL_EVENTS = [
   'DIGITAL_CARD_GENERATED',
   'ROLES_GRANTED',
   'ROLES_REVOKED',
+  // PI-D5: Federation events
+  'FEDERATION_CREATED',
+  'FEDERATION_STATUS_CHANGED',
+  'TENANT_JOINED_FEDERATION',
+  'TENANT_LEFT_FEDERATION',
+  'FEDERATION_ROLE_ASSIGNED',
+  'FEDERATION_ROLE_REVOKED',
+  // PI-D5: Council events
+  'COUNCIL_CREATED',
+  'COUNCIL_MEMBER_ADDED',
+  'COUNCIL_MEMBER_REMOVED',
+  'COUNCIL_DECISION_CREATED',
+  'COUNCIL_DECISION_APPROVED',
+  'COUNCIL_DECISION_REJECTED',
 ] as const;
 
 // Event category colors
 const EVENT_CATEGORY_COLORS: Record<string, string> = {
-  TENANT: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-  BILLING: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  DOCUMENT: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  IMPERSONATION: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  SUPERADMIN: 'bg-red-500/10 text-red-500 border-red-500/20',
-  SECURITY: 'bg-red-500/10 text-red-500 border-red-500/20',
-  ROLES: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+  TENANT: 'bg-primary/10 text-primary border-primary/20',
+  BILLING: 'bg-success/10 text-success border-success/20',
+  DOCUMENT: 'bg-info/10 text-info border-info/20',
+  IMPERSONATION: 'bg-warning/10 text-warning border-warning/20',
+  SUPERADMIN: 'bg-destructive/10 text-destructive border-destructive/20',
+  SECURITY: 'bg-destructive/10 text-destructive border-destructive/20',
+  ROLES: 'bg-primary/10 text-primary border-primary/20',
+  FEDERATION: 'bg-primary/10 text-primary border-primary/20',
+  COUNCIL: 'bg-info/10 text-info border-info/20',
   OTHER: 'bg-muted text-muted-foreground',
 };
 
 // Get category from event type
 function getEventCategory(eventType: string): string {
+  if (eventType.startsWith('FEDERATION_') || eventType.startsWith('TENANT_JOINED_') || eventType.startsWith('TENANT_LEFT_')) return 'FEDERATION';
+  if (eventType.startsWith('COUNCIL_')) return 'COUNCIL';
   if (eventType.startsWith('TENANT_')) return 'TENANT';
   if (eventType.startsWith('BILLING_')) return 'BILLING';
   if (eventType.startsWith('DOCUMENT_') || eventType.startsWith('DIPLOMA_') || eventType.startsWith('DIGITAL_CARD_')) return 'DOCUMENT';
@@ -98,6 +116,8 @@ function getEventIcon(eventType: string) {
     case 'IMPERSONATION': return Users;
     case 'SUPERADMIN': return Shield;
     case 'SECURITY': return AlertTriangle;
+    case 'FEDERATION': return Building2;
+    case 'COUNCIL': return Users;
     case 'ROLES': return User;
     default: return Clock;
   }
@@ -360,6 +380,8 @@ export default function AuditLog() {
                     <SelectItem value="IMPERSONATION">IMPERSONATION</SelectItem>
                     <SelectItem value="SECURITY">SECURITY</SelectItem>
                     <SelectItem value="ROLES">ROLES</SelectItem>
+                    <SelectItem value="FEDERATION">FEDERATION</SelectItem>
+                    <SelectItem value="COUNCIL">COUNCIL</SelectItem>
                   </SelectContent>
                 </Select>
 
