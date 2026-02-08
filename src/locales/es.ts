@@ -686,24 +686,24 @@ export const es: Record<string, string> = {
   'landing.faq.q6': '¿Tatame es un sistema cerrado?',
   'landing.faq.a6': 'No. Tatame fue concebido como una infraestructura abierta a la integración y colaboración institucional, respetando la autonomía de las organizaciones.',
 
-  // About Page (PI-D5-ABOUT1.0)
+  // About Page (PI-D5-ABOUT1.1)
   'about.heroTitle': 'Infraestructura institucional para deportes de combate',
-  'about.heroSubtitle': 'Una capa de gobernanza, registro y trazabilidad para el ecosistema deportivo.',
+  'about.heroSubtitle': 'Una capa de gobernanza, registro y trazabilidad para el ecosistema del deporte.',
   'about.role.title': 'El papel de Tatame en el deporte',
-  'about.role.text': 'Tatame es una infraestructura digital concebida para dar soporte institucional al ecosistema de los deportes de combate. Su papel es estructural: organizar registros, preservar historiales y permitir una gobernanza confiable entre las diferentes capas del deporte.\n\nTatame no sustituye entidades existentes ni interfiere en sus decisiones. Actúa como una base neutral que fortalece federaciones, organizaciones y profesionales al ofrecer un entorno institucional consistente, verificable y a largo plazo.',
+  'about.role.text': 'Tatame es una infraestructura digital concebida para brindar soporte institucional al ecosistema de los deportes de combate. Su función es estructural: organizar registros, preservar historiales y permitir una gobernanza confiable entre las distintas capas del deporte.\n\nTatame no sustituye a las entidades existentes ni interviene en sus decisiones. Actúa como una base neutral que apoya a federaciones, organizaciones y profesionales, ofreciendo un entorno institucional coherente, verificable y de largo plazo.',
   'about.limits.title': 'Lo que Tatame no hace',
-  'about.limits.text': 'Tatame no es una federación, confederación o liga deportiva. No compite con entidades existentes, no centraliza el poder institucional y no actúa como órgano regulador.\n\nTatame tampoco emite graduaciones, certificaciones o decisiones deportivas por cuenta propia. Todas las validaciones, registros y reconocimientos respetan la autonomía de las organizaciones responsables, funcionando como soporte institucional — nunca como sustitución.',
+  'about.limits.text': 'Tatame no es una federación, confederación ni liga deportiva. No compite con entidades existentes, no centraliza autoridad institucional ni actúa como organismo regulador.\n\nTatame no emite graduaciones, certificaciones ni decisiones deportivas por cuenta propia. Todas las validaciones y registros respetan la autonomía de las organizaciones responsables, funcionando únicamente como soporte institucional.',
   'about.ecosystem.title': 'Estructura del ecosistema',
-  'about.ecosystem.text': 'Tatame fue diseñado para reflejar la estructura real del deporte, respetando sus capas y responsabilidades.',
-  'about.ecosystem.layer1': 'Instituciones — federaciones, confederaciones, consejos y órganos responsables de la gobernanza deportiva.',
+  'about.ecosystem.text': 'Tatame ha sido diseñado para reflejar la estructura real del deporte, respetando sus capas y responsabilidades institucionales.',
+  'about.ecosystem.layer1': 'Instituciones — federaciones, confederaciones, consejos y organismos responsables de la gobernanza deportiva.',
   'about.ecosystem.layer2': 'Organizaciones — academias, clubes, ligas y escuelas que operan el deporte en el día a día.',
   'about.ecosystem.layer3': 'Individuos — atletas, entrenadores, árbitros y demás profesionales que construyen su trayectoria deportiva.',
   'about.ecosystem.conclusion': 'Esta separación garantiza claridad institucional, evita la superposición de roles y permite que cada capa actúe con autonomía y responsabilidad.',
   'about.governance.title': 'Gobernanza, trazabilidad y confianza',
-  'about.governance.text': 'Los registros realizados en Tatame siguen principios institucionales de organización, trazabilidad y verificación pública. Los historiales se preservan, los eventos relevantes son auditables y la información puede validarse de forma transparente.\n\nEste modelo fortalece la credibilidad del ecosistema deportivo, reduce ambigüedades y contribuye a la preservación histórica de las trayectorias deportivas, siempre respetando los límites institucionales de cada entidad.',
+  'about.governance.text': 'Los registros en Tatame siguen principios institucionales de organización, trazabilidad y verificación pública. Los historiales se preservan, los eventos relevantes son auditables y la información puede validarse de forma transparente.\n\nEste enfoque refuerza la credibilidad del ecosistema deportivo, reduce ambigüedades y contribuye a la preservación histórica de las trayectorias deportivas, respetando siempre los límites institucionales de cada entidad.',
   'about.neutrality.title': 'Neutralidad y continuidad',
-  'about.neutrality.text': 'Tatame fue concebido como una infraestructura neutral, independiente de personas, gestiones o ciclos administrativos. Su compromiso es con la continuidad institucional, la preservación histórica y la colaboración entre organizaciones.\n\nAl no asumir un papel político, competitivo o regulatorio, Tatame crea un entorno estable para la cooperación institucional y la evolución sostenible del deporte a lo largo del tiempo.',
-  'about.cta': 'Explora la infraestructura institucional',
+  'about.neutrality.text': 'Tatame ha sido concebido como una infraestructura neutral, independiente de personas, gestiones o ciclos administrativos. Su compromiso es con la continuidad institucional, la preservación histórica y la colaboración entre organizaciones.\n\nAl no asumir roles políticos, competitivos ni regulatorios, Tatame crea un entorno estable para la cooperación institucional y el desarrollo sostenible del deporte a lo largo del tiempo.',
+  'about.cta': 'Conoce la infraestructura institucional',
 
   // Admin Landing Settings
   'admin.landing.title': 'Configuración de Landing',
