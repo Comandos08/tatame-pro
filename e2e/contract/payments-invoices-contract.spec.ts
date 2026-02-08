@@ -1,4 +1,15 @@
 /**
+ * P1.0 — PAYMENTS/INVOICES SAFE GOLD v1.0
+ *
+ * IMPORTANT:
+ * - The production domain currently has NO `payments` table.
+ * - Invoices (`tenant_invoices`) are the authoritative payment history surface.
+ * - "Payments" in this contract is FUTURE-PROOF ONLY.
+ *   If `payments` is introduced later, the SAFE GOLD contract already has the rails.
+ *
+ * SAFE GOLD: This file validates read-only browsing + enum compliance + stability.
+ *
+ * ──────────────────────────────────────────────────────────────────────────────
  * PAYMENTS/INVOICES CONTRACT TESTS — PI P1.0
  *
  * POLICY: NEVER REMOVE
@@ -31,16 +42,17 @@ const TENANT_SLUG = 'demo-bjj';
 const TEST_TENANT_ID = 'tenant-payments-01';
 
 // Tables that MUST NOT receive mutations during browsing
+// P1.0.1: tenant_invoices EXPLICITLY required
 const PROTECTED_TABLES = [
   'tenants',
+  'tenant_billing',
+  'tenant_invoices', // ✅ EXPLICIT — required by P1.0.1
   'memberships',
-  'payments',
-  'tenant_invoices',
+  'payments',        // future-proof
   'subscriptions',
   'user_roles',
   'athletes',
   'profiles',
-  'tenant_billing',
 ];
 
 test.describe('Payments/Invoices Contract — PI P1.0', () => {
