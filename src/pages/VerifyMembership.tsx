@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import PublicHeader from '@/components/PublicHeader';
 
 // Public verification data from the hardened database view
@@ -61,7 +62,7 @@ interface PublicVerificationData {
 
 export default function VerifyMembership() {
   const { tenantSlug, membershipId } = useParams<{ tenantSlug: string; membershipId: string }>();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,10 +120,9 @@ export default function VerifyMembership() {
   // The view returns "First Name + Last Initial" format (e.g., "João S.")
   // No need for client-side masking
 
-  // Format date
-  const formatDate = (dateString: string | null): string => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  // Format date using centralized formatter
+  const formatDisplayDate = (dateString: string | null): string => {
+    return formatDate(dateString, locale);
   };
 
   // Determine verification result
@@ -307,7 +307,7 @@ export default function VerifyMembership() {
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.validityPeriod')}</p>
                     <p className="font-medium">
-                      {formatDate(data.start_date)} - {formatDate(data.end_date)}
+                      {formatDisplayDate(data.start_date)} - {formatDisplayDate(data.end_date)}
                     </p>
                   </div>
                 </div>

@@ -7,6 +7,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -54,7 +55,7 @@ export default function ApprovalsList() {
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // Check if user has approval permissions
   const canApprove = isGlobalSuperadmin || 
@@ -128,14 +129,8 @@ export default function ApprovalsList() {
     enabled: !!tenant && !!currentUser && canApprove,
   });
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const formatDisplayDate = (dateString: string) => {
+    return formatDateTime(dateString, locale);
   };
 
   // CSV columns for export
@@ -267,7 +262,7 @@ export default function ApprovalsList() {
                         
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          {t('approval.requestedAt')} {formatDate(membership.created_at)}
+                          {t('approval.requestedAt')} {formatDisplayDate(membership.created_at)}
                         </div>
                       </div>
 

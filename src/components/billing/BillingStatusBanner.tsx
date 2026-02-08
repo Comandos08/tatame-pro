@@ -9,6 +9,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDate } from '@/lib/i18n/formatters';
 import { toast } from 'sonner';
 
 // Map billing status to StatusBadge status type
@@ -83,18 +84,8 @@ export function BillingStatusBanner() {
     }
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return null;
-    const localeMap: Record<string, string> = {
-      'pt-BR': 'pt-BR',
-      'en': 'en-US',
-      'es': 'es-ES',
-    };
-    return new Date(dateString).toLocaleDateString(localeMap[locale] || 'pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
+  const formatDisplayDate = (dateString: string | null) => {
+    return formatDate(dateString, locale, { dateStyle: 'long' });
   };
 
   const tenantSlug = tenant?.slug;
@@ -162,7 +153,7 @@ export function BillingStatusBanner() {
   if (!config?.showBanner) return null;
 
   const Icon = config.icon;
-  const periodEnd = formatDate(billing.current_period_end);
+  const periodEnd = formatDisplayDate(billing.current_period_end);
 
   // Check if trial is ending soon (within 3 days)
   const isTrialEndingSoon = () => {

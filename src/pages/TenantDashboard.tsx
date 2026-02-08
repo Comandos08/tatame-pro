@@ -19,7 +19,8 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subMonths, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { subMonths, startOfMonth, endOfMonth, addDays, format } from 'date-fns';
+import { formatRelativeTime } from '@/lib/i18n/formatters';
 
 interface DashboardStats {
   activeAthletes: number;
@@ -228,22 +229,8 @@ export default function TenantDashboard() {
   ];
 
   const formatActivityTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    // Use relative time with locale awareness
-    if (diffMins < 60) return t('dashboard.minutesAgo', { count: String(diffMins) }) || `${diffMins}min atrás`;
-    if (diffHours < 24) return t('dashboard.hoursAgo', { count: String(diffHours) }) || `${diffHours}h atrás`;
-    if (diffDays < 7) return t('dashboard.daysAgo', { count: String(diffDays) }) || `${diffDays}d atrás`;
-    
-    // Fallback to date formatting with locale from i18n context
-    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR', {
-      dateStyle: 'medium'
-    }).format(date);
+    // Use formatRelativeTime from centralized formatters
+    return formatRelativeTime(dateStr, locale);
   };
 
   const eventTypeLabels = getEventTypeLabels(t);

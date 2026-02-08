@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -82,7 +83,7 @@ interface AthleteCurrentGrading {
 export default function AthletesList() {
   const { tenant } = useTenant();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [searchName, setSearchName] = useState('');
   const [filterAcademy, setFilterAcademy] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -231,9 +232,8 @@ export default function AthletesList() {
     enabled: !!tenant?.id,
   });
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('pt-BR');
+  const formatDisplayDate = (dateStr: string | null) => {
+    return formatDate(dateStr, locale, { dateStyle: 'short' });
   };
 
   // CSV Export columns
@@ -423,7 +423,7 @@ export default function AthletesList() {
                       <TableCell>
                         {athlete.latest_membership ? (
                           <span className="text-sm text-muted-foreground">
-                            {formatDate(athlete.latest_membership.start_date)} - {formatDate(athlete.latest_membership.end_date)}
+                            {formatDisplayDate(athlete.latest_membership.start_date)} - {formatDisplayDate(athlete.latest_membership.end_date)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>

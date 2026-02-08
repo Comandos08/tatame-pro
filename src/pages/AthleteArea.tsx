@@ -20,6 +20,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -130,7 +131,7 @@ interface DiplomaData {
 export default function AthleteArea() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // Check if user is an athlete (not an admin/staff)
   const isAdmin = tenant && (
@@ -267,9 +268,8 @@ export default function AthleteArea() {
     enabled: !!athlete?.id && !!tenant?.id,
   });
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDisplayDate = (dateString: string | null) => {
+    return formatDate(dateString, locale);
   };
 
   const maskNationalId = (id: string | null) => {
@@ -477,7 +477,7 @@ export default function AthleteArea() {
                       </div>
                     )}
                     <p className="text-sm text-muted-foreground text-center">
-                      {t('verification.validUntil')}: {formatDate(activeDigitalCard.valid_until)}
+                      {t('verification.validUntil')}: {formatDisplayDate(activeDigitalCard.valid_until)}
                     </p>
                     <div className="flex gap-2">
                       <Button 
@@ -572,7 +572,7 @@ export default function AthleteArea() {
                             {membership.type === 'FIRST_MEMBERSHIP' ? t('athleteArea.firstMembership') : t('athleteArea.renewal')}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(membership.start_date)} - {formatDate(membership.end_date)}
+                            {formatDisplayDate(membership.start_date)} - {formatDisplayDate(membership.end_date)}
                           </p>
                         </div>
                       </div>
@@ -647,7 +647,7 @@ export default function AthleteArea() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {[diploma.grading_levels?.grading_schemes?.sport_type, formatDate(diploma.promotion_date)].filter(Boolean).join(' • ')}
+                            {[diploma.grading_levels?.grading_schemes?.sport_type, formatDisplayDate(diploma.promotion_date)].filter(Boolean).join(' • ')}
                           </p>
                         </div>
                       </div>
@@ -758,7 +758,7 @@ export default function AthleteArea() {
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">
-                                  {formatDate(grading.promotion_date)}
+                                  {formatDisplayDate(grading.promotion_date)}
                                 </span>
                               </div>
                             </div>

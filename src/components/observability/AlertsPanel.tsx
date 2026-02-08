@@ -25,7 +25,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@/lib/i18n/formatters';
 
 const severityConfig: Record<EventSeverity, { 
   icon: React.ElementType; 
@@ -92,7 +92,7 @@ function AlertItem({
           </div>
           <p className="text-xs text-muted-foreground">{alert.description}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true })}
+            {formatRelativeTime(alert.timestamp, 'pt-BR')}
           </p>
         </div>
         <Button

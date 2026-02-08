@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 import { AppShell } from '@/layouts/AppShell';
 import { supabase } from '@/integrations/supabase/client';
 import { formatAuditEvent } from '@/lib/formatAuditEvent';
@@ -34,7 +35,7 @@ const eventTypeLabels: Record<string, { label: string; variant: 'default' | 'sec
 
 export default function AuditLog() {
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,14 +65,9 @@ export default function AuditLog() {
     fetchLogs();
   }, [tenant?.id]);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Use centralized formatDateTime from formatters
+  const formatDisplayDate = (dateStr: string) => {
+    return formatDateTime(dateStr, locale);
   };
 
   const getEventInfo = (type: string) => {
@@ -136,7 +132,7 @@ export default function AuditLog() {
                           <TableCell className="font-mono text-sm">
                             <div className="flex items-center gap-2">
                               <Clock className="h-4 w-4 text-muted-foreground" />
-                              {formatDate(log.created_at)}
+                              {formatDisplayDate(log.created_at)}
                             </div>
                           </TableCell>
                           <TableCell>

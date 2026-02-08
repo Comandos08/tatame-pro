@@ -49,6 +49,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 import { useCurrentUser } from '@/contexts/AuthContext';
 
 // Production safeguards
@@ -105,7 +106,7 @@ type ActionType = 'extend-trial' | 'mark-as-paid' | 'block-tenant' | 'unblock-te
 export default function TenantControl() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { toast } = useToast();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
 
@@ -327,16 +328,9 @@ export default function TenantControl() {
     );
   };
 
-  // Format date
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Format date using centralized formatter
+  const formatDisplayDate = (dateString: string | null) => {
+    return formatDateTime(dateString, locale);
   };
 
   // Get action title
@@ -447,7 +441,7 @@ export default function TenantControl() {
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
                     {billing?.override_at && (
-                      <span>{t('controlTower.overrideAppliedAt')}: {formatDate(billing.override_at)}</span>
+                      <span>{t('controlTower.overrideAppliedAt')}: {formatDisplayDate(billing.override_at)}</span>
                     )}
                     {billing?.override_by && (
                       <span>
@@ -508,11 +502,11 @@ export default function TenantControl() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('controlTower.periodStart')}</p>
-                  <p className="font-medium">{formatDate(billing?.current_period_start || null)}</p>
+                  <p className="font-medium">{formatDisplayDate(billing?.current_period_start || null)}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('controlTower.periodEnd')}</p>
-                  <p className="font-medium">{formatDate(billing?.current_period_end || null)}</p>
+                  <p className="font-medium">{formatDisplayDate(billing?.current_period_end || null)}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('controlTower.controlMode')}</p>
@@ -639,7 +633,7 @@ export default function TenantControl() {
                                 </Badge>
                               )}
                               <span className="text-xs text-muted-foreground">
-                                {formatDate(log.created_at)}
+                                {formatDisplayDate(log.created_at)}
                               </span>
                             </div>
                             {log.metadata?.reason && (
