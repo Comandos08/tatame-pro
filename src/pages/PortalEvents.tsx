@@ -176,6 +176,7 @@ export default function PortalEvents() {
       tenantName={tenant.name}
       tenantLogo={tenant.logoUrl}
       tenantSlug={tenant.slug}
+      data-testid="portal-events"
     >
       <PortalAccessGate
         athlete={athlete ?? null}

@@ -21,6 +21,8 @@ interface PortalLayoutProps {
   tenantName: string;
   tenantLogo?: string | null;
   tenantSlug: string;
+  'data-testid'?: string;
+  'data-portal-view-state'?: string;
 }
 
 export function PortalLayout({
@@ -29,6 +31,8 @@ export function PortalLayout({
   tenantName,
   tenantLogo,
   tenantSlug,
+  'data-testid': dataTestId,
+  'data-portal-view-state': dataPortalViewState,
 }: PortalLayoutProps) {
   const { theme, setTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
@@ -51,7 +55,11 @@ export function PortalLayout({
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      data-testid={dataTestId}
+      data-portal-view-state={dataPortalViewState}
+    >
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4">
