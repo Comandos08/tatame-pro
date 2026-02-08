@@ -2,8 +2,6 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle, AlertCircle, UserX } from 'lucide-react';
 
 import PublicHeader from '@/components/PublicHeader';
@@ -16,6 +14,7 @@ import { EventRegistrationButton } from '@/components/events/EventRegistrationBu
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
 import { Event, EventCategory, EventStatus } from '@/types/event';
@@ -23,7 +22,7 @@ import { Event, EventCategory, EventStatus } from '@/types/event';
 export default function PublicEventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const { isAuthenticated } = useCurrentUser();
   const { 
@@ -179,7 +178,7 @@ export default function PublicEventDetails() {
 
   const startDate = new Date(event.start_date);
   const endDate = new Date(event.end_date);
-  const isSameDay = format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd');
+  const isSameDay = startDate.toISOString().split('T')[0] === endDate.toISOString().split('T')[0];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -239,13 +238,13 @@ export default function PublicEventDetails() {
               <CardContent>
                 {isSameDay ? (
                   <p className="font-medium">
-                    {format(startDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    {formatDate(startDate, locale, { dateStyle: 'long' })}
                   </p>
                 ) : (
                   <div>
                     <p className="font-medium">
-                      {format(startDate, "dd 'de' MMMM", { locale: ptBR })} até{' '}
-                      {format(endDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      {formatDate(startDate, locale)} {t('events.until')}{' '}
+                      {formatDate(endDate, locale, { dateStyle: 'long' })}
                     </p>
                   </div>
                 )}
@@ -322,10 +321,7 @@ export default function PublicEventDetails() {
                           <div className="text-right">
                             {category.price_cents > 0 ? (
                               <p className="font-semibold">
-                                {new Intl.NumberFormat('pt-BR', { 
-                                  style: 'currency', 
-                                  currency: category.currency 
-                                }).format(category.price_cents / 100)}
+                                {formatCurrency(category.price_cents, locale, category.currency)}
                               </p>
                             ) : (
                               <Badge variant="secondary">

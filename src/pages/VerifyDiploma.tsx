@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { XCircle, AlertCircle, Loader2, Shield, Award, ShieldCheck, ShieldX, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
+import { formatDate } from "@/lib/i18n/formatters";
 
 interface DiplomaVerification {
   isValid: boolean;
@@ -39,7 +40,7 @@ export default function VerifyDiploma() {
   const [loading, setLoading] = useState(true);
   const [verification, setVerification] = useState<DiplomaVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     async function verifyDiploma() {
@@ -312,7 +313,7 @@ export default function VerifyDiploma() {
             <div className="text-center bg-muted/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.promotionDate')}</p>
               <p className="font-semibold text-lg mt-1">
-                {new Date(verification.promotionDate).toLocaleDateString("pt-BR")}
+                {formatDate(verification.promotionDate, locale)}
               </p>
             </div>
 

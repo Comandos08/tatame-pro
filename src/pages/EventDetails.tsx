@@ -2,8 +2,6 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
   Calendar,
@@ -38,6 +36,7 @@ import { EventStatusTransition } from '@/components/events/EventStatusTransition
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG, canGenerateBracket } from '@/types/event';
 import { CreateCategoryDialog } from '@/components/events/CreateCategoryDialog';
 import { CategoryBracketsSection } from '@/components/events/CategoryBracketsSection';
@@ -45,7 +44,7 @@ import { CategoryBracketsSection } from '@/components/events/CategoryBracketsSec
 export default function EventDetails() {
   const { eventId } = useParams<{ eventId: string }>();
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
 
   // Query event
@@ -217,10 +216,10 @@ export default function EventDetails() {
             </CardHeader>
             <CardContent>
               <p className="font-medium">
-                {format(startDate, "dd 'de' MMMM", { locale: ptBR })}
+                {formatDate(startDate, locale)}
               </p>
               <p className="text-sm text-muted-foreground">
-                até {format(endDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                {t('events.until')} {formatDate(endDate, locale, { dateStyle: 'long' })}
               </p>
             </CardContent>
           </Card>
@@ -333,7 +332,7 @@ export default function EventDetails() {
                               <Badge variant="outline">{statusConfig?.label || reg.status}</Badge>
                             </TableCell>
                             <TableCell>
-                              {format(new Date(reg.created_at), 'dd/MM/yyyy')}
+                              {formatDate(reg.created_at, locale, { dateStyle: 'short' })}
                             </TableCell>
                             <TableCell>
                               {reg.status === 'PENDING' && (
@@ -391,7 +390,7 @@ export default function EventDetails() {
                             <TableCell className="font-medium">{cat.name}</TableCell>
                             <TableCell>
                               {cat.price_cents > 0 
-                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cat.currency }).format(cat.price_cents / 100)
+                                ? formatCurrency(cat.price_cents, locale, cat.currency)
                                 : t('events.free')}
                             </TableCell>
                             <TableCell>{cat.max_participants || '∞'}</TableCell>
