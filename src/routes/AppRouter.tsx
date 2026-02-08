@@ -21,6 +21,7 @@ import TenantSettings from '@/pages/TenantSettings';
 import TenantOnboarding from '@/pages/TenantOnboarding';
 import TenantHelp from '@/pages/TenantHelp';
 import TenantDiagnostics from '@/pages/TenantDiagnostics';
+import AdminHealthDashboard from '@/pages/AdminHealthDashboard';
 import NotFound from '@/pages/NotFound';
 import { BillingGate } from '@/components/billing/BillingGate';
 
@@ -50,6 +51,8 @@ export default function AppRouter() {
       <Route path="onboarding" element={<TenantOnboarding />} />
       <Route path="diagnostics" element={<TenantDiagnostics />} />
       <Route path="help" element={<TenantHelp />} />
+      {/* P4.1.C: System Health Dashboard (Superadmin) */}
+      <Route path="health" element={<AdminHealthDashboard />} />
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
       <Route path="*" element={<NotFound />} />
     </Routes>

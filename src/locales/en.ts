@@ -2366,4 +2366,49 @@ export const en: Record<string, string> = {
   'membership.reactivate.confirm': 'Confirm reactivation',
   'membership.reactivate.success': 'Membership reactivated successfully',
 
+  // P4.1 — Observability
+  'observability.dashboard.title': 'System Health',
+  'observability.dashboard.subtitle': 'Real-time monitoring',
+  'observability.dashboard.lastUpdate': 'Last update',
+  'observability.dashboard.healthChecks': 'Health Checks',
+  
+  'observability.status.ok': 'Operational',
+  'observability.status.degraded': 'Degraded',
+  'observability.status.critical': 'Critical',
+  'observability.status.unknown': 'Unknown',
+  
+  'observability.jobs.title': 'Background Jobs',
+  'observability.jobs.description': 'Automated task status',
+  'observability.jobs.healthy': 'healthy jobs',
+  'observability.jobs.noData': 'No jobs found',
+  'observability.jobs.neverRan': 'Never ran',
+  
+  'observability.events.title': 'Critical Events',
+  'observability.events.description': 'Last 7 days',
+  'observability.events.noEvents': 'No critical events',
+  'observability.events.noEventsHint': 'System operating normally',
+  
+  'observability.billing.title': 'Billing',
+  'observability.billing.description': 'Subscription status',
+  'observability.billing.active': 'Active',
+  'observability.billing.trialing': 'Trial',
+  'observability.billing.issues': 'Issues',
+  
+  'observability.memberships.title': 'Memberships',
+  'observability.memberships.description': 'Membership status',
+  'observability.memberships.active': 'Active',
+  'observability.memberships.pending': 'Pending',
+  'observability.memberships.expired': 'Expired',
+  
+  'admin.systemHealth': 'System Health',
+  'admin.systemHealthDesc': 'Real-time platform monitoring',
+  
+  'observability.alerts.title': 'Alerts',
+  'observability.alerts.noAlerts': 'No alerts',
+  'observability.alerts.activeAlerts': 'active alerts',
+  'observability.alerts.noActiveAlerts': 'No active alerts',
+  'observability.alerts.allClear': 'All clear!',
+  'observability.alerts.allClearHint': 'No critical events require attention',
+  'observability.alerts.clearDismissed': 'Clear dismissed',
+
 };

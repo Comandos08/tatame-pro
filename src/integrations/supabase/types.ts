@@ -354,6 +354,7 @@ export type Database = {
       }
       audit_logs: {
         Row: {
+          category: string | null
           created_at: string
           event_type: string
           id: string
@@ -362,6 +363,7 @@ export type Database = {
           tenant_id: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string
           event_type: string
           id?: string
@@ -370,6 +372,7 @@ export type Database = {
           tenant_id?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string
           event_type?: string
           id?: string
@@ -2440,6 +2443,21 @@ export type Database = {
           },
         ]
       }
+      job_execution_summary: {
+        Row: {
+          failures_24h: number | null
+          items_processed_24h: number | null
+          items_processed_7d: number | null
+          job_name: string | null
+          last_failure_at: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          runs_24h: number | null
+          runs_7d: number | null
+          success_24h: number | null
+        }
+        Relationships: []
+      }
       membership_verification: {
         Row: {
           athlete_name: string | null
@@ -2462,6 +2480,19 @@ export type Database = {
           tenant_name: string | null
           tenant_slug: string | null
           type: Database["public"]["Enums"]["membership_type"] | null
+        }
+        Relationships: []
+      }
+      observability_critical_events: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          event_type: string | null
+          id: string | null
+          metadata: Json | null
+          severity: string | null
+          source: string | null
+          tenant_id: string | null
         }
         Relationships: []
       }

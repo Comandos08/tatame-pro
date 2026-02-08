@@ -427,6 +427,22 @@ export default function AdminDashboard() {
             </CardHeader>
           </Card>
 
+          {/* System Health Dashboard Card (P4.1.C) */}
+          <Card 
+            className="mb-8 card-hover cursor-pointer" 
+            onClick={() => navigate('/app/health')}
+          >
+            <CardHeader className="flex flex-row items-center gap-4">
+              <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-success" />
+              </div>
+              <div>
+                <CardTitle className="text-base">{t('admin.systemHealth')}</CardTitle>
+                <CardDescription>{t('admin.systemHealthDesc')}</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+
           {/* Platform Health Card */}
           <PlatformHealthCard />
 

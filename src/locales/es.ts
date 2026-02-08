@@ -2366,4 +2366,49 @@ export const es: Record<string, string> = {
   'membership.reactivate.confirm': 'Confirmar reactivación',
   'membership.reactivate.success': 'Membresía reactivada exitosamente',
 
+  // P4.1 — Observability
+  'observability.dashboard.title': 'Salud del Sistema',
+  'observability.dashboard.subtitle': 'Monitoreo en tiempo real',
+  'observability.dashboard.lastUpdate': 'Última actualización',
+  'observability.dashboard.healthChecks': 'Verificaciones de Salud',
+  
+  'observability.status.ok': 'Operacional',
+  'observability.status.degraded': 'Degradado',
+  'observability.status.critical': 'Crítico',
+  'observability.status.unknown': 'Desconocido',
+  
+  'observability.jobs.title': 'Jobs de Background',
+  'observability.jobs.description': 'Estado de tareas automatizadas',
+  'observability.jobs.healthy': 'jobs saludables',
+  'observability.jobs.noData': 'No se encontraron jobs',
+  'observability.jobs.neverRan': 'Nunca ejecutó',
+  
+  'observability.events.title': 'Eventos Críticos',
+  'observability.events.description': 'Últimos 7 días',
+  'observability.events.noEvents': 'Sin eventos críticos',
+  'observability.events.noEventsHint': 'Sistema operando normalmente',
+  
+  'observability.billing.title': 'Facturación',
+  'observability.billing.description': 'Estado de suscripciones',
+  'observability.billing.active': 'Activos',
+  'observability.billing.trialing': 'Trial',
+  'observability.billing.issues': 'Problemas',
+  
+  'observability.memberships.title': 'Membresías',
+  'observability.memberships.description': 'Estado de membresías',
+  'observability.memberships.active': 'Activas',
+  'observability.memberships.pending': 'Pendientes',
+  'observability.memberships.expired': 'Expiradas',
+  
+  'admin.systemHealth': 'Salud del Sistema',
+  'admin.systemHealthDesc': 'Monitoreo en tiempo real de la plataforma',
+  
+  'observability.alerts.title': 'Alertas',
+  'observability.alerts.noAlerts': 'Sin alertas',
+  'observability.alerts.activeAlerts': 'alertas activas',
+  'observability.alerts.noActiveAlerts': 'Ninguna alerta activa',
+  'observability.alerts.allClear': '¡Todo bien!',
+  'observability.alerts.allClearHint': 'Ningún evento crítico requiere atención',
+  'observability.alerts.clearDismissed': 'Limpiar descartados',
+
 };
