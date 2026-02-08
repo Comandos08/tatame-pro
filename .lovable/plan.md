@@ -1,695 +1,829 @@
 
 
-# P4.2 — OBSERVABILITY.REALTIME (SAFE GOLD)
+# P4.3 — RESILIENCE & TESTS (SAFE GOLD)
 
-## Diagnóstico do Codebase Atual
+## Diagn diagnostico do Codebase Atual
 
-### Infraestrutura Existente
+### Infraestrutura de Testes Existente
 
 | Componente | Estado | Localização |
 |------------|--------|-------------|
-| **AlertContext** | ✅ Funcional (polling 5min) | `src/contexts/AlertContext.tsx` |
-| **AlertBadge** | ✅ Simples | `src/components/observability/AlertBadge.tsx` |
-| **AlertsPanel** | ✅ Sheet com dismiss | `src/components/observability/AlertsPanel.tsx` |
-| **AdminHealthDashboard** | ✅ Read-only | `src/pages/AdminHealthDashboard.tsx` |
-| **observability_critical_events** | ✅ View SQL | Migração anterior |
-| **AppProviders** | ❌ Sem AlertProvider | `src/contexts/AppProviders.tsx` |
-| **Realtime channels** | ❌ Nenhum | - |
-| **notify-critical-alert** | ❌ Não existe | - |
+| **Playwright Config** | ✅ Configurado | `playwright.config.ts` (60s timeout, retry=2 in CI) |
+| **Auth Fixtures** | ✅ Completo | `e2e/fixtures/auth.fixture.ts` (6 roles) |
+| **Test Users Seed** | ✅ Configurado | `e2e/fixtures/users.seed.ts` |
+| **Auth Helpers** | ✅ Completo | `e2e/helpers/authSession.ts` (session injection) |
+| **Security Tests** | ✅ Extensivo | `e2e/security/` (16 specs) |
+| **Billing Tests** | ⚠️ Skeleton | `e2e/billing/trial-lifecycle.spec.ts` (all skipped) |
+| **Routing Tests** | ✅ Funcional | `e2e/routing/` (3 specs) |
+| **UI Tests** | ✅ Funcional | `e2e/ui/` (7 specs) |
+| **Observability Tests** | ⚠️ Parcial | `e2e/security/observability-tests.spec.ts` (RLS only) |
+| **Resilience Tests** | ❌ Ausente | Nenhum teste de falha de realtime/polling |
 
-### Gaps Identificados
+### Gaps Identificados para P4.3
 
-1. **AlertProvider não está no AppProviders** — precisa adicionar
-2. **Nenhum realtime configurado** — audit_logs não está em supabase_realtime
-3. **Sem idempotência** — duplicatas possíveis se realtime + polling colidem
-4. **Sem indicador de conexão** — UX não mostra estado da conexão
+| Gap | Impacto | Prioridade |
+|-----|---------|------------|
+| Zero testes de falha de Realtime | Não validado se polling assume | P4.3.B |
+| Zero testes de falha de Polling | Não validado comportamento de erro | P4.3.B |
+| Billing tests todos skipped | Fluxos de billing não cobertos | P4.3.A |
+| Sem testes de idempotência de alerts | Duplicatas podem passar | P4.3.C |
+| Sem validação de cleanup de subscriptions | Memory leaks possíveis | P4.3.C |
+| Sem testes de AlertsPanel/AlertBadge UI | P4.2 UX não validada | P4.3.A |
 
 ---
 
-## Arquitetura P4.2
+## Arquitetura P4.3
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
-│              SUPABASE REALTIME (INSERT only)                  │
-│  audit_logs (filtered by severity/category)                   │
-└──────────────────────────────┬────────────────────────────────┘
-                               │ postgres_changes
-                               ▼
-┌───────────────────────────────────────────────────────────────┐
-│              REALTIME ADAPTER                                  │
-│  subscribeObservabilityRealtime()                              │
-│   - Supabase channel                                           │
-│   - INSERT filter (server-side if possible)                    │
-│   - Client-side severity filter                                │
-│   - Idempotency cache (seen IDs, 1h TTL)                       │
-│   - Returns unsubscribe() callback                             │
-└──────────────────────────────┬────────────────────────────────┘
-                               │ onEvent callback
-                               ▼
-┌───────────────────────────────────────────────────────────────┐
-│              AlertContext (Upgraded)                           │
-│  NEW: isRealtimeConnected                                      │
-│  NEW: lastRealtimeEventAt                                      │
-│  NEW: newEventsCount                                           │
-│  NEW: markNewEventsAsSeen()                                    │
-│  KEPT: polling fallback (5 min)                                │
-│  KEPT: dismissedIds persistence (localStorage)                 │
-└──────────────────────────────┬────────────────────────────────┘
-                               │
-                               ▼
-┌───────────────────────────────────────────────────────────────┐
-│              UI COMPONENTS                                     │
-│  AlertBadge: + "live" indicator                                │
-│  AlertsPanel: + "X new events" header + "mark seen" button     │
-│  AdminHealthDashboard: + AlertsPanel integration               │
+│                    P4.3 TEST SUITES                           │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  P4.3.A ─ E2E Critical Flows                                  │
+│  ├── observability-ui.spec.ts     (AlertBadge, AlertsPanel)   │
+│  ├── auth-identity.spec.ts        (augment existing)         │
+│  └── billing-states.spec.ts       (implement skipped tests)   │
+│                                                               │
+│  P4.3.B ─ Resilience & Failure                                │
+│  ├── resilience/realtime-failure.spec.ts                      │
+│  ├── resilience/polling-failure.spec.ts                       │
+│  └── resilience/mixed-failure.spec.ts                         │
+│                                                               │
+│  P4.3.C ─ Contract & Invariant                                │
+│  ├── contract/alert-invariants.spec.ts                        │
+│  └── contract/cleanup-invariants.spec.ts                      │
+│                                                               │
+│  P4.3.D ─ Test Observability                                  │
+│  └── playwright.config.ts updates (traces, screenshots)       │
+│                                                               │
 └───────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Tarefas de Implementação
+## P4.3.A — E2E CRITICAL FLOWS
 
-### P4.2.A — REALTIME.CORE (Subscriptions)
+### Tarefa A.1: Observability UI Tests
 
-#### Tarefa A.1: Habilitar Realtime para audit_logs
+**Arquivo:** `e2e/observability/observability-ui.spec.ts`
 
-**Migração SQL:**
-```sql
--- Enable realtime for audit_logs (INSERT events only)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+Casos a cobrir:
 
--- Optional: Also enable for decision_logs if needed
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.decision_logs;
-```
-
-**SAFE GOLD:** Apenas INSERT é usado. Nenhum UPDATE/DELETE exposto.
-
-#### Tarefa A.2: Criar Realtime Adapter
-
-**Arquivo:** `src/lib/observability/realtime.ts`
+| Test Case | Descrição | Validação |
+|-----------|-----------|-----------|
+| A.1.1 | AlertBadge renders correctly | Badge visible, count displays |
+| A.1.2 | AlertsPanel opens and closes | Sheet opens on click, closes on ESC |
+| A.1.3 | Alert dismiss persists after reload | Dismissed ID in localStorage |
+| A.1.4 | "Mark as seen" zera newEventsCount | Counter resets to 0 |
+| A.1.5 | Realtime indicator shows connection state | Green=connected, pulse=syncing |
+| A.1.6 | Alert sorting by severity | CRITICAL first, then HIGH |
+| A.1.7 | Empty state displays correctly | "All clear" message when no alerts |
 
 ```typescript
-/**
- * 🔔 Observability Realtime Adapter — P4.2.A
- * 
- * Subscribes to real-time observability events from Supabase.
- * Uses idempotency cache to prevent duplicates.
- * Returns unsubscribe callback for cleanup.
- */
-
-import { supabase } from '@/integrations/supabase/client';
-import { Alert, EventSeverity } from '@/types/observability';
-
-// LRU-style cache for seen event IDs (1h TTL)
-const SEEN_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-const seenEventsCache = new Map<string, number>();
-
-// Cleanup old entries periodically
-function cleanupSeenCache() {
-  const now = Date.now();
-  for (const [id, timestamp] of seenEventsCache) {
-    if (now - timestamp > SEEN_CACHE_TTL_MS) {
-      seenEventsCache.delete(id);
-    }
-  }
-}
-
-// Check if event was already seen (idempotency)
-function wasEventSeen(id: string): boolean {
-  return seenEventsCache.has(id);
-}
-
-// Mark event as seen
-function markEventSeen(id: string): void {
-  seenEventsCache.set(id, Date.now());
-}
-
-// Transform raw event to Alert format (pure function)
-function toAlert(event: Record<string, unknown>): Alert | null {
-  // ... transform logic similar to AlertContext
-}
-
-// Severity filter (HIGH/CRITICAL only for realtime)
-const REALTIME_SEVERITIES: EventSeverity[] = ['HIGH', 'CRITICAL'];
-
-export interface RealtimeSubscription {
-  unsubscribe: () => void;
-  isConnected: () => boolean;
-}
-
-export interface RealtimeOptions {
-  onEvent: (alert: Alert) => void;
-  onConnectionChange?: (connected: boolean) => void;
-  onError?: (error: Error) => void;
-}
-
-export function subscribeObservabilityRealtime(
-  options: RealtimeOptions
-): RealtimeSubscription {
-  let isConnected = false;
-  
-  const channel = supabase
-    .channel('observability-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'audit_logs',
-        // Filter critical events (server-side when supported)
-      },
-      (payload) => {
-        const event = payload.new as Record<string, unknown>;
-        const eventId = event.id as string;
-        
-        // Idempotency check
-        if (wasEventSeen(eventId)) {
-          return;
-        }
-        markEventSeen(eventId);
-        
-        // Transform and filter
-        const alert = toAlert(event);
-        if (alert && REALTIME_SEVERITIES.includes(alert.severity)) {
-          options.onEvent(alert);
-        }
-      }
-    )
-    .subscribe((status) => {
-      const connected = status === 'SUBSCRIBED';
-      if (connected !== isConnected) {
-        isConnected = connected;
-        options.onConnectionChange?.(connected);
-      }
-    });
-  
-  // Cleanup cache periodically
-  const cacheCleanupInterval = setInterval(cleanupSeenCache, 60000);
-  
-  return {
-    unsubscribe: () => {
-      clearInterval(cacheCleanupInterval);
-      supabase.removeChannel(channel);
-    },
-    isConnected: () => isConnected,
-  };
-}
-```
-
-**Garantias:**
-- ✅ Idempotência via cache de IDs (1h TTL)
-- ✅ Cleanup garantido via `unsubscribe()`
-- ✅ Fallback: se realtime falhar, polling continua
-- ✅ Sem side-effects fora do callback
-
----
-
-### P4.2.B — ALERTS.REALTIME (AlertContext Upgrade)
-
-#### Tarefa B.1: Adicionar AlertProvider ao AppProviders
-
-**Arquivo:** `src/contexts/AppProviders.tsx`
-
-Adicionar import e wrapper:
-```tsx
-import { AlertProvider } from './AlertContext';
-
-// Wrap children with AlertProvider (inside IdentityProvider)
-<AlertProvider>
-  {children}
-</AlertProvider>
-```
-
-#### Tarefa B.2: Upgrade AlertContext Interface
-
-**Arquivo:** `src/contexts/AlertContext.tsx`
-
-Adicionar ao `AlertContextValue`:
-```typescript
-interface AlertContextValue {
-  // Existing
-  alerts: Alert[];
-  activeCount: number;
-  criticalCount: number;
-  isLoading: boolean;
-  dismissAlert: (id: string) => void;
-  refreshAlerts: () => void;
-  clearDismissed: () => void;
-  
-  // NEW: Realtime state
-  isRealtimeConnected: boolean;
-  lastRealtimeEventAt: string | null;
-  newEventsCount: number;
-  markNewEventsAsSeen: () => void;
-}
-```
-
-#### Tarefa B.3: Implementar Realtime Subscription no AlertProvider
-
-**Arquivo:** `src/contexts/AlertContext.tsx`
-
-Adicionar useEffect para subscription:
-```typescript
-// Realtime subscription
-useEffect(() => {
-  const subscription = subscribeObservabilityRealtime({
-    onEvent: (alert) => {
-      // Add to alerts if not dismissed
-      if (!dismissedIds.has(alert.id)) {
-        setRealtimeAlerts(prev => {
-          // Merge avoiding duplicates
-          if (prev.some(a => a.id === alert.id)) return prev;
-          return [alert, ...prev].slice(0, 50); // Cap at 50
-        });
-        setNewEventsCount(prev => prev + 1);
-        setLastRealtimeEventAt(new Date().toISOString());
-      }
-    },
-    onConnectionChange: (connected) => {
-      setIsRealtimeConnected(connected);
-    },
+// Structure
+test.describe('Observability UI', () => {
+  test.describe('AlertBadge', () => {
+    test('renders with correct count', async ({ page }) => { ... });
+    test('shows realtime connection indicator', async ({ page }) => { ... });
   });
   
-  return () => subscription.unsubscribe();
-}, [dismissedIds]);
+  test.describe('AlertsPanel', () => {
+    test('opens on badge click', async ({ page }) => { ... });
+    test('dismiss persists after reload', async ({ page }) => { ... });
+    test('mark as seen resets counter', async ({ page }) => { ... });
+  });
+});
 ```
 
-#### Tarefa B.4: Merge Alerts (polling + realtime)
+### Tarefa A.2: Implement Billing State Tests
 
-Função pura para merge:
+**Arquivo:** `e2e/billing/billing-states.spec.ts`
+
+Implementar os testes que estão "skipped" em `trial-lifecycle.spec.ts`:
+
+| Test Case | Estado | Validação |
+|-----------|--------|-----------|
+| A.2.1 | TRIALING banner | Info banner with days remaining |
+| A.2.2 | TRIAL_EXPIRED blocked actions | ActionBlockedTooltip on sensitive buttons |
+| A.2.3 | PENDING_DELETE full block | TenantBlockedScreen with countdown |
+| A.2.4 | Read-only ops in TRIAL_EXPIRED | Dashboard, lists accessible |
+
+**Estratégia:** Usar `page.route()` para interceptar e mockar respostas de billing status.
+
+### Tarefa A.3: Auth & Identity Flow Augmentation
+
+**Arquivo:** `e2e/security/auth-identity-flows.spec.ts`
+
+Expandir cobertura existente:
+
+| Test Case | Cenário | Validação |
+|-----------|---------|-----------|
+| A.3.1 | Login válido por role | Cada role atinge destino correto |
+| A.3.2 | Login inválido | Mensagem de erro, não redireciona |
+| A.3.3 | Sessão expirada redirect | Vai para /login sem loop |
+| A.3.4 | IdentityWizard blocking | Usuário incompleto bloqueado |
+
+---
+
+## P4.3.B — RESILIENCE & FAILURE SCENARIOS
+
+### Tarefa B.1: Realtime Failure Simulation
+
+**Arquivo:** `e2e/resilience/realtime-failure.spec.ts`
+
 ```typescript
-function mergeAlerts(
-  pollingAlerts: Alert[],
-  realtimeAlerts: Alert[],
-  dismissedIds: Set<string>
-): Alert[] {
-  const merged = new Map<string, Alert>();
+test.describe('Realtime Failure Resilience', () => {
+  test('B.1.1: WebSocket blocked - polling continues', async ({ page }) => {
+    // Block WebSocket connections
+    await page.route('**/realtime/**', route => route.abort());
+    
+    // Navigate and verify polling still works
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // isRealtimeConnected should be false (syncing indicator)
+    const syncIndicator = page.locator('[class*="animate-pulse"]');
+    await expect(syncIndicator).toBeVisible();
+    
+    // Polling should still load alerts
+    await page.waitForTimeout(POLLING_INTERVAL_MS + 1000);
+    // Alerts should still be visible
+  });
   
-  // Add polling alerts first
-  for (const alert of pollingAlerts) {
-    merged.set(alert.id, { ...alert, dismissed: dismissedIds.has(alert.id) });
-  }
-  
-  // Add realtime alerts (newer, may override)
-  for (const alert of realtimeAlerts) {
-    if (!merged.has(alert.id)) {
-      merged.set(alert.id, { ...alert, dismissed: dismissedIds.has(alert.id) });
-    }
-  }
-  
-  // Sort by severity then timestamp
-  return Array.from(merged.values())
-    .sort((a, b) => {
-      const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-      const diff = (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3);
-      if (diff !== 0) return diff;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  test('B.1.2: Realtime disconnects mid-session', async ({ page }) => {
+    // Start with realtime connected
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Wait for realtime to connect
+    await page.waitForSelector('[class*="bg-success"]');
+    
+    // Then block realtime
+    await page.route('**/realtime/**', route => route.abort());
+    
+    // Force reconnection attempt
+    await page.evaluate(() => {
+      // Trigger any realtime event
     });
-}
+    
+    // Should gracefully degrade to polling
+    const syncIndicator = page.locator('[class*="animate-pulse"]');
+    await expect(syncIndicator).toBeVisible({ timeout: 10000 });
+    
+    // No console errors
+    const errors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    
+    expect(errors.filter(e => e.includes('realtime'))).toHaveLength(0);
+  });
+  
+  test('B.1.3: No duplicate alerts from realtime + polling', async ({ page }) => {
+    // This test validates idempotency
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Wait for both realtime and polling to potentially deliver same event
+    await page.waitForTimeout(6000);
+    
+    // Get all alert IDs
+    const alertIds = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('[data-alert-id]'))
+        .map(el => el.getAttribute('data-alert-id'));
+    });
+    
+    // Check for duplicates
+    const uniqueIds = new Set(alertIds);
+    expect(alertIds.length).toBe(uniqueIds.size);
+  });
+});
+```
+
+### Tarefa B.2: Polling Failure Simulation
+
+**Arquivo:** `e2e/resilience/polling-failure.spec.ts`
+
+```typescript
+test.describe('Polling Failure Resilience', () => {
+  test('B.2.1: Query failure - error logged, UI stable', async ({ page }) => {
+    // Intercept and fail the polling query
+    await page.route('**/rest/v1/observability_critical_events*', route => {
+      route.fulfill({
+        status: 500,
+        body: JSON.stringify({ error: 'Internal Server Error' }),
+      });
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // UI should still render (not crash)
+    await expect(page.locator('body')).toBeVisible();
+    
+    // Should not show error boundary
+    const errorBoundary = page.locator('text=Algo deu errado');
+    await expect(errorBoundary).not.toBeVisible();
+    
+    // Console should log the error
+    const consoleErrors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    
+    await page.waitForTimeout(2000);
+    expect(consoleErrors.some(e => e.includes('AlertContext'))).toBe(true);
+  });
+  
+  test('B.2.2: Network timeout - graceful handling', async ({ page }) => {
+    // Delay response beyond timeout
+    await page.route('**/rest/v1/observability_critical_events*', async route => {
+      await new Promise(r => setTimeout(r, 15000)); // 15s delay
+      route.continue();
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Page should still be usable
+    await expect(page.locator('body')).toBeVisible();
+    
+    // AlertsPanel should show loading or empty state, not crash
+    const alertsBadge = page.locator('button:has(svg.lucide-bell)');
+    if (await alertsBadge.isVisible()) {
+      await alertsBadge.click();
+      // Should show loading or empty, not error
+    }
+  });
+  
+  test('B.2.3: React Query retry respects policy', async ({ page }) => {
+    let requestCount = 0;
+    
+    await page.route('**/rest/v1/observability_critical_events*', route => {
+      requestCount++;
+      route.fulfill({
+        status: 500,
+        body: JSON.stringify({ error: 'Temporary failure' }),
+      });
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Wait for potential retries
+    await page.waitForTimeout(10000);
+    
+    // Should not retry excessively (React Query default: 3 retries)
+    expect(requestCount).toBeLessThanOrEqual(4);
+  });
+});
+```
+
+### Tarefa B.3: Mixed Failure Scenario
+
+**Arquivo:** `e2e/resilience/mixed-failure.spec.ts`
+
+```typescript
+test.describe('Mixed Failure Resilience', () => {
+  test('B.3.1: Both realtime and polling fail, then recover', async ({ page }) => {
+    let pollingBlocked = true;
+    
+    // Block realtime
+    await page.route('**/realtime/**', route => route.abort());
+    
+    // Block polling initially
+    await page.route('**/rest/v1/observability_critical_events*', route => {
+      if (pollingBlocked) {
+        route.fulfill({ status: 503, body: 'Service Unavailable' });
+      } else {
+        route.continue();
+      }
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // UI should still render
+    await expect(page.locator('body')).toBeVisible();
+    
+    // Now "fix" polling
+    pollingBlocked = false;
+    
+    // Trigger manual refresh
+    const refreshButton = page.locator('button:has(svg.lucide-refresh-cw)');
+    if (await refreshButton.isVisible()) {
+      await refreshButton.click();
+    }
+    
+    // System should recover
+    await page.waitForTimeout(3000);
+    
+    // Should now be able to see alerts or empty state (not error)
+    const alertsPanel = page.locator('text=/alertas|alerts/i');
+    // Just verify no crash
+  });
+  
+  test('B.3.2: AlertContext remains consistent across failures', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Get initial state
+    const initialCount = await page.evaluate(() => {
+      // Access AlertContext via React DevTools or localStorage
+      const dismissed = JSON.parse(localStorage.getItem('tatame_dismissed_alerts') || '[]');
+      return dismissed.length;
+    });
+    
+    // Simulate failure
+    await page.route('**/rest/v1/observability_critical_events*', route => {
+      route.fulfill({ status: 500, body: 'Error' });
+    });
+    
+    // Trigger refresh
+    const refreshButton = page.locator('button:has(svg.lucide-refresh-cw)');
+    if (await refreshButton.isVisible()) {
+      await refreshButton.click();
+    }
+    
+    await page.waitForTimeout(2000);
+    
+    // Dismissed state should be preserved
+    const afterFailureCount = await page.evaluate(() => {
+      const dismissed = JSON.parse(localStorage.getItem('tatame_dismissed_alerts') || '[]');
+      return dismissed.length;
+    });
+    
+    expect(afterFailureCount).toBe(initialCount);
+  });
+});
 ```
 
 ---
 
-### P4.2.C — UX.REALTIME (Sutil e Profissional)
+## P4.3.C — CONTRACT & INVARIANT TESTS
 
-#### Tarefa C.1: Upgrade AlertBadge
+### Tarefa C.1: Alert Invariants
 
-**Arquivo:** `src/components/observability/AlertBadge.tsx`
+**Arquivo:** `e2e/contract/alert-invariants.spec.ts`
 
-Adicionar indicador de conexão:
-```tsx
-// Import Wifi, WifiOff from lucide-react
-
-const { isRealtimeConnected, newEventsCount } = alertContext;
-
-// Add small indicator next to badge
-{isRealtimeConnected ? (
-  <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-success rounded-full" 
-        title={t('observability.realtime.connected')} />
-) : (
-  <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-muted-foreground rounded-full animate-pulse"
-        title={t('observability.realtime.syncing')} />
-)}
+```typescript
+test.describe('Alert Contract Invariants', () => {
+  test('C.1.1: Same event never appears twice in alerts', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Open alerts panel
+    const alertsBadge = page.locator('button:has(svg.lucide-bell)');
+    await alertsBadge.click();
+    
+    // Get all alert IDs
+    const alertIds = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('[data-alert-id]'))
+        .map(el => el.getAttribute('data-alert-id'));
+    });
+    
+    // All IDs must be unique
+    const uniqueIds = new Set(alertIds);
+    expect(alertIds.length).toBe(uniqueIds.size);
+  });
+  
+  test('C.1.2: Dismissed alert never reappears', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Open panel and dismiss first alert
+    const alertsBadge = page.locator('button:has(svg.lucide-bell)');
+    await alertsBadge.click();
+    
+    const firstAlert = page.locator('[data-alert-id]').first();
+    const alertId = await firstAlert.getAttribute('data-alert-id');
+    
+    if (alertId) {
+      const dismissButton = firstAlert.locator('button:has(svg.lucide-x)');
+      await dismissButton.click();
+      
+      // Reload page
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+      
+      // Re-open panel
+      await alertsBadge.click();
+      
+      // Alert should not reappear
+      const reappearedAlert = page.locator(`[data-alert-id="${alertId}"]`);
+      await expect(reappearedAlert).not.toBeVisible();
+    }
+  });
+  
+  test('C.1.3: Severity ordering is deterministic', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    const alertsBadge = page.locator('button:has(svg.lucide-bell)');
+    await alertsBadge.click();
+    
+    // Get severity order
+    const severities = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('[data-alert-severity]'))
+        .map(el => el.getAttribute('data-alert-severity'));
+    });
+    
+    // Verify CRITICAL/HIGH come before MEDIUM/LOW
+    const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    let lastOrder = -1;
+    
+    for (const sev of severities) {
+      if (sev) {
+        const order = severityOrder[sev as keyof typeof severityOrder] ?? 4;
+        expect(order).toBeGreaterThanOrEqual(lastOrder);
+        lastOrder = order;
+      }
+    }
+  });
+});
 ```
 
-#### Tarefa C.2: Upgrade AlertsPanel
+### Tarefa C.2: Cleanup Invariants
 
-**Arquivo:** `src/components/observability/AlertsPanel.tsx`
+**Arquivo:** `e2e/contract/cleanup-invariants.spec.ts`
 
-Adicionar header "new events":
-```tsx
-const { newEventsCount, markNewEventsAsSeen, isRealtimeConnected } = useAlerts();
-
-// In header, after SheetDescription:
-{newEventsCount > 0 && (
-  <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 mt-2">
-    <span className="text-sm font-medium text-primary">
-      {newEventsCount} {t('observability.realtime.newEvents')}
-    </span>
-    <Button variant="ghost" size="sm" onClick={markNewEventsAsSeen}>
-      {t('observability.realtime.markSeen')}
-    </Button>
-  </div>
-)}
-
-// Connection status indicator in header
-{isRealtimeConnected ? (
-  <Badge variant="outline" className="text-success border-success">
-    <Wifi className="h-3 w-3 mr-1" /> {t('observability.realtime.live')}
-  </Badge>
-) : (
-  <Badge variant="outline" className="text-muted-foreground">
-    <WifiOff className="h-3 w-3 mr-1" /> {t('observability.realtime.polling')}
-  </Badge>
-)}
+```typescript
+test.describe('Resource Cleanup Invariants', () => {
+  test('C.2.1: No orphan intervals after navigation', async ({ page }) => {
+    const jsErrors: string[] = [];
+    page.on('pageerror', err => jsErrors.push(err.message));
+    
+    await loginAsSuperAdmin(page);
+    
+    // Navigate to health dashboard
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Wait for realtime to connect
+    await page.waitForTimeout(2000);
+    
+    // Navigate away
+    await page.goto('/admin');
+    await page.waitForLoadState('networkidle');
+    
+    // Navigate back
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Wait for potential interval errors
+    await page.waitForTimeout(5000);
+    
+    // No "cannot perform state update on unmounted" errors
+    const mountErrors = jsErrors.filter(e => 
+      e.includes('unmounted') || 
+      e.includes('memory leak')
+    );
+    expect(mountErrors).toHaveLength(0);
+  });
+  
+  test('C.2.2: Realtime channel is removed on unmount', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    
+    // Wait for channel to be created
+    await page.waitForTimeout(2000);
+    
+    // Check initial channel count
+    const initialChannels = await page.evaluate(() => {
+      // @ts-ignore - accessing internal state
+      return (window as any).__supabaseChannelCount || 0;
+    });
+    
+    // Navigate away
+    await page.goto('/admin');
+    await page.waitForTimeout(1000);
+    
+    // Navigate back
+    await page.goto('/admin/health');
+    await page.waitForTimeout(2000);
+    
+    // Channel count should not increase indefinitely
+    const finalChannels = await page.evaluate(() => {
+      // @ts-ignore
+      return (window as any).__supabaseChannelCount || 0;
+    });
+    
+    // Should not have leaked channels (allow 1 for current subscription)
+    expect(finalChannels).toBeLessThanOrEqual(initialChannels + 1);
+  });
+  
+  test('C.2.3: No duplicate listeners after rapid navigation', async ({ page }) => {
+    await loginAsSuperAdmin(page);
+    
+    // Rapid navigation
+    for (let i = 0; i < 5; i++) {
+      await page.goto('/admin/health', { waitUntil: 'commit' });
+      await page.goto('/admin', { waitUntil: 'commit' });
+    }
+    
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+    
+    // Verify only one subscription active by checking connection indicator
+    const connectionIndicators = page.locator('[class*="bg-success"], [class*="animate-pulse"]');
+    const indicatorCount = await connectionIndicators.count();
+    
+    // Should have exactly one indicator (not multiple stacked)
+    expect(indicatorCount).toBeLessThanOrEqual(2); // Badge + Panel could both show
+  });
+});
 ```
 
-#### Tarefa C.3: Integrar AlertsPanel no AdminHealthDashboard
+### Tarefa C.3: SAFE GOLD Invariants
 
-**Arquivo:** `src/pages/AdminHealthDashboard.tsx`
+**Arquivo:** `e2e/contract/safe-gold-invariants.spec.ts`
 
-Adicionar AlertsPanel no header:
-```tsx
-import { AlertsPanel, AlertBadge } from '@/components/observability';
-
-// In header, after refresh button:
-<AlertsPanel 
-  trigger={<AlertBadge showZero className="ml-2" />}
-/>
+```typescript
+test.describe('SAFE GOLD Invariants', () => {
+  test('C.3.1: Observability never mutates business data', async ({ page }) => {
+    // Intercept all POST/PUT/DELETE to business tables
+    const mutations: string[] = [];
+    
+    await page.route('**/rest/v1/**', (route, request) => {
+      const method = request.method();
+      const url = request.url();
+      
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        // Exclude observability-related tables
+        if (!url.includes('decision_logs') && 
+            !url.includes('audit_logs') && 
+            !url.includes('security_events')) {
+          mutations.push(`${method} ${url}`);
+        }
+      }
+      route.continue();
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Interact with observability UI
+    const alertsBadge = page.locator('button:has(svg.lucide-bell)');
+    if (await alertsBadge.isVisible()) {
+      await alertsBadge.click();
+      
+      // Try to dismiss an alert
+      const dismissButton = page.locator('button:has(svg.lucide-x)').first();
+      if (await dismissButton.isVisible()) {
+        await dismissButton.click();
+      }
+    }
+    
+    // Refresh
+    const refreshButton = page.locator('button:has(svg.lucide-refresh-cw)');
+    if (await refreshButton.isVisible()) {
+      await refreshButton.click();
+    }
+    
+    await page.waitForTimeout(2000);
+    
+    // No mutations to business tables should have occurred
+    expect(mutations).toHaveLength(0);
+  });
+  
+  test('C.3.2: No navigate() calls in realtime handlers', async ({ page }) => {
+    const navigationEvents: string[] = [];
+    
+    page.on('framenavigated', frame => {
+      if (frame === page.mainFrame()) {
+        navigationEvents.push(frame.url());
+      }
+    });
+    
+    await loginAsSuperAdmin(page);
+    await page.goto('/admin/health');
+    await page.waitForLoadState('networkidle');
+    
+    // Record URL after initial navigation
+    const stableUrl = page.url();
+    
+    // Wait for potential realtime events
+    await page.waitForTimeout(10000);
+    
+    // URL should not have changed due to realtime events
+    expect(page.url()).toBe(stableUrl);
+    
+    // Navigation history should be minimal (initial nav only)
+    const postLoadNavigations = navigationEvents.filter(
+      url => !url.includes('/admin/health')
+    );
+    expect(postLoadNavigations).toHaveLength(0);
+  });
+});
 ```
 
 ---
 
-### P4.2.D — EXTERNAL HOOKS (OFF by default)
+## P4.3.D — TEST OBSERVABILITY
 
-#### Tarefa D.1: Criar Edge Function Stub
+### Tarefa D.1: Playwright Config Updates
 
-**Arquivo:** `supabase/functions/notify-critical-alert/index.ts`
+**Arquivo:** `playwright.config.ts`
+
+```typescript
+// Add to existing config
+export default defineConfig({
+  // ... existing config
+  
+  // Enhanced reporting for P4.3
+  reporter: [
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+    ['list'],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
+  
+  // Capture more on failure
+  use: {
+    // ... existing
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  
+  // Add project for resilience tests
+  projects: [
+    // ... existing projects
+    {
+      name: 'resilience',
+      testDir: './e2e/resilience',
+      use: { ...devices['Desktop Chrome'] },
+      retries: 0, // Resilience tests should not auto-retry
+    },
+    {
+      name: 'contract',
+      testDir: './e2e/contract',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+});
+```
+
+### Tarefa D.2: Test Logger Utility
+
+**Arquivo:** `e2e/helpers/testLogger.ts`
 
 ```typescript
 /**
- * 🔔 notify-critical-alert — P4.2.D
- * 
- * Stub for external alert notifications.
- * OFF by default — requires explicit enablement.
- * 
- * Future integrations:
- * - Slack webhook
- * - Email notifications
- * - PagerDuty
+ * Structured logging for E2E tests
+ * Prefixes: [E2E], [RESILIENCE], [CONTRACT]
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+export type TestCategory = 'E2E' | 'RESILIENCE' | 'CONTRACT';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface AlertPayload {
-  event_id: string;
-  event_type: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  tenant_id?: string;
-  metadata?: Record<string, unknown>;
-  timestamp: string;
+export function logTestStep(category: TestCategory, message: string): void {
+  console.log(`[${category}] ${message}`);
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+export function logTestError(category: TestCategory, error: Error): void {
+  console.error(`[${category}] ERROR: ${error.message}`);
+  if (error.stack) {
+    console.error(`[${category}] Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
   }
-
-  try {
-    // Validate service role (internal only)
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.includes('service_role')) {
-      return new Response(
-        JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const payload: AlertPayload = await req.json();
-
-    // Validate payload
-    if (!payload.event_id || !payload.event_type || !payload.severity) {
-      return new Response(
-        JSON.stringify({ error: 'INVALID_PAYLOAD' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // STUB: Log to webhook_events for now (external integrations OFF)
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    await supabase.from('webhook_events').insert({
-      event_type: 'ALERT_NOTIFICATION_STUB',
-      payload: payload,
-      status: 'LOGGED',
-    });
-
-    // TODO: Future integrations
-    // if (Deno.env.get('SLACK_WEBHOOK_URL')) { ... }
-    // if (Deno.env.get('ALERT_EMAIL_ENABLED') === 'true') { ... }
-
-    return new Response(
-      JSON.stringify({ 
-        ok: true, 
-        status: 'LOGGED',
-        message: 'External notifications are OFF. Event logged for future integration.'
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    console.error('[notify-critical-alert] Error:', error);
-    return new Response(
-      JSON.stringify({ error: 'INTERNAL_ERROR' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-});
-```
-
-#### Tarefa D.2: Registrar no config.toml
-
-**Arquivo:** `supabase/config.toml`
-
-```toml
-[functions.notify-critical-alert]
-verify_jwt = false
-```
-
-#### Tarefa D.3: Atualizar Documentação
-
-**Arquivo:** `docs/OBSERVABILITY.md`
-
-Adicionar seção P4.2:
-```markdown
-## P4.2 — Realtime Infrastructure
-
-### Supabase Realtime
-
-The platform uses Supabase Realtime for instant alert delivery:
-
-```typescript
-// Client-side subscription
-const subscription = subscribeObservabilityRealtime({
-  onEvent: (alert) => { ... },
-  onConnectionChange: (connected) => { ... },
-});
-
-// Cleanup
-subscription.unsubscribe();
-```
-
-**Channel:** `observability-realtime`
-**Table:** `audit_logs` (INSERT only)
-**Filter:** HIGH/CRITICAL severity events
-
-### Idempotency
-
-Events are deduplicated using a client-side LRU cache:
-- Cache key: event ID
-- TTL: 1 hour
-- Max size: ~1000 entries
-
-### Connection States
-
-| State | Badge | Fallback |
-|-------|-------|----------|
-| Connected | 🟢 Live | — |
-| Disconnected | 🟡 Syncing | Polling (5 min) |
-| Error | 🔴 Offline | Polling (5 min) |
-
-### External Hooks (Future)
-
-The `notify-critical-alert` edge function is prepared for:
-
-**Payload Schema:**
-```json
-{
-  "event_id": "uuid",
-  "event_type": "TENANT_PAYMENT_FAILED",
-  "severity": "CRITICAL",
-  "tenant_id": "uuid",
-  "metadata": {},
-  "timestamp": "ISO-8601"
 }
-```
 
-**Planned Integrations (OFF by default):**
-- Slack Webhook
-- Email (via Resend)
-- PagerDuty
-- Custom webhooks
-
-**Enabling (Future):**
-1. Set `SLACK_WEBHOOK_URL` secret
-2. Trigger via database trigger or cron job
-3. Monitor via `webhook_events` table
+export function logTestAssertion(category: TestCategory, assertion: string, passed: boolean): void {
+  const status = passed ? '✅' : '❌';
+  console.log(`[${category}] ${status} ${assertion}`);
+}
 ```
 
 ---
 
-### P4.2.E — LOCALIZATION
+## Arquivos a Criar
 
-#### Tarefa E.1: Adicionar Chaves i18n
+| Arquivo | PI | Descrição |
+|---------|-----|-----------|
+| `e2e/observability/observability-ui.spec.ts` | A | AlertBadge, AlertsPanel UI tests |
+| `e2e/billing/billing-states.spec.ts` | A | Billing state UI tests |
+| `e2e/security/auth-identity-flows.spec.ts` | A | Augmented auth tests |
+| `e2e/resilience/realtime-failure.spec.ts` | B | Realtime failure simulation |
+| `e2e/resilience/polling-failure.spec.ts` | B | Polling failure simulation |
+| `e2e/resilience/mixed-failure.spec.ts` | B | Combined failure scenarios |
+| `e2e/contract/alert-invariants.spec.ts` | C | Alert dedup, dismiss, ordering |
+| `e2e/contract/cleanup-invariants.spec.ts` | C | Memory leak, subscription cleanup |
+| `e2e/contract/safe-gold-invariants.spec.ts` | C | No mutations, no nav in handlers |
+| `e2e/helpers/testLogger.ts` | D | Structured test logging |
 
-**Arquivos:** `src/locales/pt-BR.ts`, `src/locales/en.ts`, `src/locales/es.ts`
+## Arquivos a Modificar
 
-```typescript
-// P4.2 — Realtime
-'observability.realtime.connected': 'Connected',
-'observability.realtime.syncing': 'Syncing...',
-'observability.realtime.live': 'Live',
-'observability.realtime.polling': 'Polling',
-'observability.realtime.newEvents': 'new event(s)',
-'observability.realtime.markSeen': 'Mark as seen',
-```
-
----
-
-## Arquivos a Criar/Modificar
-
-### Novos Arquivos
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/lib/observability/realtime.ts` | Adapter realtime + idempotência |
-| `supabase/functions/notify-critical-alert/index.ts` | Stub webhook OFF |
-
-### Arquivos a Modificar
-
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/config.toml` | Adicionar notify-critical-alert |
-| `src/contexts/AppProviders.tsx` | Adicionar AlertProvider |
-| `src/contexts/AlertContext.tsx` | Realtime subscription + merge |
-| `src/components/observability/AlertBadge.tsx` | Indicador "live" |
-| `src/components/observability/AlertsPanel.tsx` | "New events" header |
-| `src/pages/AdminHealthDashboard.tsx` | Integrar AlertsPanel |
-| `src/lib/observability/index.ts` | Export realtime adapter |
-| `docs/OBSERVABILITY.md` | Seção P4.2 |
-| `src/locales/pt-BR.ts` | ~6 chaves |
-| `src/locales/en.ts` | ~6 chaves |
-| `src/locales/es.ts` | ~6 chaves |
-
-### Migração SQL
-
-| Migração | Descrição |
-|----------|-----------|
-| `YYYYMMDD_enable_realtime_audit_logs.sql` | Habilitar realtime para audit_logs |
+| Arquivo | PI | Mudança |
+|---------|-----|---------|
+| `playwright.config.ts` | D | Add resilience/contract projects, enhance reporting |
+| `src/components/observability/AlertsPanel.tsx` | A | Add data-alert-id, data-alert-severity attributes |
+| `e2e/fixtures/auth.fixture.ts` | A | Export quickLoginAsSuperAdmin for resilience tests |
 
 ---
 
 ## Critérios de Aceitação
 
-### Realtime Core
-- [ ] `audit_logs` adicionado a `supabase_realtime`
-- [ ] `subscribeObservabilityRealtime()` funciona
-- [ ] Idempotência previne duplicatas
-- [ ] `unsubscribe()` limpa recursos
+### E2E Critical Flows (A)
+- [ ] AlertBadge renderiza e mostra count
+- [ ] AlertsPanel abre/fecha corretamente
+- [ ] Dismiss persiste após reload
+- [ ] "Mark as seen" zera contador
+- [ ] Billing states mostram UI correta
 
-### AlertContext Upgrade
-- [ ] `isRealtimeConnected` reflete estado
-- [ ] `newEventsCount` incrementa para eventos novos
-- [ ] `markNewEventsAsSeen()` zera contador
-- [ ] Polling fallback permanece (5 min)
-- [ ] Dismissed respeitado mesmo com realtime
+### Resilience (B)
+- [ ] Realtime bloqueado → polling continua
+- [ ] Polling falha → UI não crasha
+- [ ] Recuperação após falha mista
+- [ ] Zero duplicatas em qualquer cenário
 
-### UX
-- [ ] Badge mostra indicador "live" / "syncing"
-- [ ] Panel mostra "X new events" quando aplicável
-- [ ] "Mark as seen" funciona
-- [ ] Zero toasts automáticos
+### Contract (C)
+- [ ] Mesmo evento nunca aparece 2x
+- [ ] Dismissed nunca reaparece
+- [ ] Subscriptions são limpas no unmount
+- [ ] Zero mutações em dados de negócio
+- [ ] Zero navigate() em handlers realtime
 
-### External Hooks
-- [ ] Edge function existe e valida payload
-- [ ] Nenhuma integração externa ativa
-- [ ] Docs com payload canônico
-
-### SAFE GOLD Invariants
-- [ ] Nenhuma mutação de dados de negócio
-- [ ] Polling fallback garante resiliência
-- [ ] Cleanup garantido (no memory leaks)
-- [ ] Sem navigate() em handlers realtime
-- [ ] P3/P4.1 flows intocados
+### Test Observability (D)
+- [ ] Reports HTML gerados
+- [ ] Screenshots em falhas
+- [ ] Traces em retries
+- [ ] Logs estruturados com prefixos
 
 ---
 
 ## Ordem de Execução
 
 ```text
-1. Migração SQL (enable realtime for audit_logs)
+1. Modificar AlertsPanel para adicionar data attributes
     │
     ▼
-2. P4.2.A — Realtime Adapter
-    │ src/lib/observability/realtime.ts
+2. P4.3.A — E2E Critical Flows
+    │ observability-ui.spec.ts
+    │ billing-states.spec.ts
+    │ auth-identity-flows.spec.ts
     │
     ▼
-3. P4.2.B — AlertContext Upgrade
-    │ src/contexts/AlertContext.tsx
-    │ src/contexts/AppProviders.tsx
+3. P4.3.B — Resilience Tests
+    │ realtime-failure.spec.ts
+    │ polling-failure.spec.ts
+    │ mixed-failure.spec.ts
     │
     ▼
-4. P4.2.C — UX Polish
-    │ AlertBadge.tsx
-    │ AlertsPanel.tsx
-    │ AdminHealthDashboard.tsx
+4. P4.3.C — Contract Tests
+    │ alert-invariants.spec.ts
+    │ cleanup-invariants.spec.ts
+    │ safe-gold-invariants.spec.ts
     │
     ▼
-5. P4.2.D — External Hooks
-    │ notify-critical-alert/index.ts
-    │ config.toml
-    │ docs/OBSERVABILITY.md
+5. P4.3.D — Test Observability
+    │ playwright.config.ts updates
+    │ testLogger.ts
     │
     ▼
-6. P4.2.E — Localization
-    │ pt-BR.ts, en.ts, es.ts
+6. Run full test suite & validate
     │
     ▼
-DONE
+P4.3 CLOSED
 ```
 
 ---
 
-## Garantias de Segurança
+## Garantias SAFE GOLD
 
 Este PI **NÃO**:
-- Altera fluxos de negócio (P3 intocado)
-- Envia notificações externas automaticamente
+- Altera regras de negócio
+- Modifica fluxos de navegação
+- Cria side-effects em produção
 - Depende de realtime para funcionar
-- Cria side-effects fora do AlertContext
-- Expõe dados sensíveis via realtime
+- Altera schemas ou dados reais
 
-Este PI **SIM**:
-- Reduz latência de alertas de 5min para segundos
-- Mantém polling como fallback robusto
-- Prepara infraestrutura para integrações futuras
-- Adiciona UX sutil e profissional
+Este PI **APENAS**:
+- Detecta regressões antes de produção
+- Prova fallback realtime → polling
+- Garante cleanup de recursos
+- Valida ausência de memory leaks
+- Torna falhas observáveis
+
+---
+
+## Notas Técnicas
+
+### Dependências de Test Data
+
+Os testes de observabilidade precisam de dados na `observability_critical_events` view. Se não houver dados:
+- Testes de AlertBadge/AlertsPanel validarão empty state
+- Testes de idempotência serão skipped
+
+### Mocking Strategy
+
+- **Realtime:** `page.route('**/realtime/**')` para bloquear WebSocket
+- **Polling:** `page.route('**/rest/v1/observability_critical_events*')` para simular erros
+- **Billing:** `page.route('**/rest/v1/tenant_billing*')` para mockar estados
+
+### CI Considerations
+
+- Resilience tests com `retries: 0` para detectar flakiness
+- Contract tests podem ser mais lentos (navigation patterns)
+- Timeout de 60s é suficiente para todos os cenários
 
