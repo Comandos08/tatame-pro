@@ -2,6 +2,7 @@
  * TenantBilling — Billing Management Page
  * 
  * P3.3 — Billing UX Advanced Layer
+ * PI P1.0 — Payments/Invoices SAFE GOLD Instrumentation
  * 
  * Composes:
  * - BillingOverviewCard (current status + CTAs)
@@ -23,6 +24,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { BillingOverviewCard } from '@/components/billing/BillingOverviewCard';
 import { BillingTimeline } from '@/components/billing/BillingTimeline';
+import { assertInvoiceStatus } from '@/domain/payments/normalize';
 
 // Map invoice status to StatusBadge status type
 const invoiceStatusMap: Record<string, StatusType> = {
@@ -230,7 +232,7 @@ export default function TenantBilling() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : filteredInvoices && filteredInvoices.length > 0 ? (
-              <Table>
+              <Table data-testid="invoice-table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('billing.date')}</TableHead>
@@ -243,8 +245,15 @@ export default function TenantBilling() {
                 <TableBody>
                   {filteredInvoices.map((invoice) => {
                     const statusType = invoiceStatusMap[invoice.status] || 'neutral';
+                    const safeStatus = assertInvoiceStatus(invoice.status);
                     return (
-                      <TableRow key={invoice.id}>
+                      <TableRow 
+                        key={invoice.id}
+                        data-testid="invoice-row"
+                        data-invoice-id={invoice.id}
+                        data-invoice-status={safeStatus}
+                        data-invoice-amount={invoice.amount_cents}
+                      >
                         <TableCell>{formatDate(invoice.created_at)}</TableCell>
                         <TableCell className="font-medium">
                           {formatCurrency(invoice.amount_cents, invoice.currency)}
@@ -259,6 +268,7 @@ export default function TenantBilling() {
                               variant="ghost"
                               size="sm"
                               onClick={() => window.open(invoice.hosted_invoice_url!, '_blank')}
+                              data-testid="invoice-view-stripe"
                             >
                               <ExternalLink className="h-4 w-4 mr-1" />
                               {t('billing.viewInStripe')}
