@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,8 +16,10 @@ interface VerifyRequest {
 interface VerifyResponse {
   found: boolean;
   isValid?: boolean;
+  validityReason?: string | null;
   athleteName?: string;
-  status?: string;
+  membershipStatus?: string;
+  cardStatus?: string;
   validUntil?: string | null;
   issuedAt?: string | null;
   tenantName?: string;
@@ -75,11 +78,11 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Step 1: Fetch digital card
+    // Step 1: Fetch digital card with status
     const { data: card, error: cardError } = await supabase
       .from("digital_cards")
       .select(
-        "id, valid_until, content_hash_sha256, pdf_url, tenant_id, membership_id, created_at"
+        "id, valid_until, content_hash_sha256, pdf_url, tenant_id, membership_id, created_at, status, revoked_at"
       )
       .eq("id", cardId)
       .maybeSingle();
@@ -187,7 +190,6 @@ serve(async (req) => {
       .maybeSingle();
 
     if (latestGrading?.grading_level) {
-      // Handle nested join result (can be object or array)
       const level = latestGrading.grading_level as unknown as {
         display_name: string;
         grading_scheme?: { name: string } | { name: string }[];
@@ -202,10 +204,10 @@ serve(async (req) => {
       }
     }
 
-    // Step 7: Fetch tenant and validate slug
+    // Step 7: Fetch tenant with lifecycle_status
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
-      .select("id, name, slug, sport_types")
+      .select("id, name, slug, sport_types, lifecycle_status")
       .eq("id", membership.tenant_id)
       .maybeSingle();
 
@@ -231,20 +233,52 @@ serve(async (req) => {
       );
     }
 
-    // Calculate validity
-    const issuedAt = card.created_at ? card.created_at.split("T")[0] : null;
+    // Step 8: Fetch tenant billing status
+    const { data: billing } = await supabase
+      .from("tenant_billing")
+      .select("status")
+      .eq("tenant_id", tenant.id)
+      .maybeSingle();
+
+    const billingStatus = billing?.status || "INCOMPLETE";
+    const tenantStatus = tenant.lifecycle_status || "ACTIVE";
+    const cardStatus = card.status || "ACTIVE";
+
+    // Step 9: Apply Golden Rule for validity
+    const validityResult = isInstitutionalDocumentValid({
+      tenantStatus,
+      billingStatus,
+      documentStatus: cardStatus,
+      revokedAt: card.revoked_at,
+    });
+
+    // Step 10: Additional time-based check (card expiry)
     const endDate = card.valid_until || membership.end_date;
-    const isExpired = endDate ? new Date(endDate) < new Date() : false;
-    const isActive =
-      membership.status === "ACTIVE" || membership.status === "APPROVED";
-    const isValid = isActive && !isExpired;
+    const isExpiredByDate = endDate ? new Date(endDate) < new Date() : false;
+    
+    // Final validity: Golden Rule + date check + membership status
+    const membershipActive = membership.status === "ACTIVE" || membership.status === "APPROVED";
+    const isValid = validityResult.isValid && !isExpiredByDate && membershipActive;
+
+    // Determine reason if invalid
+    let validityReason = validityResult.reason;
+    if (!validityReason && isExpiredByDate) {
+      validityReason = "DOCUMENT_EXPIRED" as any;
+    }
+    if (!validityReason && !membershipActive) {
+      validityReason = "MEMBERSHIP_NOT_ACTIVE" as any;
+    }
+
+    const issuedAt = card.created_at ? card.created_at.split("T")[0] : null;
 
     // Build response
     const response: VerifyResponse = {
       found: true,
       isValid,
+      validityReason: isValid ? null : validityReason,
       athleteName: maskName(athlete.full_name),
-      status: membership.status,
+      membershipStatus: membership.status,
+      cardStatus,
       validUntil: endDate,
       issuedAt,
       tenantName: tenant.name,
@@ -253,7 +287,7 @@ serve(async (req) => {
       gradingScheme,
       academyName,
       coachName,
-      hashVerified: null, // Hash verification not reconstructable
+      hashVerified: null,
       storedHash: card.content_hash_sha256,
       pdfUrl: card.pdf_url,
     };
