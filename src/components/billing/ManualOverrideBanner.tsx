@@ -7,6 +7,7 @@ import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 
 interface ManualOverrideBannerProps {
   reason: string | null;
@@ -17,11 +18,7 @@ export function ManualOverrideBanner({ reason, appliedAt }: ManualOverrideBanner
   const { t, locale } = useI18n();
   
   const formattedDate = appliedAt && !isNaN(appliedAt.getTime())
-    ? appliedAt.toLocaleDateString(locale === 'pt-BR' ? 'pt-BR' : locale === 'es' ? 'es' : 'en-US', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
+    ? formatDate(appliedAt, locale, { dateStyle: 'long' })
     : null;
 
   return (

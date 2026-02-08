@@ -16,6 +16,7 @@ import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatCurrency, formatDate } from '@/lib/i18n/formatters';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
 import { TurnstileWidget } from '@/components/security/TurnstileWidget';
@@ -38,7 +39,7 @@ export default function MembershipRenew() {
   const { tenantSlug } = useParams();
   const { tenant } = useTenant();
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { isManualOverride, canUseStripe, overrideReason, overrideAt, isLoading: billingLoading } = useBillingOverride();
   
   const [membership, setMembership] = useState<MembershipRenewData | null>(null);
@@ -194,12 +195,6 @@ export default function MembershipRenew() {
     }
   };
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: MEMBERSHIP_CURRENCY,
-    }).format(cents / 100);
-  };
 
   // Loading state
   if (authLoading || isLoadingMembership || billingLoading) {
@@ -214,11 +209,7 @@ export default function MembershipRenew() {
   }
 
   const previousEndDate = membership?.end_date
-    ? new Date(membership.end_date).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
+    ? formatDate(membership.end_date, locale, { dateStyle: 'long' })
     : null;
 
   return (
@@ -308,7 +299,7 @@ export default function MembershipRenew() {
                   </p>
                 </div>
                 <p className="text-xl font-bold">
-                  {formatCurrency(MEMBERSHIP_PRICE_CENTS)}
+                  {formatCurrency(MEMBERSHIP_PRICE_CENTS, locale)}
                 </p>
               </div>
 

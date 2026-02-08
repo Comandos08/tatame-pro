@@ -25,6 +25,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatCurrency } from '@/lib/i18n/formatters';
 import { EventCategory, EventRegistration, canRegisterForEvent, canCancelRegistration, EventStatus } from '@/types/event';
 
 interface EventRegistrationButtonProps {
@@ -43,7 +44,7 @@ export function EventRegistrationButton({
   tenantSlug,
 }: EventRegistrationButtonProps) {
   const { currentUser, isLoading: isAuthLoading, isAuthenticated } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const { tenantSlug: urlTenantSlug } = useParams<{ tenantSlug: string }>();
   
@@ -284,7 +285,7 @@ export function EventRegistrationButton({
               {category.name}
               {category.price_cents > 0 && (
                 <span className="ml-2 text-muted-foreground">
-                  ({new Intl.NumberFormat('pt-BR', { style: 'currency', currency: category.currency }).format(category.price_cents / 100)})
+                  ({formatCurrency(category.price_cents, locale, category.currency)})
                 </span>
               )}
             </SelectItem>

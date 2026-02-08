@@ -1,5 +1,8 @@
 // src/lib/formatAuditEvent.ts
 // Human-readable audit event formatter for TATAME platform
+// PI-P7.1.1: Delegates all formatting to centralized formatters
+
+import { formatCurrency, type AppLocale } from '@/lib/i18n/formatters';
 
 export interface FormattedAuditEvent {
   title: string;
@@ -12,10 +15,15 @@ export interface FormattedAuditEvent {
 /**
  * Formats an audit event into a human-readable format.
  * Uses type guards to safely extract metadata values.
+ * 
+ * @param eventType - The audit event type
+ * @param metadata - Type-safe metadata object
+ * @param locale - App locale for currency/date formatting (defaults to pt-BR)
  */
 export function formatAuditEvent(
   eventType: string,
-  metadata: Record<string, unknown>  // Type-safe metadata
+  metadata: Record<string, unknown>,
+  locale: AppLocale = 'pt-BR'
 ): FormattedAuditEvent {
   // Type guards para extrair valores com segurança
   const reason = typeof metadata.reason === 'string' ? metadata.reason : undefined;
@@ -27,6 +35,9 @@ export function formatAuditEvent(
   const levelName = typeof metadata.level_name === 'string' ? metadata.level_name : undefined;
   const coachName = typeof metadata.coach_name === 'string' ? metadata.coach_name : undefined;
   const amountCents = typeof metadata.amount_cents === 'number' ? metadata.amount_cents : undefined;
+  
+  // Helper function to format currency using centralized formatter
+  const formatAmount = (cents: number) => formatCurrency(cents, locale);
 
   // Eventos de billing override (prefixo BILLING_OVERRIDE_)
   if (eventType.startsWith('BILLING_OVERRIDE_')) {
@@ -90,7 +101,7 @@ export function formatAuditEvent(
         description: athleteName ? `Atleta: ${athleteName}` : 'Nova filiação registrada',
       };
     case 'MEMBERSHIP_PAID': {
-      const amount = amountCents !== undefined ? `R$ ${(amountCents / 100).toFixed(2)}` : '';
+      const amount = amountCents !== undefined ? formatAmount(amountCents) : '';
       return {
         title: 'Pagamento Confirmado',
         description: amount || 'Pagamento processado com sucesso',
@@ -213,7 +224,7 @@ export function formatAuditEvent(
       return {
         title: 'Pagamento Confirmado',
         description: amountCents !== undefined 
-          ? `Valor: R$ ${(amountCents / 100).toFixed(2)}` 
+          ? `Valor: ${formatAmount(amountCents)}` 
           : 'Pagamento processado',
       };
     case 'TENANT_PAYMENT_FAILED':

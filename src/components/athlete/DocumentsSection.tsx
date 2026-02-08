@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -73,11 +74,6 @@ export function DocumentsSection({ athleteId, tenantId }: DocumentsSectionProps)
     },
     enabled: !!athleteId && !!tenantId,
   });
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return '';
@@ -190,14 +186,14 @@ export function DocumentsSection({ athleteId, tenantId }: DocumentsSectionProps)
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {getTranslation('uploadedAt')}: {formatDate(doc.created_at)}
+                          {getTranslation('uploadedAt')}: {formatDate(doc.created_at, locale)}
                         </span>
                         {doc.file_size && (
                           <span>{formatFileSize(doc.file_size)}</span>
                         )}
                         {doc.valid_until && (
                           <span className={status === 'expired' ? 'text-destructive' : ''}>
-                            {getTranslation('validUntilDoc')}: {formatDate(doc.valid_until)}
+                            {getTranslation('validUntilDoc')}: {formatDate(doc.valid_until, locale)}
                           </span>
                         )}
                       </div>

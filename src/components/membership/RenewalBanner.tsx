@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/contexts/I18nContext';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
+import { formatDate } from '@/lib/i18n/formatters';
 
 interface RenewalBannerProps {
   membershipId: string;
@@ -17,7 +18,7 @@ interface RenewalBannerProps {
 export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }: RenewalBannerProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { isManualOverride, isLoading: billingLoading } = useBillingOverride();
 
   // Don't show for memberships with more than 30 days remaining (unless expired)
@@ -29,11 +30,7 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
   const isUrgent = daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
   const isComfortable = daysUntilExpiry > 7 && daysUntilExpiry <= 30;
 
-  const formattedEndDate = new Date(endDate).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
+  const formattedEndDate = formatDate(endDate, locale, { dateStyle: 'long' });
 
   const handleRenew = () => {
     // Bloquear navegação se billing override ativo

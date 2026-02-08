@@ -25,6 +25,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -131,7 +132,7 @@ export default function ApprovalDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   
   const [reviewNotes, setReviewNotes] = useState('');
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
@@ -362,17 +363,6 @@ export default function ApprovalDetails() {
     },
   });
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  };
 
   const getStatusColor = (status: MembershipStatus) => {
     switch (status) {
@@ -473,7 +463,7 @@ export default function ApprovalDetails() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">{t('approval.requestedAt')}</p>
-                        <p className="font-medium">{formatDate(membership.created_at)}</p>
+                        <p className="font-medium">{formatDate(membership.created_at, locale)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -482,7 +472,7 @@ export default function ApprovalDetails() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">{t('common.value')}</p>
-                        <p className="font-medium">{formatCurrency(membership.price_cents)}</p>
+                        <p className="font-medium">{formatCurrency(membership.price_cents, locale)}</p>
                       </div>
                     </div>
                     {membership.academy && (
@@ -526,7 +516,7 @@ export default function ApprovalDetails() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <p className="text-sm text-muted-foreground">{t('membership.form.birthDate')}</p>
-                            <p className="font-medium">{formatDate(applicantData.birth_date)}</p>
+                            <p className="font-medium">{formatDate(applicantData.birth_date, locale)}</p>
                           </div>
                           <div>
                             <p className="text-sm text-muted-foreground">{t('membership.form.gender')}</p>

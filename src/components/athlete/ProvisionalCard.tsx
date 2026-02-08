@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 
 export interface ProvisionalCardProps {
   athleteName: string;
@@ -28,7 +29,7 @@ export function ProvisionalCard({
   endDate,
   sportTypes,
 }: ProvisionalCardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   
   // Build the verification URL
   const verificationUrl = `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
@@ -64,12 +65,6 @@ export function ProvisionalCard({
   };
 
   const statusInfo = getStatusMessage();
-  
-  // Format date for display
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
 
   return (
     <Card className="h-full border-dashed border-2 border-muted-foreground/30">
@@ -122,7 +117,7 @@ export function ProvisionalCard({
           {/* Validity */}
           {endDate && (
             <p className="text-sm text-muted-foreground text-center">
-              {t('verification.validUntil')}: {formatDate(endDate)}
+              {t('verification.validUntil')}: {formatDate(endDate, locale)}
             </p>
           )}
           

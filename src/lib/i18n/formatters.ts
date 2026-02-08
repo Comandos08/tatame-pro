@@ -1,15 +1,29 @@
 /**
- * 🌐 I18n Formatting Utilities
- * PI-P7.1: Centralização de formatação de datas e moedas
+ * 🌐 I18n Formatting Utilities — SAFE GOLD
+ * PI-P7.1.1: Centralização definitiva de formatação de datas, moedas e números
  * 
- * SAFE GOLD: Todos os formatadores usam locale do contexto i18n.
- * PROIBIDO: Hardcode de 'pt-BR', 'R$' ou qualquer locale fixo.
+ * REGRAS ARQUITETURAIS:
+ * ❌ PROIBIDO usar Intl.* diretamente fora deste arquivo
+ * ❌ PROIBIDO usar .toLocaleDateString() / .toLocaleString() em qualquer lugar
+ * ❌ PROIBIDO usar date-fns com locale switch manual
+ * ✅ OBRIGATÓRIO usar APENAS estas funções exportadas
+ * 
+ * FUNÇÕES DISPONÍVEIS:
+ * - formatDate(value, locale, options?)      → "15 de jan. de 2025"
+ * - formatDateTime(value, locale, options?)  → "15 de jan. de 2025, 14:30"
+ * - formatCurrency(cents, locale, currency?) → "R$ 150,00"
+ * - formatNumber(value, locale, options?)    → "1.234,56"
+ * - formatRelativeTime(date, locale)         → "há 5 minutos"
  */
 
-export type LocaleCode = 'pt-BR' | 'en' | 'es';
+/** Tipo canônico de locale do app — FONTE ÚNICA DE VERDADE */
+export type AppLocale = 'pt-BR' | 'en' | 'es';
+
+/** @deprecated Use AppLocale instead */
+export type LocaleCode = AppLocale;
 
 // Mapear locale do app para Intl locale
-const INTL_LOCALE_MAP: Record<LocaleCode, string> = {
+const INTL_LOCALE_MAP: Record<AppLocale, string> = {
   'pt-BR': 'pt-BR',
   'en': 'en-US',
   'es': 'es-ES',
@@ -18,8 +32,8 @@ const INTL_LOCALE_MAP: Record<LocaleCode, string> = {
 /**
  * Obtém o locale Intl a partir do locale do app
  */
-export function getIntlLocale(appLocale: LocaleCode | string): string {
-  return INTL_LOCALE_MAP[appLocale as LocaleCode] || 'pt-BR';
+export function getIntlLocale(appLocale: AppLocale | string): string {
+  return INTL_LOCALE_MAP[appLocale as AppLocale] || 'pt-BR';
 }
 
 /**
