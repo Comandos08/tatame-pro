@@ -25,6 +25,7 @@ import { useTenantDiagnostics, type DiagnosticsStatus } from '@/hooks/useTenantD
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 
 function DiagnosticsStatusBadge({ status }: { status: DiagnosticsStatus }) {
   switch (status) {
@@ -74,7 +75,7 @@ function NoDataCard() {
 }
 
 export default function TenantDiagnostics() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const { billingState } = useTenantStatus();
@@ -82,7 +83,7 @@ export default function TenantDiagnostics() {
 
   const formatTimestamp = (ts: string | null) => {
     if (!ts) return t('diagnostics.noData');
-    return new Date(ts).toLocaleString();
+    return formatDateTime(ts, locale);
   };
 
   const getSeverityVariant = (severity: string): "default" | "secondary" | "destructive" | "outline" => {

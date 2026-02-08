@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, AlertCircle, Loader2, Shield, ShieldCheck, ShieldX, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
+import { formatDate } from "@/lib/i18n/formatters";
 
 interface CardVerification {
   isValid: boolean;
@@ -30,7 +31,7 @@ export default function VerifyCard() {
   const [loading, setLoading] = useState(true);
   const [verification, setVerification] = useState<CardVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     async function verifyCard() {
@@ -227,7 +228,7 @@ export default function VerifyCard() {
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.issuedAt')}</p>
                   <p className="font-semibold mt-1">
-                    {new Date(verification.issuedAt).toLocaleDateString("pt-BR")}
+                    {formatDate(verification.issuedAt, locale)}
                   </p>
                 </div>
               )}
@@ -235,7 +236,7 @@ export default function VerifyCard() {
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('verification.validUntil')}</p>
                   <p className="font-semibold mt-1">
-                    {new Date(verification.validUntil).toLocaleDateString("pt-BR")}
+                    {formatDate(verification.validUntil, locale)}
                   </p>
                 </div>
               )}

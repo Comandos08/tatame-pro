@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BillingOverviewCard } from '@/components/billing/BillingOverviewCard';
 import { BillingTimeline } from '@/components/billing/BillingTimeline';
 import { assertInvoiceStatus } from '@/domain/payments/normalize';
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 
 // Map invoice status to StatusBadge status type
 const invoiceStatusMap: Record<string, StatusType> = {
@@ -105,32 +106,6 @@ export default function TenantBilling() {
     return { totalPaid, totalPending, nextInvoice, currency };
   }, [invoices]);
 
-  const formatCurrency = (cents: number, currency: string) => {
-    const localeMap: Record<string, string> = {
-      'pt-BR': 'pt-BR',
-      'en': 'en-US',
-      'es': 'es-ES',
-    };
-    return new Intl.NumberFormat(localeMap[locale] || 'pt-BR', {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-    }).format(cents / 100);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    const localeMap: Record<string, string> = {
-      'pt-BR': 'pt-BR',
-      'en': 'en-US',
-      'es': 'es-ES',
-    };
-    return new Date(dateString).toLocaleDateString(localeMap[locale] || 'pt-BR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   const viewState = isLoading ? 'LOADING' : 'READY';
 
   return (
@@ -166,7 +141,7 @@ export default function TenantBilling() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">
-                {formatCurrency(summaryStats.totalPaid, summaryStats.currency)}
+                {formatCurrency(summaryStats.totalPaid, locale, summaryStats.currency)}
               </div>
             </CardContent>
           </Card>
@@ -178,7 +153,7 @@ export default function TenantBilling() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-warning">
-                {formatCurrency(summaryStats.totalPending, summaryStats.currency)}
+                {formatCurrency(summaryStats.totalPending, locale, summaryStats.currency)}
               </div>
             </CardContent>
           </Card>
@@ -192,10 +167,10 @@ export default function TenantBilling() {
               {summaryStats.nextInvoice ? (
                 <div>
                   <div className="text-2xl font-bold">
-                    {formatCurrency(summaryStats.nextInvoice.amount_cents, summaryStats.nextInvoice.currency)}
+                    {formatCurrency(summaryStats.nextInvoice.amount_cents, locale, summaryStats.nextInvoice.currency)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {t('billing.dueDate')}: {formatDate(summaryStats.nextInvoice.due_date)}
+                    {t('billing.dueDate')}: {formatDate(summaryStats.nextInvoice.due_date, locale, { dateStyle: 'medium' })}
                   </p>
                 </div>
               ) : (
@@ -254,14 +229,14 @@ export default function TenantBilling() {
                         data-invoice-status={safeStatus}
                         data-invoice-amount={invoice.amount_cents}
                       >
-                        <TableCell>{formatDate(invoice.created_at)}</TableCell>
+                        <TableCell>{formatDate(invoice.created_at, locale, { dateStyle: 'medium' })}</TableCell>
                         <TableCell className="font-medium">
-                          {formatCurrency(invoice.amount_cents, invoice.currency)}
+                          {formatCurrency(invoice.amount_cents, locale, invoice.currency)}
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={statusType} size="sm" />
                         </TableCell>
-                        <TableCell>{formatDate(invoice.paid_at)}</TableCell>
+                        <TableCell>{formatDate(invoice.paid_at, locale, { dateStyle: 'medium' })}</TableCell>
                         <TableCell className="text-right">
                           {invoice.hosted_invoice_url && (
                             <Button
