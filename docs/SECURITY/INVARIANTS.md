@@ -189,12 +189,34 @@ Any invariant violation MUST result in:
 
 ---
 
+---
+
+## Test Coverage
+
+Each invariant is validated by contract tests in `e2e/contract/`:
+
+| Invariant | Test File | Test IDs |
+|-----------|-----------|----------|
+| I1. Document Validity | `safe-gold-invariants.spec.ts` | C.3.x |
+| I2. Federation Governance | `federation-lifecycle.spec.ts` | FG.C.1-9 |
+| I3. Audit Trail | `federation-lifecycle.spec.ts` | FG.C.4, FG.C.7 |
+| I4. Tenant Lifecycle | `tenant-lifecycle-guard.spec.ts` | TG.C.1-7 |
+| I5. RLS Independence | `safe-gold-invariants.spec.ts` | C.3.1, C.3.3 |
+| I6. Error Neutrality | `tenant-lifecycle-guard.spec.ts` | TG.C.7 |
+| I7. Billing Guard | `billing-contract.spec.ts` | B.C.x |
+| I8. Impersonation | `impersonation-contract.spec.ts` | I.C.x |
+
+**Policy:** All invariants MUST have corresponding contract tests.
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-08 | PI-D6.2.1 | Initial canonical invariants |
+| 1.1 | 2026-02-08 | PI-D6.1 | Added Test Coverage matrix |
 
 ---
 
-**SAFE GOLD**: Sistema blindado com invariantes explícitas.
+**SAFE GOLD**: Sistema blindado com invariantes explícitas e executáveis.
