@@ -9,6 +9,7 @@ import { I18nProvider } from "./I18nContext";
 import { JoinProvider } from "./JoinContext";
 import { ImpersonationProvider } from "./ImpersonationContext";
 import { IdentityProvider } from "./IdentityContext";
+import { AlertProvider } from "./AlertContext";
 import { ImpersonationBanner, ImpersonationBannerSpacer } from "@/components/impersonation/ImpersonationBanner";
 
 interface AppProvidersProps {
@@ -36,15 +37,17 @@ export function AppProviders({ children }: AppProvidersProps) {
           <AuthProvider>
             <ImpersonationProvider>
               <IdentityProvider>
-                <JoinProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <Sonner />
-                    <ImpersonationBanner />
-                    <ImpersonationBannerSpacer />
-                    {children}
-                  </TooltipProvider>
-                </JoinProvider>
+                <AlertProvider>
+                  <JoinProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Sonner />
+                      <ImpersonationBanner />
+                      <ImpersonationBannerSpacer />
+                      {children}
+                    </TooltipProvider>
+                  </JoinProvider>
+                </AlertProvider>
               </IdentityProvider>
             </ImpersonationProvider>
           </AuthProvider>

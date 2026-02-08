@@ -1,12 +1,12 @@
 /**
- * 🔔 AlertBadge — P4.1.D
+ * 🔔 AlertBadge — P4.1.D / P4.2.C
  * 
- * Badge component showing active alert count.
+ * Badge component showing active alert count with realtime indicator.
  * For use in headers/sidebars.
  */
 
 import React from 'react';
-import { Bell, AlertTriangle } from 'lucide-react';
+import { Bell, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAlertsOptional } from '@/contexts/AlertContext';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
   // If AlertProvider not available, don't render
   if (!alertContext) return null;
   
-  const { activeCount, criticalCount, isLoading } = alertContext;
+  const { activeCount, criticalCount, isLoading, isRealtimeConnected, newEventsCount } = alertContext;
   
   // Hide if no alerts and showZero is false
   if (!showZero && activeCount === 0 && !isLoading) {
@@ -34,6 +34,7 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
   }
   
   const hasCritical = criticalCount > 0;
+  const hasNewEvents = newEventsCount > 0;
   
   return (
     <Tooltip>
@@ -47,25 +48,50 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
           {hasCritical ? (
             <AlertTriangle className="h-5 w-5 text-destructive" />
           ) : (
-            <Bell className="h-5 w-5" />
+            <Bell className={cn('h-5 w-5', hasNewEvents && 'text-primary')} />
           )}
+          
+          {/* Alert count badge */}
           {activeCount > 0 && (
             <span className={cn(
               'absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold flex items-center justify-center',
               hasCritical 
                 ? 'bg-destructive text-destructive-foreground' 
-                : 'bg-warning text-warning-foreground'
+                : hasNewEvents
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-warning text-warning-foreground'
             )}>
               {activeCount > 99 ? '99+' : activeCount}
             </span>
           )}
+          
+          {/* Realtime connection indicator */}
+          <span 
+            className={cn(
+              'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
+              isRealtimeConnected 
+                ? 'bg-success' 
+                : 'bg-muted-foreground animate-pulse'
+            )}
+            title={isRealtimeConnected 
+              ? t('observability.realtime.connected') 
+              : t('observability.realtime.syncing')
+            }
+          />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        {activeCount === 0 
-          ? t('observability.alerts.noAlerts')
-          : `${activeCount} ${t('observability.alerts.activeAlerts')}`
-        }
+      <TooltipContent className="flex items-center gap-2">
+        <span>
+          {activeCount === 0 
+            ? t('observability.alerts.noAlerts')
+            : `${activeCount} ${t('observability.alerts.activeAlerts')}`
+          }
+        </span>
+        {isRealtimeConnected ? (
+          <Wifi className="h-3 w-3 text-success" />
+        ) : (
+          <WifiOff className="h-3 w-3 text-muted-foreground" />
+        )}
       </TooltipContent>
     </Tooltip>
   );

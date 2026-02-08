@@ -1,11 +1,12 @@
 /**
- * 🔔 AlertsPanel — P4.1.D
+ * 🔔 AlertsPanel — P4.1.D / P4.2.C
  * 
- * Panel/modal showing list of alerts with dismiss functionality.
+ * Panel/modal showing list of alerts with dismiss functionality
+ * and realtime "new events" indicator.
  */
 
 import React from 'react';
-import { X, AlertTriangle, XCircle, Info, Bell, RefreshCw, Trash2 } from 'lucide-react';
+import { X, AlertTriangle, XCircle, Info, Bell, RefreshCw, Trash2, Wifi, WifiOff, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAlerts } from '@/contexts/AlertContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -106,7 +107,18 @@ export function AlertsPanel({
   trigger?: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const { alerts, activeCount, criticalCount, refreshAlerts, dismissAlert, clearDismissed, isLoading } = useAlerts();
+  const { 
+    alerts, 
+    activeCount, 
+    criticalCount, 
+    refreshAlerts, 
+    dismissAlert, 
+    clearDismissed, 
+    isLoading,
+    isRealtimeConnected,
+    newEventsCount,
+    markNewEventsAsSeen,
+  } = useAlerts();
   
   const activeAlerts = alerts.filter(a => !a.dismissed);
   const dismissedAlerts = alerts.filter(a => a.dismissed);
@@ -146,6 +158,19 @@ export function AlertsPanel({
               {t('observability.alerts.title')}
             </SheetTitle>
             <div className="flex items-center gap-1">
+              {/* Connection status badge */}
+              {isRealtimeConnected ? (
+                <Badge variant="outline" className="text-success border-success text-[10px] px-1.5">
+                  <Wifi className="h-3 w-3 mr-1" />
+                  {t('observability.realtime.live')}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5">
+                  <WifiOff className="h-3 w-3 mr-1" />
+                  {t('observability.realtime.polling')}
+                </Badge>
+              )}
+              
               <Button
                 variant="ghost"
                 size="icon"
@@ -172,9 +197,27 @@ export function AlertsPanel({
               : `${activeCount} ${t('observability.alerts.activeAlerts')}`
             }
           </SheetDescription>
+          
+          {/* New events indicator */}
+          {newEventsCount > 0 && (
+            <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 mt-2">
+              <span className="text-sm font-medium text-primary">
+                {newEventsCount} {t('observability.realtime.newEvents')}
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={markNewEventsAsSeen}
+                className="h-7 text-xs"
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                {t('observability.realtime.markSeen')}
+              </Button>
+            </div>
+          )}
         </SheetHeader>
         
-        <ScrollArea className="h-[calc(100vh-140px)] mt-4">
+        <ScrollArea className="h-[calc(100vh-180px)] mt-4">
           {sortedAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Bell className="h-12 w-12 mb-4 opacity-20" />

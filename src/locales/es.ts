@@ -2410,5 +2410,13 @@ export const es: Record<string, string> = {
   'observability.alerts.allClear': '¡Todo bien!',
   'observability.alerts.allClearHint': 'Ningún evento crítico requiere atención',
   'observability.alerts.clearDismissed': 'Limpiar descartados',
+  
+  // P4.2 — Realtime
+  'observability.realtime.connected': 'Conectado',
+  'observability.realtime.syncing': 'Sincronizando...',
+  'observability.realtime.live': 'En vivo',
+  'observability.realtime.polling': 'Polling',
+  'observability.realtime.newEvents': 'nuevo(s) evento(s)',
+  'observability.realtime.markSeen': 'Marcar como visto',
 
 };
