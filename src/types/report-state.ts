@@ -1,10 +1,14 @@
 /**
- * REPORTS SAFE GOLD — v1.0
+ * REPORTS SAFE GOLD — v1.0 + REPORTS1.0
  *
  * Contrato mínimo, estável e congelado para instrumentação + E2E.
  * NÃO representa domínio completo.
  * Qualquer expansão exige novo PI SAFE GOLD.
  */
+
+// ============================================
+// R1.0 — ORIGINAL SAFE GOLD SUBSET
+// ============================================
 
 export type SafeReportType =
   | 'OVERVIEW'
@@ -83,3 +87,51 @@ export const PRODUCTION_TO_SAFE_REPORT_SCOPE: Record<string, SafeReportScope> = 
   'SYSTEM': 'GLOBAL',
   'ALL': 'GLOBAL',
 };
+
+// ============================================
+// REPORTS1.0 — ANALYTICS HARDENING EXTENSIONS
+// ============================================
+
+/**
+ * SAFE GOLD Report Modes (Analytics contexts)
+ */
+export const SAFE_REPORT_MODES = [
+  'GLOBAL',
+  'TENANT',
+] as const;
+
+export type SafeReportMode = typeof SAFE_REPORT_MODES[number];
+
+/**
+ * SAFE GOLD Analytics View States (extended)
+ * - OK: Data loaded successfully
+ * - EMPTY: No data available (not an error)
+ * - PARTIAL: Incomplete data (degraded mode)
+ * - ERROR: Failed to load
+ */
+export const SAFE_ANALYTICS_VIEW_STATES = [
+  'OK',
+  'EMPTY',
+  'PARTIAL',
+  'ERROR',
+] as const;
+
+export type SafeAnalyticsViewState = typeof SAFE_ANALYTICS_VIEW_STATES[number];
+
+/**
+ * Protected tables — NO mutations allowed during reports/analytics browsing
+ */
+export const REPORTS_PROTECTED_TABLES = [
+  'tenants',
+  'profiles',
+  'user_roles',
+  'memberships',
+  'athletes',
+  'academies',
+  'events',
+  'event_brackets',
+  'tenant_billing',
+  'tenant_invoices',
+] as const;
+
+export type ReportsProtectedTable = typeof REPORTS_PROTECTED_TABLES[number];

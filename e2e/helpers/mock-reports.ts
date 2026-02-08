@@ -1,5 +1,5 @@
 /**
- * PI R1.0 — REPORTS SAFE GOLD v1.0 — E2E Mock Helpers
+ * PI R1.0 + REPORTS1.0 — REPORTS SAFE GOLD — E2E Mock Helpers
  *
  * Deterministic mocks for Reports endpoints.
  * No Date.now() or new Date().
@@ -21,11 +21,31 @@ export const FIXED_IDS = {
 
 export type MockReportType = 'OVERVIEW' | 'FINANCIAL' | 'ATTENDANCE' | 'ATHLETES' | 'EVENTS';
 export type MockReportScope = 'TENANT' | 'GLOBAL';
+export type MockReportMode = 'TENANT' | 'GLOBAL';
+
+/**
+ * REPORTS1.0: Protected tables — NO mutations allowed during reports browsing
+ */
+export const REPORTS_PROTECTED_TABLES = [
+  'tenants',
+  'profiles',
+  'user_roles',
+  'memberships',
+  'athletes',
+  'academies',
+  'events',
+  'event_brackets',
+  'tenant_billing',
+  'tenant_invoices',
+] as const;
 
 interface MockReportsConfig {
   type?: MockReportType;
   scope?: MockReportScope;
+  mode?: MockReportMode;
   tenantSlug?: string;
+  emptyData?: boolean;
+  partialData?: boolean;
 }
 
 /**
@@ -38,6 +58,8 @@ export async function mockReportsUniversal(
   const reportType = config.type ?? 'OVERVIEW';
   const scope = config.scope ?? 'TENANT';
   const tenantSlug = config.tenantSlug ?? 'test-tenant';
+  const emptyData = config.emptyData ?? false;
+  const partialData = config.partialData ?? false;
 
   await page.route('**/*', async (route, request) => {
     const url = request.url();
@@ -48,43 +70,53 @@ export async function mockReportsUniversal(
 
     // Mock reports endpoint (REST pattern)
     if (url.includes('/rest/v1/reports')) {
+      if (emptyData) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([]),
+        });
+      }
+      
+      const baseReports = [
+        {
+          id: FIXED_IDS.REPORT_ID_OVERVIEW,
+          type: 'OVERVIEW',
+          scope: scope,
+          tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
+          created_at: FIXED_TIMESTAMP_ISO,
+          updated_at: FIXED_TIMESTAMP_ISO,
+        },
+        {
+          id: FIXED_IDS.REPORT_ID_FINANCIAL,
+          type: 'FINANCIAL',
+          scope: scope,
+          tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
+          created_at: FIXED_TIMESTAMP_ISO,
+          updated_at: FIXED_TIMESTAMP_ISO,
+        },
+        {
+          id: FIXED_IDS.REPORT_ID_ATHLETES,
+          type: 'ATHLETES',
+          scope: scope,
+          tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
+          created_at: FIXED_TIMESTAMP_ISO,
+          updated_at: FIXED_TIMESTAMP_ISO,
+        },
+        {
+          id: FIXED_IDS.REPORT_ID_EVENTS,
+          type: 'EVENTS',
+          scope: scope,
+          tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
+          created_at: FIXED_TIMESTAMP_ISO,
+          updated_at: FIXED_TIMESTAMP_ISO,
+        },
+      ];
+      
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            id: FIXED_IDS.REPORT_ID_OVERVIEW,
-            type: 'OVERVIEW',
-            scope: scope,
-            tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
-            created_at: FIXED_TIMESTAMP_ISO,
-            updated_at: FIXED_TIMESTAMP_ISO,
-          },
-          {
-            id: FIXED_IDS.REPORT_ID_FINANCIAL,
-            type: 'FINANCIAL',
-            scope: scope,
-            tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
-            created_at: FIXED_TIMESTAMP_ISO,
-            updated_at: FIXED_TIMESTAMP_ISO,
-          },
-          {
-            id: FIXED_IDS.REPORT_ID_ATHLETES,
-            type: 'ATHLETES',
-            scope: scope,
-            tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
-            created_at: FIXED_TIMESTAMP_ISO,
-            updated_at: FIXED_TIMESTAMP_ISO,
-          },
-          {
-            id: FIXED_IDS.REPORT_ID_EVENTS,
-            type: 'EVENTS',
-            scope: scope,
-            tenant_id: scope === 'TENANT' ? FIXED_IDS.TENANT_ID : null,
-            created_at: FIXED_TIMESTAMP_ISO,
-            updated_at: FIXED_TIMESTAMP_ISO,
-          },
-        ]),
+        body: JSON.stringify(partialData ? baseReports.slice(0, 2) : baseReports),
       });
     }
 
@@ -95,11 +127,12 @@ export async function mockReportsUniversal(
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
+          partial: partialData,
           data: {
             type: reportType,
             scope: scope,
             generated_at: FIXED_TIMESTAMP_ISO,
-            metrics: {
+            metrics: emptyData ? {} : {
               total: 100,
               active: 85,
               pending: 15,
@@ -187,4 +220,28 @@ export async function mockReportsFailure(
         return route.continue();
     }
   });
+}
+
+/**
+ * REPORTS1.0: Track mutations to protected tables during test execution.
+ * Returns a function to get captured mutations.
+ */
+export async function trackReportsMutations(page: Page): Promise<() => string[]> {
+  const mutations: string[] = [];
+
+  await page.route('**/rest/v1/**', (route, request) => {
+    const method = request.method();
+    const url = request.url();
+
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      for (const table of REPORTS_PROTECTED_TABLES) {
+        if (url.includes(`/rest/v1/${table}`)) {
+          mutations.push(`${method} ${table}`);
+        }
+      }
+    }
+    route.continue();
+  });
+
+  return () => mutations;
 }
