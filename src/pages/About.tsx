@@ -1,24 +1,16 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PublicHeader from '@/components/PublicHeader';
 import iconLogo from '@/assets/iconLogo.png';
 import { useI18n } from '@/contexts/I18nContext';
 import { InstitutionalSeal } from '@/components/institutional';
 
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
+// Institutional animation - subtle and uniform
+const fadeIn = {
+  initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 },
-};
-
-const stagger = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
+  transition: { duration: 0.6, ease: "easeOut" },
 };
 
 export default function About() {
@@ -30,23 +22,22 @@ export default function About() {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="py-24 lg:py-32 border-b border-border">
+      <section className="py-20 lg:py-28 border-b border-border">
         <div className="container mx-auto px-4">
           <motion.div
             initial="initial"
             animate="animate"
-            variants={stagger}
             className="max-w-4xl mx-auto text-center"
           >
             <motion.h1
-              variants={fadeInUp}
-              className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
+              variants={fadeIn}
+              className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-6"
             >
               {t('about.heroTitle')}
             </motion.h1>
             <motion.p
-              variants={fadeInUp}
-              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
+              variants={fadeIn}
+              className="text-lg md:text-xl text-muted-foreground font-light max-w-2xl mx-auto"
             >
               {t('about.heroSubtitle')}
             </motion.p>
@@ -57,16 +48,15 @@ export default function About() {
       {/* Content Sections */}
       <section className="py-16 lg:py-24">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="max-w-3xl mx-auto space-y-16"
-          >
+          <div className="max-w-2xl mx-auto">
             {/* Role in Sport */}
-            <motion.div variants={fadeInUp}>
-              <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={fadeIn}
+            >
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground/90 mb-4">
                 {t('about.role.title')}
               </h2>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
@@ -75,8 +65,14 @@ export default function About() {
             </motion.div>
 
             {/* Limits */}
-            <motion.div variants={fadeInUp}>
-              <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={fadeIn}
+              className="mt-12"
+            >
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground/90 mb-4">
                 {t('about.limits.title')}
               </h2>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
@@ -84,25 +80,40 @@ export default function About() {
               </p>
             </motion.div>
 
+            {/* Separator */}
+            <div className="h-px w-16 bg-border mx-auto mt-16" />
+
             {/* Ecosystem Structure */}
-            <motion.div variants={fadeInUp}>
-              <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={fadeIn}
+              className="mt-8"
+            >
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground/90 mb-4">
                 {t('about.ecosystem.title')}
               </h2>
               <p className="text-muted-foreground leading-relaxed mb-6">
                 {t('about.ecosystem.text')}
               </p>
-              <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+              <div className="space-y-3 pl-5 border-l border-border">
                 <div className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Instituições</span>
+                  <span className="font-medium text-foreground">
+                    {t('about.ecosystem.layer1').split(' — ')[0]}
+                  </span>
                   <span className="text-muted-foreground"> — {t('about.ecosystem.layer1').split(' — ')[1]}</span>
                 </div>
                 <div className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Organizações</span>
+                  <span className="font-medium text-foreground">
+                    {t('about.ecosystem.layer2').split(' — ')[0]}
+                  </span>
                   <span className="text-muted-foreground"> — {t('about.ecosystem.layer2').split(' — ')[1]}</span>
                 </div>
                 <div className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Indivíduos</span>
+                  <span className="font-medium text-foreground">
+                    {t('about.ecosystem.layer3').split(' — ')[0]}
+                  </span>
                   <span className="text-muted-foreground"> — {t('about.ecosystem.layer3').split(' — ')[1]}</span>
                 </div>
               </div>
@@ -111,9 +122,18 @@ export default function About() {
               </p>
             </motion.div>
 
+            {/* Separator */}
+            <div className="h-px w-16 bg-border mx-auto mt-16" />
+
             {/* Governance */}
-            <motion.div variants={fadeInUp}>
-              <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={fadeIn}
+              className="mt-8"
+            >
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground/90 mb-4">
                 {t('about.governance.title')}
               </h2>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
@@ -122,32 +142,42 @@ export default function About() {
             </motion.div>
 
             {/* Neutrality */}
-            <motion.div variants={fadeInUp}>
-              <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+            <motion.div
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+              variants={fadeIn}
+              className="mt-12"
+            >
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground/90 mb-4">
                 {t('about.neutrality.title')}
               </h2>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
                 {t('about.neutrality.text')}
               </p>
             </motion.div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 lg:py-24 border-t border-border">
+      <section className="py-12 lg:py-16">
         <div className="container mx-auto px-4">
           <motion.div
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
-            variants={fadeInUp}
+            variants={fadeIn}
             className="text-center"
           >
-            <Button size="lg" className="text-lg h-12 px-8" asChild>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="text-base h-11 px-6 border-muted-foreground/30 hover:border-foreground/50 hover:bg-transparent"
+              asChild
+            >
               <Link to="/login">
                 {t('about.cta')}
-                <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
           </motion.div>
