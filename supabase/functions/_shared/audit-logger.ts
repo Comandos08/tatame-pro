@@ -88,6 +88,36 @@ export const AUDIT_EVENTS = {
 export type AuditEventType = typeof AUDIT_EVENTS[keyof typeof AUDIT_EVENTS];
 
 /**
+ * Event categories for filtering and observability.
+ * Auto-detected based on event_type prefix.
+ */
+export type AuditCategory = 
+  | 'MEMBERSHIP' 
+  | 'BILLING' 
+  | 'JOB' 
+  | 'GRADING' 
+  | 'SECURITY' 
+  | 'AUTH' 
+  | 'ROLES' 
+  | 'STORAGE'
+  | 'OTHER';
+
+/**
+ * Detect category from event type prefix.
+ */
+function detectCategory(eventType: string): AuditCategory {
+  if (eventType.startsWith('MEMBERSHIP_')) return 'MEMBERSHIP';
+  if (eventType.startsWith('TENANT_') || eventType.startsWith('BILLING_')) return 'BILLING';
+  if (eventType.startsWith('JOB_')) return 'JOB';
+  if (eventType.startsWith('DIPLOMA_') || eventType.startsWith('GRADING_')) return 'GRADING';
+  if (eventType.startsWith('IMPERSONATION_')) return 'SECURITY';
+  if (eventType.startsWith('LOGIN_') || eventType.startsWith('PASSWORD_')) return 'AUTH';
+  if (eventType.startsWith('ROLES_')) return 'ROLES';
+  if (eventType.startsWith('TMP_') || eventType.startsWith('DIGITAL_')) return 'STORAGE';
+  return 'OTHER';
+}
+
+/**
  * Standard metadata fields that should be included when applicable.
  * Not all fields are required for every event - include what's relevant.
  */
@@ -134,6 +164,14 @@ export interface AuditMetadata {
   ended_at?: string;
   expired_at?: string;
   
+  // Job execution (P4.1)
+  status?: 'COMPLETED' | 'FAILED';
+  processed?: number;
+  duration_ms?: number;
+  
+  // Category (auto-detected if not provided)
+  category?: AuditCategory;
+  
   // Timestamps
   occurred_at?: string;
   
@@ -173,9 +211,13 @@ export async function createAuditLog(
   entry: AuditLogEntry
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Auto-detect category if not provided
+    const category = entry.metadata?.category || detectCategory(entry.event_type);
+    
     // Ensure metadata includes a timestamp if not provided
     const metadata: AuditMetadata = {
       ...entry.metadata,
+      category,
       occurred_at: entry.metadata?.occurred_at || new Date().toISOString(),
     };
 
@@ -184,6 +226,7 @@ export async function createAuditLog(
       tenant_id: entry.tenant_id,
       profile_id: entry.profile_id || null,
       metadata,
+      category, // Also set at column level for indexed queries
     });
 
     if (error) {

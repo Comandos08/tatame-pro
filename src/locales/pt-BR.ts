@@ -2345,6 +2345,51 @@ export const ptBR = {
   'membership.reactivate.confirm': 'Confirmar reativação',
   'membership.reactivate.success': 'Filiação reativada com sucesso',
 
+  // P4.1 — Observability
+  'observability.dashboard.title': 'Saúde do Sistema',
+  'observability.dashboard.subtitle': 'Monitoramento em tempo real',
+  'observability.dashboard.lastUpdate': 'Última atualização',
+  'observability.dashboard.healthChecks': 'Verificações de Saúde',
+  
+  'observability.status.ok': 'Operacional',
+  'observability.status.degraded': 'Atenção',
+  'observability.status.critical': 'Crítico',
+  'observability.status.unknown': 'Desconhecido',
+  
+  'observability.jobs.title': 'Jobs de Background',
+  'observability.jobs.description': 'Status das tarefas automatizadas',
+  'observability.jobs.healthy': 'jobs saudáveis',
+  'observability.jobs.noData': 'Nenhum job encontrado',
+  'observability.jobs.neverRan': 'Nunca executou',
+  
+  'observability.events.title': 'Eventos Críticos',
+  'observability.events.description': 'Últimos 7 dias',
+  'observability.events.noEvents': 'Nenhum evento crítico',
+  'observability.events.noEventsHint': 'Sistema operando normalmente',
+  
+  'observability.billing.title': 'Faturamento',
+  'observability.billing.description': 'Status das assinaturas',
+  'observability.billing.active': 'Ativos',
+  'observability.billing.trialing': 'Trial',
+  'observability.billing.issues': 'Problemas',
+  
+  'observability.memberships.title': 'Filiações',
+  'observability.memberships.description': 'Status das filiações',
+  'observability.memberships.active': 'Ativas',
+  'observability.memberships.pending': 'Pendentes',
+  'observability.memberships.expired': 'Expiradas',
+  
+  'admin.systemHealth': 'Saúde do Sistema',
+  'admin.systemHealthDesc': 'Monitoramento em tempo real da plataforma',
+  
+  'observability.alerts.title': 'Alertas',
+  'observability.alerts.noAlerts': 'Sem alertas',
+  'observability.alerts.activeAlerts': 'alertas ativos',
+  'observability.alerts.noActiveAlerts': 'Nenhum alerta ativo',
+  'observability.alerts.allClear': 'Tudo certo!',
+  'observability.alerts.allClearHint': 'Nenhum evento crítico requer atenção',
+  'observability.alerts.clearDismissed': 'Limpar dispensados',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
