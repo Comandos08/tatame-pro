@@ -11,6 +11,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuthCallback from "@/pages/AuthCallback";
 import NotFound from "@/pages/NotFound";
+import PublicVerifyDocument from "@/pages/PublicVerifyDocument";
 
 // Identity
 import IdentityWizard from "@/pages/IdentityWizard";
@@ -59,6 +60,9 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        
+        {/* Public Document Verification (PI-D3-DOCS1.0) */}
+        <Route path="/verify/:token" element={<PublicVerifyDocument />} />
 
         {/* Identity */}
         <Route path="/identity/wizard" element={<IdentityWizard />} />

@@ -133,6 +133,13 @@ function isPublicPath(pathname: string) {
   ]);
   if (rootPublic.has(pathname)) return true;
 
+  // STEP 1.5: Root-level public patterns (PI-D3-DOCS1.0)
+  // INTENTIONAL: /verify/:token is a public document verification route
+  const rootPublicPatterns: RegExp[] = [
+    /^\/verify\/[^/]+\/?$/,             // /verify/{token} - public document verification
+  ];
+  if (rootPublicPatterns.some((re) => re.test(pathname))) return true;
+
   // STEP 2: Tenant-scoped public routes (institutional pages, verification, etc.)
   // INTENTIONAL: These allow public access to organization landing pages
   const tenantPublicPatterns: RegExp[] = [

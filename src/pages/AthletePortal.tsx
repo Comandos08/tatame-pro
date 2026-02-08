@@ -55,6 +55,8 @@ interface DigitalCardData {
   valid_until: string | null;
   content_hash_sha256: string | null;
   membership_id: string;
+  /** PI-D3-DOCS1.0: Public verification token */
+  public_token?: string | null;
 }
 
 interface DiplomaData {
@@ -151,14 +153,30 @@ export default function AthletePortal() {
   const { data: digitalCard } = useQuery<DigitalCardData | null>({
     queryKey: ["portal-digital-card", membership?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the digital card
+      const { data: card, error } = await supabase
         .from("digital_cards")
         .select("id, qr_code_image_url, pdf_url, valid_until, content_hash_sha256, membership_id")
         .eq("membership_id", membership!.id)
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!card) return null;
+      
+      // PI-D3-DOCS1.0: Fetch public token for the card
+      const { data: tokenData } = await supabase
+        .from("document_public_tokens")
+        .select("token")
+        .eq("document_type", "digital_card")
+        .eq("document_id", card.id)
+        .is("revoked_at", null)
+        .limit(1)
+        .maybeSingle();
+      
+      return {
+        ...card,
+        public_token: tokenData?.token || null,
+      };
     },
     enabled: !!membership?.id,
   });

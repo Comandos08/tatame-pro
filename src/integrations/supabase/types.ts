@@ -791,6 +791,48 @@ export type Database = {
           },
         ]
       }
+      document_public_tokens: {
+        Row: {
+          created_at: string
+          document_id: string
+          document_type: Database["public"]["Enums"]["institutional_document_type"]
+          revoked_at: string | null
+          tenant_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          document_type: Database["public"]["Enums"]["institutional_document_type"]
+          revoked_at?: string | null
+          tenant_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          document_type?: Database["public"]["Enums"]["institutional_document_type"]
+          revoked_at?: string | null
+          tenant_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_public_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "document_public_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           athlete_id: string
@@ -2650,6 +2692,14 @@ export type Database = {
           status: string
         }[]
       }
+      generate_document_token: {
+        Args: {
+          p_document_id: string
+          p_document_type: Database["public"]["Enums"]["institutional_document_type"]
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       generate_event_bracket_rpc: {
         Args: {
           p_category_id: string
@@ -2727,6 +2777,7 @@ export type Database = {
         }
         Returns: Json
       }
+      revoke_document_token: { Args: { p_token: string }; Returns: boolean }
       soft_delete_event: { Args: { p_event_id: string }; Returns: boolean }
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
@@ -2793,6 +2844,7 @@ export type Database = {
         | "CANCELLED"
       gender_type: "MALE" | "FEMALE" | "OTHER"
       guardian_relationship: "PARENT" | "GUARDIAN" | "OTHER"
+      institutional_document_type: "digital_card" | "diploma"
       membership_status:
         | "DRAFT"
         | "PENDING_PAYMENT"
@@ -2982,6 +3034,7 @@ export const Constants = {
       ],
       gender_type: ["MALE", "FEMALE", "OTHER"],
       guardian_relationship: ["PARENT", "GUARDIAN", "OTHER"],
+      institutional_document_type: ["digital_card", "diploma"],
       membership_status: [
         "DRAFT",
         "PENDING_PAYMENT",
