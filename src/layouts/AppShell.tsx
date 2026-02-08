@@ -5,7 +5,7 @@
  * and quick create action. Reduced from 345 to ~310 lines via component extraction.
  */
 import React, { ReactNode, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Home, 
@@ -72,6 +72,7 @@ export function AppShell({ children }: AppShellProps) {
   const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
   const { can } = usePermissions();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {
@@ -122,6 +123,22 @@ export function AppShell({ children }: AppShellProps) {
   // SAFE GOLD T1.0: Derive tenant lifecycle state deterministically
   const tenantLifecycleState = assertTenantLifecycleState(tenant?.status);
 
+  // ADMIN SAFE GOLD A1.0: route-based deterministic mode
+  const pathname = location.pathname;
+  const adminMode = pathname.includes('/admin') ? 'ON' : 'OFF';
+
+  // ADMIN SAFE GOLD A1.0: derive deterministic view state (no business logic)
+  const adminViewState =
+    adminMode === 'ON'
+      ? (impersonationLoading || resolutionStatus === 'RESOLVING' ? 'LOADING' : 'READY')
+      : 'READY';
+
+  // ADMIN SAFE GOLD A1.0: best-effort role read from existing role signals (fail-safe to NONE)
+  // NOTE: This is instrumentation only; does not change behavior.
+  const adminRole = isGlobalSuperadmin
+    ? 'SUPERADMIN_GLOBAL'
+    : 'NONE';
+
   return (
     <div 
       className="min-h-screen bg-background"
@@ -130,6 +147,10 @@ export function AppShell({ children }: AppShellProps) {
       data-impersonation-view-state={impersonationViewState}
       data-tenant-state={tenantLifecycleState}
       data-tenant-id={tenant?.id ?? ''}
+      data-admin-mode={adminMode}
+      data-admin-view-state={adminViewState}
+      data-admin-role={adminRole}
+      data-admin-route={pathname}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
