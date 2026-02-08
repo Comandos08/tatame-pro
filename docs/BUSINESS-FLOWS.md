@@ -347,9 +347,51 @@ Garantir que novos tenants configurem o mínimo necessário antes de operar.
 | 03:00 | cleanup-expired-tenants | Remove tenants marcados |
 | 03:15 | transition-youth-to-adult | Transiciona menores de 18 para adultos |
 | 03:30 | cleanup-tmp-documents | Remove documentos temporários |
+| 03:45 | cleanup-pending-payment-memberships | Cancela filiações PENDING_PAYMENT > 24h |
 | 04:00 | cleanup-abandoned-memberships | Remove filiações abandonadas |
 | 09:00 | check-membership-renewal | Lembretes de renovação |
 | 10:00 | check-trial-ending | Notificações de trial |
+
+---
+
+### Garbage Collection — PENDING_PAYMENT
+
+Filiações que iniciaram checkout mas não concluíram pagamento são canceladas automaticamente após 24h.
+
+```text
+[Membership Created] ─→ [Checkout Iniciado] ─→ [PENDING_PAYMENT]
+                                                      │
+                                                      ▼
+                                            ┌─────────────────────┐
+                                            │ 24h sem confirmação │
+                                            └─────────────────────┘
+                                                      │
+                                                      ▼
+                                            ┌─────────────────────┐
+                                            │ cleanup-pending-    │
+                                            │ payment-memberships │
+                                            │ (cron 03:45 UTC)    │
+                                            └─────────────────────┘
+                                                      │
+                                                      ▼
+                                            ┌─────────────────────┐
+                                            │ status → CANCELLED  │
+                                            └─────────────────────┘
+                                                      │
+                                                      ▼
+                                            ┌─────────────────────┐
+                                            │ Audit:              │
+                                            │ MEMBERSHIP_PENDING_ │
+                                            │ PAYMENT_CLEANUP     │
+                                            └─────────────────────┘
+```
+
+**Princípios SAFE GOLD:**
+- ❌ NÃO toca em Stripe (sessions, invoices, webhooks)
+- ❌ NÃO remove dados fisicamente
+- ❌ NÃO afeta athletes ou guardians
+- ✅ Apenas atualiza status
+- ✅ 100% auditável e idempotente
 
 ---
 

@@ -20,12 +20,14 @@ interface PlatformMetrics {
   lastCleanupAbandonedRun: string | null;
   lastTrialCheckRun: string | null;
   lastYouthTransitionRun: string | null;
+  lastPendingPaymentGCRun: string | null;
   
   // Job execution had events?
   expireMembershipsHadEvents: boolean;
   cleanupAbandonedHadEvents: boolean;
   trialCheckHadEvents: boolean;
   youthTransitionHadEvents: boolean;
+  pendingPaymentGCHadEvents: boolean;
   
   // Counts from last 24h/7d (action events)
   expiredLast24h: number;
@@ -33,6 +35,8 @@ interface PlatformMetrics {
   cleanedLast24h: number;
   cleanedLast7d: number;
   transitionedLast7d: number;
+  pendingPaymentCleanedLast24h: number;
+  pendingPaymentCleanedLast7d: number;
   
   // Error metrics
   webhookErrorsLast24h: number;
@@ -70,6 +74,7 @@ export function PlatformHealthCard() {
           'JOB_CLEANUP_ABANDONED_RUN',
           'JOB_CHECK_TRIALS_RUN',
           'JOB_YOUTH_TRANSITION_RUN',
+          'JOB_PENDING_PAYMENT_GC_RUN',
         ])
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
@@ -84,6 +89,7 @@ export function PlatformHealthCard() {
           'TRIAL_END_NOTIFICATION_SENT',
           'TENANT_PAYMENT_FAILED',
           'YOUTH_AUTO_TRANSITION',
+          'MEMBERSHIP_PENDING_PAYMENT_CLEANUP',
         ])
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
@@ -93,16 +99,19 @@ export function PlatformHealthCard() {
       let lastCleanupAbandonedRun: string | null = null;
       let lastTrialCheckRun: string | null = null;
       let lastYouthTransitionRun: string | null = null;
+      let lastPendingPaymentGCRun: string | null = null;
       let expireMembershipsHadEvents = false;
       let cleanupAbandonedHadEvents = false;
       let trialCheckHadEvents = false;
       let youthTransitionHadEvents = false;
+      let pendingPaymentGCHadEvents = false;
 
       jobRunLogs?.forEach(log => {
         const meta = log.metadata as { 
           processed?: number; 
           expired?: number;
           cleaned?: number; 
+          cancelled?: number;
           notified?: number;
           transitioned?: number;
           status?: string 
@@ -136,6 +145,12 @@ export function PlatformHealthCard() {
               youthTransitionHadEvents = (meta?.transitioned || 0) > 0;
             }
             break;
+          case 'JOB_PENDING_PAYMENT_GC_RUN':
+            if (!lastPendingPaymentGCRun) {
+              lastPendingPaymentGCRun = log.created_at;
+              pendingPaymentGCHadEvents = (meta?.cancelled || meta?.processed || 0) > 0;
+            }
+            break;
         }
       });
 
@@ -146,6 +161,8 @@ export function PlatformHealthCard() {
       let cleanedLast7d = 0;
       let billingErrorsLast7d = 0;
       let transitionedLast7d = 0;
+      let pendingPaymentCleanedLast24h = 0;
+      let pendingPaymentCleanedLast7d = 0;
 
       actionLogs?.forEach(log => {
         const logDate = new Date(log.created_at);
@@ -165,6 +182,10 @@ export function PlatformHealthCard() {
             break;
           case 'YOUTH_AUTO_TRANSITION':
             transitionedLast7d++;
+            break;
+          case 'MEMBERSHIP_PENDING_PAYMENT_CLEANUP':
+            pendingPaymentCleanedLast7d++;
+            if (isLast24h) pendingPaymentCleanedLast24h++;
             break;
         }
       });
@@ -200,15 +221,19 @@ export function PlatformHealthCard() {
         lastCleanupAbandonedRun,
         lastTrialCheckRun,
         lastYouthTransitionRun,
+        lastPendingPaymentGCRun,
         expireMembershipsHadEvents,
         cleanupAbandonedHadEvents,
         trialCheckHadEvents,
         youthTransitionHadEvents,
+        pendingPaymentGCHadEvents,
         expiredLast24h,
         expiredLast7d,
         cleanedLast24h,
         cleanedLast7d,
         transitionedLast7d,
+        pendingPaymentCleanedLast24h,
+        pendingPaymentCleanedLast7d,
         webhookErrorsLast24h,
         billingErrorsLast7d,
         tenantsBlocked,
@@ -392,6 +417,20 @@ export function PlatformHealthCard() {
                     title={getJobStatus(metrics.lastYouthTransitionRun, metrics.youthTransitionHadEvents).tooltip}
                   >
                     {getJobStatus(metrics.lastYouthTransitionRun, metrics.youthTransitionHadEvents).label}
+                  </Badge>
+                </div>
+                
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{t('platformHealth.pendingPaymentGC')}</p>
+                    <p className="text-sm font-medium">{formatTime(metrics.lastPendingPaymentGCRun)}</p>
+                  </div>
+                  <Badge 
+                    variant={getJobStatus(metrics.lastPendingPaymentGCRun, metrics.pendingPaymentGCHadEvents).color} 
+                    className="text-xs cursor-help"
+                    title={getJobStatus(metrics.lastPendingPaymentGCRun, metrics.pendingPaymentGCHadEvents).tooltip}
+                  >
+                    {getJobStatus(metrics.lastPendingPaymentGCRun, metrics.pendingPaymentGCHadEvents).label}
                   </Badge>
                 </div>
               </div>

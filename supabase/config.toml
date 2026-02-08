@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.transition-youth-to-adult]
 verify_jwt = false
+
+[functions.cleanup-pending-payment-memberships]
+verify_jwt = false
