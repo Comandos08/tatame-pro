@@ -52,6 +52,7 @@ import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
 import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
+import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import type { FeatureKey } from '@/lib/accessMatrix';
 interface AppShellProps {
@@ -150,6 +151,12 @@ export function AppShell({ children }: AppShellProps) {
   const isReportsRoute = pathname.includes('/reports') || pathname.includes('/analytics') || pathname.includes('/dashboard');
   const reportMode = deriveReportMode(tenant?.id, isGlobalSuperadmin && !tenant?.id);
   const reportViewState = normalizeAnalyticsViewState(isReportsRoute ? { ready: true } : null);
+
+  // EXPORTS SAFE GOLD EXPORTS1.0: derive export state deterministically
+  const isOnExportRoute = isExportRoute(pathname);
+  const exportViewState = normalizeExportViewState(isOnExportRoute ? 'READY' : null);
+  const exportType = isOnExportRoute ? (pathname.includes('/pdf') ? 'PDF' : 'CSV') : '';
+
   return (
     <div 
       className="min-h-screen bg-background"
@@ -167,6 +174,9 @@ export function AppShell({ children }: AppShellProps) {
       data-report-mode={reportMode}
       data-report-view-state={reportViewState}
       data-report-route={isReportsRoute ? pathname : ''}
+      data-export-type={exportType}
+      data-export-view-state={exportViewState}
+      data-export-route={isOnExportRoute ? pathname : ''}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
