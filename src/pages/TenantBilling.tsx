@@ -129,9 +129,15 @@ export default function TenantBilling() {
     });
   };
 
+  const viewState = isLoading ? 'LOADING' : 'READY';
+
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div 
+        className="space-y-6"
+        data-testid="billing-root"
+        data-billing-view-state={viewState}
+      >
         {/* Header */}
         <div>
           <h1 className="font-display text-3xl font-bold mb-2 flex items-center gap-3">

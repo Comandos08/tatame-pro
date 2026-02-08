@@ -176,7 +176,7 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
   // P3.3.P1.1: Use guaranteed Tailwind tokens
   if (status === 'ACTIVE') {
     return (
-      <Card className={className}>
+      <Card className={className} data-testid="billing-timeline" data-timeline-status="ACTIVE">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <CheckCircle className="h-5 w-5 text-green-600" />
@@ -195,7 +195,7 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
   }
 
   return (
-    <Card className={className}>
+    <Card className={className} data-testid="billing-timeline" data-timeline-status={status ?? 'LOADING'}>
       <CardHeader>
         <CardTitle className="text-lg">{t('billing.timeline.title')}</CardTitle>
         <CardDescription>{t('billing.timeline.description')}</CardDescription>
@@ -212,7 +212,12 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
               const styles = stepStyles[step.status];
 
               return (
-                <div key={step.id} className="flex flex-col items-center">
+                <div 
+                  key={step.id} 
+                  className="flex flex-col items-center"
+                  data-timeline-step={step.id}
+                  data-timeline-step-status={step.status}
+                >
                   {/* Icon circle */}
                   <div
                     className={cn(

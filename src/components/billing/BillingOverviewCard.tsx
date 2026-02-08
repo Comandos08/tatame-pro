@@ -163,8 +163,16 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     }
   };
 
+  // Derive source for instrumentation (maps to SAFE GOLD subset)
+  const billingSource = billingState?.source === 'MANUAL_OVERRIDE' ? 'MANUAL' : 'STRIPE';
+
   return (
-    <Card className={cn('overflow-hidden', className)}>
+    <Card 
+      className={cn('overflow-hidden', className)}
+      data-testid="billing-card"
+      data-billing-status={status}
+      data-billing-source={billingSource}
+    >
       <CardHeader className={cn('border-b', styles.border)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -199,6 +207,8 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
               onClick={handleCTAClick}
               disabled={isRedirecting}
               className="w-full sm:w-auto"
+              data-testid="billing-cta"
+              data-billing-action={cta.action}
             >
               {isRedirecting ? (
                 <span className="animate-pulse">{t('common.loading')}</span>
