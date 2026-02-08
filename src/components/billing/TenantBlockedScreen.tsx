@@ -65,7 +65,11 @@ export function TenantBlockedScreen({
   // PENDING_DELETE view - urgent countdown
   if (isPendingDelete && isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/5 to-destructive/10 p-4">
+      <div 
+        className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/5 to-destructive/10 p-4"
+        data-testid="tenant-blocked-screen"
+        data-blocked-reason={billingStatus}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -105,7 +109,7 @@ export function TenantBlockedScreen({
 
               {/* Countdown display */}
               {daysUntilDeletion !== null && (
-                <div className="flex justify-center">
+                <div className="flex justify-center" data-testid="delete-countdown">
                   <div className="text-center bg-muted rounded-lg p-4">
                     <div className="text-4xl font-bold text-destructive">
                       {daysUntilDeletion}
@@ -124,6 +128,7 @@ export function TenantBlockedScreen({
                     size="lg"
                     onClick={handleOpenCustomerPortal}
                     disabled={isOpeningPortal}
+                    data-testid="billing-urgent-cta"
                   >
                     {isOpeningPortal ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -155,7 +160,11 @@ export function TenantBlockedScreen({
   // Admin view - shows management options
   if (isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
+      <div 
+        className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4"
+        data-testid="tenant-blocked-screen"
+        data-blocked-reason={billingStatus ?? 'BLOCKED'}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -238,7 +247,11 @@ export function TenantBlockedScreen({
 
   // Non-admin view - simple message
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
+    <div 
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4"
+      data-testid="tenant-blocked-screen"
+      data-blocked-reason={billingStatus ?? 'BLOCKED'}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}

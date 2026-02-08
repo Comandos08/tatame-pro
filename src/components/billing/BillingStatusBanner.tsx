@@ -203,7 +203,12 @@ export function BillingStatusBanner() {
   const alertVariant = trialEndingSoon ? 'destructive' : config.variant;
 
   return (
-    <Alert variant={alertVariant} className="mb-6">
+    <Alert 
+      variant={alertVariant} 
+      className="mb-6"
+      data-testid="billing-status-banner"
+      data-billing-status={billing.status}
+    >
       <Icon className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
         {trialEndingSoon ? t('billing.trialEndingSoonTitle') : t(config.titleKey as any)}
@@ -228,6 +233,7 @@ export function BillingStatusBanner() {
               size="sm"
               onClick={handleOpenCustomerPortal}
               disabled={isOpeningPortal}
+              data-testid="billing-manage-btn"
             >
               {isOpeningPortal ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
