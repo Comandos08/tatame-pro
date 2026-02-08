@@ -52,6 +52,11 @@ import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
 import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
+import { 
+  isReportsRoute as checkIsReportsRoute, 
+  normalizeReportsViewState, 
+  deriveActiveReportType 
+} from '@/domain/reports/normalizeReports';
 import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normalize';
 import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
 import { normalizeAuditViewState } from '@/domain/audit/normalize';
@@ -154,6 +159,12 @@ export function AppShell({ children }: AppShellProps) {
   const reportMode = deriveReportMode(tenant?.id, isGlobalSuperadmin && !tenant?.id);
   const reportViewState = normalizeAnalyticsViewState(isReportsRoute ? { ready: true } : null);
 
+  // REPORTS1.0 SAFE GOLD: New reports instrumentation
+  const isOnReportsRoute = checkIsReportsRoute(pathname);
+  const reportsViewState = normalizeReportsViewState(isOnReportsRoute ? { ready: true } : null);
+  const reportsType = deriveActiveReportType(pathname);
+  const reportsContext = isOnReportsRoute ? 'ACTIVE' : '';
+
   // EXPORTS SAFE GOLD EXPORTS1.0: derive export state deterministically
   const isOnExportRoute = isExportRoute(pathname);
   const exportViewState = normalizeExportViewState(isOnExportRoute ? 'READY' : null);
@@ -187,6 +198,10 @@ export function AppShell({ children }: AppShellProps) {
       data-report-mode={reportMode}
       data-report-view-state={reportViewState}
       data-report-route={isReportsRoute ? pathname : ''}
+      data-reports-context={reportsContext}
+      data-reports-view-state={reportsViewState}
+      data-reports-type={isOnReportsRoute ? reportsType : ''}
+      data-reports-route={isOnReportsRoute ? pathname : ''}
       data-export-type={exportType}
       data-export-view-state={exportViewState}
       data-export-route={isOnExportRoute ? pathname : ''}

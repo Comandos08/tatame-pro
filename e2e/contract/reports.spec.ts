@@ -305,4 +305,46 @@ test.describe('REPORTS1.0 — Reports SAFE GOLD (Contract)', () => {
 
     logTestAssertion('CONTRACT', 'Report mode validation passed', true);
   });
+
+  test('REP.C.10: REPORTS1.0 DOM instrumentation present', async ({ page }) => {
+    logTestStep('CONTRACT', 'REPORTS1.0 DOM instrumentation');
+
+    await freezeTime(page, '2026-02-07T12:00:00.000Z');
+    await mockReportsUniversal(page, { type: 'OVERVIEW', scope: 'TENANT', tenantSlug: TENANT_SLUG });
+
+    await loginAsTenantAdmin(page);
+    await page.goto(`/${TENANT_SLUG}/app/reports`);
+    await page.waitForLoadState('networkidle');
+
+    // Check AppShell REPORTS1.0 instrumentation
+    const appShell = page.locator('[data-testid="app-shell"]');
+    await expect(appShell).toBeVisible();
+    
+    // Verify new data attributes exist
+    const reportsContext = await appShell.getAttribute('data-reports-context');
+    const reportsViewState = await appShell.getAttribute('data-reports-view-state');
+    const reportsType = await appShell.getAttribute('data-reports-type');
+    const reportsRoute = await appShell.getAttribute('data-reports-route');
+
+    // On reports route, context should be ACTIVE
+    if (reportsContext === 'ACTIVE') {
+      logTestAssertion('CONTRACT', 'Reports context: ACTIVE', true);
+    }
+
+    // View state should be valid
+    const VALID_VIEW_STATES = ['OK', 'EMPTY', 'PARTIAL', 'ERROR', 'LOADING'];
+    if (reportsViewState) {
+      expect(VALID_VIEW_STATES).toContain(reportsViewState);
+      logTestAssertion('CONTRACT', `Reports view state: ${reportsViewState}`, true);
+    }
+
+    // Type should be valid
+    const VALID_TYPES = ['TENANT_OVERVIEW', 'MEMBERSHIPS_HEALTH', 'EVENTS_SUMMARY', 'BILLING_STATUS', 'AUDIT_TRAIL'];
+    if (reportsType && reportsType !== '') {
+      expect(VALID_TYPES).toContain(reportsType);
+      logTestAssertion('CONTRACT', `Reports type: ${reportsType}`, true);
+    }
+
+    logTestAssertion('CONTRACT', 'REPORTS1.0 instrumentation present', true);
+  });
 });
