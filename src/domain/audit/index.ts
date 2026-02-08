@@ -29,11 +29,11 @@ export {
   isValidAuditViewState,
 } from '@/types/audit-state';
 
-// Normalization
+// Normalization (SAFE GOLD PLUS — computeAuditHashSync REMOVED)
 export {
   normalizeAuditEntry,
   computeAuditHash,
-  computeAuditHashSync,
+  // computeAuditHashSync — REMOVED in AUDIT2.0.1 (SHA-256 only)
   normalizeAuditViewState,
   countByAction,
   countByEntity,

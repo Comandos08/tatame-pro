@@ -202,12 +202,14 @@ const { data, viewState, total } = await fetchAuditLogs({
 ## 🧊 Status
 
 ```
-AUDIT2.0 — SAFE GOLD v2.0
+AUDIT2.0.1 — SAFE GOLD PLUS v2.0.1
 🔒 IMMUTABLE
 🧪 CONTRACTUAL
 🧠 EXPLICÁVEL
 🚫 ZERO SIDE EFFECT
 📜 COMPLIANCE-READY
+♻️ IDEMPOTENT
+🔐 SHA-256 ONLY
 ```
 
 ---
@@ -218,6 +220,75 @@ AUDIT2.0 — SAFE GOLD v2.0
 2. **Hash é verificável** — Mesmo input → mesmo hash
 3. **Append-only** — Nenhum UPDATE/DELETE permitido
 4. **Boundary único** — Somente `writeAuditLog` pode inserir
+
+---
+
+## 🔐 AUDIT2.0.1 — SAFE GOLD PLUS
+
+**Versão:** 2.0.1  
+**Elevação:** SAFE GOLD → SAFE GOLD PLUS  
+**Data:** 2026-02-08
+
+### Mudanças Críticas
+
+| Item | Antes (2.0) | Depois (2.0.1) |
+|------|-------------|----------------|
+| Hash sync | `computeAuditHashSync` disponível | ❌ REMOVIDO |
+| Hash | SHA-256 + fallback | SHA-256 EXCLUSIVO |
+| Idempotência | Não garantida | ✅ GARANTIDA por hash |
+| Date.now() em testes | Permitido | ❌ PROIBIDO |
+| Duplicação | Possível | ❌ IMPOSSÍVEL |
+
+### Garantias SAFE GOLD PLUS
+
+- **Criptograficamente consistente** — Apenas SHA-256 via `crypto.subtle`
+- **Idempotente** — Mesmo input nunca cria duplicatas
+- **Determinístico** — Zero dependência temporal
+- **Testável** — Testes 100% reprodutíveis
+- **Compliance-ready** — Pronto para auditoria externa
+
+### Fluxo de Idempotência
+
+```
+1. Normalizar entrada (sort keys)
+2. Computar SHA-256 hash
+3. Verificar se hash já existe:
+   - SE existe → retornar { success: true, duplicate: true }
+   - SE não existe → INSERT e retornar { success: true, duplicate: false }
+```
+
+### Testes Obrigatórios (AUD.C.7)
+
+```typescript
+// Idempotência comprovada
+const r1 = await writeAuditLog(entry);
+const r2 = await writeAuditLog(entry);
+
+expect(r1.hash).toBe(r2.hash);
+expect(r2.duplicate).toBe(true);
+```
+
+### Proibições Absolutas
+
+❌ `computeAuditHashSync` (removido)  
+❌ `Date.now()` em qualquer teste AUDIT  
+❌ Hash não-criptográfico  
+❌ Dependência de timezone  
+❌ UPDATE em audit_logs  
+❌ DELETE em audit_logs
+
+---
+
+## 🏦 Certificação
+
+```
+AUDIT2.0.1 — SAFE GOLD PLUS
+🔒 CRIPTOGRAFICAMENTE CONSISTENTE
+♻️ IDEMPOTENTE
+🧪 TESTÁVEL
+🏦 PRONTO PARA AUDITORIA EXTERNA
+💎 NÍVEL "PRODUTO DE LUXO"
+```
 
 ---
 

@@ -133,26 +133,34 @@ test.describe('AUD.R.4 — Invalid JSON Resilience', () => {
 // AUD.R.5 — Loop Detection
 // ============================================================
 
+// ============================================================
+// AUD.R.5 — Loop Detection (SAFE GOLD PLUS — No Date.now())
+// ============================================================
+
 test.describe('AUD.R.5 — Loop Detection', () => {
   test('navigation ratio stays below threshold', async ({ page }) => {
-    const navigationTimestamps: number[] = [];
+    // SAFE GOLD PLUS: Use deterministic counter instead of Date.now()
+    // This ensures test reproducibility without temporal dependencies.
+    let navigationCount = 0;
     
     page.on('framenavigated', () => {
-      navigationTimestamps.push(Date.now());
+      navigationCount++;
     });
     
     await mockAuditLogsSuccess(page);
     await page.goto('/audit');
-    await page.waitForTimeout(10000);
     
-    // Calculate navigation rate
-    if (navigationTimestamps.length > 1) {
-      const duration = (navigationTimestamps[navigationTimestamps.length - 1] - navigationTimestamps[0]) / 1000;
-      const rate = navigationTimestamps.length / Math.max(duration, 1);
-      
-      // Rate should be < 0.5 navigations per second
-      expect(rate).toBeLessThan(0.5);
-    }
+    // Wait fixed duration (10 seconds)
+    const testDurationSeconds = 10;
+    await page.waitForTimeout(testDurationSeconds * 1000);
+    
+    // Calculate navigation rate using fixed duration
+    // Rate = navigations / fixed_duration
+    const rate = navigationCount / testDurationSeconds;
+    
+    // Rate should be < 0.5 navigations per second
+    // This prevents infinite redirect/navigation loops
+    expect(rate).toBeLessThan(0.5);
   });
 });
 

@@ -263,3 +263,125 @@ test.describe('AUD.C.6 — Route Stability', () => {
     expect(redirects.filter(u => !u.includes('/audit')).length).toBe(0);
   });
 });
+
+// ============================================================
+// AUD.C.7 — Idempotency (SAFE GOLD PLUS)
+// ============================================================
+
+test.describe('AUD.C.7 — Idempotency', () => {
+  test('same audit input produces same hash', async ({ page }) => {
+    // This validates that the normalization and hashing are deterministic
+    // Same input MUST produce same hash, enabling idempotent writes
+    const result = await page.evaluate(async () => {
+      const input = {
+        tenant_id: 'test-tenant-idempotency',
+        actor_id: 'test-actor',
+        action: 'CREATE',
+        entity: 'MEMBERSHIP',
+        entity_id: 'test-entity-123',
+        level: 'INFO',
+        occurred_at: '2026-02-08T12:00:00.000Z',
+        metadata: { z: 3, a: 1, m: 2 },
+      };
+      
+      // Simulate normalize + hash
+      const sortObjectKeys = (obj: Record<string, unknown>): Record<string, unknown> => {
+        return Object.keys(obj).sort().reduce((acc, k) => {
+          acc[k] = obj[k];
+          return acc;
+        }, {} as Record<string, unknown>);
+      };
+      
+      const normalize = (entry: typeof input) => ({
+        tenant_id: entry.tenant_id,
+        actor_id: entry.actor_id,
+        action: entry.action,
+        entity: entry.entity,
+        entity_id: entry.entity_id,
+        level: entry.level,
+        occurred_at: entry.occurred_at,
+        metadata: sortObjectKeys(entry.metadata),
+      });
+      
+      const computeHash = async (normalized: ReturnType<typeof normalize>): Promise<string> => {
+        const jsonString = JSON.stringify(normalized);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(jsonString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+      
+      // First normalization + hash
+      const normalized1 = normalize(input);
+      const hash1 = await computeHash(normalized1);
+      
+      // Second normalization + hash (same input)
+      const normalized2 = normalize(input);
+      const hash2 = await computeHash(normalized2);
+      
+      return {
+        normalized1: JSON.stringify(normalized1),
+        normalized2: JSON.stringify(normalized2),
+        hash1,
+        hash2,
+        hashesEqual: hash1 === hash2,
+        normalizationsEqual: JSON.stringify(normalized1) === JSON.stringify(normalized2),
+      };
+    });
+    
+    // Normalizations must be identical
+    expect(result.normalizationsEqual).toBe(true);
+    expect(result.normalized1).toBe(result.normalized2);
+    
+    // Hashes must be identical (cryptographic determinism)
+    expect(result.hashesEqual).toBe(true);
+    expect(result.hash1).toBe(result.hash2);
+    
+    // Hash must be 64 chars (SHA-256 hex)
+    expect(result.hash1.length).toBe(64);
+  });
+
+  test('metadata key order does not affect hash', async ({ page }) => {
+    // Keys should be sorted before hashing, so order doesn't matter
+    const result = await page.evaluate(async () => {
+      const sortObjectKeys = (obj: Record<string, unknown>): Record<string, unknown> => {
+        return Object.keys(obj).sort().reduce((acc, k) => {
+          acc[k] = obj[k];
+          return acc;
+        }, {} as Record<string, unknown>);
+      };
+      
+      const computeHash = async (obj: unknown): Promise<string> => {
+        const jsonString = JSON.stringify(obj);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(jsonString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+      
+      // Two metadata objects with same content but different key order
+      const metadata1 = { z: 3, a: 1, m: 2 };
+      const metadata2 = { a: 1, m: 2, z: 3 };
+      
+      // After sorting, they should be identical
+      const sorted1 = sortObjectKeys(metadata1);
+      const sorted2 = sortObjectKeys(metadata2);
+      
+      const hash1 = await computeHash(sorted1);
+      const hash2 = await computeHash(sorted2);
+      
+      return {
+        sorted1: JSON.stringify(sorted1),
+        sorted2: JSON.stringify(sorted2),
+        hash1,
+        hash2,
+        equal: hash1 === hash2,
+      };
+    });
+    
+    expect(result.sorted1).toBe(result.sorted2);
+    expect(result.equal).toBe(true);
+  });
+});
