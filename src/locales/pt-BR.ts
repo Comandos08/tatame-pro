@@ -2507,6 +2507,20 @@ export const ptBR = {
   'access.unknownError': 'Erro Inesperado',
   'access.unknownErrorDesc': 'Ocorreu um erro ao verificar o acesso. Tente novamente.',
 
+  // P7.1 — NotFound Contextual
+  'notFound.admin.title': 'Página administrativa não encontrada',
+  'notFound.admin.desc': 'Esta página do painel administrativo não existe ou foi movida.',
+  'notFound.admin.cta': 'Voltar ao Admin',
+  'notFound.tenant.title': 'Página não encontrada',
+  'notFound.tenant.desc': 'A página que você está procurando não existe ou foi movida.',
+  'notFound.tenant.cta': 'Voltar ao Dashboard',
+  'notFound.public.title': 'Página não encontrada',
+  'notFound.public.desc': 'A página que você está procurando não existe ou foi movida.',
+  'notFound.public.cta': 'Voltar ao início',
+
+  // P7.1 — Identity Error Default Enhanced
+  'identityError.default.hint': 'Você pode tentar novamente, sair e entrar de novo, ou contatar o suporte se o problema persistir.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

@@ -220,12 +220,23 @@ export default function AdminDashboard() {
     },
   });
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+  const formatAdminDate = (dateString: string) => {
+    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
+    return new Intl.DateTimeFormat(intlLocale, {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    });
+    }).format(new Date(dateString));
+  };
+
+  // Format currency with locale
+  const formatAdminCurrency = (amountCents: number) => {
+    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
+    return new Intl.NumberFormat(intlLocale, {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+    }).format(amountCents / 100);
   };
 
   const statCards = [
@@ -239,7 +250,7 @@ export default function AdminDashboard() {
     { labelKey: 'admin.tenantsTrialing', value: billingMetrics?.trialing || 0, icon: Clock, color: 'text-info' },
     { labelKey: 'admin.tenantsActive', value: billingMetrics?.active || 0, icon: TrendingUp, color: 'text-success' },
     { labelKey: 'admin.tenantsWithIssues', value: billingMetrics?.withIssues || 0, icon: AlertTriangle, color: 'text-destructive' },
-    { labelKey: 'admin.monthlyRevenue', value: `R$ ${((billingMetrics?.monthlyRevenue || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: CreditCard, color: 'text-primary', isText: true },
+    { labelKey: 'admin.monthlyRevenue', value: formatAdminCurrency(billingMetrics?.monthlyRevenue || 0), icon: CreditCard, color: 'text-primary', isText: true },
   ];
 
   if (authLoading) {
@@ -654,7 +665,7 @@ export default function AdminDashboard() {
                             })()}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {formatDate(tenant.created_at)}
+                            {formatAdminDate(tenant.created_at)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

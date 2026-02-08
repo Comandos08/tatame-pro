@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useI18n } from '@/contexts/I18nContext';
+import { useI18n, Locale } from '@/contexts/I18nContext';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -53,7 +53,7 @@ const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgCo
 export default function MembershipList() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
 
@@ -137,9 +137,10 @@ export default function MembershipList() {
     enabled: !!tenant && !!currentUser,
   });
 
-  const formatDate = (dateString: string | null) => {
+  const formatMembershipDate = (dateString: string | null) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    const intlLocale = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR';
+    return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'medium' }).format(new Date(dateString));
   };
 
   if (!tenant) return null;
@@ -222,8 +223,8 @@ export default function MembershipList() {
                           </div>
                           
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>Início: {formatDate(membership.start_date)}</span>
-                            <span>Validade: {formatDate(membership.end_date)}</span>
+                            <span>Início: {formatMembershipDate(membership.start_date)}</span>
+                            <span>Validade: {formatMembershipDate(membership.end_date)}</span>
                           </div>
                         </div>
 

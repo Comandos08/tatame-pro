@@ -2528,4 +2528,18 @@ export const en: Record<string, string> = {
   'access.unknownError': 'Unexpected Error',
   'access.unknownErrorDesc': 'An error occurred while verifying access. Please try again.',
 
+  // P7.1 — NotFound Contextual
+  'notFound.admin.title': 'Admin page not found',
+  'notFound.admin.desc': 'This admin panel page does not exist or has been moved.',
+  'notFound.admin.cta': 'Back to Admin',
+  'notFound.tenant.title': 'Page not found',
+  'notFound.tenant.desc': 'The page you are looking for does not exist or has been moved.',
+  'notFound.tenant.cta': 'Back to Dashboard',
+  'notFound.public.title': 'Page not found',
+  'notFound.public.desc': 'The page you are looking for does not exist or has been moved.',
+  'notFound.public.cta': 'Back to Home',
+
+  // P7.1 — Identity Error Default Enhanced
+  'identityError.default.hint': 'You can try again, sign out and back in, or contact support if the problem persists.',
+
 };

@@ -6,6 +6,7 @@
  */
 import React, { ReactNode, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink } from '@/components/NavLink';
 import { motion } from 'framer-motion';
 import { 
   Home, 
@@ -273,24 +274,29 @@ export function AppShell({ children }: AppShellProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
             {navigation.map((item) => (
-              <Link
+              <NavLink
                 key={item.name}
                 to={item.href}
+                end={item.href === `/${tenantSlug}/app`}
+                onClick={() => setSidebarOpen(false)}
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.name}</span>
-              </Link>
+              </NavLink>
             ))}
             
             {/* Help link */}
-            <Link
+            <NavLink
               to={`/${tenantSlug}/app/help`}
+              onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
             >
               <HelpCircle className="h-5 w-5" />
               <span>{t('nav.help')}</span>
-            </Link>
+            </NavLink>
           </nav>
 
           {/* User menu */}

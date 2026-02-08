@@ -308,29 +308,40 @@ export default function TenantOnboarding() {
           <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Step indicators */}
+        {/* Step indicators with required highlight */}
         <div className="flex justify-center gap-2">
           {STEPS.map((step, idx) => {
             const config = stepConfig[step];
             const isComplete = 'complete' in config && config.complete;
             const isCurrent = step === currentStep;
+            const isRequired = 'required' in config && config.required;
+            const isRequiredIncomplete = isRequired && !isComplete;
             
             return (
               <button
                 key={step}
                 onClick={() => setCurrentStep(step)}
-                className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all ${
+                className={`relative flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all ${
                   isCurrent 
                     ? 'border-primary bg-primary text-primary-foreground' 
                     : isComplete
                     ? 'border-green-500 bg-green-500/10 text-green-500'
+                    : isRequiredIncomplete
+                    ? 'border-destructive bg-destructive/10 text-destructive'
                     : 'border-muted bg-muted/50 text-muted-foreground'
                 }`}
+                title={isRequiredIncomplete ? t('onboarding.requiredStep') : undefined}
               >
                 {isComplete ? (
                   <CheckCircle2 className="h-5 w-5" />
                 ) : (
                   <span className="text-sm font-medium">{idx + 1}</span>
+                )}
+                {/* Badge indicator for required incomplete */}
+                {isRequiredIncomplete && !isCurrent && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground font-bold">
+                    !
+                  </span>
                 )}
               </button>
             );

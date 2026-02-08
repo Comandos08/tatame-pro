@@ -17,7 +17,7 @@ import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLog
 import { InstitutionalEnvironmentStatus } from '@/components/institutional';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { useI18n } from '@/contexts/I18nContext';
+import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, addDays } from 'date-fns';
 
@@ -60,7 +60,7 @@ const getEventTypeLabels = (t: (key: string) => string): Record<string, { label:
 export default function TenantDashboard() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { tenantSlug } = useParams();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [membershipsByMonth, setMembershipsByMonth] = useState<MonthlyData[]>([]);
@@ -235,10 +235,15 @@ export default function TenantDashboard() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 60) return `${diffMins}min atrás`;
-    if (diffHours < 24) return `${diffHours}h atrás`;
-    if (diffDays < 7) return `${diffDays}d atrás`;
-    return date.toLocaleDateString('pt-BR');
+    // Use relative time with locale awareness
+    if (diffMins < 60) return t('dashboard.minutesAgo', { count: String(diffMins) }) || `${diffMins}min atrás`;
+    if (diffHours < 24) return t('dashboard.hoursAgo', { count: String(diffHours) }) || `${diffHours}h atrás`;
+    if (diffDays < 7) return t('dashboard.daysAgo', { count: String(diffDays) }) || `${diffDays}d atrás`;
+    
+    // Fallback to date formatting with locale from i18n context
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR', {
+      dateStyle: 'medium'
+    }).format(date);
   };
 
   const eventTypeLabels = getEventTypeLabels(t);
