@@ -64,53 +64,70 @@ export default function About() {
             variants={stagger}
             className="max-w-3xl mx-auto space-y-16"
           >
-            {/* Section 1 */}
+            {/* Role in Sport */}
             <motion.div variants={fadeInUp}>
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-                {t('about.section1.title')}
+                {t('about.role.title')}
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {t('about.section1.text')}
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {t('about.role.text')}
               </p>
             </motion.div>
 
-            {/* Section 2 */}
+            {/* Limits */}
             <motion.div variants={fadeInUp}>
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-                {t('about.section2.title')}
+                {t('about.limits.title')}
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {t('about.section2.text')}
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {t('about.limits.text')}
               </p>
             </motion.div>
 
-            {/* Section 3 */}
+            {/* Ecosystem Structure */}
             <motion.div variants={fadeInUp}>
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-                {t('about.section3.title')}
+                {t('about.ecosystem.title')}
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {t('about.section3.text')}
+              <p className="text-muted-foreground leading-relaxed mb-6">
+                {t('about.ecosystem.text')}
+              </p>
+              <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Instituições</span>
+                  <span className="text-muted-foreground"> — {t('about.ecosystem.layer1').split(' — ')[1]}</span>
+                </div>
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Organizações</span>
+                  <span className="text-muted-foreground"> — {t('about.ecosystem.layer2').split(' — ')[1]}</span>
+                </div>
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Indivíduos</span>
+                  <span className="text-muted-foreground"> — {t('about.ecosystem.layer3').split(' — ')[1]}</span>
+                </div>
+              </div>
+              <p className="text-muted-foreground leading-relaxed mt-6">
+                {t('about.ecosystem.conclusion')}
               </p>
             </motion.div>
 
-            {/* Section 4 */}
+            {/* Governance */}
             <motion.div variants={fadeInUp}>
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-                {t('about.section4.title')}
+                {t('about.governance.title')}
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {t('about.section4.text')}
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {t('about.governance.text')}
               </p>
             </motion.div>
 
-            {/* Section 5 */}
+            {/* Neutrality */}
             <motion.div variants={fadeInUp}>
               <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-                {t('about.section5.title')}
+                {t('about.neutrality.title')}
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                {t('about.section5.text')}
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {t('about.neutrality.text')}
               </p>
             </motion.div>
           </motion.div>
