@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.cleanup-pending-payment-memberships]
 verify_jwt = false
+
+[functions.retry-membership-payment]
+verify_jwt = false

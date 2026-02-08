@@ -138,6 +138,10 @@ export const ptBR = {
   'membership.errorRateLimit': 'Muitas tentativas. Aguarde alguns minutos.',
   'membership.errorCaptchaRequired': 'Por favor, complete a verificação de segurança.',
   'membership.loginRequired': 'Faça login para continuar com o pagamento.',
+  'membership.retryPayment': 'Tentar pagamento novamente',
+  'membership.retryPaymentTitle': 'Pagamento não concluído',
+  'membership.retryPaymentDesc': 'Seu pagamento anterior não foi finalizado. Você pode tentar novamente sem perder seus dados.',
+  'membership.retryAlreadyInitiated': 'Uma nova tentativa de pagamento já foi iniciada.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Filiação de Atleta Menor',

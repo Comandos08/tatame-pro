@@ -138,6 +138,10 @@ export const es: Record<string, string> = {
   'membership.errorRateLimit': 'Demasiados intentos. Por favor, espere unos minutos.',
   'membership.errorCaptchaRequired': 'Por favor, complete la verificación de seguridad.',
   'membership.loginRequired': 'Inicia sesión para continuar con el pago.',
+  'membership.retryPayment': 'Reintentar pago',
+  'membership.retryPaymentTitle': 'Pago no completado',
+  'membership.retryPaymentDesc': 'Tu pago anterior no fue completado. Puedes intentarlo de nuevo sin perder tus datos.',
+  'membership.retryAlreadyInitiated': 'Ya se ha iniciado un nuevo intento de pago.',
   
   // Membership Form - Youth
   'membership.youthTitle': 'Afiliación de Atleta Menor',
