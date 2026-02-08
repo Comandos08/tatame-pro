@@ -1,94 +1,65 @@
 
 
-# Plano Atualizado: P3.MEMBERSHIP.MANUAL.CANCEL (SAFE GOLD)
+# Plano: P3.MEMBERSHIP.MANUAL.REACTIVATE (SAFE GOLD)
 
-## Ajustes Incorporados
+## Diagnóstico do Codebase
 
-Este plano incorpora as **4 correções críticas** solicitadas:
+### Análise das Implementações Existentes
 
-| # | Ajuste | Criticidade | Status |
-|---|--------|-------------|--------|
-| 1 | JWT obrigatório via config.toml | 🔴 CRÍTICO | ✅ Incorporado |
-| 2 | Padronização de roles (usar `STAFF_ORGANIZACAO`) | 🟡 CONSISTÊNCIA | ✅ Incorporado |
-| 3 | Campo dedicado `cancellation_reason` | 🟡 SEMÂNTICA | ✅ Incorporado |
-| 4 | Bloqueio determinístico no retry | 🟡 SEGURANÇA | ✅ Incorporado |
+| Componente | Estado | Observação |
+|------------|--------|------------|
+| **cancel-membership-manual** | ✅ Template perfeito | Usar como base para reactivate (estrutura idêntica) |
+| **MembershipDetails.tsx** | ✅ Já possui cancel dialog | Adicionar reactivate dialog paralelo |
+| **audit-logger.ts** | ✅ Pronto | Adicionar `MEMBERSHIP_MANUAL_REACTIVATED` na linha 29 |
+| **retry-membership-payment** | ✅ Bloqueia manual cancellations | Não precisa alteração (reactivate volta para DRAFT, não retry) |
+| **BUSINESS-FLOWS.md** | ✅ Seção 11 documenta cancel | Adicionar Seção 12 para reactivate |
 
----
+### Campos do Schema `memberships` (Já Existentes)
 
-## Descobertas do Diagnóstico
+Os campos abaixo já foram criados no PI anterior:
+- `cancelled_at` — será limpo (NULL)
+- `cancelled_by_profile_id` — será limpo (NULL)
+- `cancellation_reason` — será limpo (NULL)
 
-### Análise do Codebase
+**Nenhuma migração de banco necessária.**
 
-| Aspecto | Descoberta |
-|---------|------------|
-| **Roles existentes** | O sistema usa `STAFF_ORGANIZACAO` (não `STAFF_TENANT`) - verificado em `src/types/auth.ts` |
-| **Config.toml padrão** | Tanto `approve-membership` quanto `reject-membership` usam `verify_jwt = false` e fazem validação JWT manualmente - **INCONSISTÊNCIA identificada** |
-| **Campos memberships** | Não existem `cancelled_at`, `cancelled_by_profile_id`, nem `cancellation_reason` |
-| **retry-membership-payment** | Bloqueia por audit_logs, mas não inclui `MEMBERSHIP_MANUAL_CANCELLED` na lista |
+### Validação Crítica: Último Evento
 
-### Decisão sobre Ajuste #1 (verify_jwt)
+O reactivate DEVE verificar via `audit_logs`:
+```sql
+event_type === 'MEMBERSHIP_MANUAL_CANCELLED'
+AND metadata->>'membership_id' === membershipId
+ORDER BY created_at DESC LIMIT 1
+```
 
-Após análise, **AMBAS** as funções `approve-membership` e `reject-membership` usam `verify_jwt = false` no config.toml e fazem validação JWT manualmente no código. 
-
-Para manter **consistência com o padrão existente**, usaremos a mesma abordagem:
-- `verify_jwt = false` no config.toml
-- Validação JWT manual no código (já implementada nas funções existentes)
-
-Isso evita quebrar o padrão estabelecido no codebase.
+Se o último evento relevante for GC automático (`MEMBERSHIP_PENDING_PAYMENT_CLEANUP` ou `MEMBERSHIP_ABANDONED_CLEANUP`), a reativação é BLOQUEADA — use retry de pagamento.
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Migração de Banco de Dados
-
-Adicionar campos dedicados para cancelamento:
-
-```sql
--- Add cancellation tracking columns
-ALTER TABLE public.memberships 
-ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;
-
-ALTER TABLE public.memberships 
-ADD COLUMN IF NOT EXISTS cancelled_by_profile_id UUID REFERENCES auth.users(id);
-
-ALTER TABLE public.memberships 
-ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
-
--- Add index for performance
-CREATE INDEX IF NOT EXISTS idx_memberships_cancelled_at 
-ON public.memberships(cancelled_at) 
-WHERE cancelled_at IS NOT NULL;
-
--- Add comment for clarity
-COMMENT ON COLUMN public.memberships.cancellation_reason IS 'Reason for manual cancellation (semantic separation from review_notes)';
-```
-
----
-
-### Tarefa 2: Adicionar Evento ao `audit-logger.ts`
+### Tarefa 1: Adicionar Evento ao `audit-logger.ts`
 
 **Arquivo:** `supabase/functions/_shared/audit-logger.ts`
 
-Adicionar após linha 27:
+Adicionar após linha 28 (após `MEMBERSHIP_MANUAL_CANCELLED`):
 
 ```typescript
-MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
+MEMBERSHIP_MANUAL_REACTIVATED: 'MEMBERSHIP_MANUAL_REACTIVATED',
 ```
 
-**Estrutura do Evento:**
+**Estrutura do Evento de Auditoria:**
 ```json
 {
-  "event_type": "MEMBERSHIP_MANUAL_CANCELLED",
+  "event_type": "MEMBERSHIP_MANUAL_REACTIVATED",
   "tenant_id": "uuid",
-  "profile_id": "uuid (admin que cancelou)",
+  "profile_id": "uuid (admin que reativou)",
   "metadata": {
     "membership_id": "uuid",
-    "previous_status": "PENDING_PAYMENT",
-    "new_status": "CANCELLED",
-    "cancellation_source": "manual_admin",
-    "reason": "Documento inválido",
-    "blocked_retry": true,
+    "previous_status": "CANCELLED",
+    "new_status": "DRAFT",
+    "reactivation_source": "manual_admin",
+    "reason": "Cancelamento feito por engano",
     "actor_role": "ADMIN_TENANT",
     "impersonation_id": null,
     "ip_address": "x.x.x.x"
@@ -98,21 +69,23 @@ MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
 
 ---
 
-### Tarefa 3: Criar Edge Function `cancel-membership-manual`
+### Tarefa 2: Criar Edge Function `reactivate-membership-manual`
 
-**Arquivo:** `supabase/functions/cancel-membership-manual/index.ts`
+**Arquivo:** `supabase/functions/reactivate-membership-manual/index.ts`
 
+**Contrato SAFE GOLD:**
 ```typescript
 /**
- * cancel-membership-manual
+ * reactivate-membership-manual
  *
- * Cancela manualmente uma membership com governança total.
+ * Reativa manualmente uma membership cancelada por erro administrativo.
  *
  * SAFE GOLD:
- * - NÃO apaga dados
- * - Bloqueia retry futuro (via evento auditoria)
+ * - NÃO apaga histórico de auditoria
+ * - NÃO reabre pagamento automaticamente (volta para DRAFT)
  * - NÃO altera memberships pagas
- * - SEM efeitos colaterais
+ * - NÃO reativa cancelamentos automáticos (GC)
+ * - Auditoria obrigatória
  *
  * SECURITY:
  * - JWT validado manualmente (padrão do codebase)
@@ -122,6 +95,7 @@ MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
  * - Billing status check
  * - Rate limiting (10/hour/user)
  * - Motivo obrigatório (min 5 chars)
+ * - Último evento DEVE ser MEMBERSHIP_MANUAL_CANCELLED
  */
 ```
 
@@ -131,38 +105,41 @@ MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. CORS Preflight                                               │
 ├─────────────────────────────────────────────────────────────────┤
-│ 2. Auth Validation (JWT manual, como approve/reject)            │
+│ 2. Auth Validation (JWT manual)                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 3. Rate Limiting (10/hour/user)                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Parse Input (membershipId, reason)                           │
+│    → Validate reason (min 5 chars)                              │
 ├─────────────────────────────────────────────────────────────────┤
 │ 5. Fetch Membership                                             │
+│    → Validate exists                                            │
 ├─────────────────────────────────────────────────────────────────┤
-│ 6. Validate Role (ADMIN_TENANT / STAFF_ORGANIZACAO)             │
-│    → If SUPERADMIN: require impersonation                       │
+│ 6. Authorization Check (Role + Impersonation)                   │
+│    → ADMIN_TENANT / STAFF_ORGANIZACAO                           │
+│    → SUPERADMIN requires impersonation                          │
 ├─────────────────────────────────────────────────────────────────┤
 │ 7. Billing Status Check                                         │
 ├─────────────────────────────────────────────────────────────────┤
-│ 8. Validate Status (DRAFT, PENDING_PAYMENT, PENDING_REVIEW)     │
-│    → Block if CANCELLED (return ok + idempotent)                │
-│    → Block if APPROVED/ACTIVE/EXPIRED (fora escopo)             │
+│ 8. Validate Status === CANCELLED                                │
+│    → If DRAFT/PENDING: return idempotent OK                     │
+│    → If ACTIVE/APPROVED/EXPIRED: block                          │
 ├─────────────────────────────────────────────────────────────────┤
-│ 9. Block if payment_status === 'PAID'                           │
+│ 9. Block if payment_status === PAID                             │
 ├─────────────────────────────────────────────────────────────────┤
-│ 10. Validate reason (non-empty, min 5 chars)                    │
+│ 10. Validate Last Audit Event === MEMBERSHIP_MANUAL_CANCELLED   │
+│     → Query audit_logs for this membership                      │
+│     → If last event is GC: block with specific error            │
 ├─────────────────────────────────────────────────────────────────┤
 │ 11. UPDATE membership (race-safe)                               │
-│     status = 'CANCELLED'                                        │
-│     cancelled_at = now()                                        │
-│     cancelled_by_profile_id = user.id                           │
-│     cancellation_reason = reason (campo dedicado)               │
+│     status → DRAFT                                              │
+│     cancelled_at → NULL                                         │
+│     cancelled_by_profile_id → NULL                              │
+│     cancellation_reason → NULL                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│ 12. AUDIT: MEMBERSHIP_MANUAL_CANCELLED                          │
-│     → cancellation_source: 'manual_admin'                       │
-│     → blocked_retry: true                                       │
+│ 12. AUDIT: MEMBERSHIP_MANUAL_REACTIVATED                        │
 ├─────────────────────────────────────────────────────────────────┤
-│ 13. DECISION LOG (success)                                      │
+│ 13. Decision Log (SUCCESS)                                      │
 ├─────────────────────────────────────────────────────────────────┤
 │ 14. Return 200 { ok: true }                                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -177,161 +154,135 @@ MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
 }
 ```
 
+**Output (Success):**
+```json
+{
+  "ok": true,
+  "membershipId": "uuid",
+  "previousStatus": "CANCELLED",
+  "newStatus": "DRAFT"
+}
+```
+
+**Query de Update (Race-safe):**
+```sql
+UPDATE memberships
+SET 
+  status = 'DRAFT',
+  cancelled_at = NULL,
+  cancelled_by_profile_id = NULL,
+  cancellation_reason = NULL,
+  updated_at = NOW()
+WHERE 
+  id = :membershipId
+  AND status = 'CANCELLED'
+  AND payment_status != 'PAID'
+RETURNING id, status;
+```
+
 ---
 
-### Tarefa 4: Registrar Função no `config.toml`
+### Tarefa 3: Registrar Função no `config.toml`
 
 **Arquivo:** `supabase/config.toml`
 
+Adicionar após `[functions.cancel-membership-manual]`:
+
 ```toml
-[functions.cancel-membership-manual]
+[functions.reactivate-membership-manual]
 verify_jwt = false
 ```
 
-**Nota:** Seguindo o padrão existente de `approve-membership` e `reject-membership`, a validação JWT é feita manualmente no código da função.
-
 ---
 
-### Tarefa 5: Atualizar `retry-membership-payment` para Bloqueio Determinístico
-
-**Arquivo:** `supabase/functions/retry-membership-payment/index.ts`
-
-**Modificação nas linhas 387-428:**
-
-```typescript
-// === AJUSTE #3/#4: Cancellation Reason Validation (DETERMINISTIC) ===
-const { data: cancelLog } = await supabaseAdmin
-  .from("audit_logs")
-  .select("metadata, event_type")  // Include event_type for deterministic check
-  .eq("tenant_id", membership.tenant_id)
-  .in("event_type", [
-    "MEMBERSHIP_PENDING_PAYMENT_CLEANUP",
-    "MEMBERSHIP_ABANDONED_CLEANUP",
-    "MEMBERSHIP_MANUAL_CANCELLED",  // NOVO: Include manual cancellation
-  ])
-  .order("created_at", { ascending: false })
-  .limit(20);  // Aumentar limit para garantir encontrar o mais recente
-
-// Find matching log for this membership (most recent first)
-const matchingLog = cancelLog?.find((log) => {
-  const metadata = log.metadata as { membership_id?: string } | null;
-  return metadata?.membership_id === membershipId;
-});
-
-// AJUSTE #4: Deterministic check for manual cancellation FIRST
-const isManualCancellation = matchingLog?.event_type === "MEMBERSHIP_MANUAL_CANCELLED";
-
-if (isManualCancellation) {
-  logStep("Retry BLOCKED for manual cancellation", { 
-    membershipId,
-    event_type: matchingLog?.event_type,
-  });
-  return new Response(
-    JSON.stringify({
-      error: "RETRY_BLOCKED_MANUAL_CANCELLATION",
-      details: "Manual cancellations cannot be retried. Contact administrator.",
-    }),
-    {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
-}
-
-// Continue with existing timeout check logic...
-const cancellationReason = (matchingLog?.metadata as {
-  reason?: string;
-} | null)?.reason;
-const isPaymentTimeout =
-  cancellationReason === "payment_timeout" ||
-  cancellationReason?.includes("DRAFT status") ||
-  !matchingLog;  // Allow if no log found (edge case)
-
-if (!isPaymentTimeout && matchingLog) {
-  logStep("Retry not allowed for unknown cancellation reason", {
-    cancellationReason,
-  });
-  return new Response(
-    JSON.stringify({
-      error: "RETRY_NOT_ALLOWED_FOR_UNKNOWN_CANCELLATION",
-      details: "Only payment timeout cancellations can be retried",
-    }),
-    {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
-}
-```
-
----
-
-### Tarefa 6: Atualizar `MembershipDetails.tsx` com Botão de Cancelamento
+### Tarefa 4: Atualizar `MembershipDetails.tsx`
 
 **Arquivo:** `src/pages/MembershipDetails.tsx`
 
-**6.1 Adicionar imports necessários:**
-
+**4.1 Adicionar import `RotateCcw`:**
 ```typescript
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { XCircle, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
-import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { RotateCcw } from 'lucide-react';
 ```
 
-**6.2 Lógica de cancelamento:**
-
+**4.2 Adicionar estado para reactivate dialog:**
 ```typescript
-// Verificar se usuário pode cancelar manualmente
-const canCancelManually = isStaffOrCoach && membership && 
-  ['DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW'].includes(membership.status) &&
-  membership.payment_status !== 'PAID';
+// Reactivate dialog state
+const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false);
+const [reactivateReason, setReactivateReason] = useState('');
+```
 
-const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-const [cancelReason, setCancelReason] = useState('');
-const { impersonationId } = useImpersonation();
-const queryClient = useQueryClient();
+**4.3 Adicionar query para buscar último evento de auditoria:**
+```typescript
+// Fetch last cancellation audit event to determine if manual cancel
+const { data: lastCancelEvent } = useQuery({
+  queryKey: ['membership-last-cancel-event', membershipId],
+  queryFn: async () => {
+    if (!membershipId || membership?.status !== 'CANCELLED') return null;
+    
+    const { data } = await supabase
+      .from('audit_logs')
+      .select('event_type, metadata')
+      .eq('event_type', 'MEMBERSHIP_MANUAL_CANCELLED')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    // Find matching log for this membership
+    const match = data?.find((log) => {
+      const meta = log.metadata as { membership_id?: string } | null;
+      return meta?.membership_id === membershipId;
+    });
+    
+    return match || null;
+  },
+  enabled: !!membershipId && membership?.status === 'CANCELLED',
+});
+```
 
-const cancelMutation = useMutation({
+**4.4 Adicionar lógica de permissão para reativar:**
+```typescript
+// Can reactivate only if:
+// - User is staff/admin
+// - Status is CANCELLED
+// - payment_status !== PAID
+// - Last cancel event was MANUAL (not GC)
+const canReactivateManually = isStaffOrCoach && 
+  membership?.status === 'CANCELLED' &&
+  membership?.payment_status !== 'PAID' &&
+  lastCancelEvent?.event_type === 'MEMBERSHIP_MANUAL_CANCELLED';
+```
+
+**4.5 Adicionar mutation para reativar:**
+```typescript
+// Reactivate mutation
+const reactivateMutation = useMutation({
   mutationFn: async () => {
-    if (!membershipId || cancelReason.trim().length < 5) {
-      throw new Error(t('membership.cancel.reasonMinLength'));
+    if (!membershipId || reactivateReason.trim().length < 5) {
+      throw new Error(t('membership.reactivate.reasonMinLength'));
     }
 
     const { data, error } = await supabase.functions.invoke(
-      'cancel-membership-manual',
+      'reactivate-membership-manual',
       {
         body: {
           membershipId,
-          reason: cancelReason.trim(),
-          impersonationId: impersonationId || undefined,
+          reason: reactivateReason.trim(),
+          impersonationId: impersonationSession?.impersonationId || undefined,
         },
       }
     );
 
     if (error || data?.error) {
-      throw new Error(data?.error || error?.message || 'Failed to cancel');
+      throw new Error(data?.error || error?.message || 'Failed to reactivate');
     }
 
     return data;
   },
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['membership'] });
-    setIsCancelDialogOpen(false);
-    setCancelReason('');
-    toast.success(t('membership.cancel.success'));
-    navigate(`/${tenantSlug}/app/memberships`);
+    queryClient.invalidateQueries({ queryKey: ['membership-last-cancel-event'] });
+    setIsReactivateDialogOpen(false);
+    setReactivateReason('');
+    toast.success(t('membership.reactivate.success'));
   },
   onError: (error) => {
     toast.error(error.message || t('common.error'));
@@ -339,59 +290,63 @@ const cancelMutation = useMutation({
 });
 ```
 
-**6.3 UI do botão e modal (após o CardHeader):**
-
+**4.6 Adicionar botão de reativar no CardHeader (após botão de cancel):**
 ```tsx
-{canCancelManually && (
+{/* Manual Reactivate Button - only for manually cancelled memberships */}
+{canReactivateManually && (
   <Button
-    variant="destructive"
+    variant="outline"
     size="sm"
-    onClick={() => setIsCancelDialogOpen(true)}
+    onClick={() => setIsReactivateDialogOpen(true)}
+    className="text-primary border-primary hover:bg-primary/10"
   >
-    <XCircle className="h-4 w-4 mr-2" />
-    {t('membership.cancel.title')}
+    <RotateCcw className="h-4 w-4 mr-2" />
+    {t('membership.reactivate.title')}
   </Button>
 )}
+```
 
-{/* Cancel Membership Dialog */}
-<Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+**4.7 Adicionar dialog de reativação (após cancel dialog):**
+```tsx
+{/* Reactivate Membership Dialog */}
+<Dialog open={isReactivateDialogOpen} onOpenChange={setIsReactivateDialogOpen}>
   <DialogContent>
     <DialogHeader>
-      <DialogTitle className="flex items-center gap-2 text-destructive">
-        <AlertTriangle className="h-5 w-5" />
-        {t('membership.cancel.confirmTitle')}
+      <DialogTitle className="flex items-center gap-2 text-primary">
+        <RotateCcw className="h-5 w-5" />
+        {t('membership.reactivate.confirmTitle')}
       </DialogTitle>
       <DialogDescription>
-        {t('membership.cancel.confirmDesc')}
+        {t('membership.reactivate.confirmDesc')}
       </DialogDescription>
     </DialogHeader>
 
     <div className="space-y-4 py-4">
-      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm">
-        <p className="font-medium text-destructive mb-2">
-          {t('membership.cancel.warningTitle')}
+      <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm">
+        <p className="font-medium text-primary mb-2">
+          {t('membership.reactivate.infoTitle')}
         </p>
         <ul className="list-disc list-inside text-muted-foreground space-y-1">
-          <li>{t('membership.cancel.warningNoRetry')}</li>
-          <li>{t('membership.cancel.warningPermanent')}</li>
-          <li>{t('membership.cancel.warningAudited')}</li>
+          <li>{t('membership.reactivate.infoBackToDraft')}</li>
+          <li>{t('membership.reactivate.infoNoAutoPayment')}</li>
+          <li>{t('membership.reactivate.infoAudited')}</li>
         </ul>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="cancel-reason">
-          {t('membership.cancel.reason')} <span className="text-destructive">*</span>
+        <Label htmlFor="reactivate-reason">
+          {t('membership.reactivate.reason')} <span className="text-destructive">*</span>
         </Label>
         <Textarea
-          id="cancel-reason"
-          placeholder={t('membership.cancel.reasonPlaceholder')}
-          value={cancelReason}
-          onChange={(e) => setCancelReason(e.target.value)}
+          id="reactivate-reason"
+          placeholder={t('membership.reactivate.reasonPlaceholder')}
+          value={reactivateReason}
+          onChange={(e) => setReactivateReason(e.target.value)}
           rows={3}
         />
-        {cancelReason.length > 0 && cancelReason.length < 5 && (
+        {reactivateReason.length > 0 && reactivateReason.length < 5 && (
           <p className="text-xs text-destructive">
-            {t('membership.cancel.reasonMinLength')}
+            {t('membership.reactivate.reasonMinLength')}
           </p>
         )}
       </div>
@@ -400,25 +355,24 @@ const cancelMutation = useMutation({
     <DialogFooter>
       <Button
         variant="outline"
-        onClick={() => setIsCancelDialogOpen(false)}
-        disabled={cancelMutation.isPending}
+        onClick={() => setIsReactivateDialogOpen(false)}
+        disabled={reactivateMutation.isPending}
       >
         {t('common.cancel')}
       </Button>
       <Button
-        variant="destructive"
-        onClick={() => cancelMutation.mutate()}
-        disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+        onClick={() => reactivateMutation.mutate()}
+        disabled={reactivateMutation.isPending || reactivateReason.trim().length < 5}
       >
-        {cancelMutation.isPending ? (
+        {reactivateMutation.isPending ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             {t('common.loading')}
           </>
         ) : (
           <>
-            <XCircle className="h-4 w-4 mr-2" />
-            {t('membership.cancel.confirm')}
+            <RotateCcw className="h-4 w-4 mr-2" />
+            {t('membership.reactivate.confirm')}
           </>
         )}
       </Button>
@@ -429,127 +383,141 @@ const cancelMutation = useMutation({
 
 ---
 
-### Tarefa 7: Adicionar Traduções (i18n)
+### Tarefa 5: Adicionar Traduções (i18n)
 
 **Arquivo:** `src/locales/pt-BR.ts`
 
 ```typescript
-// Membership manual cancellation
-'membership.cancel.title': 'Cancelar filiação',
-'membership.cancel.confirmTitle': 'Confirmar cancelamento',
-'membership.cancel.confirmDesc': 'Esta ação não pode ser desfeita. A filiação será marcada como cancelada permanentemente.',
-'membership.cancel.warningTitle': 'Atenção',
-'membership.cancel.warningNoRetry': 'O atleta NÃO poderá tentar pagar novamente',
-'membership.cancel.warningPermanent': 'Esta ação é permanente e irrevogável',
-'membership.cancel.warningAudited': 'O cancelamento será registrado no histórico',
-'membership.cancel.reason': 'Motivo do cancelamento',
-'membership.cancel.reasonPlaceholder': 'Descreva o motivo do cancelamento...',
-'membership.cancel.reasonMinLength': 'O motivo deve ter pelo menos 5 caracteres',
-'membership.cancel.confirm': 'Confirmar cancelamento',
-'membership.cancel.success': 'Filiação cancelada com sucesso',
+// P3.MEMBERSHIP.MANUAL.REACTIVATE — Manual Reactivation
+'membership.reactivate.title': 'Reativar filiação',
+'membership.reactivate.confirmTitle': 'Confirmar reativação',
+'membership.reactivate.confirmDesc': 'A filiação voltará para o estado inicial (DRAFT).',
+'membership.reactivate.infoTitle': 'Importante',
+'membership.reactivate.infoBackToDraft': 'A filiação voltará para o estado RASCUNHO',
+'membership.reactivate.infoNoAutoPayment': 'O pagamento NÃO será reaberto automaticamente',
+'membership.reactivate.infoAudited': 'A reativação será registrada no histórico',
+'membership.reactivate.reason': 'Motivo da reativação',
+'membership.reactivate.reasonPlaceholder': 'Descreva o motivo da reativação...',
+'membership.reactivate.reasonMinLength': 'O motivo deve ter pelo menos 5 caracteres',
+'membership.reactivate.confirm': 'Confirmar reativação',
+'membership.reactivate.success': 'Filiação reativada com sucesso',
 ```
 
 **Arquivo:** `src/locales/en.ts`
 
 ```typescript
-'membership.cancel.title': 'Cancel membership',
-'membership.cancel.confirmTitle': 'Confirm cancellation',
-'membership.cancel.confirmDesc': 'This action cannot be undone. The membership will be permanently cancelled.',
-'membership.cancel.warningTitle': 'Warning',
-'membership.cancel.warningNoRetry': 'The athlete will NOT be able to retry payment',
-'membership.cancel.warningPermanent': 'This action is permanent and irreversible',
-'membership.cancel.warningAudited': 'The cancellation will be recorded in the history',
-'membership.cancel.reason': 'Cancellation reason',
-'membership.cancel.reasonPlaceholder': 'Describe the reason for cancellation...',
-'membership.cancel.reasonMinLength': 'Reason must be at least 5 characters',
-'membership.cancel.confirm': 'Confirm cancellation',
-'membership.cancel.success': 'Membership cancelled successfully',
+// P3.MEMBERSHIP.MANUAL.REACTIVATE — Manual Reactivation
+'membership.reactivate.title': 'Reactivate membership',
+'membership.reactivate.confirmTitle': 'Confirm reactivation',
+'membership.reactivate.confirmDesc': 'The membership will return to the initial state (DRAFT).',
+'membership.reactivate.infoTitle': 'Important',
+'membership.reactivate.infoBackToDraft': 'The membership will return to DRAFT status',
+'membership.reactivate.infoNoAutoPayment': 'Payment will NOT be automatically reopened',
+'membership.reactivate.infoAudited': 'The reactivation will be recorded in the history',
+'membership.reactivate.reason': 'Reactivation reason',
+'membership.reactivate.reasonPlaceholder': 'Describe the reason for reactivation...',
+'membership.reactivate.reasonMinLength': 'Reason must be at least 5 characters',
+'membership.reactivate.confirm': 'Confirm reactivation',
+'membership.reactivate.success': 'Membership reactivated successfully',
 ```
 
 **Arquivo:** `src/locales/es.ts`
 
 ```typescript
-'membership.cancel.title': 'Cancelar membresía',
-'membership.cancel.confirmTitle': 'Confirmar cancelación',
-'membership.cancel.confirmDesc': 'Esta acción no se puede deshacer. La membresía será cancelada permanentemente.',
-'membership.cancel.warningTitle': 'Atención',
-'membership.cancel.warningNoRetry': 'El atleta NO podrá intentar pagar nuevamente',
-'membership.cancel.warningPermanent': 'Esta acción es permanente e irreversible',
-'membership.cancel.warningAudited': 'La cancelación quedará registrada en el historial',
-'membership.cancel.reason': 'Motivo de cancelación',
-'membership.cancel.reasonPlaceholder': 'Describe el motivo de la cancelación...',
-'membership.cancel.reasonMinLength': 'El motivo debe tener al menos 5 caracteres',
-'membership.cancel.confirm': 'Confirmar cancelación',
-'membership.cancel.success': 'Membresía cancelada exitosamente',
+// P3.MEMBERSHIP.MANUAL.REACTIVATE — Manual Reactivation
+'membership.reactivate.title': 'Reactivar membresía',
+'membership.reactivate.confirmTitle': 'Confirmar reactivación',
+'membership.reactivate.confirmDesc': 'La membresía volverá al estado inicial (BORRADOR).',
+'membership.reactivate.infoTitle': 'Importante',
+'membership.reactivate.infoBackToDraft': 'La membresía volverá al estado BORRADOR',
+'membership.reactivate.infoNoAutoPayment': 'El pago NO se reabrirá automáticamente',
+'membership.reactivate.infoAudited': 'La reactivación quedará registrada en el historial',
+'membership.reactivate.reason': 'Motivo de reactivación',
+'membership.reactivate.reasonPlaceholder': 'Describe el motivo de la reactivación...',
+'membership.reactivate.reasonMinLength': 'El motivo debe tener al menos 5 caracteres',
+'membership.reactivate.confirm': 'Confirmar reactivación',
+'membership.reactivate.success': 'Membresía reactivada exitosamente',
 ```
 
 ---
 
-### Tarefa 8: Atualizar Documentação
+### Tarefa 6: Atualizar Documentação
 
 **Arquivo:** `docs/BUSINESS-FLOWS.md`
 
-```markdown
-### Cancelamento Manual de Membership
+Adicionar após Seção 11 (linha 588, antes do fechamento):
 
-Permite que administradores cancelem manualmente uma filiação de forma definitiva.
-Usa campo dedicado `cancellation_reason` (separado de `review_notes`).
+```markdown
+---
+
+## 12. Reativação Manual de Membership
+
+Permite que administradores reativem uma filiação **cancelada manualmente** para corrigir erros administrativos. Esta funcionalidade NÃO se aplica a cancelamentos automáticos (GC).
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│ Status Elegíveis: DRAFT | PENDING_PAYMENT | PENDING_REVIEW      │
-│ Status Bloqueados: APPROVED | ACTIVE | EXPIRED | CANCELLED      │
-│ Pagamento: APENAS NOT_PAID                                       │
+│ ELEGÍVEL: CANCELLED (somente se último evento = manual)         │
+│ BLOQUEADO: CANCELLED por GC | EXPIRED | ACTIVE | PAID           │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ (admin clica "Cancelar filiação")
+                              ▼ (admin clica "Reativar filiação")
 ┌─────────────────────────────────────────────────────────────────┐
-│                cancel-membership-manual                          │
+│              reactivate-membership-manual                        │
 │                                                                  │
 │  Validações:                                                     │
 │  ✓ JWT validado manualmente                                      │
 │  ✓ Role: ADMIN_TENANT | STAFF_ORGANIZACAO                        │
 │  ✓ Superadmin: impersonation obrigatório                         │
 │  ✓ Tenant boundary                                               │
-│  ✓ Status elegível                                               │
+│  ✓ status === CANCELLED                                          │
 │  ✓ payment_status !== PAID                                       │
+│  ✓ Último evento = MEMBERSHIP_MANUAL_CANCELLED                   │
 │  ✓ Motivo obrigatório (min 5 chars)                              │
 │                                                                  │
 │  Campos atualizados:                                             │
-│  status → CANCELLED                                              │
-│  cancelled_at → now()                                            │
-│  cancelled_by_profile_id → admin.id                              │
-│  cancellation_reason → reason (campo dedicado!)                  │
+│  status → DRAFT                                                  │
+│  cancelled_at → NULL                                             │
+│  cancelled_by_profile_id → NULL                                  │
+│  cancellation_reason → NULL                                      │
 │                                                                  │
 │  Auditoria:                                                      │
-│  MEMBERSHIP_MANUAL_CANCELLED                                     │
-│  → cancellation_source: 'manual_admin'                           │
-│  → blocked_retry: true                                           │
+│  MEMBERSHIP_MANUAL_REACTIVATED                                   │
+│  → reactivation_source: 'manual_admin'                           │
+│  → reason: 'motivo obrigatório'                                  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      CANCELLED (final)                           │
-│                (retry BLOQUEADO permanentemente)                 │
+│                         DRAFT                                    │
+│            (pode reiniciar fluxo de filiação)                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Princípios SAFE GOLD:**
-- ❌ NÃO apaga dados
-- ❌ NÃO permite retry após cancelamento manual
+### Princípios SAFE GOLD
+
+- ❌ NÃO apaga histórico de auditoria
+- ❌ NÃO reabre pagamento automaticamente
+- ❌ NÃO reativa cancelamentos por GC
 - ❌ NÃO afeta memberships pagas
 - ❌ NÃO permite cross-tenant
 - ✅ Sempre audita
-- ✅ Sempre exige motivo (campo dedicado `cancellation_reason`)
+- ✅ Sempre exige motivo
 - ✅ Sempre valida papel
 
-**Diferença de outros cancelamentos:**
+### Tabela de Ações Administrativas
 
-| Tipo | Evento | Retry Permitido |
-|------|--------|-----------------|
-| GC automático (payment timeout) | `MEMBERSHIP_PENDING_PAYMENT_CLEANUP` | ✅ Sim |
-| GC automático (DRAFT abandoned) | `MEMBERSHIP_ABANDONED_CLEANUP` | ✅ Sim |
-| **Cancelamento manual** | `MEMBERSHIP_MANUAL_CANCELLED` | ❌ **NÃO** |
+| Ação | Evento de Auditoria | Status Final |
+|------|---------------------|--------------|
+| Cancelamento manual | `MEMBERSHIP_MANUAL_CANCELLED` | CANCELLED |
+| Reativação manual | `MEMBERSHIP_MANUAL_REACTIVATED` | DRAFT |
+
+### Diferença de Retry de Pagamento
+
+| Cenário | Ação Permitida |
+|---------|----------------|
+| CANCELLED por GC (payment_timeout) | `retry-membership-payment` → PENDING_PAYMENT |
+| CANCELLED por GC (DRAFT abandoned) | `retry-membership-payment` → PENDING_PAYMENT |
+| **CANCELLED manualmente** | `reactivate-membership-manual` → DRAFT |
 ```
 
 ---
@@ -558,113 +526,124 @@ Usa campo dedicado `cancellation_reason` (separado de `review_notes`).
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `supabase/migrations/YYYYMMDDHHMMSS_add_cancellation_fields.sql` | **CRIAR** | Adicionar colunas `cancelled_at`, `cancelled_by_profile_id`, `cancellation_reason` |
-| `supabase/functions/cancel-membership-manual/index.ts` | **CRIAR** | Edge Function principal |
-| `supabase/functions/_shared/audit-logger.ts` | **MODIFICAR** | Adicionar `MEMBERSHIP_MANUAL_CANCELLED` |
-| `supabase/functions/retry-membership-payment/index.ts` | **MODIFICAR** | Bloqueio determinístico + incluir evento na lista |
+| `supabase/functions/_shared/audit-logger.ts` | **MODIFICAR** | Adicionar `MEMBERSHIP_MANUAL_REACTIVATED` |
+| `supabase/functions/reactivate-membership-manual/index.ts` | **CRIAR** | Edge Function principal |
 | `supabase/config.toml` | **MODIFICAR** | Registrar função |
-| `src/pages/MembershipDetails.tsx` | **MODIFICAR** | UI de cancelamento admin |
+| `src/pages/MembershipDetails.tsx` | **MODIFICAR** | Adicionar botão e dialog de reativação |
 | `src/locales/pt-BR.ts` | **ADICIONAR** | 12 novas chaves |
 | `src/locales/en.ts` | **ADICIONAR** | 12 novas chaves |
 | `src/locales/es.ts` | **ADICIONAR** | 12 novas chaves |
-| `docs/BUSINESS-FLOWS.md` | **ADICIONAR** | Documentar fluxo |
+| `docs/BUSINESS-FLOWS.md` | **ADICIONAR** | Seção 12 - Reativação Manual |
 
 ---
 
 ## Critérios de Aceitação
 
 ### Funcionalidade Core
-- [ ] Apenas ADMIN_TENANT/STAFF_ORGANIZACAO podem cancelar
+- [ ] Apenas ADMIN_TENANT/STAFF_ORGANIZACAO podem reativar
 - [ ] Motivo obrigatório (min 5 chars)
-- [ ] Apenas status elegíveis (DRAFT, PENDING_PAYMENT, PENDING_REVIEW)
-- [ ] Membership paga NÃO pode ser cancelada
-- [ ] Status final = CANCELLED
-
-### Ajuste #1 — JWT/config.toml
-- [ ] `verify_jwt = false` no config.toml (seguindo padrão existente)
-- [ ] Validação JWT manual no código da função
-
-### Ajuste #2 — Roles
-- [ ] Usar `STAFF_ORGANIZACAO` (não STAFF_TENANT)
-- [ ] Consistente com padrão do codebase
-
-### Ajuste #3 — Campo Dedicado
-- [ ] Campo `cancellation_reason` criado (separado de `review_notes`)
-- [ ] Campo `cancelled_at` criado
-- [ ] Campo `cancelled_by_profile_id` criado
-
-### Ajuste #4 — Bloqueio Determinístico no Retry
-- [ ] `retry-membership-payment` inclui `MEMBERSHIP_MANUAL_CANCELLED` na query
-- [ ] Verificação de `event_type` ANTES de verificar `reason`
-- [ ] Erro específico: `RETRY_BLOCKED_MANUAL_CANCELLATION`
+- [ ] Apenas status === CANCELLED
+- [ ] Apenas cancelamentos manuais (não GC)
+- [ ] Membership paga NÃO pode ser reativada
+- [ ] Status final = DRAFT
 
 ### Segurança
+- [ ] JWT validado manualmente
 - [ ] Tenant boundary validado
 - [ ] Superadmin requer impersonation
 - [ ] Billing status verificado
 - [ ] Rate limiting aplicado (10/hour/user)
 
+### Validação de Último Evento
+- [ ] Query em audit_logs para membership_id
+- [ ] Bloqueia se último evento = GC automático
+- [ ] Permite apenas se último evento = MEMBERSHIP_MANUAL_CANCELLED
+
 ### Auditoria
-- [ ] Evento `MEMBERSHIP_MANUAL_CANCELLED` registrado
-- [ ] Metadata inclui `cancellation_source: 'manual_admin'`
-- [ ] Metadata inclui `blocked_retry: true`
-- [ ] IP registrado
+- [ ] Evento `MEMBERSHIP_MANUAL_REACTIVATED` registrado
+- [ ] Metadata inclui `reactivation_source: 'manual_admin'`
+- [ ] Motivo registrado
+- [ ] IP + role registrados
+
+### UI
+- [ ] Botão aparece apenas para CANCELLED + NOT_PAID + manual cancel
+- [ ] Modal de confirmação com informações claras
+- [ ] Motivo obrigatório na UI
+- [ ] Feedback de sucesso/erro
 
 ---
 
 ## Seção Técnica
 
-### Query de Update (Race-safe)
+### Estrutura da Edge Function
 
-```sql
-UPDATE memberships
-SET 
-  status = 'CANCELLED',
-  cancelled_at = NOW(),
-  cancelled_by_profile_id = :adminId,
-  cancellation_reason = :reason,
-  updated_at = NOW()
-WHERE 
-  id = :membershipId
-  AND status IN ('DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW')
-  AND payment_status != 'PAID'
-RETURNING id, status;
-```
+A função segue exatamente o template de `cancel-membership-manual`:
 
-### Padrão de Roles Consolidado
+1. **Imports**: Mesmo set de imports (audit-logger, impersonation, rate-limiter, decision-logger, billing)
+2. **CORS Headers**: Idêntico
+3. **Rate Limiter**: 10/hour/user (mesmo preset)
+4. **Auth Validation**: Mesmo padrão JWT manual
+5. **Role Check**: ADMIN_TENANT / STAFF_ORGANIZACAO
+6. **Impersonation**: Obrigatório para SUPERADMIN
+7. **Billing Check**: Mesmo padrão
+8. **Status Validation**: CANCELLED only
+9. **Audit Log Query**: Nova validação para último evento
+10. **Race-safe Update**: Pattern idêntico com `.eq('status', 'CANCELLED')`
+
+### Query de Validação de Último Evento
 
 ```typescript
-// Correto - conforme src/types/auth.ts
-type AppRole = 
-  | 'SUPERADMIN_GLOBAL'
-  | 'ADMIN_TENANT'
-  | 'STAFF_ORGANIZACAO'  // ← Este é o nome correto
-  | 'COACH_PRINCIPAL'
-  | 'COACH_ASSISTENTE'
-  | 'INSTRUTOR'
-  | 'RECEPCAO'
-  | 'ATLETA'
-  | 'RESPONSAVELLEGAL';
+// Fetch most recent cancellation event for this membership
+const { data: cancelEvents } = await supabase
+  .from("audit_logs")
+  .select("event_type, metadata, created_at")
+  .in("event_type", [
+    "MEMBERSHIP_MANUAL_CANCELLED",
+    "MEMBERSHIP_PENDING_PAYMENT_CLEANUP",
+    "MEMBERSHIP_ABANDONED_CLEANUP",
+  ])
+  .order("created_at", { ascending: false })
+  .limit(20);
+
+const lastCancelEvent = cancelEvents?.find((log) => {
+  const meta = log.metadata as { membership_id?: string } | null;
+  return meta?.membership_id === membershipId;
+});
+
+if (!lastCancelEvent) {
+  // No cancellation event found - edge case, block
+  return error(400, "NO_CANCELLATION_EVENT_FOUND");
+}
+
+if (lastCancelEvent.event_type !== "MEMBERSHIP_MANUAL_CANCELLED") {
+  // GC cancellation - use retry instead
+  return error(400, "REACTIVATION_NOT_ALLOWED_FOR_GC_CANCELLATION");
+}
 ```
+
+### Rate Limiting
+
+| Identificador | Limite | Janela |
+|---------------|--------|--------|
+| user_id | 10 | 1 hora |
 
 ### Estrutura de Auditoria
 
 ```json
 {
-  "event_type": "MEMBERSHIP_MANUAL_CANCELLED",
+  "event_type": "MEMBERSHIP_MANUAL_REACTIVATED",
   "tenant_id": "uuid",
   "profile_id": "uuid",
   "metadata": {
     "membership_id": "uuid",
-    "previous_status": "PENDING_PAYMENT",
-    "new_status": "CANCELLED",
-    "cancellation_source": "manual_admin",
-    "reason": "Documento inválido - não foi possível verificar identidade",
-    "blocked_retry": true,
+    "previous_status": "CANCELLED",
+    "new_status": "DRAFT",
+    "reactivation_source": "manual_admin",
+    "reason": "Cancelamento feito por engano - atleta enviou documentos corretos",
     "actor_role": "ADMIN_TENANT",
     "impersonation_id": null,
     "ip_address": "x.x.x.x",
-    "occurred_at": "2024-02-08T14:30:00Z"
+    "occurred_at": "2026-02-08T14:30:00Z"
   }
 }
 ```
@@ -673,12 +652,21 @@ type AppRole =
 
 ## Conclusão
 
-Este plano atualizado incorpora todos os **4 ajustes críticos**:
+Este PI completa o ciclo simétrico de governança de membership:
 
-1. ✅ **JWT via config.toml** — Mantém `verify_jwt = false` seguindo padrão de `approve/reject-membership`
-2. ✅ **Roles padronizadas** — Usa `STAFF_ORGANIZACAO` conforme `src/types/auth.ts`
-3. ✅ **Campo dedicado** — `cancellation_reason` separado de `review_notes`
-4. ✅ **Bloqueio determinístico** — `event_type === 'MEMBERSHIP_MANUAL_CANCELLED'` verificado PRIMEIRO
+```text
+DRAFT ←→ CANCELLED (manual only)
+   │
+   └─ Cancelar: cancel-membership-manual
+   └─ Reativar: reactivate-membership-manual (ESTE PI)
+```
+
+**Garantias SAFE GOLD:**
+1. ✅ Não cria brechas de segurança
+2. ✅ Não reabre pagamento automaticamente
+3. ✅ Não desfaz auditoria
+4. ✅ Mantém histórico intacto
+5. ✅ Distingue cancelamentos manuais de GC
 
 Pronto para execução literal, sem interpretação.
 
