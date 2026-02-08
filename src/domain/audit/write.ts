@@ -40,6 +40,8 @@ export interface WriteAuditResult {
   id?: string;
   hash?: string;
   error?: string;
+  /** True if this entry was already written (idempotent short-circuit) */
+  duplicate?: boolean;
 }
 
 /**
@@ -73,6 +75,32 @@ export async function writeAuditLog(entry: AuditEntryInput): Promise<WriteAuditR
     // Compute deterministic hash
     const hash = await computeAuditHash(normalized);
     
+    // ============================================================
+    // IDEMPOTENCY CHECK — SAFE GOLD PLUS
+    // ============================================================
+    // Check if an entry with the same hash already exists.
+    // If so, short-circuit and return success without inserting.
+    // This guarantees: same input → same result, no duplicates.
+    // ❌ NO UPDATE, ❌ NO DELETE — append-only semantics preserved.
+    
+    const { data: existing } = await supabase
+      .from('audit_logs')
+      .select('id')
+      .eq('tenant_id', normalized.tenant_id)
+      .eq('metadata->>hash', hash)
+      .limit(1)
+      .maybeSingle();
+    
+    if (existing) {
+      // Idempotent short-circuit — entry already exists
+      return {
+        success: true,
+        id: existing.id,
+        hash,
+        duplicate: true,
+      };
+    }
+    
     // Map to existing audit_logs schema
     const { data, error } = await supabase
       .from('audit_logs')
@@ -87,7 +115,7 @@ export async function writeAuditLog(entry: AuditEntryInput): Promise<WriteAuditR
           level: normalized.level,
           occurred_at: normalized.occurred_at,
           hash,
-          safe_gold_version: '2.0',
+          safe_gold_version: '2.0.1',
         },
       })
       .select('id')
@@ -102,6 +130,7 @@ export async function writeAuditLog(entry: AuditEntryInput): Promise<WriteAuditR
       success: true,
       id: data?.id,
       hash,
+      duplicate: false,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';

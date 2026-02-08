@@ -97,20 +97,16 @@ export async function computeAuditHash(entry: NormalizedAuditEntry): Promise<str
   return hashHex;
 }
 
-/**
- * Synchronous hash computation for testing (uses simple hash).
- * For production, use computeAuditHash.
- */
-export function computeAuditHashSync(entry: NormalizedAuditEntry): string {
-  const jsonString = JSON.stringify(entry);
-  let hash = 0;
-  for (let i = 0; i < jsonString.length; i++) {
-    const char = jsonString.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0');
-}
+// ============================================================
+// SAFE GOLD PLUS — NO SYNC HASH ALLOWED
+// ============================================================
+// 
+// computeAuditHashSync has been REMOVED as of AUDIT2.0.1
+// Only cryptographic SHA-256 hash is permitted.
+// Tests MUST use mocks or fixed hash values.
+// 
+// ❌ PROHIBITED: Non-cryptographic hash functions
+// ✅ REQUIRED: computeAuditHash (async, SHA-256)
 
 // ============================================================
 // VIEW STATE NORMALIZATION
