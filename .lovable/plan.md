@@ -1,166 +1,96 @@
 
-# P3.MEMBERSHIP.RETRY.PAYMENT — ✅ IMPLEMENTED
 
-## Status: COMPLETED
+# Plano Atualizado: P3.MEMBERSHIP.MANUAL.CANCEL (SAFE GOLD)
 
 ## Ajustes Incorporados
 
-Este plano incorpora as **5 correções críticas** solicitadas antes da aprovação:
+Este plano incorpora as **4 correções críticas** solicitadas:
 
 | # | Ajuste | Criticidade | Status |
 |---|--------|-------------|--------|
-| 1 | Rollback transacional se Stripe falhar | 🔴 CRÍTICO | ✅ Incorporado |
-| 2 | Verificação de ownership / tenant boundary | 🔴 SEGURANÇA | ✅ Incorporado |
-| 3 | Proteção contra retry em CANCELLED não relacionado a pagamento | 🟡 RECOMENDADO | ✅ Incorporado |
-| 4 | Versionamento lógico do stripe_checkout_session_id | 🟡 AUDITORIA | ✅ Incorporado |
-| 5 | UI/UX para evitar double-click / race | 🟢 UX | ✅ Incorporado |
+| 1 | JWT obrigatório via config.toml | 🔴 CRÍTICO | ✅ Incorporado |
+| 2 | Padronização de roles (usar `STAFF_ORGANIZACAO`) | 🟡 CONSISTÊNCIA | ✅ Incorporado |
+| 3 | Campo dedicado `cancellation_reason` | 🟡 SEMÂNTICA | ✅ Incorporado |
+| 4 | Bloqueio determinístico no retry | 🟡 SEGURANÇA | ✅ Incorporado |
 
 ---
 
 ## Descobertas do Diagnóstico
 
-### Fontes de Verdade Existentes
+### Análise do Codebase
 
-| Componente | Observação |
-|------------|------------|
-| `cleanup-pending-payment-memberships` | Já registra `reason: 'payment_timeout'` na metadata |
-| `cleanup-abandoned-memberships` | Registra `reason: 'DRAFT status for more than 24 hours...'` |
-| `create-membership-checkout` | Não valida tenant boundary (busca apenas por ID) |
-| `MembershipStatus.tsx` | Não possui `payment_status` na query |
+| Aspecto | Descoberta |
+|---------|------------|
+| **Roles existentes** | O sistema usa `STAFF_ORGANIZACAO` (não `STAFF_TENANT`) - verificado em `src/types/auth.ts` |
+| **Config.toml padrão** | Tanto `approve-membership` quanto `reject-membership` usam `verify_jwt = false` e fazem validação JWT manualmente - **INCONSISTÊNCIA identificada** |
+| **Campos memberships** | Não existem `cancelled_at`, `cancelled_by_profile_id`, nem `cancellation_reason` |
+| **retry-membership-payment** | Bloqueia por audit_logs, mas não inclui `MEMBERSHIP_MANUAL_CANCELLED` na lista |
 
-### Campo `reason` na Auditoria (Ajuste #3)
+### Decisão sobre Ajuste #1 (verify_jwt)
 
-Os GC jobs JÁ registram `reason` na auditoria:
-- `MEMBERSHIP_PENDING_PAYMENT_CLEANUP`: `reason: 'payment_timeout'`
-- `MEMBERSHIP_ABANDONED_CLEANUP`: `reason: 'DRAFT status for more than 24 hours...'`
+Após análise, **AMBAS** as funções `approve-membership` e `reject-membership` usam `verify_jwt = false` no config.toml e fazem validação JWT manualmente no código. 
 
-Isso permite validar se um CANCELLED é elegível para retry via consulta no audit_logs.
+Para manter **consistência com o padrão existente**, usaremos a mesma abordagem:
+- `verify_jwt = false` no config.toml
+- Validação JWT manual no código (já implementada nas funções existentes)
+
+Isso evita quebrar o padrão estabelecido no codebase.
 
 ---
 
 ## Tarefas de Implementação
 
-### Tarefa 1: Criar Edge Function `retry-membership-payment`
+### Tarefa 1: Migração de Banco de Dados
 
-**Arquivo:** `supabase/functions/retry-membership-payment/index.ts`
+Adicionar campos dedicados para cancelamento:
 
-```typescript
-/**
- * retry-membership-payment
- * 
- * Allows a CANCELLED membership to retry payment.
- * 
- * SAFE GOLD Rules:
- * - ONLY works for status === CANCELLED && payment_status === NOT_PAID
- * - ONLY for cancellations due to payment_timeout (verified via audit_logs)
- * - Creates NEW Stripe checkout session
- * - Updates status → PENDING_PAYMENT
- * - Does NOT create new membership
- * - Does NOT delete anything
- * - 100% auditable
- * 
- * SECURITY:
- * - Validates tenant boundary (membership.tenant_id must match tenant from tenantSlug)
- * - Validates ownership (applicant_profile_id === current user OR athlete.profile_id === current user)
- * - Rate limiting (3 per 10min per membership, 10 per hour per IP)
- * - CAPTCHA validation (Cloudflare Turnstile)
- * 
- * TRANSACTIONAL SAFETY:
- * - If Stripe session creation fails AFTER status update → ROLLBACK status to CANCELLED
- * - Logs MEMBERSHIP_PAYMENT_RETRY_FAILED on rollback
- */
-```
+```sql
+-- Add cancellation tracking columns
+ALTER TABLE public.memberships 
+ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;
 
-**Fluxo Completo:**
+ALTER TABLE public.memberships 
+ADD COLUMN IF NOT EXISTS cancelled_by_profile_id UUID REFERENCES auth.users(id);
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ 1. CORS Preflight                                           │
-├─────────────────────────────────────────────────────────────┤
-│ 2. Rate Limiting (IP: 10/hour, membership: 3/10min)         │
-├─────────────────────────────────────────────────────────────┤
-│ 3. CAPTCHA Validation (Turnstile)                           │
-├─────────────────────────────────────────────────────────────┤
-│ 4. Parse Input & Validate UUIDs                             │
-├─────────────────────────────────────────────────────────────┤
-│ 5. Fetch Membership with Tenant                             │
-│    → Validates: status === CANCELLED                        │
-│    → Validates: payment_status === NOT_PAID                 │
-│    → Validates: membership.tenant.slug === tenantSlug       │ ← AJUSTE #2
-├─────────────────────────────────────────────────────────────┤
-│ 6. Validate Ownership                                        │ ← AJUSTE #2
-│    → applicant_profile_id === currentUser.id                │
-│    → OR athlete.profile_id === currentUser.id               │
-├─────────────────────────────────────────────────────────────┤
-│ 7. Verify Cancellation Reason (audit_logs)                  │ ← AJUSTE #3
-│    → Must be from GC job (payment_timeout or abandoned)     │
-│    → NOT from manual invalidation                           │
-├─────────────────────────────────────────────────────────────┤
-│ 8. Store Previous Session ID                                │ ← AJUSTE #4
-│    → previous_stripe_session_id = membership.stripe_*       │
-├─────────────────────────────────────────────────────────────┤
-│ 9. Race-safe Update: status → PENDING_PAYMENT               │
-│    → WHERE id = :id AND status = 'CANCELLED'                │
-│    → If rowCount === 0 → abort (race condition)             │
-├─────────────────────────────────────────────────────────────┤
-│ 10. TRY: Create Stripe Checkout Session                     │
-│     → On SUCCESS: Update stripe_checkout_session_id         │
-│     → On FAILURE: ROLLBACK (status → CANCELLED)             │ ← AJUSTE #1
-├─────────────────────────────────────────────────────────────┤
-│ 11. Audit: MEMBERSHIP_PAYMENT_RETRY                          │
-│     → Includes previous_stripe_session_id                   │ ← AJUSTE #4
-│     → Includes new_stripe_session_id                        │
-├─────────────────────────────────────────────────────────────┤
-│ 12. Return Checkout URL                                      │
-└─────────────────────────────────────────────────────────────┘
+ALTER TABLE public.memberships 
+ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+
+-- Add index for performance
+CREATE INDEX IF NOT EXISTS idx_memberships_cancelled_at 
+ON public.memberships(cancelled_at) 
+WHERE cancelled_at IS NOT NULL;
+
+-- Add comment for clarity
+COMMENT ON COLUMN public.memberships.cancellation_reason IS 'Reason for manual cancellation (semantic separation from review_notes)';
 ```
 
 ---
 
-### Tarefa 2: Adicionar Eventos ao `audit-logger.ts`
+### Tarefa 2: Adicionar Evento ao `audit-logger.ts`
 
 **Arquivo:** `supabase/functions/_shared/audit-logger.ts`
 
-Adicionar após linha 25:
+Adicionar após linha 27:
 
 ```typescript
-MEMBERSHIP_PAYMENT_RETRY: 'MEMBERSHIP_PAYMENT_RETRY',
-MEMBERSHIP_PAYMENT_RETRY_FAILED: 'MEMBERSHIP_PAYMENT_RETRY_FAILED',
+MEMBERSHIP_MANUAL_CANCELLED: 'MEMBERSHIP_MANUAL_CANCELLED',
 ```
 
-**Estrutura do Evento de Sucesso:**
+**Estrutura do Evento:**
 ```json
 {
-  "event_type": "MEMBERSHIP_PAYMENT_RETRY",
+  "event_type": "MEMBERSHIP_MANUAL_CANCELLED",
   "tenant_id": "uuid",
+  "profile_id": "uuid (admin que cancelou)",
   "metadata": {
     "membership_id": "uuid",
-    "previous_status": "CANCELLED",
-    "new_status": "PENDING_PAYMENT",
-    "payment_status": "NOT_PAID",
-    "previous_stripe_session_id": "cs_old_xxx",
-    "new_stripe_session_id": "cs_new_xxx",
-    "cancellation_reason": "payment_timeout",
-    "automatic": false,
-    "source": "user_retry",
-    "ip_address": "x.x.x.x"
-  }
-}
-```
-
-**Estrutura do Evento de Falha (AJUSTE #1):**
-```json
-{
-  "event_type": "MEMBERSHIP_PAYMENT_RETRY_FAILED",
-  "tenant_id": "uuid",
-  "metadata": {
-    "membership_id": "uuid",
-    "reason": "stripe_session_creation_failed",
-    "stripe_error": "Error message from Stripe",
-    "rolled_back": true,
-    "previous_status": "CANCELLED",
-    "attempted_status": "PENDING_PAYMENT",
-    "rollback_status": "CANCELLED",
+    "previous_status": "PENDING_PAYMENT",
+    "new_status": "CANCELLED",
+    "cancellation_source": "manual_admin",
+    "reason": "Documento inválido",
+    "blocked_retry": true,
+    "actor_role": "ADMIN_TENANT",
+    "impersonation_id": null,
     "ip_address": "x.x.x.x"
   }
 }
@@ -168,271 +98,458 @@ MEMBERSHIP_PAYMENT_RETRY_FAILED: 'MEMBERSHIP_PAYMENT_RETRY_FAILED',
 
 ---
 
-### Tarefa 3: Registrar Função no `config.toml`
+### Tarefa 3: Criar Edge Function `cancel-membership-manual`
+
+**Arquivo:** `supabase/functions/cancel-membership-manual/index.ts`
+
+```typescript
+/**
+ * cancel-membership-manual
+ *
+ * Cancela manualmente uma membership com governança total.
+ *
+ * SAFE GOLD:
+ * - NÃO apaga dados
+ * - Bloqueia retry futuro (via evento auditoria)
+ * - NÃO altera memberships pagas
+ * - SEM efeitos colaterais
+ *
+ * SECURITY:
+ * - JWT validado manualmente (padrão do codebase)
+ * - Valida tenant boundary (membership.tenant_id === user tenant)
+ * - Valida role (ADMIN_TENANT, STAFF_ORGANIZACAO)
+ * - Impersonation obrigatório para SUPERADMIN
+ * - Billing status check
+ * - Rate limiting (10/hour/user)
+ * - Motivo obrigatório (min 5 chars)
+ */
+```
+
+**Fluxo Determinístico:**
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. CORS Preflight                                               │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. Auth Validation (JWT manual, como approve/reject)            │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. Rate Limiting (10/hour/user)                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ 4. Parse Input (membershipId, reason)                           │
+├─────────────────────────────────────────────────────────────────┤
+│ 5. Fetch Membership                                             │
+├─────────────────────────────────────────────────────────────────┤
+│ 6. Validate Role (ADMIN_TENANT / STAFF_ORGANIZACAO)             │
+│    → If SUPERADMIN: require impersonation                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 7. Billing Status Check                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ 8. Validate Status (DRAFT, PENDING_PAYMENT, PENDING_REVIEW)     │
+│    → Block if CANCELLED (return ok + idempotent)                │
+│    → Block if APPROVED/ACTIVE/EXPIRED (fora escopo)             │
+├─────────────────────────────────────────────────────────────────┤
+│ 9. Block if payment_status === 'PAID'                           │
+├─────────────────────────────────────────────────────────────────┤
+│ 10. Validate reason (non-empty, min 5 chars)                    │
+├─────────────────────────────────────────────────────────────────┤
+│ 11. UPDATE membership (race-safe)                               │
+│     status = 'CANCELLED'                                        │
+│     cancelled_at = now()                                        │
+│     cancelled_by_profile_id = user.id                           │
+│     cancellation_reason = reason (campo dedicado)               │
+├─────────────────────────────────────────────────────────────────┤
+│ 12. AUDIT: MEMBERSHIP_MANUAL_CANCELLED                          │
+│     → cancellation_source: 'manual_admin'                       │
+│     → blocked_retry: true                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 13. DECISION LOG (success)                                      │
+├─────────────────────────────────────────────────────────────────┤
+│ 14. Return 200 { ok: true }                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Input (Body):**
+```json
+{
+  "membershipId": "uuid",
+  "reason": "string (obrigatório, min 5 chars)",
+  "impersonationId": "uuid (opcional, para SUPERADMIN)"
+}
+```
+
+---
+
+### Tarefa 4: Registrar Função no `config.toml`
 
 **Arquivo:** `supabase/config.toml`
 
 ```toml
-[functions.retry-membership-payment]
+[functions.cancel-membership-manual]
 verify_jwt = false
 ```
 
+**Nota:** Seguindo o padrão existente de `approve-membership` e `reject-membership`, a validação JWT é feita manualmente no código da função.
+
 ---
 
-### Tarefa 4: Atualizar `MembershipStatus.tsx` (com Ajuste #5)
+### Tarefa 5: Atualizar `retry-membership-payment` para Bloqueio Determinístico
 
-**Arquivo:** `src/pages/MembershipStatus.tsx`
+**Arquivo:** `supabase/functions/retry-membership-payment/index.ts`
 
-**4.1 Atualizar interface `MembershipData`:**
+**Modificação nas linhas 387-428:**
 
 ```typescript
-interface MembershipData {
-  id: string;
-  status: MembershipStatusValue;
-  payment_status: 'PAID' | 'NOT_PAID' | null;
-  created_at: string;
-  rejection_reason?: string | null;
+// === AJUSTE #3/#4: Cancellation Reason Validation (DETERMINISTIC) ===
+const { data: cancelLog } = await supabaseAdmin
+  .from("audit_logs")
+  .select("metadata, event_type")  // Include event_type for deterministic check
+  .eq("tenant_id", membership.tenant_id)
+  .in("event_type", [
+    "MEMBERSHIP_PENDING_PAYMENT_CLEANUP",
+    "MEMBERSHIP_ABANDONED_CLEANUP",
+    "MEMBERSHIP_MANUAL_CANCELLED",  // NOVO: Include manual cancellation
+  ])
+  .order("created_at", { ascending: false })
+  .limit(20);  // Aumentar limit para garantir encontrar o mais recente
+
+// Find matching log for this membership (most recent first)
+const matchingLog = cancelLog?.find((log) => {
+  const metadata = log.metadata as { membership_id?: string } | null;
+  return metadata?.membership_id === membershipId;
+});
+
+// AJUSTE #4: Deterministic check for manual cancellation FIRST
+const isManualCancellation = matchingLog?.event_type === "MEMBERSHIP_MANUAL_CANCELLED";
+
+if (isManualCancellation) {
+  logStep("Retry BLOCKED for manual cancellation", { 
+    membershipId,
+    event_type: matchingLog?.event_type,
+  });
+  return new Response(
+    JSON.stringify({
+      error: "RETRY_BLOCKED_MANUAL_CANCELLATION",
+      details: "Manual cancellations cannot be retried. Contact administrator.",
+    }),
+    {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
+}
+
+// Continue with existing timeout check logic...
+const cancellationReason = (matchingLog?.metadata as {
+  reason?: string;
+} | null)?.reason;
+const isPaymentTimeout =
+  cancellationReason === "payment_timeout" ||
+  cancellationReason?.includes("DRAFT status") ||
+  !matchingLog;  // Allow if no log found (edge case)
+
+if (!isPaymentTimeout && matchingLog) {
+  logStep("Retry not allowed for unknown cancellation reason", {
+    cancellationReason,
+  });
+  return new Response(
+    JSON.stringify({
+      error: "RETRY_NOT_ALLOWED_FOR_UNKNOWN_CANCELLATION",
+      details: "Only payment timeout cancellations can be retried",
+    }),
+    {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
 }
 ```
 
-**4.2 Atualizar query para incluir `payment_status`:**
+---
+
+### Tarefa 6: Atualizar `MembershipDetails.tsx` com Botão de Cancelamento
+
+**Arquivo:** `src/pages/MembershipDetails.tsx`
+
+**6.1 Adicionar imports necessários:**
 
 ```typescript
-.select('id, status, payment_status, created_at, rejection_reason')
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { XCircle, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 ```
 
-**4.3 Adicionar estados para controle de retry (AJUSTE #5):**
+**6.2 Lógica de cancelamento:**
 
 ```typescript
-const [isRetrying, setIsRetrying] = useState(false);
-const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-const [retryError, setRetryError] = useState<string | null>(null);
-const [retryInitiated, setRetryInitiated] = useState(false); // AJUSTE #5
+// Verificar se usuário pode cancelar manualmente
+const canCancelManually = isStaffOrCoach && membership && 
+  ['DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW'].includes(membership.status) &&
+  membership.payment_status !== 'PAID';
 
-// Determinar se pode fazer retry (CANCELLED + NOT_PAID + não iniciado)
-const canRetryPayment = 
-  status === 'CANCELLED' && 
-  membership.payment_status === 'NOT_PAID' &&
-  !retryInitiated; // AJUSTE #5
-```
+const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+const [cancelReason, setCancelReason] = useState('');
+const { impersonationId } = useImpersonation();
+const queryClient = useQueryClient();
 
-**4.4 Handler de retry com bloqueio de double-click (AJUSTE #5):**
+const cancelMutation = useMutation({
+  mutationFn: async () => {
+    if (!membershipId || cancelReason.trim().length < 5) {
+      throw new Error(t('membership.cancel.reasonMinLength'));
+    }
 
-```typescript
-const handleRetryPayment = async () => {
-  // Prevenir double-click (AJUSTE #5)
-  if (isRetrying || retryInitiated) {
-    return;
-  }
-  
-  if (!captchaToken) {
-    toast.error(t('membership.errorCaptchaRequired'));
-    return;
-  }
-  
-  setIsRetrying(true);
-  setRetryError(null);
-  
-  try {
     const { data, error } = await supabase.functions.invoke(
-      'retry-membership-payment',
+      'cancel-membership-manual',
       {
         body: {
-          membershipId: membership.id,
-          tenantSlug,
-          successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
-          cancelUrl: `${window.location.origin}/${tenantSlug}/membership/status`,
-          captchaToken,
+          membershipId,
+          reason: cancelReason.trim(),
+          impersonationId: impersonationId || undefined,
         },
       }
     );
-    
+
     if (error || data?.error) {
-      const errorMsg = data?.error || error?.message || 'Unknown error';
-      
-      // Verificar se retry já foi iniciado por outro clique (AJUSTE #5)
-      if (errorMsg.includes('status_changed') || errorMsg.includes('already_pending')) {
-        setRetryInitiated(true);
-        toast.info(t('membership.retryAlreadyInitiated'));
-        return;
-      }
-      
-      throw new Error(errorMsg);
+      throw new Error(data?.error || error?.message || 'Failed to cancel');
     }
-    
-    if (!data?.url) {
-      throw new Error('No checkout URL returned');
-    }
-    
-    // Marcar como iniciado antes de redirecionar (AJUSTE #5)
-    setRetryInitiated(true);
-    window.location.href = data.url;
-    
-  } catch (err) {
-    console.error('Retry payment error:', err);
-    const errorMessage = err instanceof Error ? err.message : 'Failed to retry payment';
-    setRetryError(errorMessage);
-    toast.error(t('membership.errorPaymentSession'));
-  } finally {
-    setIsRetrying(false);
-  }
-};
+
+    return data;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['membership'] });
+    setIsCancelDialogOpen(false);
+    setCancelReason('');
+    toast.success(t('membership.cancel.success'));
+    navigate(`/${tenantSlug}/app/memberships`);
+  },
+  onError: (error) => {
+    toast.error(error.message || t('common.error'));
+  },
+});
 ```
 
-**4.5 UI com mensagem de retry já iniciado (AJUSTE #5):**
+**6.3 UI do botão e modal (após o CardHeader):**
 
 ```tsx
-{canRetryPayment && !retryInitiated && (
-  <div className="space-y-4">
-    <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 text-sm text-left">
-      <p className="font-medium text-warning mb-1">
-        {t('membership.retryPaymentTitle')}
-      </p>
-      <p className="text-muted-foreground">
-        {t('membership.retryPaymentDesc')}
-      </p>
-    </div>
-    
-    <TurnstileWidget
-      onSuccess={(token) => setCaptchaToken(token)}
-      onExpire={() => setCaptchaToken(null)}
-    />
-    
-    <Button
-      className="w-full"
-      size="lg"
-      onClick={handleRetryPayment}
-      disabled={isRetrying || !captchaToken}
-    >
-      {isRetrying ? (
-        <>
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          {t('common.loading')}
-        </>
-      ) : (
-        <>
-          <CreditCard className="h-4 w-4 mr-2" />
-          {t('membership.retryPayment')}
-        </>
-      )}
-    </Button>
-    
-    {retryError && (
-      <p className="text-sm text-destructive text-center">{retryError}</p>
-    )}
-  </div>
+{canCancelManually && (
+  <Button
+    variant="destructive"
+    size="sm"
+    onClick={() => setIsCancelDialogOpen(true)}
+  >
+    <XCircle className="h-4 w-4 mr-2" />
+    {t('membership.cancel.title')}
+  </Button>
 )}
 
-{/* Mensagem quando retry já foi iniciado (AJUSTE #5) */}
-{retryInitiated && (
-  <div className="bg-info/10 border border-info/20 rounded-lg p-4 text-sm text-center">
-    <p className="text-info font-medium">{t('membership.retryAlreadyInitiated')}</p>
-  </div>
-)}
+{/* Cancel Membership Dialog */}
+<Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2 text-destructive">
+        <AlertTriangle className="h-5 w-5" />
+        {t('membership.cancel.confirmTitle')}
+      </DialogTitle>
+      <DialogDescription>
+        {t('membership.cancel.confirmDesc')}
+      </DialogDescription>
+    </DialogHeader>
+
+    <div className="space-y-4 py-4">
+      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm">
+        <p className="font-medium text-destructive mb-2">
+          {t('membership.cancel.warningTitle')}
+        </p>
+        <ul className="list-disc list-inside text-muted-foreground space-y-1">
+          <li>{t('membership.cancel.warningNoRetry')}</li>
+          <li>{t('membership.cancel.warningPermanent')}</li>
+          <li>{t('membership.cancel.warningAudited')}</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="cancel-reason">
+          {t('membership.cancel.reason')} <span className="text-destructive">*</span>
+        </Label>
+        <Textarea
+          id="cancel-reason"
+          placeholder={t('membership.cancel.reasonPlaceholder')}
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+          rows={3}
+        />
+        {cancelReason.length > 0 && cancelReason.length < 5 && (
+          <p className="text-xs text-destructive">
+            {t('membership.cancel.reasonMinLength')}
+          </p>
+        )}
+      </div>
+    </div>
+
+    <DialogFooter>
+      <Button
+        variant="outline"
+        onClick={() => setIsCancelDialogOpen(false)}
+        disabled={cancelMutation.isPending}
+      >
+        {t('common.cancel')}
+      </Button>
+      <Button
+        variant="destructive"
+        onClick={() => cancelMutation.mutate()}
+        disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+      >
+        {cancelMutation.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            {t('common.loading')}
+          </>
+        ) : (
+          <>
+            <XCircle className="h-4 w-4 mr-2" />
+            {t('membership.cancel.confirm')}
+          </>
+        )}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 ```
 
 ---
 
-### Tarefa 5: Adicionar Traduções (i18n)
+### Tarefa 7: Adicionar Traduções (i18n)
 
 **Arquivo:** `src/locales/pt-BR.ts`
 
 ```typescript
-'membership.retryPayment': 'Tentar pagamento novamente',
-'membership.retryPaymentTitle': 'Pagamento não concluído',
-'membership.retryPaymentDesc': 'Seu pagamento anterior não foi finalizado. Você pode tentar novamente sem perder seus dados.',
-'membership.retryAlreadyInitiated': 'Uma nova tentativa de pagamento já foi iniciada.',
-'membership.errorCaptchaRequired': 'Verificação de segurança necessária.',
-'membership.errorPaymentSession': 'Erro ao iniciar pagamento. Tente novamente.',
+// Membership manual cancellation
+'membership.cancel.title': 'Cancelar filiação',
+'membership.cancel.confirmTitle': 'Confirmar cancelamento',
+'membership.cancel.confirmDesc': 'Esta ação não pode ser desfeita. A filiação será marcada como cancelada permanentemente.',
+'membership.cancel.warningTitle': 'Atenção',
+'membership.cancel.warningNoRetry': 'O atleta NÃO poderá tentar pagar novamente',
+'membership.cancel.warningPermanent': 'Esta ação é permanente e irrevogável',
+'membership.cancel.warningAudited': 'O cancelamento será registrado no histórico',
+'membership.cancel.reason': 'Motivo do cancelamento',
+'membership.cancel.reasonPlaceholder': 'Descreva o motivo do cancelamento...',
+'membership.cancel.reasonMinLength': 'O motivo deve ter pelo menos 5 caracteres',
+'membership.cancel.confirm': 'Confirmar cancelamento',
+'membership.cancel.success': 'Filiação cancelada com sucesso',
 ```
 
 **Arquivo:** `src/locales/en.ts`
 
 ```typescript
-'membership.retryPayment': 'Retry payment',
-'membership.retryPaymentTitle': 'Payment not completed',
-'membership.retryPaymentDesc': 'Your previous payment was not completed. You can try again without losing your data.',
-'membership.retryAlreadyInitiated': 'A new payment attempt has already been initiated.',
-'membership.errorCaptchaRequired': 'Security verification required.',
-'membership.errorPaymentSession': 'Error starting payment. Please try again.',
+'membership.cancel.title': 'Cancel membership',
+'membership.cancel.confirmTitle': 'Confirm cancellation',
+'membership.cancel.confirmDesc': 'This action cannot be undone. The membership will be permanently cancelled.',
+'membership.cancel.warningTitle': 'Warning',
+'membership.cancel.warningNoRetry': 'The athlete will NOT be able to retry payment',
+'membership.cancel.warningPermanent': 'This action is permanent and irreversible',
+'membership.cancel.warningAudited': 'The cancellation will be recorded in the history',
+'membership.cancel.reason': 'Cancellation reason',
+'membership.cancel.reasonPlaceholder': 'Describe the reason for cancellation...',
+'membership.cancel.reasonMinLength': 'Reason must be at least 5 characters',
+'membership.cancel.confirm': 'Confirm cancellation',
+'membership.cancel.success': 'Membership cancelled successfully',
 ```
 
 **Arquivo:** `src/locales/es.ts`
 
 ```typescript
-'membership.retryPayment': 'Reintentar pago',
-'membership.retryPaymentTitle': 'Pago no completado',
-'membership.retryPaymentDesc': 'Tu pago anterior no fue completado. Puedes intentarlo de nuevo sin perder tus datos.',
-'membership.retryAlreadyInitiated': 'Ya se ha iniciado un nuevo intento de pago.',
-'membership.errorCaptchaRequired': 'Verificación de seguridad necesaria.',
-'membership.errorPaymentSession': 'Error al iniciar el pago. Inténtalo de nuevo.',
+'membership.cancel.title': 'Cancelar membresía',
+'membership.cancel.confirmTitle': 'Confirmar cancelación',
+'membership.cancel.confirmDesc': 'Esta acción no se puede deshacer. La membresía será cancelada permanentemente.',
+'membership.cancel.warningTitle': 'Atención',
+'membership.cancel.warningNoRetry': 'El atleta NO podrá intentar pagar nuevamente',
+'membership.cancel.warningPermanent': 'Esta acción es permanente e irreversible',
+'membership.cancel.warningAudited': 'La cancelación quedará registrada en el historial',
+'membership.cancel.reason': 'Motivo de cancelación',
+'membership.cancel.reasonPlaceholder': 'Describe el motivo de la cancelación...',
+'membership.cancel.reasonMinLength': 'El motivo debe tener al menos 5 caracteres',
+'membership.cancel.confirm': 'Confirmar cancelación',
+'membership.cancel.success': 'Membresía cancelada exitosamente',
 ```
 
 ---
 
-### Tarefa 6: Atualizar Documentação
+### Tarefa 8: Atualizar Documentação
 
 **Arquivo:** `docs/BUSINESS-FLOWS.md`
 
 ```markdown
-### Retry de Pagamento (Membership)
+### Cancelamento Manual de Membership
 
-Permite que uma filiação cancelada por timeout volte ao fluxo de pagamento 
-sem criar nova membership.
+Permite que administradores cancelem manualmente uma filiação de forma definitiva.
+Usa campo dedicado `cancellation_reason` (separado de `review_notes`).
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    CANCELLED + NOT_PAID                         │
-│                  (cancellation_reason: payment_timeout)         │
+│ Status Elegíveis: DRAFT | PENDING_PAYMENT | PENDING_REVIEW      │
+│ Status Bloqueados: APPROVED | ACTIVE | EXPIRED | CANCELLED      │
+│ Pagamento: APENAS NOT_PAID                                       │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ (usuário clica "Tentar novamente")
+                              ▼ (admin clica "Cancelar filiação")
 ┌─────────────────────────────────────────────────────────────────┐
-│                  retry-membership-payment                        │
+│                cancel-membership-manual                          │
 │                                                                  │
 │  Validações:                                                     │
-│  ✓ status === CANCELLED                                          │
-│  ✓ payment_status === NOT_PAID                                   │
-│  ✓ tenant boundary (membership.tenant.slug === tenantSlug)       │
-│  ✓ ownership (applicant_profile_id === currentUser.id)           │
-│  ✓ cancellation_reason === 'payment_timeout' (via audit_logs)   │
+│  ✓ JWT validado manualmente                                      │
+│  ✓ Role: ADMIN_TENANT | STAFF_ORGANIZACAO                        │
+│  ✓ Superadmin: impersonation obrigatório                         │
+│  ✓ Tenant boundary                                               │
+│  ✓ Status elegível                                               │
+│  ✓ payment_status !== PAID                                       │
+│  ✓ Motivo obrigatório (min 5 chars)                              │
 │                                                                  │
-│  Fluxo:                                                          │
-│  1. UPDATE status → PENDING_PAYMENT (race-safe)                  │
-│  2. CREATE Stripe Checkout Session                               │
-│     → On failure: ROLLBACK status → CANCELLED                   │
-│  3. UPDATE stripe_checkout_session_id                            │
-│  4. LOG MEMBERSHIP_PAYMENT_RETRY                                 │
+│  Campos atualizados:                                             │
+│  status → CANCELLED                                              │
+│  cancelled_at → now()                                            │
+│  cancelled_by_profile_id → admin.id                              │
+│  cancellation_reason → reason (campo dedicado!)                  │
 │                                                                  │
 │  Auditoria:                                                      │
-│  • previous_stripe_session_id                                    │
-│  • new_stripe_session_id                                         │
-│  • cancellation_reason                                           │
-│  • rolled_back (se aplicável)                                    │
+│  MEMBERSHIP_MANUAL_CANCELLED                                     │
+│  → cancellation_source: 'manual_admin'                           │
+│  → blocked_retry: true                                           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      PENDING_PAYMENT                             │
-│                (com nova Stripe session)                         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ (pagamento confirmado)
-┌─────────────────────────────────────────────────────────────────┐
-│                   PENDING_REVIEW + PAID                          │
+│                      CANCELLED (final)                           │
+│                (retry BLOQUEADO permanentemente)                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 **Princípios SAFE GOLD:**
-- ❌ NÃO cria nova membership
-- ❌ NÃO apaga histórico
-- ❌ NÃO toca em memberships pagas
-- ❌ NÃO permite retry de cancelamentos manuais
-- ✅ Rollback transacional se Stripe falhar
-- ✅ Validação de tenant boundary
-- ✅ Validação de ownership
-- ✅ Versionamento de session IDs
-- ✅ Mantém auditabilidade completa
+- ❌ NÃO apaga dados
+- ❌ NÃO permite retry após cancelamento manual
+- ❌ NÃO afeta memberships pagas
+- ❌ NÃO permite cross-tenant
+- ✅ Sempre audita
+- ✅ Sempre exige motivo (campo dedicado `cancellation_reason`)
+- ✅ Sempre valida papel
+
+**Diferença de outros cancelamentos:**
+
+| Tipo | Evento | Retry Permitido |
+|------|--------|-----------------|
+| GC automático (payment timeout) | `MEMBERSHIP_PENDING_PAYMENT_CLEANUP` | ✅ Sim |
+| GC automático (DRAFT abandoned) | `MEMBERSHIP_ABANDONED_CLEANUP` | ✅ Sim |
+| **Cancelamento manual** | `MEMBERSHIP_MANUAL_CANCELLED` | ❌ **NÃO** |
 ```
 
 ---
@@ -441,209 +558,127 @@ sem criar nova membership.
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `supabase/functions/retry-membership-payment/index.ts` | **CRIAR** | Edge Function com todos os ajustes |
-| `supabase/functions/_shared/audit-logger.ts` | **MODIFICAR** | Adicionar 2 eventos |
+| `supabase/migrations/YYYYMMDDHHMMSS_add_cancellation_fields.sql` | **CRIAR** | Adicionar colunas `cancelled_at`, `cancelled_by_profile_id`, `cancellation_reason` |
+| `supabase/functions/cancel-membership-manual/index.ts` | **CRIAR** | Edge Function principal |
+| `supabase/functions/_shared/audit-logger.ts` | **MODIFICAR** | Adicionar `MEMBERSHIP_MANUAL_CANCELLED` |
+| `supabase/functions/retry-membership-payment/index.ts` | **MODIFICAR** | Bloqueio determinístico + incluir evento na lista |
 | `supabase/config.toml` | **MODIFICAR** | Registrar função |
-| `src/pages/MembershipStatus.tsx` | **MODIFICAR** | UI de retry com ajuste #5 |
-| `src/locales/pt-BR.ts` | **ADICIONAR** | 6 novas chaves |
-| `src/locales/en.ts` | **ADICIONAR** | 6 novas chaves |
-| `src/locales/es.ts` | **ADICIONAR** | 6 novas chaves |
-| `docs/BUSINESS-FLOWS.md` | **ADICIONAR** | Documentar fluxo completo |
+| `src/pages/MembershipDetails.tsx` | **MODIFICAR** | UI de cancelamento admin |
+| `src/locales/pt-BR.ts` | **ADICIONAR** | 12 novas chaves |
+| `src/locales/en.ts` | **ADICIONAR** | 12 novas chaves |
+| `src/locales/es.ts` | **ADICIONAR** | 12 novas chaves |
+| `docs/BUSINESS-FLOWS.md` | **ADICIONAR** | Documentar fluxo |
 
 ---
 
-## Critérios de Aceitação (Atualizado)
+## Critérios de Aceitação
 
 ### Funcionalidade Core
-- [ ] Retry só funciona para `CANCELLED + NOT_PAID`
-- [ ] Nenhuma membership paga é afetada
-- [ ] Nova Stripe session criada
-- [ ] Mesmo `membership_id` mantido
+- [ ] Apenas ADMIN_TENANT/STAFF_ORGANIZACAO podem cancelar
+- [ ] Motivo obrigatório (min 5 chars)
+- [ ] Apenas status elegíveis (DRAFT, PENDING_PAYMENT, PENDING_REVIEW)
+- [ ] Membership paga NÃO pode ser cancelada
+- [ ] Status final = CANCELLED
 
-### Ajuste #1 — Rollback Transacional
-- [ ] Se Stripe falhar após UPDATE → status volta para CANCELLED
-- [ ] Evento `MEMBERSHIP_PAYMENT_RETRY_FAILED` registrado
-- [ ] Metadata inclui `rolled_back: true`
+### Ajuste #1 — JWT/config.toml
+- [ ] `verify_jwt = false` no config.toml (seguindo padrão existente)
+- [ ] Validação JWT manual no código da função
 
-### Ajuste #2 — Tenant Boundary & Ownership
-- [ ] Retorna 403 se tenant não corresponde
-- [ ] Retorna 403 se usuário não é owner da membership
-- [ ] Validação ocorre ANTES de qualquer UPDATE
+### Ajuste #2 — Roles
+- [ ] Usar `STAFF_ORGANIZACAO` (não STAFF_TENANT)
+- [ ] Consistente com padrão do codebase
 
-### Ajuste #3 — Proteção contra CANCELLED não-pagamento
-- [ ] Verifica `reason: 'payment_timeout'` no audit_logs
-- [ ] Retorna 400 se cancelamento não foi por timeout
+### Ajuste #3 — Campo Dedicado
+- [ ] Campo `cancellation_reason` criado (separado de `review_notes`)
+- [ ] Campo `cancelled_at` criado
+- [ ] Campo `cancelled_by_profile_id` criado
 
-### Ajuste #4 — Versionamento de Session ID
-- [ ] Auditoria inclui `previous_stripe_session_id`
-- [ ] Auditoria inclui `new_stripe_session_id`
+### Ajuste #4 — Bloqueio Determinístico no Retry
+- [ ] `retry-membership-payment` inclui `MEMBERSHIP_MANUAL_CANCELLED` na query
+- [ ] Verificação de `event_type` ANTES de verificar `reason`
+- [ ] Erro específico: `RETRY_BLOCKED_MANUAL_CANCELLATION`
 
-### Ajuste #5 — UI Anti Double-Click
-- [ ] Estado `retryInitiated` bloqueia botão após primeiro clique
-- [ ] Mensagem "Uma nova tentativa já foi iniciada" exibida
-- [ ] Tratamento de erro `status_changed` no response
+### Segurança
+- [ ] Tenant boundary validado
+- [ ] Superadmin requer impersonation
+- [ ] Billing status verificado
+- [ ] Rate limiting aplicado (10/hour/user)
 
-### Segurança & Governança
-- [ ] Rate limiting aplicado (IP + membership)
-- [ ] CAPTCHA obrigatório
-- [ ] Auditoria completa registrada
-- [ ] Documentação atualizada
+### Auditoria
+- [ ] Evento `MEMBERSHIP_MANUAL_CANCELLED` registrado
+- [ ] Metadata inclui `cancellation_source: 'manual_admin'`
+- [ ] Metadata inclui `blocked_retry: true`
+- [ ] IP registrado
 
 ---
 
 ## Seção Técnica
 
-### Pseudocódigo da Edge Function
+### Query de Update (Race-safe)
 
-```typescript
-// === AJUSTE #2: Tenant Boundary Validation ===
-const { data: membership } = await supabase
-  .from("memberships")
-  .select("*, tenant:tenants(*), athlete:athletes(*)")
-  .eq("id", membershipId)
-  .single();
-
-if (!membership) {
-  return error(404, "Membership not found");
-}
-
-// Tenant boundary check
-if (membership.tenant.slug !== tenantSlug) {
-  return error(403, "FORBIDDEN_CROSS_TENANT");
-}
-
-// Ownership check
-const isOwner = 
-  membership.applicant_profile_id === userId ||
-  membership.athlete?.profile_id === userId;
-
-if (!isOwner) {
-  return error(403, "FORBIDDEN_NOT_OWNER");
-}
-
-// Status validation
-if (membership.status !== "CANCELLED" || membership.payment_status !== "NOT_PAID") {
-  return error(400, "MEMBERSHIP_NOT_ELIGIBLE_FOR_RETRY");
-}
-
-// === AJUSTE #3: Cancellation Reason Validation ===
-const { data: cancelLog } = await supabase
-  .from("audit_logs")
-  .select("metadata")
-  .eq("tenant_id", membership.tenant_id)
-  .in("event_type", ["MEMBERSHIP_PENDING_PAYMENT_CLEANUP", "MEMBERSHIP_ABANDONED_CLEANUP"])
-  .eq("metadata->>membership_id", membershipId)
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .maybeSingle();
-
-const cancellationReason = cancelLog?.metadata?.reason;
-const isPaymentTimeout = 
-  cancellationReason === "payment_timeout" ||
-  cancellationReason?.includes("DRAFT status");
-
-if (!isPaymentTimeout) {
-  return error(400, "RETRY_NOT_ALLOWED_FOR_MANUAL_CANCELLATION");
-}
-
-// === AJUSTE #4: Store Previous Session ID ===
-const previousStripeSessionId = membership.stripe_checkout_session_id;
-
-// === Race-safe Update ===
-const { data: updateData, error: updateError } = await supabase
-  .from("memberships")
-  .update({ status: "PENDING_PAYMENT", updated_at: new Date().toISOString() })
-  .eq("id", membershipId)
-  .eq("status", "CANCELLED") // Race protection
-  .select("id");
-
-if (!updateData?.length) {
-  return error(409, "STATUS_CHANGED_CONCURRENT_RETRY");
-}
-
-// === AJUSTE #1: Stripe with Rollback ===
-let stripeSession;
-try {
-  stripeSession = await stripe.checkout.sessions.create({
-    customer_email: customerEmail,
-    line_items: [...],
-    mode: "payment",
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: { membership_id: membershipId, ... },
-  });
-} catch (stripeError) {
-  // ROLLBACK: Revert status to CANCELLED
-  await supabase
-    .from("memberships")
-    .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
-    .eq("id", membershipId)
-    .eq("status", "PENDING_PAYMENT");
-  
-  // Log failure
-  await createAuditLog(supabase, {
-    event_type: AUDIT_EVENTS.MEMBERSHIP_PAYMENT_RETRY_FAILED,
-    tenant_id: membership.tenant_id,
-    metadata: {
-      membership_id: membershipId,
-      reason: "stripe_session_creation_failed",
-      stripe_error: stripeError.message,
-      rolled_back: true,
-      previous_status: "CANCELLED",
-      attempted_status: "PENDING_PAYMENT",
-      rollback_status: "CANCELLED",
-      ip_address: clientIP,
-    },
-  });
-  
-  return error(500, "STRIPE_SESSION_FAILED");
-}
-
-// Update session ID
-await supabase
-  .from("memberships")
-  .update({ stripe_checkout_session_id: stripeSession.id })
-  .eq("id", membershipId);
-
-// === AJUSTE #4: Audit with Session Versioning ===
-await createAuditLog(supabase, {
-  event_type: AUDIT_EVENTS.MEMBERSHIP_PAYMENT_RETRY,
-  tenant_id: membership.tenant_id,
-  metadata: {
-    membership_id: membershipId,
-    previous_status: "CANCELLED",
-    new_status: "PENDING_PAYMENT",
-    payment_status: "NOT_PAID",
-    previous_stripe_session_id: previousStripeSessionId,
-    new_stripe_session_id: stripeSession.id,
-    cancellation_reason: cancellationReason,
-    automatic: false,
-    source: "user_retry",
-    ip_address: clientIP,
-  },
-});
-
-return { url: stripeSession.url };
+```sql
+UPDATE memberships
+SET 
+  status = 'CANCELLED',
+  cancelled_at = NOW(),
+  cancelled_by_profile_id = :adminId,
+  cancellation_reason = :reason,
+  updated_at = NOW()
+WHERE 
+  id = :membershipId
+  AND status IN ('DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW')
+  AND payment_status != 'PAID'
+RETURNING id, status;
 ```
 
-### Rate Limiting
+### Padrão de Roles Consolidado
 
-| Identificador | Limite | Janela |
-|---------------|--------|--------|
-| IP | 10 | 1 hora |
-| membership_id | 3 | 10 min |
+```typescript
+// Correto - conforme src/types/auth.ts
+type AppRole = 
+  | 'SUPERADMIN_GLOBAL'
+  | 'ADMIN_TENANT'
+  | 'STAFF_ORGANIZACAO'  // ← Este é o nome correto
+  | 'COACH_PRINCIPAL'
+  | 'COACH_ASSISTENTE'
+  | 'INSTRUTOR'
+  | 'RECEPCAO'
+  | 'ATLETA'
+  | 'RESPONSAVELLEGAL';
+```
+
+### Estrutura de Auditoria
+
+```json
+{
+  "event_type": "MEMBERSHIP_MANUAL_CANCELLED",
+  "tenant_id": "uuid",
+  "profile_id": "uuid",
+  "metadata": {
+    "membership_id": "uuid",
+    "previous_status": "PENDING_PAYMENT",
+    "new_status": "CANCELLED",
+    "cancellation_source": "manual_admin",
+    "reason": "Documento inválido - não foi possível verificar identidade",
+    "blocked_retry": true,
+    "actor_role": "ADMIN_TENANT",
+    "impersonation_id": null,
+    "ip_address": "x.x.x.x",
+    "occurred_at": "2024-02-08T14:30:00Z"
+  }
+}
+```
 
 ---
 
 ## Conclusão
 
-Este plano atualizado incorpora **todos os 5 ajustes críticos** solicitados:
+Este plano atualizado incorpora todos os **4 ajustes críticos**:
 
-1. ✅ **Rollback Transacional** — Se Stripe falhar, status volta para CANCELLED com auditoria
-2. ✅ **Tenant Boundary** — Validação explícita de tenant.slug === tenantSlug
-3. ✅ **Cancellation Reason** — Verifica reason via audit_logs antes de permitir retry
-4. ✅ **Session ID Versioning** — Auditoria inclui previous e new session IDs
-5. ✅ **UI Anti Double-Click** — Estado `retryInitiated` + mensagem informativa
+1. ✅ **JWT via config.toml** — Mantém `verify_jwt = false` seguindo padrão de `approve/reject-membership`
+2. ✅ **Roles padronizadas** — Usa `STAFF_ORGANIZACAO` conforme `src/types/auth.ts`
+3. ✅ **Campo dedicado** — `cancellation_reason` separado de `review_notes`
+4. ✅ **Bloqueio determinístico** — `event_type === 'MEMBERSHIP_MANUAL_CANCELLED'` verificado PRIMEIRO
 
-Com esses ajustes, o PI vira **referência de mercado** em governança e segurança.
+Pronto para execução literal, sem interpretação.
 
