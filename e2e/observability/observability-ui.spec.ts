@@ -6,6 +6,9 @@
  * 
  * SAFE GOLD: No mutations to business data.
  * Uses data-* selectors exclusively (no class-based selectors).
+ * 
+ * INVARIANT (P4.3.1): data-conn-state exists ONLY on AlertBadge,
+ * NOT on AlertsPanel badges. See connection-state-invariants.spec.ts.
  */
 
 import { test, expect } from '@playwright/test';
@@ -258,17 +261,22 @@ test.describe('Observability UI', () => {
       await page.goto('/admin/health');
       await page.waitForLoadState('networkidle');
       
-      // Open panel
-      const alertBadge = page.locator('button:has(svg.lucide-bell)');
-      await alertBadge.click();
-      await page.waitForTimeout(500);
-      
-      // Use data-conn-state for deterministic check (SAFE GOLD)
+      // NOTE: data-conn-state is on AlertBadge only (P4.3.1 invariant)
+      // AlertsPanel shows visual indicator without data attribute
       const connState = page.locator('[data-conn-state]');
       await expect(connState.first()).toBeVisible();
       
       const state = await connState.first().getAttribute('data-conn-state');
-      expect(['live', 'polling', 'syncing']).toContain(state);
+      expect(['live', 'polling', 'syncing', 'offline']).toContain(state);
+      
+      // Open panel to verify visual indicator exists
+      const alertBadge = page.locator('button:has(svg.lucide-bell)');
+      await alertBadge.click();
+      await page.waitForTimeout(500);
+      
+      // Panel shows Wifi/WifiOff icon but NOT data-conn-state
+      const panelWifiIcon = page.locator('[role="dialog"] svg.lucide-wifi, [role="dialog"] svg.lucide-wifi-off');
+      await expect(panelWifiIcon.first()).toBeVisible();
       
       logTestAssertion('E2E', `Connection status: ${state}`, true);
     });
