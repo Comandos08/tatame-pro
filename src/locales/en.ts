@@ -2504,4 +2504,24 @@ export const en: Record<string, string> = {
   'observability.realtime.newEvents': 'new event(s)',
   'observability.realtime.markSeen': 'Mark as seen',
 
+  // Access Gate (PI-GUARD-CENTRAL)
+  'access.notAuthenticated': 'Authentication Required',
+  'access.notAuthenticatedDesc': 'You need to be logged in to access this page.',
+  'access.tenantRequired': 'Organization Required',
+  'access.tenantRequiredDesc': 'This page requires an organization context.',
+  'access.tenantBlocked': 'Organization Suspended',
+  'access.tenantBlockedDesc': 'This organization is temporarily blocked. Please contact support.',
+  'access.roleDenied': 'Access Denied',
+  'access.roleDeniedDesc': 'You do not have permission to access this feature.',
+  'access.billingBlocked': 'Billing Blocked',
+  'access.billingBlockedDesc': 'Access is blocked due to billing issues.',
+  'access.wizardRequired': 'Setup Required',
+  'access.wizardRequiredDesc': 'Complete the initial setup to continue.',
+  'access.onboardingRequired': 'Onboarding Required',
+  'access.onboardingRequiredDesc': 'Complete the organization setup to access this area.',
+  'access.timeout': 'Timeout',
+  'access.timeoutDesc': 'Access verification took too long. Please try again.',
+  'access.unknownError': 'Unexpected Error',
+  'access.unknownErrorDesc': 'An error occurred while verifying access. Please try again.',
+
 };
