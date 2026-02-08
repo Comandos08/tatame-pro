@@ -23,6 +23,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDiagnostics from "@/pages/AdminDiagnostics";
 import AdminLandingSettings from "@/pages/AdminLandingSettings";
 import TenantControl from "@/pages/TenantControl";
+import SystemHealth from "@/pages/admin/SystemHealth";
 
 // Tenant
 import { TenantLayout } from "@/layouts/TenantLayout";
@@ -67,6 +68,7 @@ export default function App() {
 
         {/* Admin (Superadmin only - protected by IdentityGate R5) */}
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/health" element={<SystemHealth />} />
         <Route path="/admin/diagnostics" element={<AdminDiagnostics />} />
         <Route path="/admin/landing" element={<AdminLandingSettings />} />
         <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />
