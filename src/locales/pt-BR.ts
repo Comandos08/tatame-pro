@@ -304,6 +304,13 @@ export const ptBR = {
   'status.neutral': 'Neutro',
   'status.pending': 'Pendente',
 
+  // Grading Officiality Governance (PI-POL-001C)
+  'grading.noActiveMembership.title': 'Atleta sem filiação ativa',
+  'grading.noActiveMembership.desc': 'A emissão de diploma oficial exige filiação ACTIVE.',
+  'grading.unofficial': 'Não oficial',
+  'grading.official': 'Oficial',
+  'grading.membershipRequired': 'Este atleta precisa de filiação ativa para emitir diploma oficial.',
+
   // TenantLanding features
   'tenant.featureAffiliation': 'Filiação de Atletas',
   'tenant.featureAffiliationDesc': 'Cadastre-se e mantenha sua filiação em dia',

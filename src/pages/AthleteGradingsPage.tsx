@@ -11,7 +11,8 @@ import {
   Plus,
   ExternalLink,
   Building2,
-  User
+  User,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
@@ -76,19 +77,39 @@ export default function AthleteGradingsPage() {
     notes: '',
   });
 
-  // Fetch athlete
+  // Fetch athlete with profile_id
   const { data: athlete, isLoading: athleteLoading } = useQuery({
     queryKey: ['athlete', athleteId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('athletes')
-        .select('id, full_name, email, tenant_id')
+        .select('id, full_name, email, tenant_id, profile_id')
         .eq('id', athleteId)
         .single();
       if (error) throw error;
-      return data as Athlete;
+      return data as Athlete & { profile_id: string | null };
     },
     enabled: !!athleteId,
+  });
+
+  // Check if athlete has ACTIVE membership (for governance banner)
+  const { data: hasActiveMembership } = useQuery({
+    queryKey: ['athlete-active-membership', athlete?.profile_id, tenant?.id],
+    queryFn: async () => {
+      if (!athlete?.profile_id || !tenant?.id) return false;
+      
+      const { data, error } = await supabase
+        .from('memberships')
+        .select('id')
+        .eq('applicant_profile_id', athlete.profile_id)
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'ACTIVE')
+        .maybeSingle();
+      
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!athlete?.profile_id && !!tenant?.id,
   });
 
   // Fetch gradings
@@ -205,6 +226,11 @@ export default function AthleteGradingsPage() {
 
       const result = response.data;
       if (!result.success) {
+        // PI-POL-001C: Handle MEMBERSHIP_REQUIRED with user-friendly message
+        if (result.error === 'MEMBERSHIP_REQUIRED') {
+          toast.error(t('grading.membershipRequired'));
+          return;
+        }
         throw new Error(result.error || 'Erro ao gerar diploma');
       }
 
@@ -315,6 +341,21 @@ export default function AthleteGradingsPage() {
             </Button>
           </div>
         </div>
+
+        {/* PI-POL-001C: Governance banner when athlete has no ACTIVE membership */}
+        {hasActiveMembership === false && (
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-warning/10 border border-warning/30">
+            <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-warning">
+                {t('grading.noActiveMembership.title')}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t('grading.noActiveMembership.desc')}
+              </p>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
