@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Calendar, CreditCard } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
-import { format } from "date-fns";
-import { ptBR, enUS, es } from "date-fns/locale";
+import { formatDate as formatDateUtil } from "@/lib/i18n/formatters";
 
 import { isValidStatusType, getStatusI18nKey } from "@/lib/statusUtils";
 
@@ -20,26 +19,9 @@ export function MembershipStatusCard({ status, type, startDate, endDate }: Membe
 
   /* ---------------- Locale helpers ---------------- */
 
-  const getDateLocale = () => {
-    switch (locale) {
-      case "en":
-        return enUS;
-      case "es":
-        return es;
-      default:
-        return ptBR;
-    }
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
-    try {
-      return format(new Date(dateStr), "dd MMM yyyy", {
-        locale: getDateLocale(),
-      });
-    } catch {
-      return dateStr;
-    }
+    return formatDateUtil(dateStr, locale);
   };
 
   /* ---------------- Status helpers ---------------- */

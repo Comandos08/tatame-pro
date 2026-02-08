@@ -8,8 +8,6 @@
 
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Loader2, CheckCircle2, FileEdit, GitBranch } from 'lucide-react';
 
@@ -30,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDateTime } from '@/lib/i18n/formatters';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { BracketMatchCard } from './BracketMatchCard';
 import type { EventBracket, EventBracketMatch, BracketMeta } from '@/types/event';
@@ -40,7 +39,7 @@ interface BracketViewerProps {
 }
 
 export function BracketViewer({ bracketId, isAdmin = false }: BracketViewerProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const { session: impersonationSession } = useImpersonation();
 
@@ -198,7 +197,7 @@ export function BracketViewer({ bracketId, isAdmin = false }: BracketViewerProps
               <CardDescription>
                 {t('events.brackets.generatedAt').replace(
                   '{date}',
-                  format(new Date(bracket.generated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                  formatDateTime(bracket.generated_at, locale)
                 )}
                 {' • '}
                 {t('events.brackets.criterion')}

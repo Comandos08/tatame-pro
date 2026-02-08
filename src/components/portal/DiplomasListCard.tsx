@@ -5,8 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Award, Download, ExternalLink } from "lucide-react";
 import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useI18n } from "@/contexts/I18nContext";
-import { format } from "date-fns";
-import { ptBR, enUS, es } from "date-fns/locale";
+import { formatDate as formatDateUtil } from "@/lib/i18n/formatters";
 
 interface DiplomaData {
   id: string;
@@ -27,25 +26,8 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
 
   /* ---------------- Locale helpers ---------------- */
 
-  const getDateLocale = () => {
-    switch (locale) {
-      case "en":
-        return enUS;
-      case "es":
-        return es;
-      default:
-        return ptBR;
-    }
-  };
-
   const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), "dd MMM yyyy", {
-        locale: getDateLocale(),
-      });
-    } catch {
-      return dateStr;
-    }
+    return formatDateUtil(dateStr, locale);
   };
 
   /* ---------------- Actions ---------------- */

@@ -1,13 +1,12 @@
 import React, { useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { format } from 'date-fns';
-import { ptBR, enUS, es } from 'date-fns/locale';
 import { Share2, Download, CheckCircle, AlertCircle, Clock, Shield } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { toast } from 'sonner';
 
 interface DigitalMembershipCardProps {
@@ -39,14 +38,6 @@ export function DigitalMembershipCard({
   publicToken,
 }: DigitalMembershipCardProps) {
   const { t, locale } = useI18n();
-
-  const getDateLocale = () => {
-    switch (locale) {
-      case 'en': return enUS;
-      case 'es': return es;
-      default: return ptBR;
-    }
-  };
 
   // PI-D3-DOCS1.0: Use public token for verification URL if available
   // Fallback to legacy membership verification URL for backwards compatibility
@@ -92,13 +83,9 @@ export function DigitalMembershipCard({
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
 
-  const formatDate = (dateStr: string | null) => {
+  const formatDateStr = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    try {
-      return format(new Date(dateStr), 'dd MMM yyyy', { locale: getDateLocale() });
-    } catch {
-      return dateStr;
-    }
+    return formatDate(dateStr, locale);
   };
 
   const handleShare = useCallback(async () => {
@@ -196,7 +183,7 @@ export function DigitalMembershipCard({
         {/* Validity */}
         <div className="text-center text-sm text-muted-foreground mb-6">
           <span>{t('portal.cardValidUntil')}: </span>
-          <span className="font-medium">{formatDate(validUntil)}</span>
+          <span className="font-medium">{formatDateStr(validUntil)}</span>
         </div>
 
         {/* QR Code */}

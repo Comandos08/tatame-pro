@@ -24,6 +24,7 @@ import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
 
 type MembershipStatusValue = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
@@ -106,7 +107,7 @@ export default function MembershipStatus() {
   const { tenantSlug } = useParams();
   const { tenant } = useTenant();
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   
   const [membership, setMembership] = useState<MembershipData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -203,11 +204,7 @@ export default function MembershipStatus() {
     !retryInitiated;
 
   const createdDate = membership.created_at
-    ? new Date(membership.created_at).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
+    ? formatDate(membership.created_at, locale, { dateStyle: 'long' })
     : null;
 
   // Handler for retry payment (AJUSTE #5 - double-click protection)
