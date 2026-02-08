@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Edit2, Loader2, X, Phone, MapPin, Mail, Home } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,7 @@ const stateSchema = z.string().max(50).optional().or(z.literal(''));
 const postalCodeSchema = z.string().max(20).optional().or(z.literal(''));
 
 export function EditablePersonalData({ athlete, tenantId }: EditablePersonalDataProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -173,11 +174,6 @@ export function EditablePersonalData({ athlete, tenantId }: EditablePersonalData
     setErrors({});
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
   const maskNationalId = (id: string | null) => {
     if (!id) return '-';
     if (id.length <= 4) return '***' + id;
@@ -234,7 +230,7 @@ export function EditablePersonalData({ athlete, tenantId }: EditablePersonalData
           </div>
           <div>
             <p className="text-sm text-muted-foreground">{t('membership.birthDate')}</p>
-            <p className="font-medium">{formatDate(athlete.birth_date)}</p>
+            <p className="font-medium">{formatDate(athlete.birth_date, locale)}</p>
           </div>
         </div>
         <Separator />

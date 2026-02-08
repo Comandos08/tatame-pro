@@ -51,6 +51,7 @@ import {
 import type { AthleteGrading, GradingLevel, GradingScheme, Diploma } from '@/types/grading';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 
 interface MembershipDetails {
   id: string;
@@ -92,7 +93,7 @@ export default function MembershipDetailsPage() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const { session: impersonationSession } = useImpersonation();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
@@ -287,17 +288,6 @@ export default function MembershipDetailsPage() {
     enabled: !!membership?.athlete?.id && !!tenant?.id,
   });
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  };
 
   if (!tenant) return null;
 
@@ -395,7 +385,7 @@ export default function MembershipDetailsPage() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Início</p>
-                          <p className="font-medium">{formatDate(membership.start_date)}</p>
+                          <p className="font-medium">{formatDate(membership.start_date, locale)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -404,7 +394,7 @@ export default function MembershipDetailsPage() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Validade</p>
-                          <p className="font-medium">{formatDate(membership.end_date)}</p>
+                          <p className="font-medium">{formatDate(membership.end_date, locale)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -413,7 +403,7 @@ export default function MembershipDetailsPage() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Valor</p>
-                          <p className="font-medium">{formatCurrency(membership.price_cents)}</p>
+                          <p className="font-medium">{formatCurrency(membership.price_cents, locale)}</p>
                         </div>
                       </div>
                       {membership.academy && (
@@ -461,7 +451,7 @@ export default function MembershipDetailsPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground">Data de nascimento</p>
-                        <p className="font-medium">{formatDate(membership.athlete?.birth_date)}</p>
+                        <p className="font-medium">{formatDate(membership.athlete?.birth_date, locale)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Gênero</p>
@@ -517,7 +507,7 @@ export default function MembershipDetailsPage() {
                           />
                         </div>
                         <p className="text-sm text-muted-foreground text-center">
-                          Válida até {formatDate(digitalCard.valid_until)}
+                          Válida até {formatDate(digitalCard.valid_until, locale)}
                         </p>
                         <Button 
                           className="w-full"
@@ -610,7 +600,7 @@ export default function MembershipDetailsPage() {
                                 )}
                               </div>
                               <p className="text-sm text-muted-foreground mt-1">
-                                {[scheme?.name, formatDate(grading.promotion_date)].filter(Boolean).join(' • ')}
+                                {[scheme?.name, formatDate(grading.promotion_date, locale)].filter(Boolean).join(' • ')}
                               </p>
                               {(academy || coach) && (
                                 <p className="text-xs text-muted-foreground mt-1">

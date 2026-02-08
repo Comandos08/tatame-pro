@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, ReactNode, useCallback, use
 import { ptBR } from "@/locales/pt-BR";
 import { en } from "@/locales/en";
 import { es } from "@/locales/es";
+import { type AppLocale } from "@/lib/i18n/formatters";
 
-export type Locale = "pt-BR" | "en" | "es";
+/** Alias para compatibilidade — fonte canônica é AppLocale em formatters.ts */
+export type Locale = AppLocale;
 
 const translations: Record<Locale, Record<string, string>> = {
   "pt-BR": ptBR,

@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
+import { formatCurrency, formatDate } from '@/lib/i18n/formatters';
 import {
   AthleteFormData,
   GuardianFormData,
@@ -340,12 +341,6 @@ export function YouthMembershipForm() {
     }
   };
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  };
 
   // SAFE GOLD Y1.0: Derive deterministic view state
   const viewState = isLoading || authLoading ? 'LOADING' : 'READY';
@@ -810,7 +805,7 @@ export function YouthMembershipForm() {
                         <div>
                           <p className="text-muted-foreground">{t('membership.summaryBirthDate')}</p>
                           <p className="font-medium">
-                            {new Date(athleteData.birthDate).toLocaleDateString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}
+                            {formatDate(athleteData.birthDate, locale)}
                           </p>
                         </div>
                       </div>
@@ -821,7 +816,7 @@ export function YouthMembershipForm() {
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-muted-foreground">{t('membership.annualMembership')} - {tenant?.name}</span>
                       <span className="font-display font-bold text-lg">
-                        {formatCurrency(MEMBERSHIP_PRICE_CENTS)}
+                        {formatCurrency(MEMBERSHIP_PRICE_CENTS, locale)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">

@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
+import { formatCurrency } from '@/lib/i18n/formatters';
 import {
   AthleteFormData,
   GenderType,
@@ -77,7 +78,7 @@ export function AdultMembershipForm() {
   const { tenantSlug } = useParams();
   const [searchParams] = useSearchParams();
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
   const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
   
@@ -350,12 +351,6 @@ export function AdultMembershipForm() {
     }
   };
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -754,7 +749,7 @@ export function AdultMembershipForm() {
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-muted-foreground">{t('membership.annualMembership')} - {tenant?.name}</span>
                       <span className="font-display font-bold text-lg">
-                        {formatCurrency(MEMBERSHIP_PRICE_CENTS)}
+                        {formatCurrency(MEMBERSHIP_PRICE_CENTS, locale)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">

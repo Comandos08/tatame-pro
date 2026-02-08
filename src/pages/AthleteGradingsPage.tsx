@@ -43,6 +43,7 @@ import { toast } from 'sonner';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
 import { formatDateForCsv } from '@/lib/exportCsv';
 import { useI18n } from '@/contexts/I18nContext';
+import { formatDate } from '@/lib/i18n/formatters';
 import type { AthleteGrading, GradingScheme, GradingLevel } from '@/types/grading';
 
 interface Athlete {
@@ -66,7 +67,7 @@ export default function AthleteGradingsPage() {
   const { tenantSlug, athleteId } = useParams<{ tenantSlug: string; athleteId: string }>();
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -323,13 +324,6 @@ export default function AthleteGradingsPage() {
 
   const isLoading = athleteLoading || gradingsLoading;
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
 
   // CSV columns for export
   const csvColumns = useMemo(() => [
@@ -490,7 +484,7 @@ export default function AthleteGradingsPage() {
                           <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
-                              {formatDate(grading.promotion_date)}
+                              {formatDate(grading.promotion_date, locale)}
                             </div>
                             {academy && (
                               <div className="flex items-center gap-1">
