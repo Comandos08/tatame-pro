@@ -4,6 +4,9 @@
  * Core observability module.
  * Best-effort emission, fallback to console.
  * If observability fails, the system continues.
+ * 
+ * DETERMINISM RULE: Observability NEVER creates time.
+ * Timestamp is REQUIRED and must be provided by caller.
  */
 
 import type { ObservableEvent, ObservabilityProvider } from './types';
@@ -34,8 +37,17 @@ export function clearObservabilityProvider(): void {
  * - No mutations
  * - No navigation/redirects
  * - Fallback to console if no provider
+ * - TIMESTAMP IS REQUIRED (no generation)
  */
 export function emitObservableEvent(event: ObservableEvent): void {
+  if (!event?.timestamp) {
+    console.warn(
+      '[OBSERVABILITY] Event ignored — timestamp is required (SAFE GOLD)',
+      event
+    );
+    return;
+  }
+
   try {
     if (provider) {
       provider(event);
@@ -46,18 +58,22 @@ export function emitObservableEvent(event: ObservableEvent): void {
     }
   } catch (err) {
     // Never let observability break the app
-    console.error('[OBSERVABILITY_FAILED]', err, event);
+    console.error('[OBSERVABILITY_FAILED]', err);
   }
 }
 
 /**
- * Helper to create events with defaults
+ * Validate and pass through event.
+ * 
+ * SAFE GOLD: Does NOT generate timestamp.
+ * Timestamp must be provided by caller.
  */
-export function createEvent(
-  partial: Omit<ObservableEvent, 'timestamp'> & { timestamp?: string }
-): ObservableEvent {
-  return {
-    ...partial,
-    timestamp: partial.timestamp || new Date().toISOString(),
-  };
+export function createEvent(event: ObservableEvent): ObservableEvent {
+  if (!event.timestamp) {
+    console.warn(
+      '[OBSERVABILITY] Event dropped: missing deterministic timestamp',
+      event
+    );
+  }
+  return event;
 }
