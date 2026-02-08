@@ -506,6 +506,9 @@ Filiações que iniciaram checkout mas não concluíram pagamento são cancelada
 | MEMBERSHIP_APPROVED | Filiação aprovada |
 | MEMBERSHIP_REJECTED | Filiação rejeitada |
 | MEMBERSHIP_EXPIRED | Filiação expirada |
+| MEMBERSHIP_PAYMENT_RETRY | Retry de pagamento executado |
+| MEMBERSHIP_PAYMENT_RETRY_FAILED | Retry de pagamento falhou |
+| **MEMBERSHIP_MANUAL_CANCELLED** | Filiação cancelada manualmente por admin |
 | TENANT_REACTIVATED | Tenant reativado via pagamento |
 | TENANT_BLOCKED | Tenant bloqueado |
 | IMPERSONATION_STARTED | Sessão de impersonation iniciada |
@@ -520,5 +523,69 @@ Sistema de logging imutável com hash chain SHA-256 para decisões críticas de 
 
 ---
 
-*Documento atualizado em: 2026-01-29*
-*Versão: 1.0*
+## 11. Cancelamento Manual de Membership
+
+Permite que administradores cancelem manualmente uma filiação de forma definitiva.
+Usa campo dedicado `cancellation_reason` (separado de `review_notes`).
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Status Elegíveis: DRAFT | PENDING_PAYMENT | PENDING_REVIEW      │
+│ Status Bloqueados: APPROVED | ACTIVE | EXPIRED | CANCELLED      │
+│ Pagamento: APENAS NOT_PAID                                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (admin clica "Cancelar filiação")
+┌─────────────────────────────────────────────────────────────────┐
+│                cancel-membership-manual                          │
+│                                                                  │
+│  Validações:                                                     │
+│  ✓ JWT validado manualmente                                      │
+│  ✓ Role: ADMIN_TENANT | STAFF_ORGANIZACAO                        │
+│  ✓ Superadmin: impersonation obrigatório                         │
+│  ✓ Tenant boundary                                               │
+│  ✓ Status elegível                                               │
+│  ✓ payment_status !== PAID                                       │
+│  ✓ Motivo obrigatório (min 5 chars)                              │
+│                                                                  │
+│  Campos atualizados:                                             │
+│  status → CANCELLED                                              │
+│  cancelled_at → now()                                            │
+│  cancelled_by_profile_id → admin.id                              │
+│  cancellation_reason → reason (campo dedicado!)                  │
+│                                                                  │
+│  Auditoria:                                                      │
+│  MEMBERSHIP_MANUAL_CANCELLED                                     │
+│  → cancellation_source: 'manual_admin'                           │
+│  → blocked_retry: true                                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      CANCELLED (final)                           │
+│                (retry BLOQUEADO permanentemente)                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Princípios SAFE GOLD
+
+- ❌ NÃO apaga dados
+- ❌ NÃO permite retry após cancelamento manual
+- ❌ NÃO afeta memberships pagas
+- ❌ NÃO permite cross-tenant
+- ✅ Sempre audita
+- ✅ Sempre exige motivo (campo dedicado `cancellation_reason`)
+- ✅ Sempre valida papel
+
+### Diferença de Cancelamentos
+
+| Tipo | Evento | Retry Permitido |
+|------|--------|-----------------|
+| GC automático (payment timeout) | `MEMBERSHIP_PENDING_PAYMENT_CLEANUP` | ✅ Sim |
+| GC automático (DRAFT abandoned) | `MEMBERSHIP_ABANDONED_CLEANUP` | ✅ Sim |
+| **Cancelamento manual** | `MEMBERSHIP_MANUAL_CANCELLED` | ❌ **NÃO** |
+
+---
+
+*Documento atualizado em: 2026-02-08*
+*Versão: 1.1*

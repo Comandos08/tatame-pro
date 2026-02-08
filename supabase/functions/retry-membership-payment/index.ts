@@ -384,24 +384,46 @@ serve(async (req) => {
       );
     }
 
-    // === AJUSTE #3: Cancellation Reason Validation ===
+    // === AJUSTE #3/#4: Cancellation Reason Validation (DETERMINISTIC) ===
     const { data: cancelLog } = await supabaseAdmin
       .from("audit_logs")
-      .select("metadata")
+      .select("metadata, event_type")  // Include event_type for deterministic check
       .eq("tenant_id", membership.tenant_id)
       .in("event_type", [
         "MEMBERSHIP_PENDING_PAYMENT_CLEANUP",
         "MEMBERSHIP_ABANDONED_CLEANUP",
+        "MEMBERSHIP_MANUAL_CANCELLED",  // Block retry for manual cancellations
       ])
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);  // Increase limit to find most recent
 
-    // Find matching log for this membership
+    // Find matching log for this membership (most recent first)
     const matchingLog = cancelLog?.find((log) => {
       const metadata = log.metadata as { membership_id?: string } | null;
       return metadata?.membership_id === membershipId;
     });
 
+    // AJUSTE #4: Deterministic check for manual cancellation FIRST
+    const isManualCancellation = matchingLog?.event_type === "MEMBERSHIP_MANUAL_CANCELLED";
+
+    if (isManualCancellation) {
+      logStep("Retry BLOCKED for manual cancellation", { 
+        membershipId,
+        event_type: matchingLog?.event_type,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "RETRY_BLOCKED_MANUAL_CANCELLATION",
+          details: "Manual cancellations cannot be retried. Contact administrator.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Continue with existing timeout check logic
     const cancellationReason = (matchingLog?.metadata as {
       reason?: string;
     } | null)?.reason;
@@ -412,12 +434,12 @@ serve(async (req) => {
       !matchingLog;
 
     if (!isPaymentTimeout && matchingLog) {
-      logStep("Retry not allowed for manual cancellation", {
+      logStep("Retry not allowed for unknown cancellation reason", {
         cancellationReason,
       });
       return new Response(
         JSON.stringify({
-          error: "RETRY_NOT_ALLOWED_FOR_MANUAL_CANCELLATION",
+          error: "RETRY_NOT_ALLOWED_FOR_UNKNOWN_CANCELLATION",
           details: "Only payment timeout cancellations can be retried",
         }),
         {
