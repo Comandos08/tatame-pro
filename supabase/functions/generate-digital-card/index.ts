@@ -1,9 +1,39 @@
+/**
+ * @contract generate-digital-card
+ * 
+ * SAFE GOLD — PI-D6.1.2: Digital Card Generation
+ * 
+ * INPUT:
+ *   - membershipId: UUID (required)
+ * 
+ * PRECONDITIONS:
+ *   - tenant.lifecycle_status === 'ACTIVE' (I4)
+ *   - billing.status ∈ ['ACTIVE', 'TRIALING'] (I7 - checked via membership)
+ *   - membership.payment_status === 'PAID'
+ *   - membership.status ∈ ['PENDING_REVIEW', 'APPROVED', 'ACTIVE']
+ * 
+ * POSTCONDITIONS:
+ *   - digital_cards row created
+ *   - document_public_tokens row created
+ *   - audit event DOCUMENT_ISSUED logged
+ * 
+ * ERRORS:
+ *   - All errors return HTTP 200 with { success: false } (I6)
+ *   - No stack traces exposed
+ * 
+ * INVARIANTS:
+ *   - I1: Golden Rule applied (tenant ACTIVE + billing OK + doc ACTIVE)
+ *   - I4: Tenant lifecycle validated
+ *   - I6: Neutral error responses
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { encode } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +106,16 @@ serve(async (req) => {
 
     if (membershipError || !membership) {
       throw new Error(membershipError?.message || "Membership not found");
+    }
+
+    // ========================================================================
+    // PI-D6.1.2: TENANT LIFECYCLE CHECK (I4)
+    // INVARIANT: Only ACTIVE tenants can emit documents
+    // ========================================================================
+    const tenantCheck = await requireTenantActive(supabase, membership.tenant?.id);
+    if (!tenantCheck.allowed) {
+      console.log("[GENERATE-DIGITAL-CARD] Tenant not active:", tenantCheck.code);
+      return tenantNotActiveResponse(tenantCheck.status);
     }
 
     // Validate eligibility

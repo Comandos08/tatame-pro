@@ -1,3 +1,38 @@
+/**
+ * @contract generate-diploma
+ * 
+ * SAFE GOLD — PI-D6.1.2: Diploma Generation
+ * 
+ * INPUT:
+ *   - athleteId: UUID (required)
+ *   - gradingLevelId: UUID (required)
+ *   - promotionDate: string (required)
+ *   - academyId: UUID (optional)
+ *   - coachId: UUID (optional)
+ *   - notes: string (optional)
+ *   - officiality_override: object (optional, requires ADMIN role)
+ * 
+ * PRECONDITIONS:
+ *   - tenant.lifecycle_status === 'ACTIVE' (I4)
+ *   - billing.status ∈ ['ACTIVE', 'TRIALING'] (I7)
+ *   - athlete has ACTIVE membership OR officiality_override approved
+ * 
+ * POSTCONDITIONS:
+ *   - diplomas row created
+ *   - athlete_gradings row created
+ *   - document_public_tokens row created
+ *   - audit event DIPLOMA_ISSUED logged
+ * 
+ * ERRORS:
+ *   - All errors return HTTP 200 with { success: false } (I6)
+ *   - No stack traces exposed
+ * 
+ * INVARIANTS:
+ *   - I1: Golden Rule applied (tenant ACTIVE + billing OK + doc ISSUED)
+ *   - I4: Tenant lifecycle validated
+ *   - I6: Neutral error responses
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
@@ -9,6 +44,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
+import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -152,6 +188,16 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: 'Tenant not found' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ========================================================================
+    // PI-D6.1.2: TENANT LIFECYCLE CHECK (I4)
+    // INVARIANT: Only ACTIVE tenants can emit documents
+    // ========================================================================
+    const tenantCheck = await requireTenantActive(supabase, tenantId);
+    if (!tenantCheck.allowed) {
+      console.log("[GENERATE-DIPLOMA] Tenant not active:", tenantCheck.code);
+      return tenantNotActiveResponse(tenantCheck.status);
     }
 
     // ========================================================================
