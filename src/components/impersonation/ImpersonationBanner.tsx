@@ -68,6 +68,10 @@ export function ImpersonationBanner() {
           text-warning-foreground
           shadow-lg
         `}
+        data-testid="impersonation-indicator"
+        data-impersonation-state="ON"
+        data-impersonation-role="SUPERADMIN"
+        data-impersonation-tenant-id={session.targetTenantId}
       >
         <div className="container mx-auto flex items-center justify-between gap-4">
           {/* Left: Icon + Message + Context */}

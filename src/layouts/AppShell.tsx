@@ -68,7 +68,7 @@ export function AppShell({ children }: AppShellProps) {
   const { tenant } = useTenant();
   const { resolvedTheme } = useTheme();
   const { t } = useI18n();
-  const { isImpersonating, session: impersonationSession } = useImpersonation();
+  const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
   const { can } = usePermissions();
   const navigate = useNavigate();
 
@@ -109,8 +109,22 @@ export function AppShell({ children }: AppShellProps) {
     return can(item.feature);
   });
 
+  // SAFE GOLD: Derive deterministic view state for E2E instrumentation
+  const impersonationViewState = impersonationLoading || resolutionStatus === 'RESOLVING'
+    ? 'LOADING'
+    : resolutionStatus === 'RESOLVED' || !impersonationLoading
+      ? 'READY'
+      : 'ERROR';
+  
+  const impersonationState = isImpersonating ? 'ON' : 'OFF';
+
   return (
-    <div className="min-h-screen bg-background">
+    <div 
+      className="min-h-screen bg-background"
+      data-testid="app-shell"
+      data-impersonation-state={impersonationState}
+      data-impersonation-view-state={impersonationViewState}
+    >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <motion.div
