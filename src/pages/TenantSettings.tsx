@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 import { hexToHsl } from '@/lib/colorUtils';
+import { AdminBadgeCatalog } from '@/components/badges/AdminBadgeCatalog';
 
 export default function TenantSettings() {
   const { tenant } = useTenant();
@@ -319,6 +320,9 @@ export default function TenantSettings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Badge Catalog Management */}
+            <AdminBadgeCatalog tenantId={tenant.id} />
 
             {/* Branding Assets Upload */}
             <BrandingUploadSection
