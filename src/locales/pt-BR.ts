@@ -38,6 +38,13 @@ export const ptBR = {
   'publicVerify.notFound.desc': 'Não foi possível localizar um registro com este identificador. Verifique se o link está correto ou se o QR Code foi escaneado adequadamente.',
   'publicVerify.realTimeVerification': 'A validação reflete o estado do registro no momento da consulta.',
 
+  // Trust Signals — Institutional Credibility
+  'trust.verifiedRecord': 'Registro verificado em base institucional',
+  'trust.sourceOfTruth': 'Fonte: Registro oficial da instituição emissora',
+  'trust.queryTimestamp': 'Esta consulta reflete o estado do registro no momento da verificação.',
+  'trust.institutionalRegistry': 'Base institucional verificada',
+  'trust.officialRecord': 'Registro oficial',
+
   // Common
   'common.loading': 'Carregando...',
   'common.verifyingAccess': 'Verificando seu acesso...',

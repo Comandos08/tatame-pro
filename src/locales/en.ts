@@ -38,6 +38,13 @@ export const en: Record<string, string> = {
   'publicVerify.notFound.desc': 'Unable to locate a record with this identifier. Please verify the link is correct or that the QR code was scanned properly.',
   'publicVerify.realTimeVerification': 'Validation reflects the record status at time of query.',
 
+  // Trust Signals — Institutional Credibility
+  'trust.verifiedRecord': 'Record verified against institutional registry',
+  'trust.sourceOfTruth': 'Source: Official record from issuing institution',
+  'trust.queryTimestamp': 'This query reflects the record status at time of verification.',
+  'trust.institutionalRegistry': 'Institutional registry verified',
+  'trust.officialRecord': 'Official record',
+
   // Common
   'common.loading': 'Loading...',
   'common.verifyingAccess': 'Verifying your access...',

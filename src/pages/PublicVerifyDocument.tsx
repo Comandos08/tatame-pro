@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, XCircle, AlertCircle, Search, Shield } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/contexts/I18nContext";
 import { formatDate } from "@/lib/i18n/formatters";
+import { TrustSeal } from "@/components/trust/TrustSeal";
 type VerifyResponse =
   | {
       valid: true;
@@ -162,10 +163,11 @@ function ValidState({ data, t, locale }: { data: ValidData; t: TFunction; locale
 
         {/* Trust Seal */}
         <div className="border-t pt-4">
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <Shield className="h-4 w-4" />
-            <span>{t('publicVerify.trustSeal')}</span>
-          </div>
+          <TrustSeal 
+            message={t('trust.verifiedRecord')}
+            source={t('trust.sourceOfTruth')}
+            variant="verified"
+          />
         </div>
       </CardContent>
     </>
@@ -183,9 +185,11 @@ function InvalidState({ t }: { t: TFunction }) {
         <p className="text-muted-foreground">
           {t('publicVerify.invalid.desc')}
         </p>
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Shield className="h-4 w-4" />
-          <span>{t('publicVerify.realTimeVerification')}</span>
+        <div className="mt-6">
+          <TrustSeal 
+            message={t('publicVerify.realTimeVerification')}
+            variant="info"
+          />
         </div>
       </CardContent>
     </>
@@ -203,9 +207,11 @@ function RevokedState({ t }: { t: TFunction }) {
         <p className="text-muted-foreground">
           {t('publicVerify.revoked.desc')}
         </p>
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Shield className="h-4 w-4" />
-          <span>{t('publicVerify.realTimeVerification')}</span>
+        <div className="mt-6">
+          <TrustSeal 
+            message={t('publicVerify.realTimeVerification')}
+            variant="info"
+          />
         </div>
       </CardContent>
     </>
@@ -223,9 +229,11 @@ function NotFoundState({ t }: { t: TFunction }) {
         <p className="text-muted-foreground">
           {t('publicVerify.notFound.desc')}
         </p>
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Shield className="h-4 w-4" />
-          <span>{t('publicVerify.realTimeVerification')}</span>
+        <div className="mt-6">
+          <TrustSeal 
+            message={t('publicVerify.realTimeVerification')}
+            variant="info"
+          />
         </div>
       </CardContent>
     </>
