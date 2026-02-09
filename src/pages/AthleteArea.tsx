@@ -31,6 +31,7 @@ import { EditablePersonalData } from '@/components/athlete/EditablePersonalData'
 import { DocumentsSection } from '@/components/athlete/DocumentsSection';
 import { RenewalBanner } from '@/components/membership/RenewalBanner';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
+import { AthleteBadgesList } from '@/components/badges/AthleteBadgesList';
 
 interface AthleteData {
   id: string;
@@ -397,6 +398,7 @@ export default function AthleteArea() {
                       <Badge key={sport} variant="secondary">{sport}</Badge>
                     ))}
                   </div>
+                  <AthleteBadgesList athleteId={athlete.id} className="mt-2" />
                 </div>
               </div>
             </div>

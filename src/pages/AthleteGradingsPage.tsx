@@ -45,6 +45,7 @@ import { formatDateForCsv } from '@/lib/exportCsv';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
 import type { AthleteGrading, GradingScheme, GradingLevel } from '@/types/grading';
+import { AthleteBadgesList } from '@/components/badges/AthleteBadgesList';
 
 interface Athlete {
   id: string;
@@ -387,7 +388,10 @@ export default function AthleteGradingsPage() {
               Histórico de Graduações
             </h1>
             {athlete && (
-              <p className="text-muted-foreground">{athlete.full_name}</p>
+              <div>
+                <p className="text-muted-foreground">{athlete.full_name}</p>
+                <AthleteBadgesList athleteId={athlete.id} className="mt-1" />
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2">
