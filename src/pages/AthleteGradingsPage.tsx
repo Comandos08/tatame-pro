@@ -47,6 +47,7 @@ import { formatDate } from '@/lib/i18n/formatters';
 import type { AthleteGrading, GradingScheme, GradingLevel } from '@/types/grading';
 import { AthleteBadgesList } from '@/components/badges/AthleteBadgesList';
 import { AdminBadgeManager } from '@/components/badges/AdminBadgeManager';
+import { BadgeTimeline } from '@/components/badges/BadgeTimeline';
 
 interface Athlete {
   id: string;
@@ -427,6 +428,11 @@ export default function AthleteGradingsPage() {
         {/* PI A4: Admin Badge Management */}
         {athlete && tenant && (
           <AdminBadgeManager athleteId={athlete.id} tenantId={tenant.id} />
+        )}
+
+        {/* PI A5: Badge Timeline (read-only) */}
+        {athlete && (
+          <BadgeTimeline athleteId={athlete.id} />
         )}
 
         {isLoading ? (
