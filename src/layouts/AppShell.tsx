@@ -35,7 +35,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useAccessContract } from '@/hooks/useAccessContract';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,7 @@ import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normal
 import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
 import { normalizeAuditViewState } from '@/domain/audit/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
-import type { FeatureKey } from '@/lib/accessMatrix';
+import type { FeatureKey } from '@/hooks/useAccessContract';
 interface AppShellProps {
   children: ReactNode;
 }
@@ -81,7 +81,7 @@ export function AppShell({ children }: AppShellProps) {
   const { resolvedTheme } = useTheme();
   const { t } = useI18n();
   const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
-  const { can } = usePermissions();
+  const { can } = useAccessContract(tenant?.id);
   const { billingStatus } = useTenantStatus();
   const navigate = useNavigate();
   const location = useLocation();

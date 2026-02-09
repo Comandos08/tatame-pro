@@ -1716,6 +1716,36 @@ export type Database = {
           },
         ]
       }
+      feature_access: {
+        Row: {
+          allowed_roles: string[]
+          created_at: string
+          feature_key: string
+          id: string
+          is_active: boolean
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_roles?: string[]
+          created_at?: string
+          feature_key: string
+          id?: string
+          is_active?: boolean
+          scope?: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_roles?: string[]
+          created_at?: string
+          feature_key?: string
+          id?: string
+          is_active?: boolean
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       federation_roles: {
         Row: {
           created_at: string
@@ -3027,6 +3057,10 @@ export type Database = {
         Args: { _athlete_id: string }
         Returns: boolean
       }
+      can_access_feature: {
+        Args: { p_feature_key: string; p_tenant_id: string }
+        Returns: boolean
+      }
       can_act_as_federation: {
         Args: { _federation_id: string; _user_id: string }
         Returns: boolean
@@ -3154,6 +3188,10 @@ export type Database = {
       is_member_of_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
+      list_allowed_features: {
+        Args: { p_tenant_id: string }
+        Returns: string[]
+      }
       membership_has_digital_card: {
         Args: { _membership_id: string }
         Returns: boolean

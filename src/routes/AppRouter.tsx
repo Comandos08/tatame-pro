@@ -24,34 +24,34 @@ import TenantDiagnostics from '@/pages/TenantDiagnostics';
 
 import NotFound from '@/pages/NotFound';
 import { BillingGate } from '@/components/billing/BillingGate';
+import { RequireFeature } from '@/components/auth/RequireFeature';
 
 export default function AppRouter() {
   return (
     <Routes>
-      <Route index element={<TenantDashboard />} />
-      <Route path="me" element={<AthleteArea />} />
-      <Route path="athletes" element={<AthletesList />} />
-      <Route path="athletes/:athleteId/gradings" element={<AthleteGradingsPage />} />
-      <Route path="memberships" element={<MembershipList />} />
-      <Route path="memberships/:membershipId" element={<MembershipDetails />} />
-      <Route path="academies" element={<AcademiesList />} />
-      <Route path="coaches" element={<CoachesList />} />
-      <Route path="grading-schemes" element={<GradingSchemesList />} />
-      <Route path="grading-schemes/:schemeId/levels" element={<GradingLevelsList />} />
-      <Route path="approvals" element={<ApprovalsList />} />
-      <Route path="approvals/:approvalId" element={<ApprovalDetails />} />
-      <Route path="rankings" element={<InternalRankings />} />
+      <Route index element={<RequireFeature featureKey="TENANT_DASHBOARD"><TenantDashboard /></RequireFeature>} />
+      <Route path="me" element={<RequireFeature featureKey="TENANT_MY_AREA"><AthleteArea /></RequireFeature>} />
+      <Route path="athletes" element={<RequireFeature featureKey="TENANT_ATHLETES"><AthletesList /></RequireFeature>} />
+      <Route path="athletes/:athleteId/gradings" element={<RequireFeature featureKey="TENANT_ATHLETES"><AthleteGradingsPage /></RequireFeature>} />
+      <Route path="memberships" element={<RequireFeature featureKey="TENANT_MEMBERSHIPS"><MembershipList /></RequireFeature>} />
+      <Route path="memberships/:membershipId" element={<RequireFeature featureKey="TENANT_MEMBERSHIPS"><MembershipDetails /></RequireFeature>} />
+      <Route path="academies" element={<RequireFeature featureKey="TENANT_ACADEMIES"><AcademiesList /></RequireFeature>} />
+      <Route path="coaches" element={<RequireFeature featureKey="TENANT_COACHES"><CoachesList /></RequireFeature>} />
+      <Route path="grading-schemes" element={<RequireFeature featureKey="TENANT_GRADINGS"><GradingSchemesList /></RequireFeature>} />
+      <Route path="grading-schemes/:schemeId/levels" element={<RequireFeature featureKey="TENANT_GRADINGS"><GradingLevelsList /></RequireFeature>} />
+      <Route path="approvals" element={<RequireFeature featureKey="TENANT_APPROVALS"><ApprovalsList /></RequireFeature>} />
+      <Route path="approvals/:approvalId" element={<RequireFeature featureKey="TENANT_APPROVALS"><ApprovalDetails /></RequireFeature>} />
+      <Route path="rankings" element={<RequireFeature featureKey="TENANT_RANKINGS"><InternalRankings /></RequireFeature>} />
       {/* P3.4: Events routes wrapped with BillingGate strictMode */}
-      <Route path="events" element={<BillingGate strictMode><EventsList /></BillingGate>} />
-      <Route path="events/:eventId" element={<BillingGate strictMode><EventDetails /></BillingGate>} />
-      <Route path="audit-log" element={<AuditLog />} />
-      <Route path="security" element={<SecurityTimeline />} />
-      <Route path="billing" element={<TenantBilling />} />
-      <Route path="settings" element={<TenantSettings />} />
+      <Route path="events" element={<RequireFeature featureKey="TENANT_EVENTS"><BillingGate strictMode><EventsList /></BillingGate></RequireFeature>} />
+      <Route path="events/:eventId" element={<RequireFeature featureKey="TENANT_EVENTS"><BillingGate strictMode><EventDetails /></BillingGate></RequireFeature>} />
+      <Route path="audit-log" element={<RequireFeature featureKey="TENANT_AUDIT_LOG"><AuditLog /></RequireFeature>} />
+      <Route path="security" element={<RequireFeature featureKey="TENANT_SECURITY"><SecurityTimeline /></RequireFeature>} />
+      <Route path="billing" element={<RequireFeature featureKey="TENANT_BILLING"><TenantBilling /></RequireFeature>} />
+      <Route path="settings" element={<RequireFeature featureKey="TENANT_SETTINGS"><TenantSettings /></RequireFeature>} />
       <Route path="onboarding" element={<TenantOnboarding />} />
       <Route path="diagnostics" element={<TenantDiagnostics />} />
-      <Route path="help" element={<TenantHelp />} />
-      {/* PI-BILL-HEALTH-001: Health route moved to /admin/health (SAFE GOLD) */}
+      <Route path="help" element={<RequireFeature featureKey="TENANT_HELP"><TenantHelp /></RequireFeature>} />
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
       <Route path="*" element={<NotFound />} />
     </Routes>

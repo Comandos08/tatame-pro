@@ -1,77 +1,44 @@
 /**
  * 🔐 usePermissions — React Hook for Permission Checks
  * 
- * A hook that combines tenant roles with the permission system
- * for easy use in React components.
+ * PI A3: Now delegates to useAccessContract (backend contract).
+ * The local accessMatrix is no longer the source of truth.
  */
 
-import { useMemo } from 'react';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { useTenantRoles } from '@/hooks/useTenantRoles';
-import { FeatureKey } from '@/lib/accessMatrix';
-import { createPermissionContext, PermissionContext, Permissions } from '@/lib/can';
-import { AppRole } from '@/types/auth';
+import { useAccessContract, FeatureKey } from '@/hooks/useAccessContract';
 
-export interface UsePermissionsResult extends PermissionContext {
+export interface UsePermissionsResult {
   /** Whether permissions are still loading */
   isLoading: boolean;
-  /** Whether permissions have been fetched */
-  isFetched: boolean;
-  /** The current tenant ID */
-  tenantId: string | null;
-  /** Error if any occurred */
-  error: Error | null;
-  /** Pre-defined permission checks */
-  permissions: typeof Permissions;
+  /** Check if user can access a feature (backend-driven) */
+  can: (feature: FeatureKey) => boolean;
+  /** Check if user can access any of the features */
+  canAny: (features: FeatureKey[]) => boolean;
+  /** Whether user is global superadmin */
+  isGlobalSuperadmin: boolean;
 }
 
 /**
- * Hook to check user permissions in the current tenant context.
- * 
- * @returns UsePermissionsResult with permission checking functions
- * 
- * @example
- * const { can, permissions, isLoading } = usePermissions();
- * 
- * if (isLoading) return <Spinner />;
- * 
- * if (permissions.approveMembers(roles)) {
- *   return <ApproveButton />;
- * }
- * 
- * // Or use the can() function
- * if (can('TENANT_APPROVALS')) {
- *   return <ApprovalsLink />;
- * }
+ * Hook to check user permissions via backend contract.
+ * Replaces the old local accessMatrix-based check.
  */
 export function usePermissions(): UsePermissionsResult {
-  const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
-  const { tenant, isLoading: tenantLoading } = useTenant();
-  const { roles, isLoading: rolesLoading, isFetched, error } = useTenantRoles(tenant?.id);
-
-  const isLoading = authLoading || tenantLoading || rolesLoading;
-
-  const permissionContext = useMemo(() => {
-    return createPermissionContext(roles, isGlobalSuperadmin);
-  }, [roles, isGlobalSuperadmin]);
+  const { isGlobalSuperadmin } = useCurrentUser();
+  const { tenant } = useTenant();
+  const { can, isLoading } = useAccessContract(tenant?.id);
 
   return {
-    ...permissionContext,
     isLoading,
-    isFetched,
-    tenantId: tenant?.id || null,
-    error,
-    permissions: Permissions,
+    can,
+    canAny: (features: FeatureKey[]) => features.some(f => can(f)),
+    isGlobalSuperadmin,
   };
 }
 
 /**
  * Hook to check a specific permission.
- * More efficient if you only need one check.
- * 
- * @param feature - The feature to check access for
- * @returns { allowed: boolean, isLoading: boolean }
  */
 export function useCanAccess(feature: FeatureKey): { allowed: boolean; isLoading: boolean } {
   const { can, isLoading } = usePermissions();
@@ -79,20 +46,5 @@ export function useCanAccess(feature: FeatureKey): { allowed: boolean; isLoading
   return {
     allowed: can(feature),
     isLoading,
-  };
-}
-
-/**
- * Hook to get the current user's roles for the active tenant.
- * 
- * @returns { roles: AppRole[], isLoading: boolean }
- */
-export function useCurrentRoles(): { roles: AppRole[]; isLoading: boolean } {
-  const { tenant, isLoading: tenantLoading } = useTenant();
-  const { roles, isLoading: rolesLoading } = useTenantRoles(tenant?.id);
-  
-  return {
-    roles,
-    isLoading: tenantLoading || rolesLoading,
   };
 }
