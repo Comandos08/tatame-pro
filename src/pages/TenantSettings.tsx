@@ -12,6 +12,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 import { hexToHsl } from '@/lib/colorUtils';
 import { AdminBadgeCatalog } from '@/components/badges/AdminBadgeCatalog';
@@ -110,7 +111,7 @@ export default function TenantSettings() {
     if (field === 'diploma_template_url') setDiplomaTemplateUrl(url);
   }
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   const languages: { code: Locale; label: string }[] = [
     { code: 'pt-BR', label: t('language.ptBR') },

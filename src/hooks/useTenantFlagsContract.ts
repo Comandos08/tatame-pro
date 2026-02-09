@@ -12,6 +12,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 // Contract v1.0.0 — matches RPC output exactly
 export interface TenantFlagsContract {
@@ -34,6 +36,8 @@ export interface TenantFlagsContractResult {
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
+  /** PI B1: Normalized async state */
+  asyncState: AsyncState<TenantFlagsContract>;
 }
 
 // Stable restrictive fallback — never null fields
@@ -94,6 +98,7 @@ export function useTenantFlagsContract(tenantId: string | undefined): TenantFlag
   });
 
   const status: ContractStatus = isLoading ? 'loading' : isError ? 'error' : 'ready';
+  const asyncState: AsyncState<TenantFlagsContract> = normalizeAsyncState({ data, isLoading, isError, error: null });
   
   return {
     contract: data ?? null,
@@ -101,6 +106,7 @@ export function useTenantFlagsContract(tenantId: string | undefined): TenantFlag
     isLoading,
     isError,
     refetch,
+    asyncState,
   };
 }
 

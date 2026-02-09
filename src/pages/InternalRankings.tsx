@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AcademyRanking {
@@ -225,7 +226,7 @@ export default function InternalRankings() {
     return null;
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
     <AppShell>

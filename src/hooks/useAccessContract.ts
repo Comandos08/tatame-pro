@@ -12,6 +12,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 export type FeatureKey = string;
 
@@ -24,6 +26,8 @@ interface UseAccessContractResult {
   isLoading: boolean;
   /** Whether the RPC call failed */
   isError: boolean;
+  /** PI B1: Normalized async state */
+  asyncState: AsyncState<string[]>;
 }
 
 export function useAccessContract(tenantId: string | undefined | null): UseAccessContractResult {
@@ -43,6 +47,7 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
   });
 
   const allowedFeatures = new Set(data || []);
+  const asyncState = normalizeAsyncState({ data, isLoading, isError, error: null });
 
   return {
     allowedFeatures,
@@ -53,5 +58,6 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
     },
     isLoading,
     isError,
+    asyncState,
   };
 }

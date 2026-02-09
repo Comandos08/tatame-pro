@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n, Locale } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { formatDate } from '@/lib/i18n/formatters';
 import {
   MembershipStatus,
@@ -142,7 +143,7 @@ export default function MembershipList() {
     return formatDate(dateString, locale);
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
     <AppShell>

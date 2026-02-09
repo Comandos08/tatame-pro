@@ -7,6 +7,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 import { 
   HealthStatus, 
   HealthCheck, 
@@ -202,8 +204,8 @@ function aggregateOverallStatus(checks: HealthCheck[]): HealthStatus {
   return 'OK';
 }
 
-export function useSystemHealthStatus() {
-  return useQuery({
+export function useSystemHealthStatus(): ReturnType<typeof useQuery<SystemHealth>> & { asyncState: AsyncState<SystemHealth> } {
+  const query = useQuery({
     queryKey: ['system-health-status'],
     queryFn: async (): Promise<SystemHealth> => {
       // Fetch job execution summary
@@ -250,6 +252,10 @@ export function useSystemHealthStatus() {
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
   });
+
+  const asyncState: AsyncState<SystemHealth> = normalizeAsyncState(query);
+
+  return { ...query, asyncState };
 }
 
 export function useJobsHealth() {

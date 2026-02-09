@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EventRegistrationStatus } from '@/types/event';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 export interface RegistrationWithEvent {
   id: string;
@@ -117,9 +119,19 @@ export function useAthleteEvents(athleteId?: string, options?: UseAthleteEventsO
     enabled: !!athleteId,
   });
 
+  const isLoading = registrationsLoading || resultsLoading;
+
+  const asyncState: AsyncState<{ registrations: RegistrationWithEvent[]; results: ResultWithEvent[] }> =
+    isLoading
+      ? { state: 'LOADING', data: null, error: null }
+      : registrations.length === 0 && results.length === 0
+        ? { state: 'EMPTY', data: null, error: null }
+        : { state: 'OK', data: { registrations, results }, error: null };
+
   return {
     registrations,
     results,
-    isLoading: registrationsLoading || resultsLoading,
+    isLoading,
+    asyncState,
   };
 }

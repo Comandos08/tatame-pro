@@ -11,6 +11,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { TenantBillingState } from '@/lib/billing/resolveTenantBillingState';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 export type DiagnosticsStatus = 'loading' | 'success' | 'no_data' | 'no_permission' | 'error';
 
@@ -159,12 +161,20 @@ export function useTenantDiagnostics(tenantId: string | null | undefined, billin
     refetchOnWindowFocus: false,
   });
 
+  const asyncState: AsyncState<DiagnosticsData> = normalizeAsyncState({
+    data,
+    isLoading,
+    isError: !!error,
+    error,
+  });
+
   return {
     diagnostics: data,
     isLoading,
     error,
     refetch,
     status: data?.status ?? (isLoading ? 'loading' : 'no_data'),
+    asyncState,
   };
 }
 

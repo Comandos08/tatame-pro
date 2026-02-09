@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { supabase } from '@/integrations/supabase/client';
 import PublicHeader from '@/components/PublicHeader';
 
@@ -154,7 +155,7 @@ export default function PublicRankings() {
     fetchRankings();
   }, [tenant?.id]);
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   const getMedalIcon = (position: number) => {
     if (position === 1) return <Medal className="h-5 w-5 text-warning" />;

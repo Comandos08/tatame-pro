@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { PortalLayout } from '@/layouts/PortalLayout';
 import { PortalAccessGate } from '@/components/portal/PortalAccessGate';
 import { DigitalMembershipCard } from '@/components/card/DigitalMembershipCard';
@@ -101,7 +102,7 @@ export default function PortalCard() {
 
   const isLoading = athleteLoading || membershipLoading || cardLoading;
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
     <PortalLayout
