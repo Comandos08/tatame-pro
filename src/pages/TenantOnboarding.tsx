@@ -19,6 +19,7 @@ import {
   CheckCircle2, Circle, ArrowRight, ArrowLeft,
   Loader2, AlertCircle, PartyPopper, Medal
 } from 'lucide-react';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -221,7 +222,7 @@ export default function TenantOnboarding() {
     navigate(`/${tenant?.slug}/app/${path}`);
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   if (isLoading) {
     return (

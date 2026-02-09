@@ -19,6 +19,7 @@ import {
   MapPin,
   ShieldAlert
 } from 'lucide-react';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
@@ -371,7 +372,7 @@ export default function ApprovalDetails() {
     }
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   if (!canApprove) {
     return (

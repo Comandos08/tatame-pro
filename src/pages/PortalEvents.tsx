@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { PortalLayout } from '@/layouts/PortalLayout';
@@ -160,7 +161,7 @@ export default function PortalEvents() {
     );
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
     <PortalLayout

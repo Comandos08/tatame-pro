@@ -11,6 +11,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import type { AsyncState } from '@/types/async';
 
 interface UseHasAthleteInTenantResult {
   /** Se o usuário tem athlete neste tenant específico */
@@ -19,6 +20,8 @@ interface UseHasAthleteInTenantResult {
   hasAthleteAnywhere: boolean | undefined;
   /** Se a verificação ainda está carregando */
   isLoading: boolean;
+  /** PI B1: Normalized async state */
+  asyncState: AsyncState<{ hasAthleteInTenant: boolean; hasAthleteAnywhere: boolean }>;
 }
 
 export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthleteInTenantResult {
@@ -61,9 +64,24 @@ export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthle
   const isLoading = authLoading || 
     (isAuthenticated && (tenantCheckLoading || anywhereCheckLoading));
 
+  const asyncState: AsyncState<{ hasAthleteInTenant: boolean; hasAthleteAnywhere: boolean }> =
+    isLoading
+      ? { state: 'LOADING', data: null, error: null }
+      : !isAuthenticated
+        ? { state: 'EMPTY', data: null, error: null }
+        : {
+            state: 'OK',
+            data: {
+              hasAthleteInTenant: hasAthleteInTenant ?? false,
+              hasAthleteAnywhere: hasAthleteAnywhere ?? false,
+            },
+            error: null,
+          };
+
   return {
     hasAthleteInTenant: isAuthenticated ? hasAthleteInTenant : undefined,
     hasAthleteAnywhere: isAuthenticated ? hasAthleteAnywhere : undefined,
     isLoading,
+    asyncState,
   };
 }

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTenant } from '@/contexts/TenantContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import PublicHeader from '@/components/PublicHeader';
@@ -67,7 +68,7 @@ export default function PublicAcademies() {
     });
   }, [academies, searchQuery, sportFilter]);
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
     <div className="min-h-screen bg-background">

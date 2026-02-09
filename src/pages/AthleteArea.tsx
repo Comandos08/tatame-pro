@@ -18,6 +18,7 @@ import {
 import { Link } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
@@ -321,7 +322,7 @@ export default function AthleteArea() {
     };
   }, [activeMembership]);
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   // Show message for admins
   if (isAdmin && !athlete) {

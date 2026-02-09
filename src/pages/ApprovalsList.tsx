@@ -7,6 +7,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { formatDateTime } from '@/lib/i18n/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -150,7 +151,7 @@ export default function ApprovalsList() {
     { key: 'price_cents', label: 'Valor', format: (v: number, row: MembershipApplication) => formatCurrencyForCsv(v, row.currency) },
   ], [t]);
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   if (!canApprove) {
     return (

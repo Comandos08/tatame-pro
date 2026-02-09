@@ -6,6 +6,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -182,7 +183,7 @@ export default function AcademiesList() {
     }
   };
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   const formJSX = (
     <div className="space-y-4">

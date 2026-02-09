@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EventCard } from '@/components/events/EventCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { LoadingState } from '@/components/ux/LoadingState';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useHasAthleteInTenant } from '@/hooks/useHasAthleteInTenant';
@@ -23,7 +24,7 @@ export default function PublicEventsList() {
   const [search, setSearch] = React.useState('');
 
   // Guard clause - tenant required
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   const { isAuthenticated } = useCurrentUser();
   const { 

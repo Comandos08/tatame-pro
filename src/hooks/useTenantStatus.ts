@@ -3,6 +3,8 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveTenantBillingState, type TenantBillingState } from '@/lib/billing';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 export interface TenantStatusInfo {
   isOnTrial: boolean;
@@ -16,6 +18,7 @@ export interface TenantStatusInfo {
   planName: string | null;
   canSeeBanner: boolean;
   billingState: TenantBillingState | null;
+  asyncState: AsyncState<TenantBillingData>;
 }
 
 interface TenantBillingData {
@@ -100,6 +103,13 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
   const hasBillingIssue = billingState.isReadOnly;
   const isBlocked = billingState.isBlocked;
 
+  const asyncState: AsyncState<TenantBillingData> = normalizeAsyncState({
+    data: billing,
+    isLoading,
+    isError: false,
+    error: null,
+  });
+
   return {
     isOnTrial,
     daysToTrialEnd,
@@ -113,5 +123,6 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     canSeeBanner,
     billingState,
     isLoading,
+    asyncState,
   };
 }

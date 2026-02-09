@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import type { AsyncState } from '@/types/async';
 
 /**
  * Hook to fetch athlete photo from storage.
@@ -11,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
  * NOTE: This PI only implements READ. Athlete photo upload will be in a future PI.
  */
 export function useAthletePhoto(athleteId: string | undefined) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['athlete-photo', athleteId],
     queryFn: async () => {
       if (!athleteId) return null;
@@ -36,4 +38,8 @@ export function useAthletePhoto(athleteId: string | undefined) {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: false, // Don't retry if fails
   });
+
+  const asyncState: AsyncState<string> = normalizeAsyncState(query);
+
+  return { ...query, asyncState };
 }

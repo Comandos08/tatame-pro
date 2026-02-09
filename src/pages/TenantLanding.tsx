@@ -9,6 +9,7 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { supabase } from "@/integrations/supabase/client";
 import PublicHeader from "@/components/PublicHeader";
+import { LoadingState } from '@/components/ux/LoadingState';
 
 interface Academy {
   id: string;
@@ -44,7 +45,7 @@ export default function TenantLanding() {
     fetchFeaturedAcademies();
   }, [tenant?.id]);
 
-  if (!tenant) return null;
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   const features = [
     { icon: Users, titleKey: "tenant.featureAffiliation" as const, descKey: "tenant.featureAffiliationDesc" as const },
