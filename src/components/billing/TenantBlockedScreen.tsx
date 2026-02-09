@@ -30,7 +30,6 @@ export function TenantBlockedScreen({
   // Check if user is admin or staff
   const isAdmin = currentUser && (
     hasRole('ADMIN_TENANT', tenantId) || 
-    hasRole('STAFF_ORGANIZACAO', tenantId) ||
     hasRole('SUPERADMIN_GLOBAL')
   );
 

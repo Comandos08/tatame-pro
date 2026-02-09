@@ -4,11 +4,10 @@
  * This file defines which roles can access which features/routes.
  * ALL permission checks in the application MUST use this matrix.
  * 
- * RULES:
- * - Deny by default
- * - No heuristics (email, name, etc.)
- * - Only user_roles table is the source
- * - /portal remains the single decision hub
+ * CANONICAL ROLES (3 only):
+ * - SUPERADMIN_GLOBAL: Global platform admin (bypasses tenant checks)
+ * - ADMIN_TENANT: Tenant administrator (full tenant management)
+ * - ATLETA: Athlete (portal access)
  */
 
 import { AppRole } from '@/types/auth';
@@ -51,150 +50,29 @@ export type FeatureKey =
  */
 export const ACCESS_MATRIX: Record<FeatureKey, AppRole[]> = {
   // === TENANT APP ROUTES ===
-  // General app access - staff and management roles
-  TENANT_APP: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'RECEPCAO',
-  ],
-
-  TENANT_DASHBOARD: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'RECEPCAO',
-  ],
-
-  TENANT_ATHLETES: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-  ],
-
-  TENANT_MEMBERSHIPS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-  ],
-
-  TENANT_ACADEMIES: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-  ],
-
-  TENANT_COACHES: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-  ],
-
-  TENANT_GRADINGS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'INSTRUTOR',
-  ],
-
-  // 🔐 SENSITIVE: Approval flow - only admin and staff
-  TENANT_APPROVALS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL', // Can approve for their academy
-  ],
-
-  TENANT_RANKINGS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-  ],
-
-  TENANT_EVENTS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-  ],
-
-  TENANT_AUDIT_LOG: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-  ],
-
-  // 🔐 SENSITIVE: Security timeline - admin only
-  TENANT_SECURITY: [
-    'ADMIN_TENANT',
-  ],
-
-  TENANT_SETTINGS: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-  ],
-
-  // 🔐 HIGHLY SENSITIVE: Billing - only admin
-  TENANT_BILLING: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-  ],
-
-  TENANT_MY_AREA: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'RECEPCAO',
-    'ATLETA',
-  ],
-
-  TENANT_HELP: [
-    'ADMIN_TENANT',
-    'STAFF_ORGANIZACAO',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'RECEPCAO',
-    'ATLETA',
-  ],
+  TENANT_APP: ['ADMIN_TENANT'],
+  TENANT_DASHBOARD: ['ADMIN_TENANT'],
+  TENANT_ATHLETES: ['ADMIN_TENANT'],
+  TENANT_MEMBERSHIPS: ['ADMIN_TENANT'],
+  TENANT_ACADEMIES: ['ADMIN_TENANT'],
+  TENANT_COACHES: ['ADMIN_TENANT'],
+  TENANT_GRADINGS: ['ADMIN_TENANT'],
+  TENANT_APPROVALS: ['ADMIN_TENANT'],
+  TENANT_RANKINGS: ['ADMIN_TENANT'],
+  TENANT_EVENTS: ['ADMIN_TENANT'],
+  TENANT_AUDIT_LOG: ['ADMIN_TENANT'],
+  TENANT_SECURITY: ['ADMIN_TENANT'],
+  TENANT_SETTINGS: ['ADMIN_TENANT'],
+  TENANT_BILLING: ['ADMIN_TENANT'],
+  TENANT_MY_AREA: ['ADMIN_TENANT', 'ATLETA'],
+  TENANT_HELP: ['ADMIN_TENANT', 'ATLETA'],
 
   // === ATHLETE PORTAL ROUTES ===
-  // Any authenticated member with a role in the tenant
-  ATHLETE_PORTAL: [
-    'ATLETA',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'STAFF_ORGANIZACAO',
-    'ADMIN_TENANT',
-    'RECEPCAO',
-  ],
-
-  ATHLETE_PORTAL_EVENTS: [
-    'ATLETA',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'STAFF_ORGANIZACAO',
-    'ADMIN_TENANT',
-  ],
-
-  ATHLETE_PORTAL_CARD: [
-    'ATLETA',
-    'COACH_PRINCIPAL',
-    'COACH_ASSISTENTE',
-    'INSTRUTOR',
-    'STAFF_ORGANIZACAO',
-    'ADMIN_TENANT',
-  ],
+  ATHLETE_PORTAL: ['ATLETA', 'ADMIN_TENANT'],
+  ATHLETE_PORTAL_EVENTS: ['ATLETA', 'ADMIN_TENANT'],
+  ATHLETE_PORTAL_CARD: ['ATLETA', 'ADMIN_TENANT'],
 
   // === GLOBAL ADMIN ===
-  // This is checked differently (isGlobalSuperadmin)
   GLOBAL_ADMIN: ['SUPERADMIN_GLOBAL'],
 };
 

@@ -46,7 +46,7 @@ export default function AcademiesList() {
   });
 
   const canManage = isGlobalSuperadmin || 
-    (tenant && (hasRole('ADMIN_TENANT', tenant.id) || hasRole('STAFF_ORGANIZACAO', tenant.id)));
+    (tenant && hasRole('ADMIN_TENANT', tenant.id));
 
   const { data: academies, isLoading, error } = useQuery({
     queryKey: ['academies', tenant?.id],

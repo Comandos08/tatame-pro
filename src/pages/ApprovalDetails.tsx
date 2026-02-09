@@ -147,10 +147,7 @@ export default function ApprovalDetails() {
   // Available roles that can be assigned during approval
   const ASSIGNABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
     { value: 'ATLETA', label: t('roles.athlete'), description: t('roles.athleteDesc') },
-    { value: 'COACH_ASSISTENTE', label: t('roles.assistantCoach'), description: t('roles.assistantCoachDesc') },
-    { value: 'COACH_PRINCIPAL', label: t('roles.headCoach'), description: t('roles.headCoachDesc') },
-    { value: 'INSTRUTOR', label: t('roles.instructor'), description: t('roles.instructorDesc') },
-    { value: 'STAFF_ORGANIZACAO', label: t('roles.staff'), description: t('roles.staffDesc') },
+    { value: 'ADMIN_TENANT', label: t('roles.admin'), description: t('roles.adminDesc') },
   ];
   
   const toggleRole = (role: AppRole) => {
@@ -164,11 +161,7 @@ export default function ApprovalDetails() {
   const hasMinimumRoleSelected = selectedRoles.length > 0;
 
   const canApprove = isGlobalSuperadmin || 
-    (tenant && (
-      hasRole('ADMIN_TENANT', tenant.id) || 
-      hasRole('STAFF_ORGANIZACAO', tenant.id) ||
-      hasRole('COACH_PRINCIPAL', tenant.id)
-    ));
+    (tenant && hasRole('ADMIN_TENANT', tenant.id));
 
   const { data: membership, isLoading, error } = useQuery({
     queryKey: ['approval-membership', membershipId],

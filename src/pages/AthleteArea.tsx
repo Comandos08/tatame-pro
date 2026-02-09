@@ -136,8 +136,7 @@ export default function AthleteArea() {
   // Check if user is an athlete (not an admin/staff)
   const isAdmin = tenant && (
     isGlobalSuperadmin ||
-    hasRole('ADMIN_TENANT', tenant.id) ||
-    hasRole('STAFF_ORGANIZACAO', tenant.id)
+    hasRole('ADMIN_TENANT', tenant.id)
   );
 
   // Fetch athlete data linked to current user's profile
