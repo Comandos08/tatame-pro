@@ -22,13 +22,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 export type EdgeAppRole =
   | 'SUPERADMIN_GLOBAL'
   | 'ADMIN_TENANT'
-  | 'STAFF_ORGANIZACAO'
-  | 'COACH_PRINCIPAL'
-  | 'COACH_ASSISTENTE'
-  | 'INSTRUTOR'
-  | 'RECEPCAO'
-  | 'ATLETA'
-  | 'RESPONSAVELLEGAL';
+  | 'ATLETA';
 
 export interface RoleCheckResult {
   /** Whether access is allowed */

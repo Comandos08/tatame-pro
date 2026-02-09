@@ -99,11 +99,7 @@ export default function MembershipDetailsPage() {
   const { tenantSlug, membershipId } = useParams();
 
   const isStaffOrCoach = isGlobalSuperadmin || 
-    (tenant && (
-      hasRole('ADMIN_TENANT', tenant.id) || 
-      hasRole('STAFF_ORGANIZACAO', tenant.id) ||
-      hasRole('COACH_PRINCIPAL', tenant.id)
-    ));
+    (tenant && hasRole('ADMIN_TENANT', tenant.id));
 
   // Cancel dialog state
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);

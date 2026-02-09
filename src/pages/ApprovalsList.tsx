@@ -59,11 +59,7 @@ export default function ApprovalsList() {
 
   // Check if user has approval permissions
   const canApprove = isGlobalSuperadmin || 
-    (tenant && (
-      hasRole('ADMIN_TENANT', tenant.id) || 
-      hasRole('STAFF_ORGANIZACAO', tenant.id) ||
-      hasRole('COACH_PRINCIPAL', tenant.id)
-    ));
+    (tenant && hasRole('ADMIN_TENANT', tenant.id));
 
   const { data: memberships, isLoading, error } = useQuery({
     queryKey: ['pending-approvals', tenant?.id, currentUser?.id],
@@ -92,7 +88,7 @@ export default function ApprovalsList() {
         .order('created_at', { ascending: true });
 
       // If user is a HEAD_COACH, filter by their academies
-      if (!isGlobalSuperadmin && !hasRole('ADMIN_TENANT', tenant.id) && !hasRole('STAFF_ORGANIZACAO', tenant.id)) {
+      if (!isGlobalSuperadmin && !hasRole('ADMIN_TENANT', tenant.id)) {
         // Get coach's academies where they are HEAD_COACH
         const { data: coachData } = await supabase
           .from('coaches')

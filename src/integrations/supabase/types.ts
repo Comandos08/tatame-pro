@@ -3008,6 +3008,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_any_tenant_admin: { Args: never; Returns: boolean }
       is_council_member: {
         Args: { _council_id: string; _user_id: string }
         Returns: boolean
@@ -3064,16 +3065,7 @@ export type Database = {
     }
     Enums: {
       academy_coach_role: "HEAD_COACH" | "ASSISTANT_COACH" | "INSTRUCTOR"
-      app_role:
-        | "SUPERADMIN_GLOBAL"
-        | "ADMIN_TENANT"
-        | "STAFF_ORGANIZACAO"
-        | "COACH_PRINCIPAL"
-        | "COACH_ASSISTENTE"
-        | "INSTRUTOR"
-        | "RECEPCAO"
-        | "ATLETA"
-        | "RESPONSAVELLEGAL"
+      app_role: "SUPERADMIN_GLOBAL" | "ADMIN_TENANT" | "ATLETA"
       billing_status:
         | "ACTIVE"
         | "PAST_DUE"
@@ -3257,17 +3249,7 @@ export const Constants = {
   public: {
     Enums: {
       academy_coach_role: ["HEAD_COACH", "ASSISTANT_COACH", "INSTRUCTOR"],
-      app_role: [
-        "SUPERADMIN_GLOBAL",
-        "ADMIN_TENANT",
-        "STAFF_ORGANIZACAO",
-        "COACH_PRINCIPAL",
-        "COACH_ASSISTENTE",
-        "INSTRUTOR",
-        "RECEPCAO",
-        "ATLETA",
-        "RESPONSAVELLEGAL",
-      ],
+      app_role: ["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "ATLETA"],
       billing_status: [
         "ACTIVE",
         "PAST_DUE",

@@ -43,7 +43,6 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     tenant?.id &&
     currentUser &&
     (hasRole('ADMIN_TENANT', tenant.id) ||
-      hasRole('STAFF_ORGANIZACAO', tenant.id) ||
       isGlobalSuperadmin)
   );
 

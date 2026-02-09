@@ -40,7 +40,6 @@ export function BillingStatusBanner() {
 
   const canSeeBilling = tenant?.id && currentUser && (
     hasRole('ADMIN_TENANT', tenant.id) || 
-    hasRole('STAFF_ORGANIZACAO', tenant.id) ||
     hasRole('SUPERADMIN_GLOBAL')
   );
 

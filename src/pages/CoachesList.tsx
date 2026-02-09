@@ -61,7 +61,7 @@ export default function CoachesList() {
   });
 
   const canManage = isGlobalSuperadmin || 
-    (tenant && (hasRole('ADMIN_TENANT', tenant.id) || hasRole('STAFF_ORGANIZACAO', tenant.id)));
+    (tenant && hasRole('ADMIN_TENANT', tenant.id));
 
   const { data: coaches, isLoading, error } = useQuery({
     queryKey: ['coaches', tenant?.id],
