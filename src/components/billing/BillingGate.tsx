@@ -1,26 +1,21 @@
 /**
  * BillingGate - Unified access control based on billing status
  * 
- * P3.2.3 — Frontend Billing Gate Component
- * P3.2.P1 — Hardening & Contract Clarity
+ * PI B2 — Now consumes TenantFlagsContract as canonical source
  * 
  * LOGIC:
  * - tenant.status !== 'ACTIVE' → Ignore billing (show children)
- * - billing.status in ['TRIALING', 'ACTIVE'] → Allow (show children)
- * - billing.status in ['TRIAL_EXPIRED'] → Partial block (show warning + children)
- * - billing.status in ['PENDING_DELETE', 'CANCELED'] → Full block
+ * - contract.billing.status in ['TRIALING', 'ACTIVE'] → Allow (show children)
+ * - contract.billing.status === 'PAST_DUE' → Partial block (show warning + children)
+ * - contract.billing.status in ['BLOCKED', 'UNKNOWN'] → Full block
  * 
- * CONTRACT:
- * - Never blocks SETUP tenants (onboarding in progress)
- * - Never calls navigate() during render (React-safe)
- * - Explicit status checks (no implicit isBlocked-only reliance)
- * - Shows explicit CTA for resolution
+ * FAIL-CLOSED: contract not loaded → loader (never allow through)
  */
 
 import React, { useEffect, useMemo } from 'react';
 import { CreditCard, AlertTriangle, Clock } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
-import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { useTenantFlagsContract } from '@/hooks/useTenantFlagsContract';
 import { useI18n } from '@/contexts/I18nContext';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 import { LoadingState } from '@/components/ux/LoadingState';
@@ -30,33 +25,30 @@ import { useNavigate } from 'react-router-dom';
 
 interface BillingGateProps {
   children: React.ReactNode;
-  /** If true, blocks entirely in read-only states instead of showing warning */
   strictMode?: boolean;
-  /** Custom fallback component for blocked state */
   fallback?: React.ReactNode;
 }
 
 export function BillingGate({ children, strictMode = false, fallback }: BillingGateProps) {
   const { tenant } = useTenant();
-  const { billingState, isLoading } = useTenantStatus();
+  const { contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
   const { t } = useI18n();
   const navigate = useNavigate();
 
   const isTenantActive = tenant?.status === 'ACTIVE';
 
-  // P3.2.P1 FIX 1 & FIX 2: Explicit status-based blocking logic
+  // B2: Use contract billing status for blocking decisions
+  const billingStatus = contract?.billing.status ?? null;
+
   const shouldBlock = useMemo(() => {
     if (!isTenantActive) return false;
-    if (isLoading) return false;
+    if (isContractLoading) return false;
+    if (!contract) return true; // B2 fail-closed: no contract = block
 
-    const status = billingState?.status ?? null;
-    const blocked = billingState?.isBlocked === true;
+    return billingStatus === 'BLOCKED' || billingStatus === 'UNKNOWN';
+  }, [isTenantActive, isContractLoading, contract, billingStatus]);
 
-    // Full block statuses (EXPLICIT - not relying only on isBlocked)
-    return blocked || status === 'PENDING_DELETE' || status === 'CANCELED';
-  }, [isTenantActive, isLoading, billingState?.status, billingState?.isBlocked]);
-
-  // P3.2.P1 FIX 1: Navigate via useEffect, never during render
+  // Navigate via useEffect, never during render
   useEffect(() => {
     if (!shouldBlock) return;
     navigate('/app/billing', { replace: true });
@@ -67,16 +59,17 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     return <>{children}</>;
   }
 
-  if (isLoading) {
+  // B2 fail-closed: block while contract loads
+  if (isContractLoading) {
     return <LoadingState titleKey="common.loading" />;
   }
 
   // Allowed states - full access
-  if (billingState?.status === 'ACTIVE' || billingState?.status === 'TRIALING') {
+  if (billingStatus === 'ACTIVE' || billingStatus === 'TRIALING') {
     return <>{children}</>;
   }
 
-  // P3.2.P1 FIX 2: Explicit blocked states (PENDING_DELETE, CANCELED, or isBlocked)
+  // Blocked states (BLOCKED, UNKNOWN, or no contract)
   if (shouldBlock) {
     return fallback || (
       <BlockedStateCard
@@ -100,8 +93,8 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     );
   }
 
-  // Read-only state (TRIAL_EXPIRED, PAST_DUE)
-  if (billingState?.isReadOnly) {
+  // Read-only state (PAST_DUE)
+  if (billingStatus === 'PAST_DUE') {
     if (strictMode) {
       return fallback || (
         <BlockedStateCard
@@ -123,7 +116,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     // Non-strict mode: show warning banner + children
     return (
       <>
-        <BillingWarningBanner status={billingState?.status ?? null} />
+        <BillingWarningBanner status={billingStatus} />
         {children}
       </>
     );
@@ -133,7 +126,6 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
   return <>{children}</>;
 }
 
-// P3.2.P1 FIX 3: Clean interface - removed unused daysRemaining prop
 interface BillingWarningBannerProps {
   status: string | null;
 }
@@ -146,8 +138,6 @@ function BillingWarningBanner({ status }: BillingWarningBannerProps) {
 
   const getMessage = () => {
     switch (status) {
-      case 'TRIAL_EXPIRED':
-        return t('billing.gate.warning.trialExpired');
       case 'PAST_DUE':
         return t('billing.gate.warning.pastDue');
       default:

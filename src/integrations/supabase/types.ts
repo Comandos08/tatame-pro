@@ -3149,6 +3149,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_tenant_flags_contract: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       has_federation_role: {
         Args: {
@@ -3195,6 +3199,10 @@ export type Database = {
       membership_has_digital_card: {
         Args: { _membership_id: string }
         Returns: boolean
+      }
+      normalize_billing_status_contract: {
+        Args: { input: string }
+        Returns: string
       }
       record_match_result_rpc: {
         Args: {
