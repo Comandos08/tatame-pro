@@ -38,6 +38,13 @@ export const es: Record<string, string> = {
   'publicVerify.notFound.desc': 'No fue posible localizar un registro con este identificador. Verifique si el enlace es correcto o si el código QR fue escaneado adecuadamente.',
   'publicVerify.realTimeVerification': 'La validación refleja el estado del registro en el momento de la consulta.',
 
+  // Trust Signals — Institutional Credibility
+  'trust.verifiedRecord': 'Registro verificado en base institucional',
+  'trust.sourceOfTruth': 'Fuente: Registro oficial de la entidad emisora',
+  'trust.queryTimestamp': 'Esta consulta refleja el estado del registro en el momento de la verificación.',
+  'trust.institutionalRegistry': 'Base institucional verificada',
+  'trust.officialRecord': 'Registro oficial',
+
   // Common
   'common.loading': 'Cargando...',
   'common.verifyingAccess': 'Verificando su acceso...',
