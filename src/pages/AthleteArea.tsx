@@ -32,6 +32,7 @@ import { DocumentsSection } from '@/components/athlete/DocumentsSection';
 import { RenewalBanner } from '@/components/membership/RenewalBanner';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 import { AthleteBadgesList } from '@/components/badges/AthleteBadgesList';
+import { BadgeTimeline } from '@/components/badges/BadgeTimeline';
 
 interface AthleteData {
   id: string;
@@ -597,6 +598,15 @@ export default function AthleteArea() {
           transition={{ delay: 0.35 }}
         >
           <DocumentsSection athleteId={athlete.id} tenantId={tenant.id} />
+        </motion.div>
+
+        {/* PI A5: Badge Timeline (read-only) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.37 }}
+        >
+          <BadgeTimeline athleteId={athlete.id} />
         </motion.div>
 
         {/* Diplomas */}
