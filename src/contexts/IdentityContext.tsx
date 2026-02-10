@@ -12,6 +12,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { emitInstitutionalEvent } from "@/lib/institutional";
 
 export type IdentityState = "loading" | "wizard_required" | "resolved" | "superadmin" | "error";
 
@@ -181,6 +182,15 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       else setIdentityState("resolved");
 
       setError(null);
+
+      // PI U16: Institutional Timeline
+      emitInstitutionalEvent({
+        domain: 'IDENTITY',
+        type: 'IDENTITY_RESOLVED',
+        tenantId: result.tenant?.id,
+        metadata: { role: result.role, status: result.status },
+      });
+
       return;
     }
 

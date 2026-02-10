@@ -9,6 +9,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { CurrentUser, UserRole, AppRole } from "@/types/auth";
+import { emitInstitutionalEvent } from "@/lib/institutional";
 
 type AuthState = "initializing" | "authenticated" | "unauthenticated";
 
@@ -147,7 +148,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     // Don't set isLoading here - onAuthStateChange handles state transitions
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) {
+      emitInstitutionalEvent({
+        domain: 'AUTH',
+        type: 'LOGIN_FAILED',
+        metadata: { email, errorCode: error.message },
+      });
+      throw error;
+    }
+    // LOGIN_SUCCESS emitted after identity resolves (IdentityContext)
+    emitInstitutionalEvent({
+      domain: 'AUTH',
+      type: 'LOGIN_SUCCESS',
+      metadata: { email },
+    });
     // Session update happens via onAuthStateChange
   };
 
