@@ -44,12 +44,15 @@ export default function PublicRankings() {
 
       try {
         // Fetch academies with active membership counts in a single query
-        // First get all active academies
-        const { data: academiesData } = await supabase
-          .from('academies')
-          .select('id, name, city, state')
-          .eq('tenant_id', tenant.id)
-          .eq('is_active', true);
+        // Fetch academies via edge function (U7.F2: no public RLS)
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const academiesResponse = await fetch(
+          `${supabaseUrl}/functions/v1/list-public-academies?tenant_slug=${encodeURIComponent(tenant.slug)}`,
+          { headers: { 'apikey': supabaseKey, 'Content-Type': 'application/json' } }
+        );
+        const academiesResult = await academiesResponse.json();
+        const academiesData = academiesResult.academies || [];
 
         if (academiesData && academiesData.length > 0) {
           // Get all active memberships for this tenant with academy_id
@@ -102,14 +105,8 @@ export default function PublicRankings() {
             .in('athlete_id', athleteIds)
             .order('promotion_date', { ascending: false });
 
-          // Get all academies for athletes that have one
-          const academyIds = [...new Set(athletesData.map(a => a.current_academy_id).filter(Boolean))] as string[];
-          const { data: academiesForAthletes } = academyIds.length > 0 
-            ? await supabase
-                .from('academies')
-                .select('id, name')
-                .in('id', academyIds)
-            : { data: [] };
+          // Reuse academies already fetched from edge function (U7.F2)
+          const academiesForAthletes = academiesData || [];
 
           const academyMap: Record<string, string> = {};
           academiesForAthletes?.forEach(a => {

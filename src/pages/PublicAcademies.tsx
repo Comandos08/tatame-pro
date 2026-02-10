@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTenant } from '@/contexts/TenantContext';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { useI18n } from '@/contexts/I18nContext';
-import { supabase } from '@/integrations/supabase/client';
+
 import PublicHeader from '@/components/PublicHeader';
 
 interface Academy {
@@ -31,23 +31,33 @@ export default function PublicAcademies() {
 
   useEffect(() => {
     async function fetchAcademies() {
-      if (!tenant?.id) return;
+      if (!tenant?.slug) return;
 
-      const { data, error } = await supabase
-        .from('academies')
-        .select('id, name, city, state, sport_type')
-        .eq('tenant_id', tenant.id)
-        .eq('is_active', true)
-        .order('name');
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/list-public-academies?tenant_slug=${encodeURIComponent(tenant.slug)}`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
-      if (!error && data) {
-        setAcademies(data);
+        if (response.ok) {
+          const result = await response.json();
+          setAcademies(result.academies || []);
+        }
+      } catch (err) {
+        console.error('Error fetching academies:', err);
       }
       setLoading(false);
     }
 
     fetchAcademies();
-  }, [tenant?.id]);
+  }, [tenant?.slug]);
 
   // Get unique sports for filter
   const uniqueSports = useMemo(() => {
