@@ -55,7 +55,7 @@ interface RequireRolesProps {
  * Shows AccessDenied screen if user lacks required roles.
  * 
  * @example
- * <RequireRoles allowed={['ADMIN_TENANT', 'STAFF_ORGANIZACAO']}>
+ * <RequireRoles allowed={['ADMIN_TENANT']}>
  *   <ApprovalDetails />
  * </RequireRoles>
  */
