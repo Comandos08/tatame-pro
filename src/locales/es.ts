@@ -2631,4 +2631,20 @@ export const es: Record<string, string> = {
   'ux.contextAdmin': 'Contexto: Administración',
   'ux.contextAthlete': 'Contexto: Atleta',
 
+  // PI E3.1 — Health Signaling
+  'observability.banner.ok': 'No hay fallas sistémicas activas en este momento',
+  'observability.banner.okSubtitle': 'Todos los indicadores de salud están dentro de los parámetros esperados.',
+  'observability.banner.warning': 'El sistema presenta señales de degradación',
+  'observability.banner.warningSubtitle': 'Se detectaron indicadores de atención. Monitoreo activo.',
+  'observability.banner.critical': 'Se detectaron fallas críticas en el sistema',
+  'observability.banner.criticalSubtitle': 'Se registraron eventos críticos recientemente.',
+  'observability.banner.unknown': 'Estado del sistema indeterminado',
+  'observability.banner.unknownSubtitle': 'No fue posible determinar el estado actual del sistema.',
+  'observability.errors.title': 'Errores Institucionales',
+  'observability.errors.description': 'Eventos recientes agrupados por tipo',
+  'observability.errors.noErrors': 'Ningún error institucional registrado',
+  'observability.dependencies.title': 'Dependencias',
+  'observability.dependencies.description': 'Estado de los servicios monitoreados',
+  'observability.dependencies.noData': 'Ninguna dependencia registrada',
+
 };
