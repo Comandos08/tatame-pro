@@ -27,8 +27,6 @@ import TenantControl from "@/pages/TenantControl";
 import SystemHealth from "@/pages/admin/SystemHealth";
 import AuditLog from "@/pages/admin/AuditLog";
 
-// Federation (PI-D5)
-import FederationDashboard from "@/pages/federation/FederationDashboard";
 
 // Tenant
 import { TenantLayout } from "@/layouts/TenantLayout";
@@ -82,8 +80,6 @@ export default function App() {
         <Route path="/admin/landing" element={<AdminLandingSettings />} />
         <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />
 
-        {/* Federation Dashboard (PI-D5-FEDERATION1.0) */}
-        <Route path="/federation/:slug/dashboard" element={<FederationDashboard />} />
 
         {/* Tenant routes */}
         <Route path="/:tenantSlug" element={<TenantLayout />}>
