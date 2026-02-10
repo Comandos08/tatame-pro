@@ -77,8 +77,8 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // ✅ P-IMP-FIX — Explicit resolution status state machine
   const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>('IDLE');
   
-  const validationInterval = useRef<NodeJS.Timeout | null>(null);
-  const expirationTimeout = useRef<NodeJS.Timeout | null>(null);
+  const validationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load session from sessionStorage on mount
   useEffect(() => {
