@@ -1956,6 +1956,7 @@ export const ptBR = {
   'billing.overview.unknown': 'Status desconhecido',
   'billing.overview.currentPlan': 'Plano atual',
   'billing.overview.noData': 'Dados de faturamento não disponíveis',
+  'billing.overview.notAvailableDescription': 'O faturamento estará disponível após a conclusão do cadastro.',
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Ativo',
