@@ -84,9 +84,23 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     );
   }
 
-  // Tenant in SETUP — billing not applicable, render nothing (explicit conditional)
+  // Tenant in SETUP — billing not applicable, show explicit empty state
   if (tenant.status !== 'ACTIVE') {
-    return null;
+    return (
+      <Card className={cn('overflow-hidden', className)} data-testid="billing-card" data-billing-status="not-active">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-muted">
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">{t('billing.overview.title')}</CardTitle>
+              <CardDescription>{t('billing.overview.notAvailableDescription')}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
   }
 
   // P3.3.P1.3: Never invent status - handle null explicitly

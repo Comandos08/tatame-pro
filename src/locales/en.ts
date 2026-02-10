@@ -1319,6 +1319,7 @@ export const en: Record<string, string> = {
   'billing.overview.unknown': 'Unknown status',
   'billing.overview.currentPlan': 'Current plan',
   'billing.overview.noData': 'Billing data not available',
+  'billing.overview.notAvailableDescription': 'Billing will be available after completing setup.',
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Active',
