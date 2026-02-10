@@ -1,5 +1,5 @@
 /**
- * 🏛️ InstitutionalErrorsCard — PI E3.1
+ * 🏛️ InstitutionalErrorsCard — PI E3.1 / PI U6
  * 
  * Read-only card showing recent institutional errors grouped by code.
  * No actions, no drill-down, no graphs.
@@ -14,11 +14,11 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
-import type { ErrorSeverity } from '@/lib/errors/institutionalErrors';
+import type { Severity } from '@/lib/observability/types';
 
 interface ErrorSummary {
   code: string;
-  severity: ErrorSeverity;
+  severity: Severity;
   count: number;
   lastOccurred: string;
 }
@@ -26,21 +26,21 @@ interface ErrorSummary {
 const severityIcons: Record<string, React.ElementType> = {
   CRITICAL: XCircle,
   ERROR: AlertCircle,
-  WARNING: AlertTriangle,
+  WARN: AlertTriangle,
   INFO: Info,
 };
 
 const severityColors: Record<string, string> = {
   CRITICAL: 'text-destructive',
   ERROR: 'text-destructive',
-  WARNING: 'text-warning',
+  WARN: 'text-warning',
   INFO: 'text-muted-foreground',
 };
 
 const severityBadge: Record<string, string> = {
   CRITICAL: 'bg-destructive/10 text-destructive border-destructive/20',
   ERROR: 'bg-destructive/10 text-destructive border-destructive/20',
-  WARNING: 'bg-warning/10 text-warning border-warning/20',
+  WARN: 'bg-warning/10 text-warning border-warning/20',
   INFO: 'bg-muted text-muted-foreground border-muted-foreground/20',
 };
 
@@ -146,14 +146,14 @@ function formatEventCode(code: string): string {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function deriveSeverity(category: string | null): ErrorSeverity {
+function deriveSeverity(category: string | null): Severity {
   if (category === 'SECURITY') return 'CRITICAL';
   if (category === 'BILLING') return 'ERROR';
-  if (category === 'AUTH') return 'WARNING';
+  if (category === 'AUTH') return 'WARN';
   return 'INFO';
 }
 
-function severityOrder(s: ErrorSeverity): number {
-  const order: Record<ErrorSeverity, number> = { CRITICAL: 0, ERROR: 1, WARNING: 2, INFO: 3 };
+function severityOrder(s: Severity): number {
+  const order: Record<Severity, number> = { CRITICAL: 0, ERROR: 1, WARN: 2, INFO: 3 };
   return order[s] ?? 4;
 }

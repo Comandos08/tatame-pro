@@ -12,12 +12,14 @@ export {
 // Auth error mapping
 export { getAuthErrorKey, type AuthError } from './authErrorMap';
 
-// Institutional Error Contract (PI E2)
+// Institutional Error Contract (PI E2 / PI U6)
 export {
   ERROR_CATALOG,
   getInstitutionalError,
   validateErrorCatalogKeys,
-  type ErrorSeverity,
-  type ErrorContext,
+  validateErrorCatalogIntegrity,
   type InstitutionalError,
 } from './institutionalErrors';
+
+// Re-export canonical types for consumer convenience (PI U6)
+export type { Severity, ObservabilityDomain } from '@/lib/observability/types';

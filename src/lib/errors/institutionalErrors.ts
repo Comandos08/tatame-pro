@@ -1,35 +1,44 @@
 /**
- * 🏛️ Institutional Error Contract — PI E2
- * 
- * Canonical error vocabulary for the platform.
- * SAFE GOLD: Read-only contract. No flow decisions.
- * 
+ * 🏛️ Institutional Error Catalog — PI E2 / PI U6
+ *
+ * FROZEN CONTRACT (PI U6)
+ *
+ * REGRAS ABSOLUTAS:
+ * - Nenhum erro pode existir fora deste catálogo
+ * - ACCESS e DATA NÃO existem mais como domínio
+ *   - Autorização/permissão/policy -> ObservabilityDomain.SECURITY
+ *   - Persistência/consistência -> ObservabilityDomain.SYSTEM
+ * - Severity usa EXCLUSIVAMENTE Severity canônico (PI U5)
+ * - Após U6, este catálogo é fonte obrigatória para:
+ *   - SecurityBoundary
+ *   - error-report.ts
+ *   - Qualquer erro institucional exibido ao usuário
+ * - Nenhum novo erro pode ser criado fora deste catálogo
+ *
  * Rules:
- * - Every error MUST have a code, messageKey, and severity
+ * - Every error MUST have a code, messageKey, severity, domain
  * - No hardcoded messages — always i18n
  * - No technical details exposed to users
  * - DEV warnings for missing keys (zero PROD impact)
  */
 
+import type { Severity, ObservabilityDomain } from '@/lib/observability/types';
+
 // ============================================
 // TYPES
 // ============================================
 
-export type ErrorSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
-
-export type ErrorContext = 'AUTH' | 'ACCESS' | 'BILLING' | 'SYSTEM' | 'DATA' | 'UNKNOWN';
-
 export interface InstitutionalError {
   code: string;
   messageKey: string;
-  severity: ErrorSeverity;
+  severity: Severity;
+  domain: ObservabilityDomain;
   httpStatus?: number;
-  retryable?: boolean;
-  context: ErrorContext;
+  retryable: boolean;
 }
 
 // ============================================
-// CANONICAL ERROR CATALOG (v1)
+// CANONICAL ERROR CATALOG (v2 — PI U6)
 // ============================================
 
 export const ERROR_CATALOG: Record<string, InstitutionalError> = {
@@ -40,7 +49,7 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 401,
     retryable: false,
-    context: 'AUTH',
+    domain: 'AUTH',
   },
   'AUTH-002': {
     code: 'AUTH-002',
@@ -48,15 +57,15 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 401,
     retryable: true,
-    context: 'AUTH',
+    domain: 'AUTH',
   },
   'AUTH-003': {
     code: 'AUTH-003',
     messageKey: 'institutionalErrors.AUTH-003',
-    severity: 'WARNING',
+    severity: 'WARN',
     httpStatus: 403,
     retryable: false,
-    context: 'AUTH',
+    domain: 'AUTH',
   },
   'AUTH-004': {
     code: 'AUTH-004',
@@ -64,17 +73,17 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 403,
     retryable: false,
-    context: 'AUTH',
+    domain: 'AUTH',
   },
 
-  // 🧑‍⚖️ Authorization / Access
+  // 🛡️ Authorization / Access → SECURITY domain (PI U6)
   'ACCESS-001': {
     code: 'ACCESS-001',
     messageKey: 'institutionalErrors.ACCESS-001',
     severity: 'ERROR',
     httpStatus: 403,
     retryable: false,
-    context: 'ACCESS',
+    domain: 'SECURITY',
   },
   'ACCESS-002': {
     code: 'ACCESS-002',
@@ -82,7 +91,7 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 403,
     retryable: false,
-    context: 'ACCESS',
+    domain: 'SECURITY',
   },
   'ACCESS-003': {
     code: 'ACCESS-003',
@@ -90,7 +99,7 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 403,
     retryable: false,
-    context: 'ACCESS',
+    domain: 'SECURITY',
   },
   'ACCESS-004': {
     code: 'ACCESS-004',
@@ -98,30 +107,30 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'CRITICAL',
     httpStatus: 403,
     retryable: false,
-    context: 'ACCESS',
+    domain: 'SECURITY',
   },
 
   // 💳 Billing
   'BILLING-001': {
     code: 'BILLING-001',
     messageKey: 'institutionalErrors.BILLING-001',
-    severity: 'WARNING',
+    severity: 'WARN',
     retryable: false,
-    context: 'BILLING',
+    domain: 'BILLING',
   },
   'BILLING-002': {
     code: 'BILLING-002',
     messageKey: 'institutionalErrors.BILLING-002',
     severity: 'ERROR',
     retryable: false,
-    context: 'BILLING',
+    domain: 'BILLING',
   },
   'BILLING-003': {
     code: 'BILLING-003',
     messageKey: 'institutionalErrors.BILLING-003',
     severity: 'ERROR',
     retryable: false,
-    context: 'BILLING',
+    domain: 'BILLING',
   },
 
   // 🩺 System / Health
@@ -131,14 +140,14 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'ERROR',
     httpStatus: 503,
     retryable: true,
-    context: 'SYSTEM',
+    domain: 'SYSTEM',
   },
   'SYS-002': {
     code: 'SYS-002',
     messageKey: 'institutionalErrors.SYS-002',
-    severity: 'WARNING',
+    severity: 'WARN',
     retryable: true,
-    context: 'SYSTEM',
+    domain: 'SYSTEM',
   },
   'SYS-003': {
     code: 'SYS-003',
@@ -146,38 +155,38 @@ export const ERROR_CATALOG: Record<string, InstitutionalError> = {
     severity: 'CRITICAL',
     httpStatus: 500,
     retryable: false,
-    context: 'SYSTEM',
+    domain: 'SYSTEM',
   },
   'SYS-004': {
     code: 'SYS-004',
     messageKey: 'institutionalErrors.SYS-004',
     severity: 'INFO',
     retryable: false,
-    context: 'SYSTEM',
+    domain: 'SYSTEM',
   },
 
-  // 📦 Data / Consistency
+  // 📦 Data / Consistency → SYSTEM domain (PI U6)
   'DATA-001': {
     code: 'DATA-001',
     messageKey: 'institutionalErrors.DATA-001',
     severity: 'ERROR',
     httpStatus: 404,
     retryable: false,
-    context: 'DATA',
+    domain: 'SYSTEM',
   },
   'DATA-002': {
     code: 'DATA-002',
     messageKey: 'institutionalErrors.DATA-002',
     severity: 'ERROR',
     retryable: false,
-    context: 'DATA',
+    domain: 'SYSTEM',
   },
   'DATA-003': {
     code: 'DATA-003',
     messageKey: 'institutionalErrors.DATA-003',
-    severity: 'WARNING',
+    severity: 'WARN',
     retryable: false,
-    context: 'DATA',
+    domain: 'SYSTEM',
   },
 };
 
@@ -216,6 +225,36 @@ export function validateErrorCatalogKeys(t: (key: string) => string): void {
       console.warn(
         `[Institutional Error] ⚠️ Missing i18n key "${error.messageKey}" for error code "${code}". ` +
         `Add it to your locale files.`
+      );
+    }
+  }
+}
+
+/**
+ * DEV-only: validates catalog structural integrity.
+ * - No duplicate codes
+ * - No suspect retryable + CRITICAL combination
+ */
+export function validateErrorCatalogIntegrity(): void {
+  if (import.meta.env.PROD) return;
+
+  const seenCodes = new Set<string>();
+
+  for (const [key, entry] of Object.entries(ERROR_CATALOG)) {
+    // Check duplicate codes
+    if (seenCodes.has(entry.code)) {
+      console.warn(
+        `[Institutional Error] ⚠️ Duplicate code "${entry.code}" found at key "${key}". ` +
+        `Each error must have a unique code.`
+      );
+    }
+    seenCodes.add(entry.code);
+
+    // Check suspect combination
+    if (entry.retryable && entry.severity === 'CRITICAL') {
+      console.warn(
+        `[Institutional Error] ⚠️ Suspect combination: "${entry.code}" is retryable but CRITICAL. ` +
+        `CRITICAL errors should generally not be retryable.`
       );
     }
   }

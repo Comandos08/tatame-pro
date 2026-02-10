@@ -56,7 +56,7 @@ function generateErrorId(): string {
  *     component: 'MembershipForm',
  *     action: 'submit',
  *     userId: user.id,
- *     severity: 'high'
+ *     severity: 'ERROR'
  *   });
  * }
  */
@@ -153,32 +153,3 @@ export function clearErrorBuffer(): void {
   errorBuffer.length = 0;
 }
 
-/**
- * Format error for user display.
- * Strips technical details and returns a user-friendly message.
- */
-export function formatUserError(error: Error | unknown): string {
-  if (error instanceof Error) {
-    // Check for known error types
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      return 'Erro de conexão. Verifique sua internet e tente novamente.';
-    }
-    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-      return 'Sessão expirada. Faça login novamente.';
-    }
-    if (error.message.includes('403') || error.message.includes('Forbidden')) {
-      return 'Você não tem permissão para realizar esta ação.';
-    }
-    if (error.message.includes('404') || error.message.includes('Not Found')) {
-      return 'O recurso solicitado não foi encontrado.';
-    }
-    if (error.message.includes('500') || error.message.includes('Internal Server')) {
-      return 'Erro no servidor. Tente novamente em alguns minutos.';
-    }
-    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-      return 'A operação demorou muito. Tente novamente.';
-    }
-  }
-  
-  return 'Ocorreu um erro inesperado. Tente novamente.';
-}
