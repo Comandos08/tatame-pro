@@ -4,7 +4,7 @@
  * P-MENU-01: Reorganized header with tenant context, consolidated settings dropdown,
  * and quick create action. Reduced from 345 to ~310 lines via component extraction.
  */
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useState, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { NavLink } from '@/components/NavLink';
 import { motion } from 'framer-motion';
@@ -62,6 +62,7 @@ import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normal
 import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
 import { normalizeAuditViewState } from '@/domain/audit/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { resolveUXPersona } from '@/lib/ux/resolveUXPersona';
 import type { FeatureKey } from '@/hooks/useAccessContract';
 interface AppShellProps {
   children: ReactNode;
@@ -138,6 +139,9 @@ export function AppShell({ children }: AppShellProps) {
   // ADMIN SAFE GOLD A1.0: route-based deterministic mode
   const pathname = location.pathname;
   const adminMode = pathname.includes('/admin') ? 'ON' : 'OFF';
+
+  // C1 SAFE GOLD: Derive UX persona from route (purely declarative, no access logic)
+  const uxPersona = useMemo(() => resolveUXPersona(pathname), [pathname]);
 
   // ADMIN SAFE GOLD A1.0: derive deterministic view state (no business logic)
   const adminViewState =
@@ -379,6 +383,19 @@ export function AppShell({ children }: AppShellProps) {
                 {t('impersonation.badge')}
               </Badge>
             )}
+
+            {/* C1: UX Persona context label — read-only, non-interactive */}
+            <span 
+              className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+              data-testid="ux-persona-label"
+              data-ux-persona={uxPersona}
+            >
+              <span className="opacity-60">—</span>
+              {uxPersona === 'ADMIN' 
+                ? t('ux.contextAdmin') 
+                : t('ux.contextAthlete')
+              }
+            </span>
           </div>
           
           {/* SPACER */}

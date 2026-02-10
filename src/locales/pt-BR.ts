@@ -1,6 +1,6 @@
 export const ptBR = {
   // Navigation
-  'nav.dashboard': 'Dashboard',
+  'nav.dashboard': 'Painel Administrativo',
   'nav.athletes': 'Atletas',
   'nav.memberships': 'Filiações',
   'nav.academies': 'Academias',
@@ -239,9 +239,9 @@ export const ptBR = {
   'rankings.publicNote': 'Exibindo rankings públicos. Para dados detalhados, acesse o portal.',
 
   // Dashboard
-  'dashboard.title': 'Dashboard',
+  'dashboard.title': 'Painel Administrativo',
   'dashboard.welcome': 'Olá',
-  'dashboard.welcomeDesc': 'Bem-vindo ao painel. Aqui você pode gerenciar atletas, academias e graduações.',
+  'dashboard.welcomeDesc': 'Bem-vindo ao painel administrativo. Gerencie atletas, academias e graduações.',
   'dashboard.activeAthletes': 'Atletas Ativos',
   'dashboard.activeMemberships': 'Filiações Ativas',
   'dashboard.pendingMemberships': 'Filiações Pendentes',
@@ -491,8 +491,8 @@ export const ptBR = {
   'verification.cardInstitutionalMessage': 'Esta carteira digital foi emitida por uma organização oficial registrada na plataforma TATAME Pro.',
 
   // Athlete Area
-  'nav.athleteArea': 'Meu Perfil',
-  'athleteArea.title': 'Área do Atleta',
+  'nav.athleteArea': 'Minha Trajetória',
+  'athleteArea.title': 'Minha Trajetória',
   'athleteArea.gradings': 'Graduações',
   'athleteArea.diplomas': 'Diplomas',
   'athleteArea.memberships': 'Filiações',
@@ -1878,7 +1878,7 @@ export const ptBR = {
   'errors.rateLimit.reassurance': 'Isso ajuda a manter o sistema estável.',
   'errors.generic.title': 'Algo não saiu como esperado',
   'errors.generic.desc': 'Ocorreu um erro inesperado.',
-  'common.backToDashboard': 'Voltar ao painel',
+  'common.backToDashboard': 'Voltar ao Painel',
   'common.backToHome': 'Voltar ao início',
   'auth.endSession': 'Encerrar sessão',
 
@@ -2538,13 +2538,17 @@ export const ptBR = {
   'notFound.admin.cta': 'Voltar ao Admin',
   'notFound.tenant.title': 'Página não encontrada',
   'notFound.tenant.desc': 'A página que você está procurando não existe ou foi movida.',
-  'notFound.tenant.cta': 'Voltar ao Dashboard',
+  'notFound.tenant.cta': 'Voltar ao Painel',
   'notFound.public.title': 'Página não encontrada',
   'notFound.public.desc': 'A página que você está procurando não existe ou foi movida.',
   'notFound.public.cta': 'Voltar ao início',
 
   // P7.1 — Identity Error Default Enhanced
   'identityError.default.hint': 'Você pode tentar novamente, sair e entrar de novo, ou contatar o suporte se o problema persistir.',
+
+  // C1 — UX Persona Context Labels
+  'ux.contextAdmin': 'Contexto: Administração',
+  'ux.contextAthlete': 'Contexto: Atleta',
 
 } as const;
 
