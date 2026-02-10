@@ -18,6 +18,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import { failSafeAccess } from '@/lib/safety/failSafe';
 import type { AsyncState } from '@/types/async';
 
 export type FeatureKey = string;
@@ -57,9 +58,12 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
   return {
     allowedFeatures,
     can: (featureKey: FeatureKey) => {
-      // FAIL-CLOSED: loading or error → deny
-      if (isLoading || isError || !tenantId) return false;
-      return allowedFeatures.has(featureKey);
+      // U9: fail-closed via canonical helper
+      return failSafeAccess(
+        allowedFeatures.has(featureKey),
+        isLoading || !tenantId,
+        isError,
+      );
     },
     isLoading,
     isError,
