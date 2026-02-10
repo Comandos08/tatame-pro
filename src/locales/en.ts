@@ -1774,7 +1774,9 @@ export const en: Record<string, string> = {
   'impersonation.modeOnboarding': 'Onboarding',
   'impersonation.modePublic': 'Public',
   'impersonation.supportMode': 'support mode',
-  'impersonation.badge': 'Impersonation',
+  'impersonation.badge': 'IMPERSONATING',
+  'impersonation.c3Banner': 'You are acting as SUPERADMIN in impersonation mode',
+  'impersonation.effectiveRole': 'Effective role',
   
   // Onboarding Wizard
   'onboarding.title': 'Initial Setup',
