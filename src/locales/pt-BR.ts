@@ -1955,6 +1955,7 @@ export const ptBR = {
   'billing.overview.canceled': 'Assinatura cancelada',
   'billing.overview.unknown': 'Status desconhecido',
   'billing.overview.currentPlan': 'Plano atual',
+  'billing.overview.noData': 'Dados de faturamento não disponíveis',
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Ativo',
