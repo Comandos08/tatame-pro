@@ -1370,9 +1370,9 @@ export const ptBR = {
 
   // P4.x-R1 — Admin Global i18n
   'admin.title': 'TATAME Admin',
-  'admin.globalPanel': 'Painel Global',
-  'admin.globalAdminPanel': 'Painel de Administração Global',
-  'admin.globalAdminDesc': 'Gerencie todas as organizações de esportes de combate da plataforma TATAME.',
+  'admin.globalPanel': 'Governança',
+  'admin.globalAdminPanel': 'Painel de Governança da Plataforma',
+  'admin.globalAdminDesc': 'Visão consolidada da saúde, governança e rastreabilidade da plataforma. Nenhuma ação operacional é executada aqui.',
   'admin.activeOrgs': 'Organizações Ativas',
   'admin.totalUsers': 'Usuários Totais',
   'admin.registeredAthletes': 'Atletas Cadastrados',
