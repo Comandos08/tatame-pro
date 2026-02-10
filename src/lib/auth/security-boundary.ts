@@ -45,7 +45,7 @@ export type SecurityEventType =
 export type SecurityAction = 
   | { type: 'CLEAR_SESSION' }
   | { type: 'REDIRECT'; destination: '/login' | '/portal' }
-  | { type: 'SHOW_MESSAGE'; message: string; severity: 'info' | 'warning' | 'error' }
+  | { type: 'SHOW_MESSAGE'; messageKey: string; severity: 'info' | 'warning' | 'error' }
   | { type: 'NOOP' };
 
 /**
@@ -56,7 +56,8 @@ export interface SecurityBoundaryDecision {
   shouldClearSession: boolean;
   shouldRedirect: boolean;
   redirectTo: string | null;
-  userMessage: string | null;
+  /** i18n key — resolve via t() at the call site */
+  userMessageKey: string | null;
 }
 
 /**
@@ -71,17 +72,17 @@ export function resolveSecurityEvent(
   let shouldClearSession = false;
   let shouldRedirect = false;
   let redirectTo: string | null = null;
-  let userMessage: string | null = null;
+  let userMessageKey: string | null = null;
 
   switch (event) {
     case 'SESSION_EXPIRED':
       shouldClearSession = true;
       shouldRedirect = true;
       redirectTo = '/login';
-      userMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
+      userMessageKey = 'security.boundary.sessionExpired';
       actions.push({ type: 'CLEAR_SESSION' });
       actions.push({ type: 'REDIRECT', destination: '/login' });
-      actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'info' });
+      actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'info' });
       break;
 
     case 'TOKEN_INVALID':
@@ -89,25 +90,22 @@ export function resolveSecurityEvent(
       shouldClearSession = true;
       shouldRedirect = true;
       redirectTo = '/login';
-      userMessage = 'Sua sessão foi invalidada. Por favor, faça login novamente.';
+      userMessageKey = 'security.boundary.sessionInvalidated';
       actions.push({ type: 'CLEAR_SESSION' });
       actions.push({ type: 'REDIRECT', destination: '/login' });
-      actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'warning' });
+      actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'warning' });
       break;
 
     case 'UNAUTHORIZED_REQUEST':
-      // 401 - might be a temporary issue or session problem
       if (context?.isAuthenticated) {
-        // User thought they were authenticated - session might be stale
         shouldClearSession = true;
         shouldRedirect = true;
         redirectTo = '/login';
-        userMessage = 'Sua autenticação expirou. Por favor, faça login novamente.';
+        userMessageKey = 'security.boundary.authExpired';
         actions.push({ type: 'CLEAR_SESSION' });
         actions.push({ type: 'REDIRECT', destination: '/login' });
-        actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'warning' });
+        actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'warning' });
       } else {
-        // Not authenticated - redirect to login
         shouldRedirect = true;
         redirectTo = '/login';
         actions.push({ type: 'REDIRECT', destination: '/login' });
@@ -115,29 +113,26 @@ export function resolveSecurityEvent(
       break;
 
     case 'FORBIDDEN_REQUEST':
-      // 403 - user is authenticated but not authorized
-      // Do NOT clear session - just redirect to decision hub
       shouldRedirect = true;
       redirectTo = '/portal';
-      userMessage = 'Você não tem permissão para acessar este recurso.';
+      userMessageKey = 'security.boundary.forbidden';
       actions.push({ type: 'REDIRECT', destination: '/portal' });
-      actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'warning' });
+      actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'warning' });
       break;
 
     case 'REFRESH_FAILED':
       shouldClearSession = true;
       shouldRedirect = true;
       redirectTo = '/login';
-      userMessage = 'Não foi possível renovar sua sessão. Por favor, faça login novamente.';
+      userMessageKey = 'security.boundary.refreshFailed';
       actions.push({ type: 'CLEAR_SESSION' });
       actions.push({ type: 'REDIRECT', destination: '/login' });
-      actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'info' });
+      actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'info' });
       break;
 
     case 'NETWORK_ERROR':
-      // Network error - don't clear session, might be temporary
-      userMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
-      actions.push({ type: 'SHOW_MESSAGE', message: userMessage, severity: 'error' });
+      userMessageKey = 'security.boundary.networkError';
+      actions.push({ type: 'SHOW_MESSAGE', messageKey: userMessageKey, severity: 'error' });
       break;
 
     case 'LOGOUT_REQUESTED':
@@ -149,7 +144,6 @@ export function resolveSecurityEvent(
       break;
 
     default:
-      // Unknown event - NOOP but log
       console.warn(`[SecurityBoundary] Unknown security event: ${event}`);
       actions.push({ type: 'NOOP' });
   }
@@ -159,7 +153,7 @@ export function resolveSecurityEvent(
     shouldClearSession,
     shouldRedirect,
     redirectTo,
-    userMessage,
+    userMessageKey,
   };
 }
 
