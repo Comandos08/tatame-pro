@@ -136,7 +136,7 @@ export default function AthleteArea() {
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const { t, locale } = useI18n();
 
-  // Check if user is an athlete (not an admin/staff)
+  // Check if user has admin role (ADMIN_TENANT or SUPERADMIN_GLOBAL)
   const isAdmin = tenant && (
     isGlobalSuperadmin ||
     hasRole('ADMIN_TENANT', tenant.id)

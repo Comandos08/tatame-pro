@@ -1241,17 +1241,21 @@ export const es: Record<string, string> = {
   'approval.roles': 'roles',
   'approval.rejectionReason': 'Motivo del rechazo',
   
-  // Roles
+  // Canonical Roles (only 3: SUPERADMIN_GLOBAL, ADMIN_TENANT, ATHLETE)
   'roles.athlete': 'Atleta',
   'roles.athleteDesc': 'Acceso al portal de atleta, tarjeta y eventos',
-  'roles.assistantCoach': 'Coach Asistente',
-  'roles.assistantCoachDesc': 'Puede asistir en clases y ver atletas',
-  'roles.headCoach': 'Coach Principal',
-  'roles.headCoachDesc': 'Gestiona graduaciones y puede aprobar afiliaciones de la academia',
-  'roles.instructor': 'Instructor',
-  'roles.instructorDesc': 'Puede impartir clases y seguir estudiantes',
-  'roles.staff': 'Staff Organizacional',
-  'roles.staffDesc': 'Acceso administrativo completo al tenant',
+  'roles.adminTenant': 'Administrador de la Organización',
+  'roles.adminTenantDesc': 'Acceso administrativo completo a la organización',
+  'roles.superadminGlobal': 'Administrador de la Plataforma',
+  'roles.superadminGlobalDesc': 'Gobernanza y supervisión global de la plataforma',
+
+  // Badge Recognition (simbólico — NO concede acceso ni permisos)
+  'badge.label': 'Badge',
+  'badge.recognitionOnly': 'Badge de reconocimiento — no concede permisos',
+  'badge.grantedTo': 'Badge otorgado a este atleta',
+  'badge.noBadges': 'Sin badges asignados',
+  'badge.contextPrefix': 'Atleta',
+  'badge.contextSeparator': '•',
   
   // Atleta
   'athlete.digitalCard': 'Tarjeta Digital',

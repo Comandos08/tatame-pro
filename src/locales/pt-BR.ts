@@ -1239,17 +1239,21 @@ export const ptBR = {
   'approval.roles': 'papéis',
   'approval.rejectionReason': 'Motivo da rejeição',
   
-  // Roles
+  // Canonical Roles (only 3: SUPERADMIN_GLOBAL, ADMIN_TENANT, ATHLETE)
   'roles.athlete': 'Atleta',
   'roles.athleteDesc': 'Acesso ao portal de atleta, carteirinha e eventos',
-  'roles.assistantCoach': 'Coach Assistente',
-  'roles.assistantCoachDesc': 'Pode auxiliar nas aulas e visualizar atletas',
-  'roles.headCoach': 'Coach Principal',
-  'roles.headCoachDesc': 'Gerencia graduações e pode aprovar filiações da academia',
-  'roles.instructor': 'Instrutor',
-  'roles.instructorDesc': 'Pode ministrar aulas e acompanhar alunos',
-  'roles.staff': 'Staff Organizacional',
-  'roles.staffDesc': 'Acesso administrativo completo ao tenant',
+  'roles.adminTenant': 'Administrador da Organização',
+  'roles.adminTenantDesc': 'Acesso administrativo completo à organização',
+  'roles.superadminGlobal': 'Administrador da Plataforma',
+  'roles.superadminGlobalDesc': 'Governança e supervisão global da plataforma',
+
+  // Badge Recognition (simbólico — NÃO concede acesso ou permissões)
+  'badge.label': 'Badge',
+  'badge.recognitionOnly': 'Badge de reconhecimento — não concede permissões',
+  'badge.grantedTo': 'Badge concedido a este atleta',
+  'badge.noBadges': 'Nenhum badge atribuído',
+  'badge.contextPrefix': 'Atleta',
+  'badge.contextSeparator': '•',
   
   // Athlete
   'athlete.digitalCard': 'Carteira Digital',

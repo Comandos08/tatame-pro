@@ -9,6 +9,7 @@ import {
 import { Award } from "lucide-react";
 import type { BadgeSurface } from "@/types/badge";
 import { ALLOWED_BADGE_SURFACES } from "@/types/badge";
+import { useI18n } from "@/contexts/I18nContext";
 
 interface BadgeChipProps {
   name: string;
@@ -20,13 +21,16 @@ interface BadgeChipProps {
 /**
  * BadgeChip — Exibição read-only de reconhecimento simbólico.
  *
+ * U14: Badge é identidade secundária visual. Nunca concede acesso.
  * Visual neutro, sem cor de ação, cursor default.
- * Tooltip explica que badge é simbólico e não concede permissões.
+ * Tooltip reforça explicitamente: badge ≠ permissão.
  * D2: Requer surface explícita. DEV guard emite warning se inválida.
  *
  * @see docs/BADGE-CONTRACT.md
  */
 export function BadgeChip({ name, description, surface, className }: BadgeChipProps) {
+  const { t } = useI18n();
+
   if (import.meta.env.DEV && !ALLOWED_BADGE_SURFACES.includes(surface)) {
     console.warn(
       `[D2] Badge rendered in non-authorized surface: ${surface}`
@@ -53,7 +57,7 @@ export function BadgeChip({ name, description, surface, className }: BadgeChipPr
           <p className="font-medium">{name}</p>
           {description && <p className="text-muted-foreground mt-0.5">{description}</p>}
           <p className="text-muted-foreground/70 mt-1 italic text-[10px]">
-            Reconhecimento simbólico. Não concede permissões.
+            {t('badge.recognitionOnly')}
           </p>
         </TooltipContent>
       </Tooltip>
