@@ -17,6 +17,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
+import { createAuditLog } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,16 +125,16 @@ serve(async (req) => {
     const badgeInfo = existing.badges as any;
     log("Badge revoked", { athleteId, badgeCode: badgeInfo?.code });
 
-    // 7. Audit log
-    await supabase.from("audit_logs").insert({
-      event_type: "BADGE_REVOKED",
+    // 7. Audit log (B3 — via canonical helper)
+    await createAuditLog(supabase, {
+      event_type: 'BADGE_REVOKED',
       tenant_id: tenantId,
       profile_id: user.id,
       metadata: {
-        athleteId,
+        target_type: 'ATHLETE',
+        target_id: athleteId,
         badgeCode: badgeInfo?.code,
         badgeName: badgeInfo?.name,
-        performedBy: user.id,
       },
     });
 

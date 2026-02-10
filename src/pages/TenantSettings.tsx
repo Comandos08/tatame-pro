@@ -16,6 +16,7 @@ import { LoadingState } from '@/components/ux/LoadingState';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 import { hexToHsl } from '@/lib/colorUtils';
 import { AdminBadgeCatalog } from '@/components/badges/AdminBadgeCatalog';
+import { auditEvent } from '@/lib/audit/auditEvent';
 
 export default function TenantSettings() {
   const { tenant } = useTenant();
@@ -82,10 +83,13 @@ export default function TenantSettings() {
 
       if (error) throw error;
 
-      // Log audit event
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenant.id,
+      // Log audit event (B3 — best-effort)
+      auditEvent({
         event_type: 'TENANT_SETTINGS_UPDATED',
+        tenant_id: tenant.id,
+        profile_id: null, // resolved by RLS
+        target_type: 'TENANT',
+        target_id: tenant.id,
         metadata: {
           changes: {
             description: description !== tenant.description,
@@ -93,7 +97,7 @@ export default function TenantSettings() {
             primary_color: primaryColor !== tenant.primaryColor,
             branding: true,
           }
-        }
+        },
       });
 
       toast.success(t('settings.saveSuccess'));
