@@ -10,6 +10,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Alert, EventSeverity } from '@/types/observability';
+import { realtimeLogger } from './logger';
 
 // LRU-style cache for seen event IDs (1h TTL)
 const SEEN_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -94,7 +95,7 @@ function toAlert(event: Record<string, unknown>): Alert | null {
       tenant_id: tenantId ?? undefined,
     };
   } catch (error) {
-    console.warn('[realtime] Failed to transform event to alert:', error);
+    realtimeLogger.warn('Transform failed', { action: 'toAlert' } as any);
     return null;
   }
 }
@@ -190,7 +191,7 @@ export function subscribeObservabilityRealtime(
             options.onEvent(alert);
           }
         } catch (error) {
-          console.error('[realtime] Error processing event:', error);
+          realtimeLogger.error('Event processing error', { action: 'onPayload' } as any, error instanceof Error ? error : new Error(String(error)));
           options.onError?.(error instanceof Error ? error : new Error(String(error)));
         }
       }
@@ -203,7 +204,7 @@ export function subscribeObservabilityRealtime(
       }
       
       if (err) {
-        console.error('[realtime] Subscription error:', err);
+        realtimeLogger.error('Subscription error', { action: 'subscribe' } as any, err);
         options.onError?.(err);
       }
     });

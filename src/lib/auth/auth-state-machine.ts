@@ -16,6 +16,8 @@
  * - No ambiguous states
  */
 
+import { authLogger } from '@/lib/observability/logger';
+
 /**
  * Valid authentication states.
  * These are the ONLY states the system can be in.
@@ -70,10 +72,12 @@ export function transitionAuthState(
   const isValid = isValidTransition(currentState, targetState);
   
   if (!isValid) {
-    console.error(
-      `[AuthStateMachine] INVALID TRANSITION: ${currentState} → ${targetState}`,
-      context ? `Context: ${context}` : ''
-    );
+    authLogger.error('Invalid transition', {
+      action: 'transitionAuthState',
+      from: currentState,
+      to: targetState,
+      context: context || undefined,
+    } as any);
   }
   
   return {
@@ -112,7 +116,7 @@ export function mapSupabaseEventToAuthState(
     
     default:
       // Unknown event - fail safe to unauthenticated
-      console.warn(`[AuthStateMachine] Unknown auth event: ${event}`);
+      authLogger.warn('Unknown auth event', { action: 'mapSupabaseEvent', event } as any);
       return 'unauthenticated';
   }
 }

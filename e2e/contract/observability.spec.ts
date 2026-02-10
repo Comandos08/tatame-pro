@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 import { freezeTime } from '@/../e2e/helpers/freeze-time';
 import { logTestStep, logTestAssertion } from '@/../e2e/helpers/testLogger';
 import { loginAsSuperAdmin, TENANT_SLUG } from '@/../e2e/fixtures/auth.fixture';
-import { SAFE_EVENT_DOMAINS, SAFE_EVENT_LEVELS } from '@/observability/types';
+import { SAFE_EVENT_DOMAINS, SAFE_EVENT_LEVELS } from '@/lib/observability/types';
 
 const FIXED_TIMESTAMP_ISO = '2026-02-07T12:00:00.000Z';
 

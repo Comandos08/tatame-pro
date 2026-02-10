@@ -9,13 +9,20 @@
 
 import { logger } from './logger';
 
+import type { Severity } from './types';
+
 interface ErrorContext {
   component?: string;
   action?: string;
   userId?: string;
   tenantId?: string;
   correlationId?: string;
-  severity?: 'low' | 'medium' | 'high' | 'critical';
+  /**
+   * Canonical log severity (PI U5).
+   * Uses Severity type: 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'.
+   * NOTE: This is NOT audit EventSeverity (LOW/MEDIUM/HIGH/CRITICAL).
+   */
+  severity?: Severity;
   metadata?: Record<string, unknown>;
 }
 
@@ -100,7 +107,7 @@ export function reportErrorBoundary(
   return reportError(error, {
     component: component || 'ErrorBoundary',
     action: 'render',
-    severity: 'critical',
+    severity: 'CRITICAL',
     metadata: {
       componentStack: errorInfo.componentStack,
     },
@@ -122,7 +129,7 @@ export function reportNetworkError(
   return reportError(error, {
     component: 'Network',
     action: 'fetch',
-    severity: options?.status && options.status >= 500 ? 'high' : 'medium',
+    severity: options?.status && options.status >= 500 ? 'ERROR' : 'WARN',
     correlationId: options?.correlationId,
     metadata: {
       endpoint,

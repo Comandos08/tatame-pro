@@ -1,5 +1,7 @@
 /**
- * 🏛️ Observability Contract Types — PI E3
+ * 🏛️ Observability Contract Types — PI E3 / PI U5
+ * 
+ * CANONICAL source for all observability types.
  * 
  * Canonical types for health signals, connecting:
  * - Audit (what happened) — PI B3
@@ -11,6 +13,79 @@
  */
 
 import type { ErrorContext } from '@/lib/errors/institutionalErrors';
+
+// ============================================
+// CANONICAL OBSERVABILITY TAXONOMY (PI U5 — FROZEN)
+// ============================================
+
+/**
+ * Canonical log severity levels.
+ * 
+ * NOTE: This is LOG severity, NOT audit event severity.
+ * Audit events use `EventSeverity` (LOW, MEDIUM, HIGH, CRITICAL)
+ * defined in `src/types/observability.ts`.
+ */
+export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
+
+/**
+ * Canonical observability domains.
+ * No component or module may create domains outside this list.
+ */
+export type ObservabilityDomain =
+  | 'AUTH'
+  | 'IDENTITY'
+  | 'TENANT'
+  | 'BILLING'
+  | 'MEMBERSHIP'
+  | 'JOB'
+  | 'SECURITY'
+  | 'SYSTEM'
+  | 'INTEGRATION';
+
+// ============================================
+// SAFE EVENT CONTRACT (migrated from src/observability/)
+// ============================================
+
+export const SAFE_EVENT_DOMAINS = [
+  'AUTH',
+  'TENANT',
+  'MEMBERSHIP',
+  'YOUTH',
+  'BILLING',
+  'EVENTS',
+  'REPORTS',
+  'SYSTEM',
+] as const;
+
+export type SafeEventDomain = typeof SAFE_EVENT_DOMAINS[number];
+
+export const SAFE_EVENT_LEVELS = [
+  'INFO',
+  'WARN',
+  'ERROR',
+  'CRITICAL',
+] as const;
+
+export type SafeEventLevel = typeof SAFE_EVENT_LEVELS[number];
+
+/**
+ * Observable Event Contract (IMMUTABLE)
+ */
+export interface ObservableEvent {
+  domain: SafeEventDomain;
+  level: SafeEventLevel;
+  name: string;
+  message?: string;
+  tenant_id?: string | null;
+  user_id?: string | null;
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
+ * Provider function signature
+ */
+export type ObservabilityProvider = (event: ObservableEvent) => void;
 
 // ============================================
 // HEALTH SIGNAL TYPES
