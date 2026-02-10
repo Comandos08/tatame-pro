@@ -1,4 +1,9 @@
 /**
+ * ⚠️ SRP CONTRACT (PI U5)
+ * - This hook DOES NOT decide rules
+ * - This hook DOES NOT derive states
+ * - All rules live in lib/state/*
+ *
  * 🔐 usePermissions — React Hook for Permission Checks
  * 
  * PI A3: Now delegates to useAccessContract (backend contract).

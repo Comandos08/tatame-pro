@@ -1,4 +1,9 @@
 /**
+ * ⚠️ SRP CONTRACT (PI U5)
+ * - This hook DOES NOT decide rules
+ * - This hook DOES NOT derive states
+ * - All rules live in lib/state/*
+ *
  * 🔐 useAccessContract — Backend-Driven Access Control Hook
  * 
  * PI A3: Single source of truth for feature access.

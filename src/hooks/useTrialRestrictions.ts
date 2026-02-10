@@ -1,21 +1,24 @@
 /**
+ * ⚠️ SRP CONTRACT (PI U5)
+ * - This hook DOES NOT decide rules
+ * - This hook DOES NOT derive states
+ * - All rules live in lib/state/*
+ *
  * useTrialRestrictions - Centralized hook for trial-based action restrictions
  * 
- * This hook determines whether sensitive actions can be performed based on
- * the tenant's billing status. During TRIAL_EXPIRED, most administrative
- * actions are blocked even for admins and impersonating superadmins.
- * 
- * RULES:
- * - TRIALING + ACTIVE: All actions allowed
- * - TRIAL_EXPIRED: View-only, no sensitive actions
- * - PENDING_DELETE: Fully blocked (TenantBlockedScreen shown)
+ * Reads billing state and delegates restriction logic to pure guards.
  */
 
 import { useTenantStatus } from './useTenantStatus';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
+import {
+  isBillingTrialExpired,
+  isBillingPendingDelete,
+  areSensitiveActionsBlocked,
+} from '@/lib/state/stateGuards';
+import type { BillingStatus } from '@/lib/billing';
 
 export interface TrialRestrictions {
-  // Specific action permissions
   canApproveMemberships: boolean;
   canRejectMemberships: boolean;
   canCreateEvents: boolean;
@@ -24,28 +27,24 @@ export interface TrialRestrictions {
   canRegisterGradings: boolean;
   canManageAcademies: boolean;
   canManageCoaches: boolean;
-  
-  // State flags
   isRestricted: boolean;
   isPendingDelete: boolean;
   isImpersonatingRestricted: boolean;
-  
-  // Reason for restrictions (for UI messages)
   restrictionReason: 'trial_expired' | 'pending_delete' | null;
 }
 
 export function useTrialRestrictions(): TrialRestrictions {
   const { billingState } = useTenantStatus();
   const { isImpersonating } = useImpersonation();
-  
-  const isTrialRestricted = billingState?.status === 'TRIAL_EXPIRED';
-  const isPendingDelete = billingState?.status === 'PENDING_DELETE';
-  
-  // Actions are blocked during trial expiration AND pending delete
-  const actionsBlocked = isTrialRestricted || isPendingDelete;
-  
+
+  const status = (billingState?.status ?? 'INCOMPLETE') as BillingStatus;
+
+  // PI U5 — Delegate to pure guards
+  const isTrialRestricted = isBillingTrialExpired(status);
+  const isPendingDelete = isBillingPendingDelete(status);
+  const actionsBlocked = areSensitiveActionsBlocked(status);
+
   return {
-    // Specific action permissions
     canApproveMemberships: !actionsBlocked,
     canRejectMemberships: !actionsBlocked,
     canCreateEvents: !actionsBlocked,
@@ -54,17 +53,13 @@ export function useTrialRestrictions(): TrialRestrictions {
     canRegisterGradings: !actionsBlocked,
     canManageAcademies: !actionsBlocked,
     canManageCoaches: !actionsBlocked,
-    
-    // State flags
     isRestricted: isTrialRestricted,
     isPendingDelete,
     isImpersonatingRestricted: isImpersonating && isTrialRestricted,
-    
-    // Reason for restrictions
-    restrictionReason: isPendingDelete 
-      ? 'pending_delete' 
-      : isTrialRestricted 
-        ? 'trial_expired' 
+    restrictionReason: isPendingDelete
+      ? 'pending_delete'
+      : isTrialRestricted
+        ? 'trial_expired'
         : null,
   };
 }
