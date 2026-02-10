@@ -1,290 +1,187 @@
 
+# PI U4 — CONTRADICTION-FREE SYSTEM (Eliminar Estados Derivados Implicitos)
 
-# PI U1 — SINGLE SOURCE OF TRUTH (Contrato de Verdade do Sistema)
-
-## 1. Entidades Canonicas e seus Contratos
-
----
-
-### 1.1 TENANT
-
-**Existencia**: Registro na tabela `tenants` com `id` valido.
-
-**Estados validos (enum `TenantLifecycleStatus`)**:
-
-| Estado | Significado Institucional |
-|--------|--------------------------|
-| SETUP | Tenant criado, onboarding incompleto. Nao pode operar. |
-| ACTIVE | Tenant operacional. Unico estado que permite emissao de documentos e operacoes completas. |
-| BLOCKED | Tenant suspenso, pendente de exclusao ou inadimplente. Acesso bloqueado. |
-
-**Mapeamento de producao**: Estados legados (SUSPENDED, PENDING_DELETE) sao normalizados para BLOCKED via `PROD_TENANT_TO_SAFE` em `src/domain/tenant/normalize.ts`.
-
-**Transicoes permitidas**:
-```text
-SETUP --> ACTIVE    (via Edge Function complete-tenant-onboarding)
-ACTIVE --> BLOCKED  (via billing lifecycle ou acao administrativa)
-BLOCKED --> ACTIVE  (via regularizacao de billing ou override manual)
-```
-
-**Onde vive**: `tenants.lifecycle_status` (banco de dados)
-**Como e carregado**: `TenantContext` (provider React)
-**Onde e derivado**: `assertTenantLifecycleState()` em `src/domain/tenant/normalize.ts`
-**Onde e consumido**: `resolveAccess()` (campo `tenantStatus`), `isInstitutionalDocumentValid()`, guards de rota
-
-**Ponto de decisao**: `resolveAccess()` em `src/lib/access/resolveAccess.ts` (STEP 4: Tenant Context Check). Nenhum componente decide se o tenant esta ativo.
+## 1. Inventario Completo de Estados Derivados
 
 ---
 
-### 1.2 USER / PROFILE
+### 1.1 AUTENTICACAO (AuthContext)
 
-**Existencia**: Registro em `auth.users` (sessao) + `profiles` (dados do sistema).
-
-**Estados validos**:
-
-| Estado | Significado |
-|--------|------------|
-| UNAUTHENTICATED | Sem sessao ativa |
-| LOADING | Sessao sendo resolvida (transitorio, max 12s) |
-| WIZARD_REQUIRED | Autenticado, sem tenant/role associado |
-| SUPERADMIN | Identidade resolvida como SUPERADMIN_GLOBAL |
-| RESOLVED | Identidade resolvida com tenant e role |
-| ERROR | Falha na resolucao (sempre com escape hatch) |
-
-**Enum formal**: `IdentityState` em `src/lib/identity/identity-state-machine.ts`
-
-**Transicoes permitidas**: Definidas explicitamente em `VALID_IDENTITY_TRANSITIONS`. LOADING nunca e terminal (protegido por timeout de 12s).
-
-**Onde vive**: `auth.users` (sessao), `profiles` (perfil)
-**Como e carregado**: `AuthContext` (sessao + perfil), `IdentityContext` (resolucao de identidade)
-**Onde e derivado**: `resolveIdentityState()` -- funcao pura, sem side effects
-**Onde e consumido**: `useAccessResolver()` -> `resolveAccess()` (STEP 1 e 2)
-
-**Ponto de decisao**: `resolveIdentityState()` para estado de identidade. `AuthContext.isAuthenticated` para sessao (baseado em sessao, nunca em perfil).
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `isAuthenticated` | `AuthContext.tsx:174` | `authState === "authenticated" && !!session` | Verdade | PERMITIDO — derivacao fiel de sessao |
+| `isSessionReady` | `AuthContext.tsx:177` | `authState === "authenticated" && !!session` | Verdade | REDUNDANTE — identico a `isAuthenticated`, duplica semantica |
+| `isGlobalSuperadmin` | `AuthContext.tsx:180` | `currentUser.roles` | Verdade | PERMITIDO — derivacao direta de roles carregados |
+| `isLoading` | `AuthContext.tsx` | `useState(true)` bootstrap | Verdade | PERMITIDO — loading inicial unico |
+| `hasRole()` | `AuthContext.tsx:192` | `currentUser.roles` | Capacidade | PERMITIDO — funcao pura sobre dados carregados |
+| `currentRolesByTenant` | `AuthContext.tsx:186` | `currentUser.roles` | Verdade | PERMITIDO — mapa derivado diretamente |
 
 ---
 
-### 1.3 ROLE (Papel)
+### 1.2 ACESSO (resolveAccess / useAccessResolver)
 
-**Existencia**: Registro na tabela `user_roles` com `user_id` + `role` + `tenant_id`.
-
-**Estados validos (enum `AppRole`)**:
-
-| Papel | Escopo | Significado |
-|-------|--------|------------|
-| SUPERADMIN_GLOBAL | Global (tenant_id = null) | Administrador da plataforma |
-| ADMIN_TENANT | Tenant-scoped | Gestor da organizacao |
-| ATLETA | Tenant-scoped | Membro/atleta registrado |
-
-**Nenhum outro papel existe.** O trigger `trg_enforce_canonical_roles` bloqueia qualquer atribuicao fora destes tres no banco de dados. O tipo TypeScript `AppRole` impoe a mesma restricao no frontend.
-
-**Transicoes**: Papeis sao atribuidos atomicamente pela Edge Function de aprovacao de membership. Nao ha estados intermediarios.
-
-**Onde vive**: `user_roles` (banco de dados)
-**Como e carregado**: `useTenantRoles(tenantId)` via React Query
-**Onde e derivado**: Nao e derivado -- e leitura direta da tabela
-**Onde e consumido**: `resolveAccess()` (STEP 6: Role Check), `RequireRoles`, `usePermissions()`
-
-**Ponto de decisao**: `resolveAccess()` para acesso a rotas. `useAccessContract()` (RPC `list_allowed_features`) para features especificas. `can.ts` e somente UX (apresentacao).
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `AccessResult.state` | `resolveAccess.ts` | Funcao pura (7 steps) | Verdade | PERMITIDO — Single Point of Decision |
+| `isTimedOut` | `useAccessResolver.ts` | timeout 10s sobre LOADING | Verdade | PERMITIDO — protecao contratual |
+| `hasRequiredRole` | `resolveAccess.ts:152` | `context.requiredRoles` + `input.userRoles` | Visibilidade | PERMITIDO — calculo local dentro do resolver puro |
 
 ---
 
-### 1.4 MEMBERSHIP (Filiacao)
+### 1.3 BILLING (resolveTenantBillingState / useTenantStatus)
 
-**Existencia**: Registro na tabela `memberships`.
-
-**Estados validos (enum `MembershipStatus`)**:
-
-| Estado | Significado | Permite Acesso? | Permite Operacao? |
-|--------|------------|-----------------|-------------------|
-| DRAFT | Rascunho iniciado, nao submetido | Nao | Nao |
-| PENDING_PAYMENT | Aguardando pagamento | Nao | Nao |
-| PENDING_REVIEW | Submetido, aguardando aprovacao admin | Nao | Nao |
-| APPROVED | Aprovado, pre-ativacao | Nao | Nao |
-| ACTIVE | Filiacao ativa e operacional | Sim | Sim |
-| EXPIRED | Periodo de validade encerrado | Parcial (historico) | Nao |
-| CANCELLED | Cancelamento com motivo obrigatorio | Nao | Nao |
-
-**Transicoes**: DRAFT -> PENDING_PAYMENT -> PENDING_REVIEW -> APPROVED -> ACTIVE -> EXPIRED/CANCELLED. A aprovacao (APPROVED -> ACTIVE) e atomica e atribui o role canonico.
-
-**Onde vive**: `memberships` (banco de dados)
-**Como e carregado**: Queries diretas ao banco via React Query
-**Onde e derivado**: `PortalAccessGate` mapeia status para feedback UX
-**Onde e consumido**: Portal do Atleta, fluxos de aprovacao admin
-
-**Ponto de decisao**: Edge Function de aprovacao (backend) para transicoes. `PortalAccessGate` para visibilidade no portal.
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `billingState.*` (isActive, isBlocked, isReadOnly, etc.) | `resolveTenantBillingState.ts` | Funcao pura sobre dados do banco | Verdade | PERMITIDO — resolver canonico |
+| `isOnTrial` | `useTenantStatus.ts:85` | `billingState.status === 'TRIALING'` | Visibilidade | REDUNDANTE — duplica `billingState.isTrialActive` |
+| `isTrialExpired` | `useTenantStatus.ts:100` | Calculo local com datas | Visibilidade | REDUNDANTE — duplica `billingState.isTrialExpired` |
+| `isTrialEndingSoon` | `useTenantStatus.ts:97` | Calculo local com `daysToTrialEnd` | Visibilidade | PERMITIDO — flag de UX (apresentacao), nao decide acesso |
+| `isBlocked` | `useTenantStatus.ts:104` | `billingState.isBlocked` | Visibilidade | REDUNDANTE — re-exporta campo do resolver, sem valor adicional |
+| `hasBillingIssue` | `useTenantStatus.ts:103` | `billingState.isReadOnly` | Visibilidade | REDUNDANTE — renomeia `isReadOnly` sem ganho semantico |
+| `canSeeBanner` | `useTenantStatus.ts:45` | Role check local | Visibilidade | PERMITIDO — decisao de apresentacao baseada em role |
+| `daysToTrialEnd` | `useTenantStatus.ts:90` | Calculo de data | Visibilidade | PERMITIDO — dado de apresentacao pura |
 
 ---
 
-### 1.5 BILLING STATUS (Faturamento)
+### 1.4 ONBOARDING (TenantOnboardingGate / useOnboardingStatus)
 
-**Existencia**: Registro na tabela `tenant_billing` vinculado ao tenant.
-
-**Estados validos (enum `BillingStatus`)**:
-
-| Estado | Significado | Acesso | Operacoes Sensiveis |
-|--------|------------|--------|---------------------|
-| ACTIVE | Pagamento em dia | Total | Sim |
-| TRIALING | Trial ativo (7 dias) | Total | Sim |
-| TRIAL_EXPIRED | Grace period (8 dias) | Leitura | Nao |
-| PAST_DUE | Pagamento atrasado | Leitura | Nao |
-| CANCELED | Cancelado | Bloqueado | Nao |
-| PENDING_DELETE | Aguardando exclusao | Bloqueado | Nao |
-| UNPAID | Inadimplente | Bloqueado | Nao |
-| INCOMPLETE | Dados insuficientes / fallback | Bloqueado | Nao |
-
-**Regra imutavel**: Se `is_manual_override = true`, Stripe e completamente ignorado.
-
-**Fallback**: Ausencia de registro = INCOMPLETE (restritivo). Nunca assume "ok".
-
-**Onde vive**: `tenant_billing` (banco de dados)
-**Como e carregado**: `useTenantStatus()`, `useTenantFlagsContract()` (RPC `get_tenant_flags_contract`)
-**Onde e derivado**: `resolveTenantBillingState()` em `src/lib/billing/resolveTenantBillingState.ts` -- funcao pura
-**Onde e consumido**: `resolveAccess()` (STEP 7: Billing Check), `BillingGate`, banners de billing
-
-**Ponto de decisao**: `resolveTenantBillingState()` para derivacao de flags. `resolveAccess()` para bloqueio de rota. Backend (Edge Functions com `requireTenantActive`) para bloqueio de operacoes.
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `isComplete` | `TenantOnboardingGate.tsx:93` | `contract.onboarding_completed \|\| tenant.status === 'ACTIVE'` | Verdade | PERMITIDO — derivado de contrato B2 |
+| `isSetupMode` | `TenantOnboardingGate.tsx:94` | `tenant.status === 'SETUP'` | Verdade | PERMITIDO — leitura direta |
+| `isLoading` (composto) | `TenantOnboardingGate.tsx:95` | `isTenantLoading \|\| isContractLoading` | Transitorio | PERMITIDO — composicao explicita |
 
 ---
 
-### 1.6 FEATURE AVAILABILITY (Acesso a Funcionalidades)
+### 1.5 PERMISSOES / FEATURES
 
-**Existencia**: Registro na tabela `feature_access` no banco de dados.
-
-**Estados validos**: Binario -- a feature esta no conjunto retornado ou nao.
-
-| Situacao | Significado |
-|----------|------------|
-| Feature presente no Set | Acesso permitido |
-| Feature ausente | Acesso negado |
-| Loading | Acesso negado (fail-closed) |
-| Erro na RPC | Acesso negado (fail-closed) |
-
-**Onde vive**: `feature_access` (banco de dados)
-**Como e carregado**: `useAccessContract(tenantId)` via RPC `list_allowed_features`
-**Onde e derivado**: Nao e derivado -- e leitura direta + Set
-**Onde e consumido**: `RequireFeature` (guard), `usePermissions()` (hook), `useCanAccess()` (hook)
-
-**Ponto de decisao**: `useAccessContract.can(featureKey)` -- fail-closed. `RequireFeature` como guard de renderizacao. O componente `can.ts` e somente apresentacao UX.
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `usePermissions().can()` | `usePermissions.ts` | `useAccessContract().can()` | Capacidade | PERMITIDO — delegacao pura ao backend |
+| `useCanAccess().allowed` | `usePermissions.ts:46` | `usePermissions().can()` | Capacidade | PERMITIDO — wrapper fino |
+| `can.ts` / `canAccess()` | `can.ts:21` | `ACCESS_MATRIX` (local) | UX/Apresentacao | PROIBIDO — usa matriz local em vez do contrato backend |
+| `Permissions.*` | `can.ts:133` | `ACCESS_MATRIX` (local) | UX/Apresentacao | PROIBIDO — atalhos sobre matriz local |
+| `createPermissionContext()` | `can.ts:106` | `ACCESS_MATRIX` (local) | UX/Apresentacao | PROIBIDO — cria contexto paralelo ao backend |
+| `getAccessibleFeatures()` | `can.ts:58` | `ACCESS_MATRIX` (local) | UX/Apresentacao | PROIBIDO — lista features sem consultar backend |
 
 ---
 
-## 2. Separacao: Verdade vs Visibilidade vs Capacidade
+### 1.6 ESTADOS LOCAIS EM PAGINAS (canApprove, canManage)
 
-```text
-+-------------------+-------------------------------+---------------------------+
-| Camada            | Responsabilidade              | Quem decide               |
-+-------------------+-------------------------------+---------------------------+
-| VERDADE           | Estado canonico da entidade    | Banco de dados + RPC      |
-| (Backend/Contrato)| Existe? Qual estado? Valido?  | Edge Functions            |
-|                   |                               | Funcoes puras (resolvers) |
-+-------------------+-------------------------------+---------------------------+
-| VISIBILIDADE      | O que o usuario ve            | Guards (resolveAccess)    |
-| (Frontend/Guard)  | Tela de bloqueio? Loader?     | Gates (RequireFeature,    |
-|                   | Mensagem de erro?             |   BillingGate, etc.)      |
-+-------------------+-------------------------------+---------------------------+
-| CAPACIDADE        | O que o usuario pode fazer    | Backend (RLS + Edge Fn)   |
-| (Operacional)     | Pode aprovar? Pode emitir?    | resolveTenantBillingState |
-|                   | Pode criar?                   | isInstitutionalDocValid   |
-+-------------------+-------------------------------+---------------------------+
-```
-
-**Regra absoluta**: Um componente de UI NUNCA infere estado. Ele recebe estado resolvido e renderiza. A cadeia e sempre: Banco -> Hook/Provider -> Resolver (funcao pura) -> Guard -> Componente.
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `canApprove` | `ApprovalsList.tsx:63`, `ApprovalDetails.tsx:164` | `isGlobalSuperadmin \|\| hasRole('ADMIN_TENANT', tenant.id)` | Capacidade | REDUNDANTE — duplica decisao que deveria vir de `usePermissions().can('TENANT_APPROVALS')` |
+| `canManage` | `AcademiesList.tsx:49`, `CoachesList.tsx:64` | `isGlobalSuperadmin \|\| hasRole('ADMIN_TENANT', tenant.id)` | Capacidade | REDUNDANTE — duplica decisao que deveria vir de `usePermissions().can()` |
+| `canManagePayment` | `BillingStatusBanner.tsx:189` | Check local de `stripe_customer_id` + status | Capacidade | PERMITIDO — decisao de UX sobre CTA (apresentacao), nao acesso |
 
 ---
 
-## 3. Cadeia de Resolucao (Single Point of Decision)
+### 1.7 PORTAL DO ATLETA
 
-```text
-Auth (sessao)
-  |
-  v
-IdentityContext (resolveIdentityState)
-  |
-  v
-TenantContext (tenant + lifecycle)
-  |
-  v
-useTenantFlagsContract (onboarding + billing flags)
-  |
-  v
-useAccessResolver --> resolveAccess() [FUNCAO PURA - SINGLE POINT]
-  |
-  +-- STEP 0: Loading consolidado
-  +-- STEP 1: Autenticacao
-  +-- STEP 2: Erro de identidade
-  +-- STEP 3: Wizard
-  +-- STEP 4: Tenant (existencia + status)
-  +-- STEP 5: Onboarding
-  +-- STEP 6: Role
-  +-- STEP 7: Billing
-  |
-  v
-AccessResult: ALLOWED | LOADING | DENIED(reason) | ERROR(debugCode)
-```
-
-**Proibicoes**:
-- Nenhum componente pode chamar `supabase.from('user_roles')` para decidir acesso
-- Nenhum componente pode inferir billing por `if (!billing)` 
-- Nenhuma pagina pode decidir visibilidade com `if (!tenant) return null`
-- Nenhum guard pode inventar estados fora dos enums canonicos
+| Estado Derivado | Arquivo | Derivado De | Camada | Classificacao |
+|---|---|---|---|---|
+| `portalViewState` | `AthletePortal.tsx:225` | Composicao local de loading/error/data | Visibilidade | PERMITIDO — estado de apresentacao consumido por PortalAccessGate |
+| `gateState` | `PortalAccessGate.tsx:56` | Composicao de athlete + membership | Visibilidade | PERMITIDO — componente puramente visual, sem decisao de acesso |
+| `isEffectivelyExpired` | `PortalAccessGate.tsx:66` | Status + data de expiracao | Visibilidade | PERMITIDO — logica de apresentacao, gate nao navega |
 
 ---
 
-## 4. Mapa Tecnico Consolidado
+### 1.8 PADROES `if (!tenant) return ...` EM PAGINAS
 
-| Entidade | Tabela | Hook/Provider | Resolver (funcao pura) | Consumidor final |
-|----------|--------|---------------|----------------------|------------------|
-| Tenant | `tenants` | `TenantContext` | `assertTenantLifecycleState()` | `resolveAccess()` STEP 4 |
-| User/Identity | `auth.users` + `profiles` | `AuthContext` + `IdentityContext` | `resolveIdentityState()` | `resolveAccess()` STEP 1-3 |
-| Role | `user_roles` | `useTenantRoles()` | (leitura direta) | `resolveAccess()` STEP 6 |
-| Membership | `memberships` | React Query direto | `PortalAccessGate` | Portal do Atleta |
-| Billing | `tenant_billing` | `useTenantStatus()` + `useTenantFlagsContract()` | `resolveTenantBillingState()` | `resolveAccess()` STEP 7 |
-| Feature | `feature_access` | `useAccessContract()` | RPC `list_allowed_features` | `RequireFeature`, `usePermissions()` |
-| Documento | (digital_cards, diplomas) | React Query direto | `isInstitutionalDocumentValid()` | Verificacao publica, emissao |
-
----
-
-## 5. Regras de Validade Cruzada (Golden Rules)
-
-### Documento Institucional Valido (Golden Rule)
-Exige simultaneamente:
-1. Tenant = ACTIVE
-2. Billing = ACTIVE ou TRIALING
-3. Documento = ACTIVE ou ISSUED
-4. revoked_at = null
-
-Funcao: `isInstitutionalDocumentValid()` em `src/lib/institutional/isDocumentValid.ts`. Unica fonte de verdade. Espelhada no banco via `public.is_institutional_document_valid`.
-
-### Acesso a Rota (Access Contract)
-Sequencia fixa em `resolveAccess()`: Auth -> Identity -> Tenant -> Onboarding -> Role -> Billing. Resultado: ALLOWED ou DENIED com motivo explicito.
-
-### Flags Criticas do Tenant (B2 Contract)
-RPC `get_tenant_flags_contract` retorna snapshot atomico de onboarding + billing. Validado por `validateContract()`. Fallback e sempre restritivo (`UNKNOWN`).
+| Arquivo | Patern | Classificacao |
+|---|---|---|
+| `InternalRankings.tsx:229` | `if (!tenant) return <LoadingState>` | PERMITIDO — mostra loader explicito |
+| `ApprovalDetails.tsx:375` | `if (!tenant) return <LoadingState>` | PERMITIDO |
+| `AthletePortal.tsx:222` | `if (!tenant) return <LoadingState>` | PERMITIDO |
+| `SystemHealthCard.tsx:103` | `if (!tenant) return null` | PROIBIDO — return null silencioso |
+| `BillingOverviewCard.tsx:74` | `if (tenant?.status !== 'ACTIVE') return null` | PROIBIDO — inferencia local de status |
+| `BillingOverviewCard.tsx:96` | `if (!status) return null` | PROIBIDO — return null silencioso em vez de EMPTY state |
+| `TenantStatusBanner.tsx:50` | `if (dismissed \|\| status.isLoading \|\| !status.canSeeBanner) return null` | PERMITIDO — banner condicional com criterios explicitos |
 
 ---
 
-## 6. Estados Proibidos (Anti-patterns)
+## 2. Classificacao Consolidada
 
-| Anti-pattern | Contrato violado | O que fazer |
-|--------------|-----------------|-------------|
-| `if (!tenant) return null` | Visibilidade silenciosa | Usar `<LoadingState>` (PI B1) |
-| `if (!data)` para decidir acesso | Inferencia por ausencia | Usar `asyncState.state` explicito |
-| `if (someRole === 'STAFF_ORGANIZACAO')` | Role inexistente | `AppRole` impede em compilacao |
-| `setTimeout` em fluxo de auth | Nao-determinismo | Await explicito (PI Z0.4) |
-| Mensagem hardcoded em erro de seguranca | Error Contract E2 | Chave i18n canonica (PI Z0.5) |
-| `localStorage` para checar admin | Bypass de seguranca | `useCurrentUser().isGlobalSuperadmin` |
-| Feature check via `accessMatrix` local | Decisao local | `useAccessContract().can()` (backend) |
+### PERMITIDOS (derivacao fiel de contrato)
+- `isAuthenticated`, `isGlobalSuperadmin`, `hasRole()`, `currentRolesByTenant`
+- `AccessResult.state`, `isTimedOut`
+- Todos os campos de `resolveTenantBillingState()` (resolver puro)
+- `isTrialEndingSoon`, `daysToTrialEnd`, `canSeeBanner` (apresentacao)
+- `isComplete`, `isSetupMode` (onboarding via contrato B2)
+- `usePermissions().can()`, `useCanAccess()` (delegam ao backend)
+- `portalViewState`, `gateState`, `isEffectivelyExpired` (PortalAccessGate puramente visual)
+- `canManagePayment` (decisao de CTA, nao acesso)
+- `if (!tenant) return <LoadingState>` (loader explicito)
+
+### REDUNDANTES (podem ser removidos em refatoracao futura)
+- `isSessionReady` — identico a `isAuthenticated`
+- `isOnTrial` em useTenantStatus — duplica `billingState.isTrialActive`
+- `isTrialExpired` em useTenantStatus — duplica `billingState.isTrialExpired`
+- `isBlocked` em useTenantStatus — re-exporta `billingState.isBlocked`
+- `hasBillingIssue` em useTenantStatus — renomeia `billingState.isReadOnly`
+- `canApprove` / `canManage` em paginas — devem usar `usePermissions().can()`
+
+### PROIBIDOS (contradizem contrato ou decidem localmente)
+- `can.ts` inteiro (`canAccess`, `Permissions.*`, `createPermissionContext`, `getAccessibleFeatures`) — usa `ACCESS_MATRIX` local, contradiz PI A3 (backend contract)
+- `if (!tenant) return null` silencioso (SystemHealthCard)
+- `if (tenant?.status !== 'ACTIVE') return null` (BillingOverviewCard — inferencia local)
+- `if (!status) return null` silencioso (BillingOverviewCard)
 
 ---
 
-## 7. Resumo Executivo
+## 3. Regras de Derivacao (Contrato de Eliminacao)
 
-Este contrato formaliza que:
+| Dominio | Fonte Unica Permitida | Proibido |
+|---|---|---|
+| Acesso a rota | `resolveAccess()` via `useAccessResolver()` | Qualquer `if` local que decide acesso |
+| Billing | `resolveTenantBillingState()` | Re-derivar `isBlocked`/`isReadOnly` fora do resolver |
+| Feature/Permissao | `useAccessContract().can()` via `usePermissions()` | `ACCESS_MATRIX` local, `can.ts`, `Permissions.*` |
+| Identidade | `IdentityState` via `resolveIdentityState()` | Checks manuais de profile/roles para decidir estado |
+| Tenant Status | `tenant.status` (TenantContext) | `if (!tenant)` silencioso (return null) |
+| Onboarding | `useTenantFlagsContract()` | Inferencia por ausencia de dados |
 
-1. **Seis entidades** possuem contratos de verdade: Tenant, User/Identity, Role, Membership, Billing e Feature.
-2. **Cada entidade** tem estados fechados (enum), transicoes explicitas e um unico ponto de decisao.
-3. **Verdade** vive no banco. **Visibilidade** e decidida por guards/resolvers puros. **Capacidade** e imposta pelo backend (RLS + Edge Functions).
-4. **Nenhum componente de UI** infere, calcula ou decide estado. Ele recebe e renderiza.
-5. O sistema opera em **fail-closed**: loading, erro ou ausencia de dados = bloqueio. Nunca acesso.
+---
 
-Este documento e referencia. Nao prescreve implementacao. A execucao de cada contrato ja esta nos resolvers puros listados acima.
+## 4. Contrato de Loading e Estados Transitorios
+
+| Situacao | Comportamento Obrigatorio | Proibido |
+|---|---|---|
+| Loading inicial | `<LoadingState>` com chave i18n | `return null`, tela branca |
+| Loading parcial | Skeleton ou `<LoadingState>` | Renderizar dados incompletos como "prontos" |
+| Erro recuperavel | Tela de erro com retry | `return null` silencioso |
+| Erro fatal | `<ErrorState>` com debugCode (nao visivel ao user) | Tela branca, console.error sem UI |
+| Ausencia de dado | `AsyncState.EMPTY` explicito | `if (!data) return null` |
+
+---
+
+## 5. Guia de Refatoracao Futura (EXECUTE)
+
+### Prioridade 1 — PROIBIDOS (remover)
+1. **`can.ts`**: Eliminar arquivo inteiro. Substituir todos os consumidores por `usePermissions().can()` ou `useAccessContract().can()`.
+2. **`ACCESS_MATRIX` em `accessMatrix.ts`**: Manter apenas como referencia de documentacao (ou remover). Decisoes de acesso vem do backend (`feature_access`).
+3. **`SystemHealthCard.tsx`**: Substituir `if (!tenant) return null` por `<LoadingState>` ou estado EMPTY.
+4. **`BillingOverviewCard.tsx`**: Substituir `return null` silenciosos por estados explicitos (EMPTY ou condicional nomeado).
+
+### Prioridade 2 — REDUNDANTES (simplificar)
+5. **`isSessionReady`**: Remover de `AuthContext`. Consumidores usam `isAuthenticated`.
+6. **`useTenantStatus`**: Remover `isOnTrial`, `isTrialExpired`, `isBlocked`, `hasBillingIssue`. Consumidores acessam diretamente `billingState.isTrialActive`, `billingState.isTrialExpired`, `billingState.isBlocked`, `billingState.isReadOnly`.
+7. **`canApprove` / `canManage` em paginas**: Substituir por `usePermissions().can('TENANT_APPROVALS')` e `usePermissions().can('TENANT_ACADEMIES')` respectivamente.
+
+### Prioridade 3 — PADRONIZACAO
+8. Auditar todos os `if (!tenant) return <LoadingState>` para garantir uso de chave i18n correta e nao `"common.loading"` generico.
+9. Garantir que todo `return null` restante em componentes de UI tenha justificativa explicita (ex: banner condicional) e nao represente estado silenciado.
+
+---
+
+## 6. Resumo Executivo
+
+Este inventario identifica:
+
+- **24 estados derivados** analisados em detalhe
+- **15 PERMITIDOS** (derivacao fiel de contrato canonico)
+- **6 REDUNDANTES** (duplicam informacao sem valor — marcar para remocao)
+- **6 PROIBIDOS** (contradizem contratos PI U1/A3 — remover obrigatoriamente)
+
+A principal contradicao estrutural e a coexistencia de `can.ts` + `ACCESS_MATRIX` (decisao local) com `useAccessContract()` (contrato backend). O arquivo `can.ts` deve ser eliminado para resolver a ambiguidade de fonte de verdade.
+
+Nenhum estado permanece sem classificacao. Este documento serve como guia deterministico para refatoracao sem interpretacao humana.
