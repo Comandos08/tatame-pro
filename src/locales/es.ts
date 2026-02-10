@@ -2390,16 +2390,49 @@ export const es: Record<string, string> = {
   'events.change.canceled.title': 'Evento cancelado',
   'events.change.canceled.desc': 'Lamentablemente, este evento fue cancelado por la organización.',
 
-  // P2.6 — Empty States Inteligentes
+  // C2 — Empty States Pedagógicos (Admin)
+  'empty.athletes.admin.title': 'Ningún atleta registrado',
+  'empty.athletes.admin.desc': 'Aún no hay atletas vinculados a esta organización.',
+  'empty.athletes.admin.hint': 'Registra el primer atleta para comenzar a gestionar afiliaciones y graduaciones.',
+  'empty.athletes.admin.cta': 'Registrar atleta',
+  'empty.events.admin.title': 'Ningún evento creado',
+  'empty.events.admin.desc': 'Aún no has creado ningún evento para esta organización.',
+  'empty.events.admin.hint': 'Los eventos permiten organizar competiciones, seminarios y exámenes.',
+  'empty.events.admin.cta': 'Crear evento',
+  'empty.approvals.admin.title': 'Ninguna pendencia',
+  'empty.approvals.admin.desc': 'No hay solicitudes de afiliación esperando revisión en este momento.',
+  'empty.approvals.admin.hint': 'Cuando los atletas soliciten afiliación, las pendencias aparecerán aquí.',
+  'empty.academies.admin.title': 'Ninguna academia vinculada',
+  'empty.academies.admin.desc': 'Aún no hay academias registradas en esta organización.',
+  'empty.academies.admin.hint': 'Las academias organizan atletas y entrenadores bajo una misma estructura.',
+  'empty.academies.admin.cta': 'Agregar academia',
+  'empty.dashboard.title': 'Sin datos por el momento',
+  'empty.dashboard.desc': 'Aún no hay información suficiente para mostrar métricas.',
+  'empty.dashboard.hint': 'Los datos aparecerán según el uso del sistema.',
+
+  // C2 — Empty States Pedagógicos (Athlete)
+  'empty.badges.athlete.title': 'Aún no has recibido reconocimientos',
+  'empty.badges.athlete.desc': 'Los reconocimientos son otorgados por tu organización según tu trayectoria evoluciona.',
+  'empty.badges.athlete.hint': 'Sigue entrenando y participando — tus reconocimientos aparecerán aquí.',
+  'empty.events.athlete.title': 'Aún no has participado en eventos',
+  'empty.events.athlete.desc': 'Cuando te inscribas en eventos, aparecerán aquí.',
+  'empty.events.athlete.hint': 'Consulta con tu academia sobre los próximos eventos disponibles.',
+  'empty.memberships.athlete.title': 'Ninguna afiliación encontrada',
+  'empty.memberships.athlete.desc': '¡Aún no tienes afiliaciones registradas. Comienza ahora y sé parte de la comunidad!',
+  'empty.memberships.athlete.cta': 'Hacer mi afiliación',
+  'empty.documents.athlete.title': 'Ningún documento emitido',
+  'empty.documents.athlete.desc': 'Documentos como diplomas y tarjetas digitales aparecerán aquí cuando sean emitidos.',
+  'empty.gradings.athlete.title': 'Tu trayectoria está comenzando',
+  'empty.gradings.athlete.desc': 'Cuando recibas graduaciones, serán registradas aquí.',
+  'empty.gradings.athlete.hint': 'Habla con tu entrenador sobre el proceso de graduación.',
+
+  // C2 — Legacy compatibility
   'empty.events.title': 'Ningún evento encontrado',
   'empty.events.desc': 'Aún no estás inscrito en ningún evento.',
   'empty.events.hint': 'Cuando haya eventos disponibles, aparecerán aquí.',
   'empty.athletes.title': 'Ningún atleta registrado',
   'empty.athletes.desc': 'Aún no hay atletas vinculados a esta organización.',
   'empty.athletes.hint': 'Los registros aparecerán aquí una vez creados.',
-  'empty.dashboard.title': 'Sin datos por el momento',
-  'empty.dashboard.desc': 'Aún no hay información suficiente para mostrar métricas.',
-  'empty.dashboard.hint': 'Los datos aparecerán según el uso del sistema.',
 
   // P2.7 — Transition Feedback (async state communication)
   'transition.inProgress.title': 'Procesando tu solicitud',

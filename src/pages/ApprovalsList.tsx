@@ -4,6 +4,7 @@ import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calend
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
+import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -272,14 +273,14 @@ export default function ApprovalsList() {
           </div>
         ) : (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
-                <ClipboardCheck className="h-8 w-8 text-success" />
-              </div>
-              <h3 className="font-display font-bold text-xl mb-2">{t('approval.allCaughtUp')}</h3>
-              <p className="text-muted-foreground text-sm max-w-md">
-                {t('approval.noApplications')}
-              </p>
+            <CardContent className="p-0">
+              <EmptyStateCard
+                icon={ClipboardCheck}
+                titleKey="empty.approvals.admin.title"
+                descriptionKey="empty.approvals.admin.desc"
+                hintKey="empty.approvals.admin.hint"
+                variant="inline"
+              />
             </CardContent>
           </Card>
         )}

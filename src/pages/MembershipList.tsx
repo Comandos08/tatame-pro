@@ -4,6 +4,7 @@ import { FileText, CreditCard, Clock, CheckCircle, XCircle, AlertCircle, Loader2
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
+import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -246,17 +247,17 @@ export default function MembershipList() {
           </div>
         ) : (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="font-display font-bold text-xl mb-2">{t('empty.memberships.title')}</h3>
-              <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                {t('empty.memberships.desc', { tenantName: tenant.name })}
-              </p>
-              <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)} size="lg">
-                {t('empty.memberships.cta')}
-              </Button>
+            <CardContent className="p-0">
+              <EmptyStateCard
+                icon={FileText}
+                titleKey="empty.memberships.athlete.title"
+                descriptionKey="empty.memberships.athlete.desc"
+                variant="inline"
+                primaryAction={{
+                  labelKey: 'empty.memberships.athlete.cta',
+                  onClick: () => navigate(`/${tenantSlug}/membership/new`),
+                }}
+              />
             </CardContent>
           </Card>
         )}

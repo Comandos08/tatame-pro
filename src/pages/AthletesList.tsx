@@ -17,6 +17,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
 import { AppShell } from '@/layouts/AppShell';
+import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -357,11 +358,14 @@ export default function AthletesList() {
           </div>
         ) : !athletes?.length ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                {t('admin.athletes.emptyFiltered')}
-              </p>
+            <CardContent className="p-0">
+              <EmptyStateCard
+                icon={Users}
+                titleKey="empty.athletes.admin.title"
+                descriptionKey="empty.athletes.admin.desc"
+                hintKey="empty.athletes.admin.hint"
+                variant="inline"
+              />
             </CardContent>
           </Card>
         ) : (

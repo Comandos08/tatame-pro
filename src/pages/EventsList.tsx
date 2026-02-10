@@ -5,6 +5,7 @@ import { Calendar, Plus, Filter, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell } from '@/layouts/AppShell';
+import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -157,20 +158,14 @@ export default function EventsList() {
           </div>
         ) : filteredEvents.length === 0 ? (
           <Card data-testid="events-empty-state">
-            <CardContent className="py-12 text-center">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-              <h3 className="mt-4 text-lg font-medium">
-                {t('events.noEvents')}
-              </h3>
-              <p className="text-muted-foreground mt-2">
-                {t('events.noEventsDesc')}
-              </p>
-              <CreateEventDialog>
-                <Button className="mt-4">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t('events.createEvent')}
-                </Button>
-              </CreateEventDialog>
+            <CardContent className="p-0">
+              <EmptyStateCard
+                icon={Calendar}
+                titleKey="empty.events.admin.title"
+                descriptionKey="empty.events.admin.desc"
+                hintKey="empty.events.admin.hint"
+                variant="inline"
+              />
             </CardContent>
           </Card>
         ) : (
