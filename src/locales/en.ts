@@ -2661,4 +2661,27 @@ export const en: Record<string, string> = {
   'observability.dependencies.description': 'Monitored service status',
   'observability.dependencies.noData': 'No dependencies registered',
 
+  // PI U18 — System Self-Awareness
+  'selfAware.title.ok': 'System operational',
+  'selfAware.title.info': 'System information',
+  'selfAware.title.warn': 'Attention required',
+  'selfAware.title.critical': 'System restrictions active',
+  'selfAware.subtitle.ok': 'All services are operating normally.',
+  'selfAware.subtitle.info': 'There are conditions that require attention.',
+  'selfAware.subtitle.warn': 'Some features may be limited.',
+  'selfAware.subtitle.critical': 'Sensitive actions are blocked until resolution.',
+  'selfAware.reason.TENANT_INACTIVE': 'Organization inactive or deleted',
+  'selfAware.reason.TENANT_SUSPENDED': 'Organization blocked',
+  'selfAware.reason.TENANT_SETUP': 'Initial setup pending',
+  'selfAware.reason.BILLING_BLOCKED': 'Billing blocked — sensitive actions suspended',
+  'selfAware.reason.BILLING_PAST_DUE': 'Payment overdue — resolve to avoid suspension',
+  'selfAware.reason.BILLING_TRIAL_EXPIRING': 'Trial period expiring soon',
+  'selfAware.reason.IDENTITY_PENDING': 'Identity resolution in progress',
+  'selfAware.reason.IDENTITY_ERROR': 'Identity resolution failed',
+  'selfAware.reason.HEALTH_DEGRADED': 'System health degraded',
+  'selfAware.reason.HEALTH_CRITICAL': 'Critical failures detected',
+  'selfAware.reason.HEALTH_UNKNOWN': 'System state undetermined',
+  'selfAware.cta.billing': 'View Billing',
+  'selfAware.cta.completeSetup': 'Complete Setup',
+
 };

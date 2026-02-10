@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
+import { SystemAwarenessBanner } from '@/components/institutional/SystemAwarenessBanner';
 import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
@@ -415,6 +416,8 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Page content */}
         <main className="flex-1 p-4 lg:p-6">
+          {/* PI U18: System self-awareness banner */}
+          <SystemAwarenessBanner />
           {/* Tenant Status Banner - shows trial/billing warnings */}
           <TenantStatusBanner />
           

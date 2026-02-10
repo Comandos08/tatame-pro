@@ -2661,4 +2661,27 @@ export const es: Record<string, string> = {
   'observability.dependencies.description': 'Estado de los servicios monitoreados',
   'observability.dependencies.noData': 'Ninguna dependencia registrada',
 
+  // PI U18 — System Self-Awareness
+  'selfAware.title.ok': 'Sistema operativo',
+  'selfAware.title.info': 'Información del sistema',
+  'selfAware.title.warn': 'Atención requerida',
+  'selfAware.title.critical': 'Restricciones activas del sistema',
+  'selfAware.subtitle.ok': 'Todos los servicios funcionan normalmente.',
+  'selfAware.subtitle.info': 'Existen condiciones que requieren atención.',
+  'selfAware.subtitle.warn': 'Algunas funcionalidades pueden estar limitadas.',
+  'selfAware.subtitle.critical': 'Las acciones sensibles están bloqueadas hasta la resolución.',
+  'selfAware.reason.TENANT_INACTIVE': 'Organización inactiva o eliminada',
+  'selfAware.reason.TENANT_SUSPENDED': 'Organización bloqueada',
+  'selfAware.reason.TENANT_SETUP': 'Configuración inicial pendiente',
+  'selfAware.reason.BILLING_BLOCKED': 'Facturación bloqueada — acciones sensibles suspendidas',
+  'selfAware.reason.BILLING_PAST_DUE': 'Pago pendiente — regularice para evitar suspensión',
+  'selfAware.reason.BILLING_TRIAL_EXPIRING': 'Período de evaluación próximo a vencer',
+  'selfAware.reason.IDENTITY_PENDING': 'Resolución de identidad en progreso',
+  'selfAware.reason.IDENTITY_ERROR': 'Falla en la resolución de identidad',
+  'selfAware.reason.HEALTH_DEGRADED': 'Salud del sistema degradada',
+  'selfAware.reason.HEALTH_CRITICAL': 'Fallas críticas detectadas',
+  'selfAware.reason.HEALTH_UNKNOWN': 'Estado del sistema indeterminado',
+  'selfAware.cta.billing': 'Ver Facturación',
+  'selfAware.cta.completeSetup': 'Completar Configuración',
+
 };
