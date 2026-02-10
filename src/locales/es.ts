@@ -2691,4 +2691,10 @@ export const es: Record<string, string> = {
   'nba.contactAdmin': 'Contacte al administrador',
   'nba.noPermission': 'No tiene permiso para esta acción',
 
+  // PI U11 — Progress Feedback
+  'progress.wizardCompleted': 'Configuración completada con éxito',
+  'progress.billingRegularized': 'Pago confirmado. ¡Gracias!',
+  'progress.tenantActivated': 'Entorno activado y listo para usar',
+  'progress.firstAccess': 'Bienvenido! Su acceso está activo',
+
 };
