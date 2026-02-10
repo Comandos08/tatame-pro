@@ -116,6 +116,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: t('nav.security'), href: `/${tenantSlug}/app/security`, icon: Shield, feature: 'TENANT_SECURITY' },
     { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard, feature: 'TENANT_BILLING' },
     { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings, feature: 'TENANT_SETTINGS' },
+    { name: t('nav.help'), href: `/${tenantSlug}/app/help`, icon: HelpCircle, feature: 'TENANT_HELP' },
   ];
   
   // 🔐 Filter navigation based on permissions (UX only - guards still enforce)
@@ -291,16 +292,7 @@ export function AppShell({ children }: AppShellProps) {
               </NavLink>
             ))}
             
-            {/* Help link */}
-            <NavLink
-              to={`/${tenantSlug}/app/help`}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-            >
-              <HelpCircle className="h-5 w-5" />
-              <span>{t('nav.help')}</span>
-            </NavLink>
+            {/* U20: Help is now in allNavigation array, gated by can('TENANT_HELP') */}
           </nav>
 
           {/* User menu */}
