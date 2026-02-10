@@ -2532,6 +2532,8 @@ export const ptBR = {
   
   'admin.systemHealth': 'Saúde do Sistema',
   'admin.systemHealthDesc': 'Monitoramento em tempo real da plataforma',
+  'admin.platformHealth': 'Saúde da Plataforma',
+  'admin.platformHealthDesc': 'Monitoramento, observabilidade e rastreabilidade do sistema.',
   
   'observability.alerts.title': 'Alertas',
   'observability.alerts.noAlerts': 'Sem alertas',
