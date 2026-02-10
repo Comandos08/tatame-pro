@@ -1,6 +1,6 @@
 export const en: Record<string, string> = {
   // Navigation
-  'nav.dashboard': 'Dashboard',
+  'nav.dashboard': 'Admin Panel',
   'nav.athletes': 'Athletes',
   'nav.memberships': 'Memberships',
   'nav.academies': 'Academies',
@@ -239,9 +239,9 @@ export const en: Record<string, string> = {
   'rankings.publicNote': 'Showing public rankings. For detailed data, access the portal.',
 
   // Dashboard
-  'dashboard.title': 'Dashboard',
+  'dashboard.title': 'Admin Panel',
   'dashboard.welcome': 'Hello',
-  'dashboard.welcomeDesc': 'Welcome to the panel. Here you can manage athletes, academies and gradings.',
+  'dashboard.welcomeDesc': 'Welcome to the admin panel. Manage athletes, academies and gradings.',
   'dashboard.activeAthletes': 'Active Athletes',
   'dashboard.activeMemberships': 'Active Memberships',
   'dashboard.pendingMemberships': 'Pending Memberships',
@@ -493,8 +493,8 @@ export const en: Record<string, string> = {
   'verification.cardInstitutionalMessage': 'This digital card was issued by an official organization registered on the TATAME Pro platform.',
 
   // Athlete Area
-  'nav.athleteArea': 'My Profile',
-  'athleteArea.title': 'Athlete Area',
+  'nav.athleteArea': 'My Journey',
+  'athleteArea.title': 'My Journey',
   'athleteArea.gradings': 'Gradings',
   'athleteArea.diplomas': 'Diplomas',
   'athleteArea.memberships': 'Memberships',
@@ -2566,5 +2566,9 @@ export const en: Record<string, string> = {
 
   // P7.1 — Identity Error Default Enhanced
   'identityError.default.hint': 'You can try again, sign out and back in, or contact support if the problem persists.',
+
+  // C1 — UX Persona Context Labels
+  'ux.contextAdmin': 'Context: Administration',
+  'ux.contextAthlete': 'Context: Athlete',
 
 };

@@ -1,6 +1,6 @@
 export const es: Record<string, string> = {
   // Navigation
-  'nav.dashboard': 'Panel',
+  'nav.dashboard': 'Panel Administrativo',
   'nav.athletes': 'Atletas',
   'nav.memberships': 'Afiliaciones',
   'nav.academies': 'Academias',
@@ -239,9 +239,9 @@ export const es: Record<string, string> = {
   'rankings.publicNote': 'Mostrando rankings públicos. Para datos detallados, acceda al portal.',
 
   // Dashboard
-  'dashboard.title': 'Panel',
+  'dashboard.title': 'Panel Administrativo',
   'dashboard.welcome': 'Hola',
-  'dashboard.welcomeDesc': 'Bienvenido al panel. Aquí puede gestionar atletas, academias y graduaciones.',
+  'dashboard.welcomeDesc': 'Bienvenido al panel administrativo. Gestione atletas, academias y graduaciones.',
   'dashboard.activeAthletes': 'Atletas Activos',
   'dashboard.activeMemberships': 'Afiliaciones Activas',
   'dashboard.pendingMemberships': 'Afiliaciones Pendientes',
@@ -493,8 +493,8 @@ export const es: Record<string, string> = {
   'verification.cardInstitutionalMessage': 'Esta credencial digital fue emitida por una organización oficial registrada en la plataforma TATAME Pro.',
 
   // Athlete Area
-  'nav.athleteArea': 'Mi Perfil',
-  'athleteArea.title': 'Área del Atleta',
+  'nav.athleteArea': 'Mi Trayectoria',
+  'athleteArea.title': 'Mi Trayectoria',
   'athleteArea.gradings': 'Graduaciones',
   'athleteArea.diplomas': 'Diplomas',
   'athleteArea.memberships': 'Afiliaciones',
@@ -2566,5 +2566,9 @@ export const es: Record<string, string> = {
 
   // P7.1 — Identity Error Default Enhanced
   'identityError.default.hint': 'Puede intentarlo de nuevo, cerrar sesión y volver a entrar, o contactar al soporte si el problema persiste.',
+
+  // C1 — UX Persona Context Labels
+  'ux.contextAdmin': 'Contexto: Administración',
+  'ux.contextAthlete': 'Contexto: Atleta',
 
 };
