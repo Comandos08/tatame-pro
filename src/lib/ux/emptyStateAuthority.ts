@@ -2,19 +2,25 @@
  * PI U13 — EMPTY_STATE_AUTHORITY (Pure Derivation)
  *
  * Authoritative, deterministic, semantic empty states.
- * Never lies. Never suggests unauthorized actions. Never infers intent.
+ * Now delegates block reason derivation to U12 (BlockReason SSoT).
  *
  * CONTRACT:
- * - Derived exclusively from explicit system state
+ * - Derived exclusively from BlockReason (U12)
  * - No navigation, no permissions, no access decisions
  * - CTA never automatic — INFO or BLOCKED only
- * - Priority order is absolute and immutable
  *
  * NO React, NO Supabase, NO side effects.
  */
 
 import type { TenantLifecycleState } from '@/types/tenant-lifecycle-state';
 import type { BillingStatus } from '@/lib/billing';
+import {
+  deriveBlockReason,
+  BLOCK_REASON_UI,
+  BLOCK_REASON_I18N,
+  type BlockReason,
+  type BlockReasonContext,
+} from './blockReason';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,87 +57,35 @@ export interface EmptyStateInput {
 
 /**
  * Derive empty state from current institutional state.
- *
- * Priority order (ABSOLUTE):
- * 1. Loading → WAITING
- * 2. Tenant BLOCKED/DELETED → BLOCKED
- * 3. Billing PAST_DUE/UNPAID/PENDING_DELETE → BLOCKED
- * 4. No permission → BLOCKED
- * 5. Feature disabled → INFO
- * 6. No data → INFO
- * 7. Default → null (data exists, everything OK)
+ * Delegates to deriveBlockReason (U12) as SSoT, then maps to EmptyState.
  */
 export function deriveEmptyState(input: EmptyStateInput): EmptyState | null {
-  // 1. Loading — system not ready
-  if (input.isLoading) {
-    return {
-      kind: 'WAITING',
-      reason: 'IDENTITY_LOADING',
-      titleKey: 'emptyState.loading.title',
-      descriptionKey: 'emptyState.loading.description',
-      icon: 'CLOCK',
-    };
-  }
+  const blockReason = deriveBlockReason({
+    isLoading: input.isLoading,
+    canAccess: input.canAccess,
+    tenantLifecycle: input.tenantLifecycle,
+    billingStatus: input.billingStatus,
+    featureEnabled: input.featureEnabled,
+    hasData: input.hasData,
+  });
 
-  // 2. Tenant blocked or deleted
-  if (input.tenantLifecycle === 'BLOCKED' || input.tenantLifecycle === 'DELETED') {
-    return {
-      kind: 'BLOCKED',
-      reason: 'TENANT_BLOCKED',
-      titleKey: 'emptyState.tenantBlocked.title',
-      descriptionKey: 'emptyState.tenantBlocked.description',
-      icon: 'LOCK',
-    };
-  }
+  if (!blockReason) return null;
 
-  // 3. Billing blocked
-  if (
-    input.billingStatus === 'PAST_DUE' ||
-    input.billingStatus === 'UNPAID' ||
-    input.billingStatus === 'PENDING_DELETE'
-  ) {
-    return {
-      kind: 'BLOCKED',
-      reason: 'BILLING_BLOCKED',
-      titleKey: 'emptyState.billingBlocked.title',
-      descriptionKey: 'emptyState.billingBlocked.description',
-      icon: 'LOCK',
-    };
-  }
+  return mapBlockReasonToEmptyState(blockReason);
+}
 
-  // 4. No permission
-  if (!input.canAccess) {
-    return {
-      kind: 'BLOCKED',
-      reason: 'NO_PERMISSION',
-      titleKey: 'emptyState.noPermission.title',
-      descriptionKey: 'emptyState.noPermission.description',
-      icon: 'LOCK',
-    };
-  }
+/**
+ * Map a BlockReason to an EmptyState using canonical UI + i18n mappings.
+ */
+export function mapBlockReasonToEmptyState(reason: BlockReason): EmptyState {
+  const ui = BLOCK_REASON_UI[reason];
+  const i18n = BLOCK_REASON_I18N[reason];
 
-  // 5. Feature disabled
-  if (input.featureEnabled === false) {
-    return {
-      kind: 'INFO',
-      reason: 'FEATURE_DISABLED',
-      titleKey: 'emptyState.featureDisabled.title',
-      descriptionKey: 'emptyState.featureDisabled.description',
-      icon: 'INFO',
-    };
-  }
-
-  // 6. No data
-  if (!input.hasData) {
-    return {
-      kind: 'INFO',
-      reason: 'NO_DATA',
-      titleKey: 'emptyState.noData.title',
-      descriptionKey: 'emptyState.noData.description',
-      icon: 'INFO',
-    };
-  }
-
-  // 7. Data exists, everything OK → no empty state
-  return null;
+  return {
+    kind: ui.kind as EmptyStateKind,
+    reason: reason as EmptyStateReason,
+    titleKey: i18n.titleKey,
+    descriptionKey: i18n.descriptionKey,
+    icon: ui.icon as EmptyStateIcon,
+  };
 }

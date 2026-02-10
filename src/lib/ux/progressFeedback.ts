@@ -2,18 +2,18 @@
  * PI U11 — PROGRESS_FEEDBACK (Pure Derivation)
  *
  * Positive reinforcement ONLY when real progress occurred.
- * No gamification, no noise, no lies.
+ * Now uses BlockReason (U12) to ensure no celebration during blocks.
  *
  * CONTRACT:
  * - Never unlocks anything
  * - Never grants access
- * - Never replaces blockers
+ * - If BlockReason exists → no celebration
  * - Only acknowledges validated progress
- * - Depends on U9 (fail-closed) + U10 (next best action)
- *   → If the system blocks or guides, it does NOT celebrate.
  *
  * NO React, NO Supabase, NO side effects.
  */
+
+import { deriveBlockReason, type BlockReasonContext } from './blockReason';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,25 +67,35 @@ const EVENT_MAP: Record<ProgressEvent, ProgressFeedback> = {
 
 /**
  * Derive progress feedback from the current state.
+ * Uses U12 BlockReason to determine if the system is blocked.
  *
  * Decision order:
- * 1. Security (fail-closed) — loading/error/no-access → null
- * 2. Event existence — no event → null
- * 3. Known mapping — unknown event → null
- * 4. Return feedback
+ * 1. Security (fail-closed) — loading/error → null
+ * 2. BlockReason exists → null (don't celebrate during blocks)
+ * 3. Event existence — no event → null
+ * 4. Known mapping — unknown event → null
+ * 5. Return feedback
  */
 export function deriveProgressFeedback(
   input: ProgressFeedbackInput,
 ): ProgressFeedback | null {
-  // 1. Fail-closed: system not ready or access denied → no celebration
+  // 1. Fail-closed: system not ready
   if (input.isLoading) return null;
   if (input.isError) return null;
-  if (!input.canAccess) return null;
 
-  // 2. No event → nothing to celebrate
+  // 2. Use U12 to check for blocks (don't celebrate during blocks)
+  const blockReason = deriveBlockReason({
+    isLoading: input.isLoading,
+    canAccess: input.canAccess,
+    tenantLifecycle: null,
+    billingStatus: null,
+  });
+  if (blockReason) return null;
+
+  // 3. No event → nothing to celebrate
   if (!input.lastEvent) return null;
 
-  // 3. Known mapping only
+  // 4. Known mapping only
   const feedback = EVENT_MAP[input.lastEvent];
   if (!feedback) return null;
 
