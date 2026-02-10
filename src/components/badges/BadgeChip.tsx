@@ -7,10 +7,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Award } from "lucide-react";
+import type { BadgeSurface } from "@/types/badge";
+import { ALLOWED_BADGE_SURFACES } from "@/types/badge";
 
 interface BadgeChipProps {
   name: string;
   description?: string | null;
+  surface: BadgeSurface;
   className?: string;
 }
 
@@ -19,10 +22,17 @@ interface BadgeChipProps {
  *
  * Visual neutro, sem cor de ação, cursor default.
  * Tooltip explica que badge é simbólico e não concede permissões.
+ * D2: Requer surface explícita. DEV guard emite warning se inválida.
  *
  * @see docs/BADGE-CONTRACT.md
  */
-export function BadgeChip({ name, description, className }: BadgeChipProps) {
+export function BadgeChip({ name, description, surface, className }: BadgeChipProps) {
+  if (import.meta.env.DEV && !ALLOWED_BADGE_SURFACES.includes(surface)) {
+    console.warn(
+      `[D2] Badge rendered in non-authorized surface: ${surface}`
+    );
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -33,6 +43,7 @@ export function BadgeChip({ name, description, className }: BadgeChipProps) {
               className
             )}
             data-testid="badge-chip"
+            data-badge-surface={surface}
           >
             <Award className="h-3 w-3 shrink-0" />
             {name}

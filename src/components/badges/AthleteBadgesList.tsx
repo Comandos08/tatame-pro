@@ -1,20 +1,22 @@
 import React from "react";
 import { BadgeChip } from "./BadgeChip";
 import { useAthleteBadges } from "@/hooks/useAthleteBadges";
+import type { BadgeSurface } from "@/types/badge";
 
 interface AthleteBadgesListProps {
   athleteId: string | undefined;
+  surface: BadgeSurface;
   className?: string;
 }
 
 /**
  * Lista read-only de badges de um atleta.
  * Renderiza BadgeChips para cada badge ativo.
- * Não renderiza nada se não há badges.
+ * D2: Requer surface explícita, propagada aos chips.
  *
  * @see docs/BADGE-CONTRACT.md
  */
-export function AthleteBadgesList({ athleteId, className }: AthleteBadgesListProps) {
+export function AthleteBadgesList({ athleteId, surface, className }: AthleteBadgesListProps) {
   const { data: badges } = useAthleteBadges(athleteId);
 
   if (!badges || badges.length === 0) return null;
@@ -27,6 +29,7 @@ export function AthleteBadgesList({ athleteId, className }: AthleteBadgesListPro
             key={badge.code}
             name={badge.name}
             description={badge.description}
+            surface={surface}
           />
         ))}
       </div>

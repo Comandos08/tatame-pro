@@ -392,7 +392,7 @@ export default function AthleteGradingsPage() {
             {athlete && (
               <div>
                 <p className="text-muted-foreground">{athlete.full_name}</p>
-                <AthleteBadgesList athleteId={athlete.id} className="mt-1" />
+                <AthleteBadgesList athleteId={athlete.id} surface="ATHLETE_PROFILE" className="mt-1" />
               </div>
             )}
           </div>
