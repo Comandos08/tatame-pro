@@ -56,19 +56,19 @@ export function TenantStatusBanner() {
   let showCTA = false;
   let canDismiss = true;
 
-  if (status.isBlocked) {
+  if (status.billingState?.isBlocked) {
     variant = 'destructive';
     icon = XCircle;
     message = t('tenantStatus.blocked');
     showCTA = true;
     canDismiss = false;
-  } else if (status.hasBillingIssue) {
+  } else if (status.billingState?.isReadOnly) {
     variant = 'destructive';
     icon = AlertTriangle;
     message = t('tenantStatus.billingIssue');
     showCTA = true;
     canDismiss = false;
-  } else if (status.isTrialExpired) {
+  } else if (status.billingState?.isTrialExpired) {
     variant = 'destructive';
     icon = XCircle;
     message = t('tenantStatus.trialExpired');
@@ -82,7 +82,7 @@ export function TenantStatusBanner() {
       String(status.daysToTrialEnd)
     );
     showCTA = true;
-  } else if (status.isOnTrial && status.daysToTrialEnd !== null && status.daysToTrialEnd > 7) {
+  } else if (status.billingState?.isTrialActive && status.daysToTrialEnd !== null && status.daysToTrialEnd > 7) {
     // Neutral trial message
     variant = 'default';
     icon = Clock;

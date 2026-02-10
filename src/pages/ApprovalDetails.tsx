@@ -26,6 +26,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -129,7 +130,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 
 export default function ApprovalDetails() {
   const { tenant } = useTenant();
-  const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();
@@ -161,8 +162,8 @@ export default function ApprovalDetails() {
   
   const hasMinimumRoleSelected = selectedRoles.length > 0;
 
-  const canApprove = isGlobalSuperadmin || 
-    (tenant && hasRole('ADMIN_TENANT', tenant.id));
+  const { can: canFeature } = usePermissions();
+  const canApprove = canFeature('TENANT_APPROVALS');
 
   const { data: membership, isLoading, error } = useQuery({
     queryKey: ['approval-membership', membershipId],

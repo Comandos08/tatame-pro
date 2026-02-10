@@ -41,7 +41,7 @@ interface CreateTenantDialogProps {
 }
 
 export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
-  const { isSessionReady } = useCurrentUser();
+  const { isAuthenticated } = useCurrentUser();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -69,7 +69,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
   const createMutation = useMutation({
     mutationFn: async () => {
       // ✅ GUARD ESTRUTURAL: Garantir sessão pronta antes de qualquer operação
-      if (!isSessionReady) {
+      if (!isAuthenticated) {
         throw new Error(t('admin.sessionSyncError'));
       }
 
@@ -254,7 +254,7 @@ export function CreateTenantDialog({ onSuccess }: CreateTenantDialogProps) {
           </Button>
           <Button 
             onClick={() => createMutation.mutate()} 
-            disabled={createMutation.isPending || !isSessionReady}
+            disabled={createMutation.isPending || !isAuthenticated}
           >
             {createMutation.isPending ? (
               <>

@@ -32,7 +32,6 @@ export interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isSessionReady: boolean;
   isGlobalSuperadmin: boolean;
   currentRolesByTenant: Map<string, AppRole[]>;
   signIn: (email: string, password: string) => Promise<void>;

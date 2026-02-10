@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -58,10 +59,10 @@ export default function ApprovalsList() {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { t, locale } = useI18n();
+  const { can: canFeature } = usePermissions();
 
-  // Check if user has approval permissions
-  const canApprove = isGlobalSuperadmin || 
-    (tenant && hasRole('ADMIN_TENANT', tenant.id));
+  // Check if user has approval permissions (backend contract)
+  const canApprove = canFeature('TENANT_APPROVALS');
 
   const { data: memberships, isLoading, error } = useQuery({
     queryKey: ['pending-approvals', tenant?.id, currentUser?.id],
