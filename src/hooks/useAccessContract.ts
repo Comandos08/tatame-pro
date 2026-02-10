@@ -31,7 +31,7 @@ interface UseAccessContractResult {
 }
 
 export function useAccessContract(tenantId: string | undefined | null): UseAccessContractResult {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['access-contract', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
@@ -47,7 +47,7 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
   });
 
   const allowedFeatures = new Set(data || []);
-  const asyncState = normalizeAsyncState({ data, isLoading, isError, error: null });
+  const asyncState = normalizeAsyncState({ data, isLoading, isError, error });
 
   return {
     allowedFeatures,
