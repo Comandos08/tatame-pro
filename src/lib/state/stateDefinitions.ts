@@ -133,27 +133,22 @@ export const SUBSCRIPTION_TRANSITIONS: Record<SubscriptionStatus, readonly Subsc
 };
 
 // ============================================================================
-// 🔐 USER ACCESS SCOPE (Identity Roles — exactly 3)
+// 🔐 USER ROLES — CANONICAL SOURCE
 // ============================================================================
-
-/**
- * Canonical identity roles. Exhaustive and final.
- *
- * SUPERADMIN   → Plataforma global
- * TENANT_ADMIN → Gestão organizacional
- * ATHLETE      → Jornada pessoal
- *
- * ❌ Coach, Professor, Staff, Instructor → NÃO são roles.
- * ✅ Reconhecimento contextual → badge (visual only).
- * ✅ Permissão funcional → can(feature).
- */
-export type UserAccessScope =
-  | 'SUPERADMIN'
-  | 'TENANT_ADMIN'
-  | 'ATHLETE';
-
-export const USER_ACCESS_SCOPES: readonly UserAccessScope[] = [
-  'SUPERADMIN',
-  'TENANT_ADMIN',
-  'ATHLETE',
-] as const;
+//
+// Identity roles are NOT defined in this layer.
+//
+// Canonical source of truth:
+// - Database enum: app_role
+// - Runtime type: AppRole (src/types/auth.ts)
+// - Enforced by: RLS + Access Contract
+//
+// Exactly 3 roles exist:
+// - SUPERADMIN_GLOBAL
+// - ADMIN_TENANT
+// - ATLETA
+//
+// ❌ Coach / Professor / Staff are NOT roles
+// ✅ Recognition = Badges (visual only)
+// ✅ Permissions = can(feature)
+// ============================================================================
