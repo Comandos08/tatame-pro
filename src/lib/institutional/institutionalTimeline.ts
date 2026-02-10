@@ -15,7 +15,8 @@ export type InstitutionalEventDomain =
   | 'BILLING'
   | 'SECURITY'
   | 'GOVERNANCE'
-  | 'SYSTEM';
+  | 'SYSTEM'
+  | 'FEATURE_FLAG';
 
 export type InstitutionalEventType =
   | 'LOGIN_SUCCESS'
@@ -26,7 +27,8 @@ export type InstitutionalEventType =
   | 'TENANT_LIFECYCLE_CHANGED'
   | 'SECURITY_BLOCK_APPLIED'
   | 'SECURITY_BLOCK_LIFTED'
-  | 'SYSTEM_LIMIT_REACHED';
+  | 'SYSTEM_LIMIT_REACHED'
+  | 'FLAG_UPDATED';
 
 export interface InstitutionalEvent {
   id: string;
