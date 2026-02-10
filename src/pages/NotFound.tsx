@@ -24,7 +24,7 @@ const NotFound = () => {
   const context = deriveContext(location.pathname);
 
   // Log 404 for monitoring (kept for production tracking)
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.warn("404 - Route not found:", location.pathname, "context:", context);
   }
 
