@@ -16,7 +16,6 @@ import {
   type InstitutionalFeatureFlag,
   type FeatureFlagMap,
   buildDefaultFlagMap,
-  resolveFlags,
 } from '@/lib/featureFlags';
 
 export interface UseFeatureFlagsResult {
@@ -32,17 +31,21 @@ export function useFeatureFlags(tenantId?: string): UseFeatureFlagsResult {
   const { data: flags = buildDefaultFlagMap(), isLoading } = useQuery({
     queryKey: ['institutional-feature-flags', tenantId],
     queryFn: async (): Promise<FeatureFlagMap> => {
-      const { data, error } = await supabase
-        .from('institutional_feature_flags')
-        .select('flag, enabled, tenant_id')
-        .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`);
+      if (!tenantId) return buildDefaultFlagMap();
+
+      const { data, error } = await supabase.functions.invoke(
+        'resolve-feature-flags',
+        { body: { tenantId } }
+      );
 
       if (error || !data) {
-        console.error('[U15-FLAGS] Failed to fetch flags:', error);
+        console.error('[U15-FLAGS] Edge Function failed:', error);
         return buildDefaultFlagMap();
       }
 
-      return resolveFlags(data, tenantId);
+      // Merge response into a complete flag map (missing flags default false)
+      const defaults = buildDefaultFlagMap();
+      return { ...defaults, ...data } as FeatureFlagMap;
     },
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000,
