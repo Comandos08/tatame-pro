@@ -2663,6 +2663,13 @@ export const ptBR = {
   'selfAware.cta.billing': 'Ver Faturamento',
   'selfAware.cta.completeSetup': 'Completar Configuração',
 
+  // PI U10 — Next Best Action
+  'nba.waitingIdentity': 'Estamos validando sua identidade',
+  'nba.completeSetup': 'Concluir configuração inicial',
+  'nba.fixBilling': 'Regularizar pagamento',
+  'nba.contactAdmin': 'Entre em contato com o administrador',
+  'nba.noPermission': 'Você não tem permissão para esta ação',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

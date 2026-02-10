@@ -2684,4 +2684,11 @@ export const es: Record<string, string> = {
   'selfAware.cta.billing': 'Ver Facturación',
   'selfAware.cta.completeSetup': 'Completar Configuración',
 
+  // PI U10 — Next Best Action
+  'nba.waitingIdentity': 'Validando su identidad',
+  'nba.completeSetup': 'Completar configuración inicial',
+  'nba.fixBilling': 'Regularizar pago',
+  'nba.contactAdmin': 'Contacte al administrador',
+  'nba.noPermission': 'No tiene permiso para esta acción',
+
 };
