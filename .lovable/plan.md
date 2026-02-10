@@ -1,88 +1,81 @@
 
 
-# PI U5 — OBSERVABILITY SINGLE SOURCE OF TRUTH (Execucao)
+# PI U6 — ERROR CATALOG SINGLE SOURCE OF TRUTH (Execucao)
 
-## Fase U5.E1 — Remover Dead Code
+## Fase U6.E1 — Alinhar Taxonomia do Catalogo
+
+**Arquivo**: `src/lib/errors/institutionalErrors.ts`
 
 ### Acoes
 
-1. **Deletar `src/observability/` inteiro** (4 arquivos: `types.ts`, `observability.ts`, `sentryProvider.ts`, `index.ts`)
-2. **Atualizar `e2e/contract/observability.spec.ts`** — unico consumidor externo
-   - Mover as constantes `SAFE_EVENT_DOMAINS` e `SAFE_EVENT_LEVELS` para `src/lib/observability/types.ts` (compatibilidade com contrato E2E)
-   - Atualizar o import no spec para `@/lib/observability/types`
+1. **Remover** `ErrorSeverity` e `ErrorContext` locais
+2. **Importar** `Severity` e `ObservabilityDomain` de `src/lib/observability/types.ts`
+3. **Atualizar** interface `InstitutionalError`:
+   - `severity: ErrorSeverity` -> `severity: Severity`
+   - `context: ErrorContext` -> `domain: ObservabilityDomain`
+   - `retryable?: boolean` -> `retryable: boolean` (obrigatorio)
+4. **Atualizar** todas as 18 entradas do catalogo:
+   - `'WARNING'` -> `'WARN'` (3 entradas: AUTH-003, BILLING-001, SYS-002, DATA-003)
+   - `context: 'ACCESS'` -> `domain: 'SECURITY'` (4 entradas)
+   - `context: 'DATA'` -> `domain: 'SYSTEM'` (3 entradas)
+   - `context: 'AUTH'` -> `domain: 'AUTH'` (4 entradas)
+   - `context: 'BILLING'` -> `domain: 'BILLING'` (3 entradas)
+   - `context: 'SYSTEM'` -> `domain: 'SYSTEM'` (4 entradas)
+5. **Adicionar** header FROZEN CONTRACT com regras:
+
+```text
+/**
+ * FROZEN CONTRACT (PI U6)
+ *
+ * REGRAS ABSOLUTAS:
+ * - Nenhum erro pode existir fora deste catalogo
+ * - ACCESS e DATA NAO existem mais como dominio
+ *   - Autorizacao/permissao/policy -> ObservabilityDomain.SECURITY
+ *   - Persistencia/consistencia -> ObservabilityDomain.SYSTEM
+ * - Severity usa EXCLUSIVAMENTE Severity canonico (PI U5)
+ * - Apos U6, este catalogo e fonte obrigatoria para:
+ *   - SecurityBoundary
+ *   - error-report.ts
+ *   - Qualquer erro institucional exibido ao usuario
+ * - Nenhum novo erro pode ser criado fora deste catalogo
+ */
+```
+
+6. **Adicionar** validacao DEV-only para codigos duplicados e combinacao suspeita (`retryable: true` + `severity: 'CRITICAL'`)
 
 ---
 
-## Fase U5.E2 — Unificacao de Tipos
+## Fase U6.E2 — Eliminar `formatUserError`
 
-### 2.1 Em `src/lib/observability/types.ts` — adicionar tipos canonicos
+**Arquivo**: `src/lib/observability/error-report.ts`
 
-```text
-// Adicionar (FROZEN CONTRACT):
-export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
-
-export type ObservabilityDomain =
-  | 'AUTH' | 'IDENTITY' | 'TENANT' | 'BILLING'
-  | 'MEMBERSHIP' | 'JOB' | 'SECURITY' | 'SYSTEM'
-  | 'INTEGRATION';
-
-// Migrar de src/observability/types.ts:
-export const SAFE_EVENT_DOMAINS = [...] as const;
-export const SAFE_EVENT_LEVELS = [...] as const;
-export type SafeEventDomain = ...;
-export type SafeEventLevel = ...;
-```
-
-### 2.2 Health Status — sem mudanca
-
-- `SafeHealthStatus` permanece em `src/types/health-state.ts` (FROZEN SAFE GOLD)
-- `HealthStatus` em `src/types/observability.ts` ja esta alinhada (OK, DEGRADED, CRITICAL, UNKNOWN)
-- Nenhuma duplicacao a resolver — ambas coexistem legitimamente (uma e contrato SAFE GOLD, outra e tipo de dominio UI)
-
-### 2.3 `EventSeverity` em `src/types/observability.ts`
-
-- **Mantida como esta** (LOW, MEDIUM, HIGH, CRITICAL) — esta nao e log severity, e classificacao de severidade de eventos de auditoria/alertas
-- Separacao semantica: `Severity` (logs) != `EventSeverity` (audit events)
-- Adicionar comentario documental explicitando esta distincao
-
-### 2.4 `error-report.ts` — alinhar severity
-
-- Campo `severity` no `ErrorContext` atualmente usa `'low' | 'medium' | 'high' | 'critical'` (lowercase)
-- Alinhar para usar `Severity` canonico: `'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'`
+1. **Remover** a funcao `formatUserError` inteira (linhas 156-183) — strings hardcoded em portugues, zero consumidores
+2. **Corrigir** docstring do exemplo na funcao `reportError` (`severity: 'high'` -> `severity: 'ERROR'`)
 
 ---
 
-## Fase U5.E3 — Error Pipeline
+## Fase U6.E3 — Atualizar Barrel Exports
 
-### 3.1 Novos loggers especializados em `logger.ts`
+**Arquivo**: `src/lib/errors/index.ts`
 
-```text
-export const securityLogger = createLogger('Security');
-export const auditLogger = createLogger('Audit');
-export const realtimeLogger = createLogger('Realtime');
-```
+1. **Remover** export de `ErrorSeverity` e `ErrorContext` (tipos eliminados)
+2. **Re-exportar** `Severity` e `ObservabilityDomain` de `lib/observability/types` para conveniencia dos consumidores
 
-### 3.2 Substituicoes de console direto
+---
 
-| Arquivo | Atual | Substituicao |
-|---|---|---|
-| `auth-state-machine.ts:73` | `console.error('[AuthStateMachine] INVALID...')` | `authLogger.error('Invalid transition', {...})` |
-| `auth-state-machine.ts:115` | `console.warn('[AuthStateMachine] Unknown...')` | `authLogger.warn('Unknown auth event', {...})` |
-| `security-boundary.ts:147` | `console.warn('[SecurityBoundary] Unknown...')` | `securityLogger.warn('Unknown security event', {...})` |
-| `auditEvent.ts:126` | `console.error('[B3-AUDIT] Failed:...')` | `auditLogger.error('Audit insert failed', {...})` |
-| `auditEvent.ts:130` | `console.error('[B3-AUDIT] Exception:...')` | `auditLogger.error('Audit exception', {...})` |
-| `realtime.ts:97` | `console.warn('[realtime] Failed to transform...')` | `realtimeLogger.warn('Transform failed', {...})` |
-| `realtime.ts:193` | `console.error('[realtime] Error processing...')` | `realtimeLogger.error('Event processing error', {...})` |
-| `realtime.ts:206` | `console.error('[realtime] Subscription error:...')` | `realtimeLogger.error('Subscription error', {...})` |
+## Fase U6.E4 — Atualizar Consumidores
 
-### 3.3 Permitidos (DEV-only contract validation — sem mudanca)
+### `src/lib/observability/types.ts`
 
-| Arquivo | Motivo |
-|---|---|
-| `institutionalErrors.ts:197, 216` | DEV-only (`!import.meta.env.PROD`), validacao de contrato |
-| `contractValidation.ts:55, 65, 89` | DEV-only, validacao de contrato de navegacao |
-| `identity-observability.ts:92` | DEV-only, validacao de transicoes |
-| `lib/observability/types.ts:68, 75` | DEV-only (`import.meta.env.PROD` guard), validacao de HealthSignal |
+1. **Remover** `import type { ErrorContext } from '@/lib/errors/institutionalErrors'` — importado mas nunca usado no arquivo
+
+### `src/components/observability/InstitutionalErrorsCard.tsx`
+
+1. **Substituir** `import type { ErrorSeverity }` por `import type { Severity }` de `@/lib/observability/types`
+2. **Atualizar** todas as referencias:
+   - `ErrorSeverity` -> `Severity`
+   - `'WARNING'` -> `'WARN'` na funcao `deriveSeverity`
+   - Atualizar `severityOrder` e maps de icones/cores para incluir `WARN` em vez de `WARNING`
 
 ---
 
@@ -90,24 +83,19 @@ export const realtimeLogger = createLogger('Realtime');
 
 | Arquivo | Acao |
 |---|---|
-| `src/observability/*` (4 arquivos) | DELETAR |
-| `src/lib/observability/types.ts` | Adicionar `Severity`, `ObservabilityDomain`, migrar `SAFE_EVENT_*` |
-| `src/lib/observability/logger.ts` | Adicionar 3 loggers especializados |
-| `src/lib/observability/error-report.ts` | Alinhar `severity` para `Severity` canonico |
-| `src/lib/auth/auth-state-machine.ts` | Migrar 2 console diretos para `authLogger` |
-| `src/lib/auth/security-boundary.ts` | Migrar 1 console direto para `securityLogger` |
-| `src/lib/audit/auditEvent.ts` | Migrar 2 console diretos para `auditLogger` |
-| `src/lib/observability/realtime.ts` | Migrar 3 console diretos para `realtimeLogger` |
-| `src/types/observability.ts` | Adicionar comentario documental (EventSeverity != Severity) |
-| `e2e/contract/observability.spec.ts` | Atualizar import path |
+| `src/lib/errors/institutionalErrors.ts` | Evoluir: remover tipos locais, importar canonicos, atualizar 18 entradas, FROZEN header, validacao DEV |
+| `src/lib/errors/index.ts` | Atualizar exports: remover tipos mortos, re-exportar canonicos |
+| `src/lib/observability/error-report.ts` | Remover `formatUserError`, corrigir docstring |
+| `src/lib/observability/types.ts` | Remover import nao utilizado de `ErrorContext` |
+| `src/components/observability/InstitutionalErrorsCard.tsx` | Migrar `ErrorSeverity` -> `Severity`, `WARNING` -> `WARN` |
 
 ---
 
 ## Risco
 
-Baixo-Medio. Mitigado por:
-- Dead code confirmado (zero consumidores de `src/observability/`)
-- Logger `createLogger` ja e padrao testado no sistema
-- Substituicoes sao 1:1 (mesma semantica, formato estruturado)
-- DEV-only `console.warn` preservados (sem impacto em producao)
+**Baixo**. Mitigado por:
+- `formatUserError` tem zero consumidores (confirmado por busca)
+- `InstitutionalErrorsCard` e unico consumidor externo de `ErrorSeverity` — migracao direta
+- `ErrorContext` importado em `types.ts` nunca e usado — remocao segura
+- Catalogo nao tem consumidores runtime alem da validacao DEV — mudancas taxonomicas sem impacto comportamental
 
