@@ -349,7 +349,40 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          {/* Stats */}
+          {/* === Section 1: Governance & Observability === */}
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <Card 
+              className="card-hover cursor-pointer" 
+              onClick={() => navigate('/admin/health')}
+            >
+              <CardHeader className="flex flex-row items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center">
+                  <Activity className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">{t('admin.systemHealth')}</CardTitle>
+                  <CardDescription>{t('admin.systemHealthDesc')}</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+
+            <Card 
+              className="card-hover cursor-pointer" 
+              onClick={() => navigate('/admin/health#audit')}
+            >
+              <CardHeader className="flex flex-row items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">{t('observability.audit.title')}</CardTitle>
+                  <CardDescription>{t('observability.audit.description')}</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          </div>
+
+          {/* === Section 2: Institutional Overview === */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {statCards.map((stat, index) => (
               <motion.div
@@ -358,7 +391,7 @@ export default function AdminDashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
-                <Card className="card-hover">
+                <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
                       {t(stat.labelKey)}
@@ -375,7 +408,7 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* Billing Metrics */}
+          {/* === Section 3: Billing Overview === */}
           <div className="mb-8">
             <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
@@ -389,7 +422,7 @@ export default function AdminDashboard() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.4 + index * 0.1 }}
                 >
-                  <Card className="card-hover">
+                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
                         {t(card.labelKey as any)}
@@ -407,7 +440,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Landing Settings Card */}
+          {/* === Section 4: Institutional Config === */}
           <Card 
             className="mb-8 card-hover cursor-pointer" 
             onClick={() => navigate('/admin/landing')}
@@ -419,25 +452,6 @@ export default function AdminDashboard() {
               <div>
                 <CardTitle className="text-base">{t('admin.landing.title')}</CardTitle>
                 <CardDescription>{t('admin.landing.cardDesc')}</CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-
-
-
-
-          {/* System Health Dashboard Card (P4.1.C) */}
-          <Card 
-            className="mb-8 card-hover cursor-pointer" 
-            onClick={() => navigate('/admin/health')}
-          >
-            <CardHeader className="flex flex-row items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center">
-                <Activity className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <CardTitle className="text-base">{t('admin.systemHealth')}</CardTitle>
-                <CardDescription>{t('admin.systemHealthDesc')}</CardDescription>
               </div>
             </CardHeader>
           </Card>

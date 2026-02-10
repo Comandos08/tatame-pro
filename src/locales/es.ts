@@ -1415,9 +1415,9 @@ export const es: Record<string, string> = {
 
   // P4.x-R1 — Admin Global i18n
   'admin.title': 'TATAME Admin',
-  'admin.globalPanel': 'Panel Global',
-  'admin.globalAdminPanel': 'Panel de Administración Global',
-  'admin.globalAdminDesc': 'Gestione todas las organizaciones de deportes de combate de la plataforma TATAME.',
+  'admin.globalPanel': 'Gobernanza',
+  'admin.globalAdminPanel': 'Panel de Gobernanza de la Plataforma',
+  'admin.globalAdminDesc': 'Vista consolidada de salud, gobernanza y trazabilidad de la plataforma. Ninguna acción operacional se ejecuta aquí.',
   'admin.activeOrgs': 'Organizaciones Activas',
   'admin.totalUsers': 'Usuarios Totales',
   'admin.registeredAthletes': 'Atletas Registrados',
