@@ -17,6 +17,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
+import { createAuditLog } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,15 +84,15 @@ serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    // 6. Audit
-    await supabase.from("audit_logs").insert({
-      event_type: "BADGE_METADATA_UPDATED",
+    // 6. Audit (B3 — via canonical helper)
+    await createAuditLog(supabase, {
+      event_type: 'BADGE_METADATA_UPDATED',
       tenant_id: badge.tenant_id,
       profile_id: user.id,
       metadata: {
-        badgeId,
+        target_type: 'BADGE',
+        target_id: badgeId,
         badgeCode: badge.code,
-        performedBy: user.id,
         changes: {
           name: { from: badge.name, to: name.trim() },
           description: { from: badge.description, to: description ?? badge.description },

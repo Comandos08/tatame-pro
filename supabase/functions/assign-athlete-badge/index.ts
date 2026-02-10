@@ -17,6 +17,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,17 +157,17 @@ serve(async (req) => {
       log("Badge granted", { athleteId, badgeCode: badge.code });
     }
 
-    // 7. Audit log
+    // 7. Audit log (B3 — via canonical helper)
     if (action !== "NOOP") {
-      await supabase.from("audit_logs").insert({
-        event_type: "BADGE_GRANTED",
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BADGE_GRANTED,
         tenant_id: tenantId,
         profile_id: user.id,
         metadata: {
-          athleteId,
+          target_type: 'ATHLETE',
+          target_id: athleteId,
           badgeCode: badge.code,
           badgeName: badge.name,
-          performedBy: user.id,
           action,
         },
       });

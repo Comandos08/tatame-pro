@@ -28,6 +28,7 @@ import {
 import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 import { formatRelativeTime } from '@/lib/i18n/formatters';
+import { auditEvent } from '@/lib/audit/auditEvent';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -208,22 +209,19 @@ export default function SystemHealth() {
     const logAccess = async () => {
       try {
         if (hasAccess && currentUser?.id) {
-          await supabase.from('audit_logs').insert({
+          auditEvent({
             event_type: 'HEALTH_PAGE_ACCESSED',
-            category: 'OBSERVABILITY',
             tenant_id: null,
             profile_id: currentUser.id,
+            effective_role: 'SUPERADMIN_GLOBAL',
             metadata: {
               route: '/admin/health',
-              actor_role: 'SUPERADMIN_GLOBAL',
               tenant_context: null,
-              impersonation: false,
             },
           });
         } else if (!hasAccess && denialReason) {
-          await supabase.from('audit_logs').insert({
+          auditEvent({
             event_type: 'HEALTH_ACCESS_DENIED',
-            category: 'SECURITY',
             tenant_id: null,
             profile_id: currentUser?.id ?? null,
             metadata: {
