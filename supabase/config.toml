@@ -113,3 +113,9 @@ verify_jwt = false
 
 [functions.notify-critical-alert]
 verify_jwt = false
+
+[functions.verify-diploma]
+verify_jwt = false
+
+[functions.list-public-academies]
+verify_jwt = false
