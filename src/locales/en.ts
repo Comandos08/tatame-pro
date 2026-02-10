@@ -2190,6 +2190,10 @@ export const en: Record<string, string> = {
   'impersonation.startSession': 'Start Session',
   'impersonation.backToAdmin': 'Back to Dashboard',
 
+  // PI C4.3 — Audit as Observability
+  'observability.audit.sectionLabel': 'Observability',
+  'observability.audit.title': 'System Audit',
+  'observability.audit.description': 'Immutable record of critical events for traceability, security, and system governance.',
 
   // Recovery Guide P1
   'recovery.pending.title': 'Awaiting Approval',

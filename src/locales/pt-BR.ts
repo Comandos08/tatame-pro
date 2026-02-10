@@ -2169,6 +2169,10 @@ export const ptBR = {
   'impersonation.startSession': 'Iniciar Sessão',
   'impersonation.backToAdmin': 'Voltar ao Painel',
 
+  // PI C4.3 — Audit as Observability
+  'observability.audit.sectionLabel': 'Observabilidade',
+  'observability.audit.title': 'Auditoria do Sistema',
+  'observability.audit.description': 'Registro imutável de eventos críticos para rastreabilidade, segurança e governança do sistema.',
 
   // Recovery Guide P1
   'recovery.pending.title': 'Aguardando Aprovação',

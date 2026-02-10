@@ -423,21 +423,8 @@ export default function AdminDashboard() {
             </CardHeader>
           </Card>
 
-          {/* PI-D4-SUPERADMIN1.0: Audit Log Card */}
-          <Card 
-            className="mb-8 card-hover cursor-pointer" 
-            onClick={() => navigate('/admin/audit')}
-          >
-            <CardHeader className="flex flex-row items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-warning" />
-              </div>
-              <div>
-                <CardTitle className="text-base">{t('admin.auditLog') || 'Audit Log'}</CardTitle>
-                <CardDescription>{t('admin.auditLogDesc') || 'Visualize eventos críticos do sistema'}</CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
+
+
 
           {/* System Health Dashboard Card (P4.1.C) */}
           <Card 

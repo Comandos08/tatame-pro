@@ -106,7 +106,8 @@ export default function AuditLog() {
     isLoading: authLoading
   } = useCurrentUser();
   const {
-    locale
+    locale,
+    t
   } = useI18n();
 
   // Filters state
@@ -229,15 +230,15 @@ export default function AuditLog() {
       <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-4 px-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin/health')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
               <h1 className="font-display text-lg font-bold flex items-center gap-2">
                 <Shield className="h-5 w-5 text-primary" />
-                Audit Log
+                {t('observability.audit.title')}
               </h1>
-              <p className="text-xs text-muted-foreground">Eventos críticos do sistema</p>
+              <p className="text-xs text-muted-foreground">{t('observability.audit.description')}</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>

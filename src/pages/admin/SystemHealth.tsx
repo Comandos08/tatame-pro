@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Activity, RefreshCw, ArrowLeft, Clock, Shield, AlertTriangle, Users, CreditCard } from 'lucide-react';
+import { Activity, RefreshCw, ArrowLeft, Clock, Shield, AlertTriangle, Users, CreditCard, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -389,6 +389,29 @@ export default function SystemHealth() {
           {/* Critical Events */}
           <div className="mt-6">
             <CriticalEventsCard />
+          </div>
+
+          {/* PI C4.3: Audit as Observability Section */}
+          <div className="mt-6" id="audit">
+            <Card 
+              className="card-hover cursor-pointer"
+              onClick={() => navigate('/admin/audit')}
+            >
+              <CardHeader className="flex flex-row items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-warning" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      {t('observability.audit.sectionLabel')}
+                    </span>
+                  </div>
+                  <CardTitle className="text-base">{t('observability.audit.title')}</CardTitle>
+                  <CardDescription>{t('observability.audit.description')}</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
           </div>
         </motion.div>
       </main>
