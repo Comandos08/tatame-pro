@@ -17,6 +17,7 @@ import {
   type FeatureFlagMap,
   buildDefaultFlagMap,
 } from '@/lib/featureFlags';
+import { failSafeBoolean } from '@/lib/safety/failSafe';
 
 export interface UseFeatureFlagsResult {
   /** Check if a flag is enabled (fail-closed: false on error/loading) */
@@ -53,7 +54,11 @@ export function useFeatureFlags(tenantId?: string): UseFeatureFlagsResult {
   });
 
   return {
-    isEnabled: (flag: InstitutionalFeatureFlag) => flags[flag] ?? false,
+    // U9: fail-closed — loading or missing tenant → false always
+    isEnabled: (flag: InstitutionalFeatureFlag) => {
+      if (isLoading || !tenantId) return false;
+      return failSafeBoolean(flags[flag], false);
+    },
     flags,
     isLoading,
   };

@@ -63,11 +63,12 @@ export function SystemAwarenessBanner() {
   const config = LEVEL_CONFIG[state.level];
   const Icon = config.icon;
 
-  // CTA: only show if user has access to the target feature
+  // U9 MISUSE_IMPOSSIBLE: CTA only if can() passes (fail-closed);
+  // never fall through to `true` — unknown href = no CTA
   const showCTA = state.cta && (
     state.cta.href.includes('/billing') ? can('TENANT_BILLING') :
     state.cta.href.includes('/settings') ? can('TENANT_SETTINGS') :
-    true
+    false // U9: unknown CTA target → deny
   );
 
   return (
