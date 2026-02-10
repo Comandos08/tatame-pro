@@ -19,7 +19,13 @@ export type EventCategory =
   | 'STORAGE'
   | 'OTHER';
 
-// Severity levels for events and alerts
+/**
+ * Severity levels for audit events and alerts.
+ * 
+ * NOTE (PI U5): This is AUDIT EVENT severity, NOT log severity.
+ * Log severity uses `Severity` ('INFO' | 'WARN' | 'ERROR' | 'CRITICAL')
+ * defined in `src/lib/observability/types.ts`.
+ */
 export type EventSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 // Health status classification

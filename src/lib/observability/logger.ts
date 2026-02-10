@@ -130,3 +130,18 @@ export const routerLogger = createLogger('Router');
  * Network-specific logger for API calls.
  */
 export const networkLogger = createLogger('Network');
+
+/**
+ * Security-specific logger for security boundary events.
+ */
+export const securityLogger = createLogger('Security');
+
+/**
+ * Audit-specific logger for audit trail events.
+ */
+export const auditLogger = createLogger('Audit');
+
+/**
+ * Realtime-specific logger for subscription events.
+ */
+export const realtimeLogger = createLogger('Realtime');

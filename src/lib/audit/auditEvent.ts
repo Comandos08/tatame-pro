@@ -17,6 +17,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { auditLogger } from '@/lib/observability/logger';
 
 /** Canonical audit categories (mirrors backend detectCategory) */
 export type AuditCategory =
@@ -123,10 +124,10 @@ export async function auditEvent(input: AuditEventInput): Promise<void> {
     });
 
     if (error) {
-      console.error('[B3-AUDIT] Failed:', error.message);
+      auditLogger.error('Audit insert failed', { component: 'AuditEvent', action: 'insert', metadata: { error: error.message } } as any);
     }
   } catch (err) {
     // Best-effort — never block UI
-    console.error('[B3-AUDIT] Exception:', err);
+    auditLogger.error('Audit exception', { component: 'AuditEvent', action: 'insert' } as any, err instanceof Error ? err : new Error(String(err)));
   }
 }

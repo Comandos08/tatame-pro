@@ -25,6 +25,7 @@ import {
   isUnauthorizedError, 
   isForbiddenError 
 } from './auth-state-machine';
+import { securityLogger } from '@/lib/observability/logger';
 
 /**
  * Security event types that this boundary handles.
@@ -144,7 +145,7 @@ export function resolveSecurityEvent(
       break;
 
     default:
-      console.warn(`[SecurityBoundary] Unknown security event: ${event}`);
+      securityLogger.warn('Unknown security event', { action: 'resolveSecurityEvent', event } as any);
       actions.push({ type: 'NOOP' });
   }
 

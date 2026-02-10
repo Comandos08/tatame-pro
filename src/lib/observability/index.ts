@@ -1,8 +1,8 @@
 /**
- * 🔐 Observability — Barrel Export
+ * 🔐 Observability — Barrel Export (PI U5 — CANONICAL)
  * 
- * Centralized observability utilities.
- * Includes Health Signal contract (PI E3).
+ * Single source of truth for all observability infrastructure.
+ * Includes: Logger, Error Reporting, Realtime, Types, Health Signals.
  */
 
 export * from './logger';
