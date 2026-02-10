@@ -2090,6 +2090,36 @@ export type Database = {
           },
         ]
       }
+      institutional_events: {
+        Row: {
+          actor_user_id: string | null
+          domain: string
+          id: string
+          metadata: Json | null
+          occurred_at: string
+          tenant_id: string | null
+          type: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          domain: string
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          tenant_id?: string | null
+          type: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          domain?: string
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          tenant_id?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       memberships: {
         Row: {
           academy_id: string | null

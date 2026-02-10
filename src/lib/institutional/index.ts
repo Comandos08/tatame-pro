@@ -14,3 +14,11 @@ export {
   type DocumentStatus,
   type BillingStatus,
 } from './isDocumentValid';
+
+export {
+  type InstitutionalEventDomain,
+  type InstitutionalEventType,
+  type InstitutionalEvent,
+} from './institutionalTimeline';
+
+export { emitInstitutionalEvent } from './emitInstitutionalEvent';
