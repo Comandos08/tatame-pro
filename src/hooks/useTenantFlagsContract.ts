@@ -73,7 +73,7 @@ function validateContract(raw: unknown): TenantFlagsContract | null {
 }
 
 export function useTenantFlagsContract(tenantId: string | undefined): TenantFlagsContractResult {
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['tenant-flags-contract', tenantId],
     queryFn: async () => {
       if (!tenantId) return null;
@@ -98,7 +98,7 @@ export function useTenantFlagsContract(tenantId: string | undefined): TenantFlag
   });
 
   const status: ContractStatus = isLoading ? 'loading' : isError ? 'error' : 'ready';
-  const asyncState: AsyncState<TenantFlagsContract> = normalizeAsyncState({ data, isLoading, isError, error: null });
+  const asyncState: AsyncState<TenantFlagsContract> = normalizeAsyncState({ data, isLoading, isError, error });
   
   return {
     contract: data ?? null,
