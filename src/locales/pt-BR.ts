@@ -2670,6 +2670,12 @@ export const ptBR = {
   'nba.contactAdmin': 'Entre em contato com o administrador',
   'nba.noPermission': 'Você não tem permissão para esta ação',
 
+  // PI U11 — Progress Feedback
+  'progress.wizardCompleted': 'Configuração concluída com sucesso',
+  'progress.billingRegularized': 'Pagamento confirmado. Obrigado!',
+  'progress.tenantActivated': 'Ambiente ativado e pronto para uso',
+  'progress.firstAccess': 'Bem-vindo! Seu acesso está ativo',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
