@@ -109,11 +109,10 @@
 - ✔ Read-only
 - ✔ Zero authentication required (except identity/wizard)
 
-### 5️⃣ Federation Domain
+### 5️⃣ Federation Domain (INACTIVE — PI E1.1 / Z0.1)
 
-| Route | Persona | Guard |
-|-------|---------|-------|
-| `/federation/:slug/dashboard` | `FEDERATION_ADMIN` | `requireFederationRole()` |
+> ⛔ **NO ROUTES EXIST.** All federation routes were removed per PI Z0.1.
+> See "Federation Domain (Declared / Inactive)" section below for hard rules.
 
 ---
 
