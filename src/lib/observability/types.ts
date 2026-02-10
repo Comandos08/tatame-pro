@@ -1,18 +1,21 @@
 /**
  * 🏛️ Observability Contract Types — PI E3 / PI U5
  * 
- * CANONICAL source for all observability types.
+ * FROZEN CONTRACT (PI U5)
+ * - No new status, source or severity types may be introduced.
+ * - Health uses HealthStatus (from src/types/health-state.ts).
+ * - Logs use Severity.
+ * - Domains use ObservabilityDomain.
  * 
- * Canonical types for health signals, connecting:
- * - Audit (what happened) — PI B3
- * - Institutional Errors (what failed) — PI E2
- * - Health Signals (how the system behaves) — PI E3
+ * CANONICAL source for all observability types.
  * 
  * SAFE GOLD: Read-only contract. No flow decisions.
  * Status: FROZEN
  */
 
 import type { ErrorContext } from '@/lib/errors/institutionalErrors';
+import type { SafeHealthStatus } from '@/types/health-state';
+import { logger } from './logger';
 
 // ============================================
 // CANONICAL OBSERVABILITY TAXONOMY (PI U5 — FROZEN)
@@ -98,14 +101,10 @@ export type HealthSignalType =
   | 'DEGRADED_MODE'
   | 'DEPENDENCY_DOWN';
 
-export type HealthSignalStatus = 'OK' | 'WARNING' | 'CRITICAL';
-
-export type HealthSignalSource = 'SYSTEM' | 'BILLING' | 'IDENTITY' | 'INTEGRATION';
-
 export interface HealthSignal {
   signal: HealthSignalType;
-  status: HealthSignalStatus;
-  source: HealthSignalSource;
+  health: SafeHealthStatus;
+  domain: ObservabilityDomain;
   observedAt: string; // ISO 8601
   relatedErrorCode?: string; // Links to E2 InstitutionalError.code
 }
@@ -131,7 +130,7 @@ export interface HealthSignal {
 
 /**
  * DEV-only: validates a HealthSignal's structural integrity.
- * Warns on missing source or invalid relatedErrorCode.
+ * Warns on missing domain or invalid relatedErrorCode.
  */
 export function validateHealthSignal(
   signal: HealthSignal,
@@ -139,17 +138,17 @@ export function validateHealthSignal(
 ): void {
   if (import.meta.env.PROD) return;
 
-  if (!signal.source) {
-    console.warn(
-      `[Observability Contract] ⚠️ HealthSignal "${signal.signal}" has no source. ` +
-      `All signals must declare a source (SYSTEM | BILLING | IDENTITY | INTEGRATION).`
-    );
+  if (!signal.domain) {
+    logger.warn('Invalid health signal: missing domain', {
+      component: 'ObservabilityContract',
+      metadata: { signal },
+    } as any);
   }
 
   if (signal.relatedErrorCode && !knownErrorCodes.has(signal.relatedErrorCode)) {
-    console.warn(
-      `[Observability Contract] ⚠️ HealthSignal "${signal.signal}" references unknown error code ` +
-      `"${signal.relatedErrorCode}". Ensure it exists in the E2 error catalog.`
-    );
+    logger.warn('Invalid health signal: unknown error code', {
+      component: 'ObservabilityContract',
+      metadata: { signal, relatedErrorCode: signal.relatedErrorCode },
+    } as any);
   }
 }
