@@ -2697,4 +2697,18 @@ export const es: Record<string, string> = {
   'progress.tenantActivated': 'Entorno activado y listo para usar',
   'progress.firstAccess': 'Bienvenido! Su acceso está activo',
 
+  // PI U13 — Empty State Authority
+  'emptyState.loading.title': 'Cargando información',
+  'emptyState.loading.description': 'Espere mientras verificamos su acceso.',
+  'emptyState.tenantBlocked.title': 'Organización no disponible',
+  'emptyState.tenantBlocked.description': 'Esta organización está temporalmente inaccesible. Contacte al administrador.',
+  'emptyState.billingBlocked.title': 'Acceso restringido por pendencia financiera',
+  'emptyState.billingBlocked.description': 'Regularice el pago para restaurar el acceso completo.',
+  'emptyState.noPermission.title': 'Acceso no autorizado',
+  'emptyState.noPermission.description': 'No tiene permiso para ver este contenido.',
+  'emptyState.featureDisabled.title': 'Funcionalidad no disponible',
+  'emptyState.featureDisabled.description': 'Esta funcionalidad no está habilitada para su organización.',
+  'emptyState.noData.title': 'No se encontraron registros',
+  'emptyState.noData.description': 'No hay datos disponibles para mostrar en este momento.',
+
 };

@@ -2676,6 +2676,20 @@ export const ptBR = {
   'progress.tenantActivated': 'Ambiente ativado e pronto para uso',
   'progress.firstAccess': 'Bem-vindo! Seu acesso está ativo',
 
+  // PI U13 — Empty State Authority
+  'emptyState.loading.title': 'Carregando informações',
+  'emptyState.loading.description': 'Aguarde enquanto o sistema verifica seu acesso.',
+  'emptyState.tenantBlocked.title': 'Organização indisponível',
+  'emptyState.tenantBlocked.description': 'Esta organização está temporariamente inacessível. Entre em contato com o administrador.',
+  'emptyState.billingBlocked.title': 'Acesso restrito por pendência financeira',
+  'emptyState.billingBlocked.description': 'Regularize o pagamento para restaurar o acesso completo.',
+  'emptyState.noPermission.title': 'Acesso não autorizado',
+  'emptyState.noPermission.description': 'Você não possui permissão para visualizar este conteúdo.',
+  'emptyState.featureDisabled.title': 'Funcionalidade não disponível',
+  'emptyState.featureDisabled.description': 'Esta funcionalidade não está habilitada para sua organização.',
+  'emptyState.noData.title': 'Nenhum registro encontrado',
+  'emptyState.noData.description': 'Não há dados disponíveis para exibição neste momento.',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;
