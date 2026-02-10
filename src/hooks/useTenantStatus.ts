@@ -7,12 +7,8 @@ import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
 import type { AsyncState } from '@/types/async';
 
 export interface TenantStatusInfo {
-  isOnTrial: boolean;
   daysToTrialEnd: number | null;
   isTrialEndingSoon: boolean;
-  isTrialExpired: boolean;
-  isBlocked: boolean;
-  hasBillingIssue: boolean;
   billingStatus: string | null;
   currentPeriodEnd: Date | null;
   planName: string | null;
@@ -81,27 +77,21 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     tenant ? { is_active: tenant.isActive } : null
   );
 
-  // Calculate status flags
-  const isOnTrial = billingState.status === 'TRIALING';
+  // Calculate presentation-only flags
+  const isTrialActive = billingState.status === 'TRIALING';
   const currentPeriodEnd = billing?.current_period_end
     ? new Date(billing.current_period_end)
     : null;
 
   const daysToTrialEnd = (() => {
-    if (!isOnTrial || !currentPeriodEnd) return null;
+    if (!isTrialActive || !currentPeriodEnd) return null;
     const now = new Date();
     const diffTime = currentPeriodEnd.getTime() - now.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   })();
 
   const isTrialEndingSoon =
-    isOnTrial && daysToTrialEnd !== null && daysToTrialEnd <= TRIAL_WARNING_DAYS && daysToTrialEnd > 0;
-
-  const isTrialExpired = isOnTrial && daysToTrialEnd !== null && daysToTrialEnd <= 0;
-
-  // Derive from resolver (backward compatible)
-  const hasBillingIssue = billingState.isReadOnly;
-  const isBlocked = billingState.isBlocked;
+    isTrialActive && daysToTrialEnd !== null && daysToTrialEnd <= TRIAL_WARNING_DAYS && daysToTrialEnd > 0;
 
   const asyncState: AsyncState<TenantBillingData> = normalizeAsyncState({
     data: billing,
@@ -111,12 +101,8 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
   });
 
   return {
-    isOnTrial,
     daysToTrialEnd,
     isTrialEndingSoon,
-    isTrialExpired,
-    isBlocked,
-    hasBillingIssue,
     billingStatus: billingState.status,
     currentPeriodEnd,
     planName: billing?.plan_name || null,

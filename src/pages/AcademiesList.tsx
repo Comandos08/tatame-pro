@@ -4,8 +4,9 @@ import { Building2, Plus, Edit, Loader2, AlertCircle, MapPin, Phone, Mail } from
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
-import { useCurrentUser } from '@/contexts/AuthContext';
+
 import { useI18n } from '@/contexts/I18nContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,7 @@ interface Academy {
 
 export default function AcademiesList() {
   const { tenant } = useTenant();
-  const { hasRole, isGlobalSuperadmin } = useCurrentUser();
+  
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -46,8 +47,8 @@ export default function AcademiesList() {
     email: '',
   });
 
-  const canManage = isGlobalSuperadmin || 
-    (tenant && hasRole('ADMIN_TENANT', tenant.id));
+  const { can: canFeature } = usePermissions();
+  const canManage = canFeature('TENANT_ACADEMIES');
 
   const { data: academies, isLoading, error } = useQuery({
     queryKey: ['academies', tenant?.id],

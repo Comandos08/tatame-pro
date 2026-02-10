@@ -17,7 +17,6 @@ export interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isSessionReady: boolean;
   isGlobalSuperadmin: boolean;
   currentRolesByTenant: Map<string, AppRole[]>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -173,8 +172,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ✅ isAuthenticated is based on SESSION, not profile
   const isAuthenticated = authState === "authenticated" && !!session;
 
-  // ✅ isSessionReady: indica que a sessão está sincronizada e pronta para uso
-  const isSessionReady = authState === "authenticated" && !!session;
 
   // Derived from currentUser (may be null initially after login)
   const isGlobalSuperadmin =
@@ -199,7 +196,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         isLoading,
         isAuthenticated,
-        isSessionReady,
         isGlobalSuperadmin,
         currentRolesByTenant,
         signIn,
