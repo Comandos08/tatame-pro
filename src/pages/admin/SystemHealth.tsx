@@ -1,5 +1,5 @@
 /**
- * 🔍 SystemHealth — HEALTH1.0 SAFE GOLD
+ * 🔍 SystemHealth — HEALTH1.0 SAFE GOLD + PI E3.1
  * 
  * Admin Global System Health Dashboard.
  * READ-ONLY — Zero mutations.
@@ -10,27 +10,27 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Activity, RefreshCw, ArrowLeft, Clock, Shield, AlertTriangle, Users, CreditCard, FileText } from 'lucide-react';
+import { Activity, RefreshCw, ArrowLeft, AlertTriangle, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useSystemHealthStatus } from '@/hooks/useSystemHealthStatus';
 import { 
-  HealthStatusBadge, 
+  HealthStatusBadge,
+  HealthBanner,
   JobsHealthCard, 
   CriticalEventsCard,
+  InstitutionalErrorsCard,
+  DependenciesCard,
   AlertsPanel,
   AlertBadge,
 } from '@/components/observability';
 import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
-import { formatRelativeTime } from '@/lib/i18n/formatters';
 import { auditEvent } from '@/lib/audit/auditEvent';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   normalizeHealthViewState, 
   normalizeHealthStatus,
@@ -39,146 +39,11 @@ import {
 import type { SafeHealthStatus, SafeHealthViewState } from '@/types/health-state';
 
 // ============================================
-// SAFE GOLD: BILLING HEALTH CARD (READ-ONLY)
-// ============================================
-
-function BillingHealthCard() {
-  const { t } = useI18n();
-  
-  const { data: metrics, isLoading } = useQuery({
-    queryKey: ['admin-health-billing-metrics'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tenant_billing')
-        .select('status');
-      
-      if (error) throw error;
-      
-      const counts = { active: 0, trialing: 0, issues: 0 };
-      (data || []).forEach((b) => {
-        if (b.status === 'ACTIVE') counts.active++;
-        else if (b.status === 'TRIALING') counts.trialing++;
-        else if (['PAST_DUE', 'UNPAID', 'CANCELED', 'INCOMPLETE'].includes(b.status ?? '')) {
-          counts.issues++;
-        }
-      });
-      return counts;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-  
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <CreditCard className="h-5 w-5 text-primary" />
-          {t('observability.billing.title')}
-        </CardTitle>
-        <CardDescription className="text-xs">
-          {t('observability.billing.description')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="animate-pulse space-y-3">
-            <div className="h-12 bg-muted rounded" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-3 bg-success/10 rounded-lg">
-              <p className="text-2xl font-bold text-success">{metrics?.active || 0}</p>
-              <p className="text-xs text-muted-foreground">{t('observability.billing.active')}</p>
-            </div>
-            <div className="text-center p-3 bg-info/10 rounded-lg">
-              <p className="text-2xl font-bold text-info">{metrics?.trialing || 0}</p>
-              <p className="text-xs text-muted-foreground">{t('observability.billing.trialing')}</p>
-            </div>
-            <div className={cn(
-              'text-center p-3 rounded-lg',
-              (metrics?.issues || 0) > 0 ? 'bg-destructive/10' : 'bg-muted/50'
-            )}>
-              <p className={cn(
-                'text-2xl font-bold',
-                (metrics?.issues || 0) > 0 ? 'text-destructive' : 'text-muted-foreground'
-              )}>
-                {metrics?.issues || 0}
-              </p>
-              <p className="text-xs text-muted-foreground">{t('observability.billing.issues')}</p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================
-// SAFE GOLD: MEMBERSHIP HEALTH CARD (READ-ONLY)
-// ============================================
-
-function MembershipHealthCard() {
-  const { t } = useI18n();
-  
-  const { data: metrics, isLoading } = useQuery({
-    queryKey: ['admin-health-membership-metrics'],
-    queryFn: async () => {
-      const [activeRes, pendingRes, expiredRes] = await Promise.all([
-        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-        supabase.from('memberships').select('id', { count: 'exact', head: true }).in('status', ['PENDING_PAYMENT', 'PENDING_REVIEW']),
-        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('status', 'EXPIRED'),
-      ]);
-      return {
-        active: activeRes.count || 0,
-        pending: pendingRes.count || 0,
-        expired: expiredRes.count || 0,
-      };
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-  
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          {t('observability.memberships.title')}
-        </CardTitle>
-        <CardDescription className="text-xs">
-          {t('observability.memberships.description')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="animate-pulse space-y-3">
-            <div className="h-12 bg-muted rounded" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-3 bg-success/10 rounded-lg">
-              <p className="text-2xl font-bold text-success">{metrics?.active || 0}</p>
-              <p className="text-xs text-muted-foreground">{t('observability.memberships.active')}</p>
-            </div>
-            <div className="text-center p-3 bg-warning/10 rounded-lg">
-              <p className="text-2xl font-bold text-warning">{metrics?.pending || 0}</p>
-              <p className="text-xs text-muted-foreground">{t('observability.memberships.pending')}</p>
-            </div>
-            <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-muted-foreground">{metrics?.expired || 0}</p>
-              <p className="text-xs text-muted-foreground">{t('observability.memberships.expired')}</p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================
-// MAIN COMPONENT: SystemHealth (HEALTH1.0)
+// MAIN COMPONENT: SystemHealth (HEALTH1.0 + PI E3.1)
 // ============================================
 
 export default function SystemHealth() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { currentUser, isGlobalSuperadmin, isLoading: authLoading, session } = useCurrentUser();
   const { data: health, isLoading: healthLoading, refetch, isFetching } = useSystemHealthStatus();
@@ -322,30 +187,12 @@ export default function SystemHealth() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          {/* Overall Status */}
+          {/* PI E3.1: Institutional Health Banner */}
           {health && (
-            <Card className="mb-6">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <HealthStatusBadge status={health.overall} />
-                    <div className="text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 inline mr-1" />
-                      {t('observability.dashboard.lastUpdate')}: {' '}
-                      {formatRelativeTime(health.updatedAt, locale)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-success">{health.summary.ok} {t('observability.status.ok')}</span>
-                    <span className="text-warning">{health.summary.degraded} {t('observability.status.degraded')}</span>
-                    <span className="text-destructive">{health.summary.critical} {t('observability.status.critical')}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <HealthBanner status={health.overall} className="mb-6" />
           )}
           
-          {/* Health Checks Detail */}
+          {/* PI E3.1: Health Checks Detail */}
           {health?.checks && health.checks.length > 0 && (
             <div className="mb-6">
               <h2 className="text-sm font-medium text-muted-foreground mb-3">
@@ -366,9 +213,6 @@ export default function SystemHealth() {
                           {check.reason && (
                             <p className="text-sm text-muted-foreground">{check.reason}</p>
                           )}
-                          {check.recommendation && (
-                            <p className="text-xs text-info mt-1">💡 {check.recommendation}</p>
-                          )}
                         </div>
                         <HealthStatusBadge status={check.status} />
                       </div>
@@ -379,11 +223,11 @@ export default function SystemHealth() {
             </div>
           )}
           
-          {/* Metrics Grid */}
+          {/* PI E3.1: Indicator Cards (Read-only) */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <JobsHealthCard />
-            <BillingHealthCard />
-            <MembershipHealthCard />
+            <InstitutionalErrorsCard />
+            <DependenciesCard health={health} isLoading={healthLoading} />
           </div>
           
           {/* Critical Events */}

@@ -2610,6 +2610,22 @@ export const ptBR = {
   'ux.contextAdmin': 'Contexto: Administração',
   'ux.contextAthlete': 'Contexto: Atleta',
 
+  // PI E3.1 — Health Signaling
+  'observability.banner.ok': 'Não há falhas sistêmicas ativas no momento',
+  'observability.banner.okSubtitle': 'Todos os indicadores de saúde estão dentro dos parâmetros esperados.',
+  'observability.banner.warning': 'O sistema apresenta sinais de degradação',
+  'observability.banner.warningSubtitle': 'Indicadores de atenção foram detectados. Monitoramento ativo.',
+  'observability.banner.critical': 'Falhas críticas foram detectadas no sistema',
+  'observability.banner.criticalSubtitle': 'Eventos críticos foram registrados recentemente.',
+  'observability.banner.unknown': 'Estado do sistema indeterminado',
+  'observability.banner.unknownSubtitle': 'Não foi possível determinar o estado atual do sistema.',
+  'observability.errors.title': 'Erros Institucionais',
+  'observability.errors.description': 'Eventos recentes agrupados por tipo',
+  'observability.errors.noErrors': 'Nenhum erro institucional registrado',
+  'observability.dependencies.title': 'Dependências',
+  'observability.dependencies.description': 'Estado dos serviços monitorados',
+  'observability.dependencies.noData': 'Nenhuma dependência registrada',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

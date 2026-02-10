@@ -2631,4 +2631,20 @@ export const en: Record<string, string> = {
   'ux.contextAdmin': 'Context: Administration',
   'ux.contextAthlete': 'Context: Athlete',
 
+  // PI E3.1 — Health Signaling
+  'observability.banner.ok': 'No active system failures at this time',
+  'observability.banner.okSubtitle': 'All health indicators are within expected parameters.',
+  'observability.banner.warning': 'The system shows signs of degradation',
+  'observability.banner.warningSubtitle': 'Warning indicators have been detected. Active monitoring.',
+  'observability.banner.critical': 'Critical failures have been detected in the system',
+  'observability.banner.criticalSubtitle': 'Critical events have been logged recently.',
+  'observability.banner.unknown': 'System state is undetermined',
+  'observability.banner.unknownSubtitle': 'Unable to determine the current system state.',
+  'observability.errors.title': 'Institutional Errors',
+  'observability.errors.description': 'Recent events grouped by type',
+  'observability.errors.noErrors': 'No institutional errors recorded',
+  'observability.dependencies.title': 'Dependencies',
+  'observability.dependencies.description': 'Monitored service status',
+  'observability.dependencies.noData': 'No dependencies registered',
+
 };
