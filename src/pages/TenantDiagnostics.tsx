@@ -1,7 +1,7 @@
 /**
  * TENANT DIAGNOSTICS — Tenant-Scoped View
  * 
- * For ADMIN_TENANT and STAFF_ORGANIZACAO.
+ * For ADMIN_TENANT only (canonical identity model — PI A1).
  * Uses TenantContext for current tenant.
  * Shows tenant-specific diagnostics data.
  * 
