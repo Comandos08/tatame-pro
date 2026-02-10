@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
+import { useAccessContract } from '@/hooks/useAccessContract';
 import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
 import { SystemHealthCard } from '@/components/dashboard/SystemHealthCard';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
@@ -64,6 +65,7 @@ export default function TenantDashboard() {
   const { currentUser } = useCurrentUser();
   const { t, locale } = useI18n();
   const { tenantSlug } = useParams();
+  const { can } = useAccessContract(tenant?.id);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [membershipsByMonth, setMembershipsByMonth] = useState<MonthlyData[]>([]);
   const [diplomasByMonth, setDiplomasByMonth] = useState<MonthlyData[]>([]);
@@ -194,7 +196,8 @@ export default function TenantDashboard() {
     },
   };
 
-  const quickActions = [
+  // U20: Quick actions only render if user can access the target feature
+  const allQuickActions = [
     { 
       label: t('dashboard.approveMembers'), 
       description: t('dashboard.pendingCount', { count: String(stats?.pendingMemberships || 0) }),
@@ -202,6 +205,7 @@ export default function TenantDashboard() {
       icon: CheckCircle,
       variant: stats?.pendingMemberships ? 'default' : 'outline' as const,
       highlight: (stats?.pendingMemberships || 0) > 0,
+      feature: 'TENANT_APPROVALS',
     },
     { 
       label: t('dashboard.expiringMemberships'), 
@@ -210,6 +214,7 @@ export default function TenantDashboard() {
       icon: Calendar,
       variant: stats?.expiringMemberships ? 'warning' : 'outline' as const,
       highlight: (stats?.expiringMemberships || 0) > 0,
+      feature: 'TENANT_ATHLETES',
     },
     {
       label: t('dashboard.issueDiploma'), 
@@ -218,6 +223,7 @@ export default function TenantDashboard() {
       icon: Award,
       variant: 'outline' as const,
       highlight: false,
+      feature: 'TENANT_GRADINGS',
     },
     { 
       label: t('dashboard.registerAcademy'), 
@@ -226,8 +232,11 @@ export default function TenantDashboard() {
       icon: Building2,
       variant: 'outline' as const,
       highlight: false,
+      feature: 'TENANT_ACADEMIES',
     },
   ];
+
+  const quickActions = allQuickActions.filter(a => can(a.feature));
 
   const formatActivityTime = (dateStr: string) => {
     // Use formatRelativeTime from centralized formatters
@@ -352,12 +361,15 @@ export default function TenantDashboard() {
                           </div>
                         );
                       })}
-                      <Link 
-                        to={`/${tenantSlug}/app/audit-log`}
-                        className="block text-center text-sm text-primary hover:underline pt-2"
-                      >
-                        {t('dashboard.viewFullHistory')} →
-                      </Link>
+                      {/* U20: Audit log link only if user can access */}
+                      {can('TENANT_AUDIT_LOG') && (
+                        <Link 
+                          to={`/${tenantSlug}/app/audit-log`}
+                          className="block text-center text-sm text-primary hover:underline pt-2"
+                        >
+                          {t('dashboard.viewFullHistory')} →
+                        </Link>
+                      )}
                     </div>
                   )}
                 </CardContent>
