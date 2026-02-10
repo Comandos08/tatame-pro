@@ -156,13 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       throw error;
     }
-    // LOGIN_SUCCESS emitted after identity resolves (IdentityContext)
-    emitInstitutionalEvent({
-      domain: 'AUTH',
-      type: 'LOGIN_SUCCESS',
-      metadata: { email },
-    });
-    // Session update happens via onAuthStateChange
+    // LOGIN_SUCCESS is emitted by IdentityContext after identity resolution
+    // AuthContext only emits technical failures (LOGIN_FAILED)
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
