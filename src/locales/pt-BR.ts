@@ -1781,6 +1781,14 @@ export const ptBR = {
   'security.eventsFound': 'eventos encontrados',
   'security.noEvents': 'Nenhum evento de segurança encontrado',
 
+  // Security Boundary (PI Z0.5 — Error Contract E2)
+  'security.boundary.sessionExpired': 'Sua sessão expirou. Por favor, faça login novamente.',
+  'security.boundary.sessionInvalidated': 'Sua sessão foi invalidada. Por favor, faça login novamente.',
+  'security.boundary.authExpired': 'Sua autenticação expirou. Por favor, faça login novamente.',
+  'security.boundary.forbidden': 'Você não tem permissão para acessar este recurso.',
+  'security.boundary.refreshFailed': 'Não foi possível renovar sua sessão. Por favor, faça login novamente.',
+  'security.boundary.networkError': 'Erro de conexão. Verifique sua internet e tente novamente.',
+
   // Identity Wizard
   'identity.wizardTitle': 'Configuração de Conta',
   'identity.wizardSubtitle': 'Complete as etapas abaixo para acessar o sistema',

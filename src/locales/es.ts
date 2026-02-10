@@ -1840,6 +1840,14 @@ export const es: Record<string, string> = {
   'security.eventsFound': 'eventos encontrados',
   'security.noEvents': 'No se encontraron eventos de seguridad',
 
+  // Security Boundary (PI Z0.5 — Error Contract E2)
+  'security.boundary.sessionExpired': 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
+  'security.boundary.sessionInvalidated': 'Su sesión fue invalidada. Por favor, inicie sesión nuevamente.',
+  'security.boundary.authExpired': 'Su autenticación ha expirado. Por favor, inicie sesión nuevamente.',
+  'security.boundary.forbidden': 'No tiene permiso para acceder a este recurso.',
+  'security.boundary.refreshFailed': 'No fue posible renovar su sesión. Por favor, inicie sesión nuevamente.',
+  'security.boundary.networkError': 'Error de conexión. Verifique su internet e intente nuevamente.',
+
   // Identity Wizard
   'identity.wizardTitle': 'Configuración de Cuenta',
   'identity.wizardSubtitle': 'Complete los pasos a continuación para acceder al sistema',
