@@ -350,7 +350,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* === Section 1: Governance & Observability === */}
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="mb-8">
             <Card 
               className="card-hover cursor-pointer" 
               onClick={() => navigate('/admin/health')}
@@ -360,23 +360,8 @@ export default function AdminDashboard() {
                   <Activity className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">{t('admin.systemHealth')}</CardTitle>
-                  <CardDescription>{t('admin.systemHealthDesc')}</CardDescription>
-                </div>
-              </CardHeader>
-            </Card>
-
-            <Card 
-              className="card-hover cursor-pointer" 
-              onClick={() => navigate('/admin/health#audit')}
-            >
-              <CardHeader className="flex flex-row items-center gap-4">
-                <div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
-                  <Shield className="h-5 w-5 text-warning" />
-                </div>
-                <div>
-                  <CardTitle className="text-base">{t('observability.audit.title')}</CardTitle>
-                  <CardDescription>{t('observability.audit.description')}</CardDescription>
+                  <CardTitle className="text-base">{t('admin.platformHealth')}</CardTitle>
+                  <CardDescription>{t('admin.platformHealthDesc')}</CardDescription>
                 </div>
               </CardHeader>
             </Card>

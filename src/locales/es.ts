@@ -2553,6 +2553,8 @@ export const es: Record<string, string> = {
   
   'admin.systemHealth': 'Salud del Sistema',
   'admin.systemHealthDesc': 'Monitoreo en tiempo real de la plataforma',
+  'admin.platformHealth': 'Salud de la Plataforma',
+  'admin.platformHealthDesc': 'Monitoreo, observabilidad y trazabilidad del sistema.',
   
   'observability.alerts.title': 'Alertas',
   'observability.alerts.noAlerts': 'Sin alertas',
