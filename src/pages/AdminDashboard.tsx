@@ -29,7 +29,7 @@ import { EditTenantDialog } from '@/components/admin/EditTenantDialog';
 import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
 import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
 import { PlatformHealthCard } from '@/components/admin/PlatformHealthCard';
-import { CardDiagnosticsPanel } from '@/components/admin/CardDiagnosticsPanel';
+
 import { StartImpersonationDialog } from '@/components/impersonation/StartImpersonationDialog';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
 import { InstitutionalEnvironmentStatus } from '@/components/institutional';
@@ -458,8 +458,6 @@ export default function AdminDashboard() {
           {/* Platform Health Card */}
           <PlatformHealthCard />
 
-          {/* Card Diagnostics Panel */}
-          <CardDiagnosticsPanel />
 
           {/* Tenants em Override Manual */}
           {billingData && (() => {
