@@ -2684,4 +2684,11 @@ export const en: Record<string, string> = {
   'selfAware.cta.billing': 'View Billing',
   'selfAware.cta.completeSetup': 'Complete Setup',
 
+  // PI U10 — Next Best Action
+  'nba.waitingIdentity': 'Validating your identity',
+  'nba.completeSetup': 'Complete initial setup',
+  'nba.fixBilling': 'Resolve payment issue',
+  'nba.contactAdmin': 'Contact your administrator',
+  'nba.noPermission': 'You do not have permission for this action',
+
 };
