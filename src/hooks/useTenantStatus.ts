@@ -1,9 +1,17 @@
+/**
+ * ⚠️ SRP CONTRACT (PI U5)
+ * - This hook DOES NOT decide rules
+ * - This hook DOES NOT derive states
+ * - All rules live in lib/state/*
+ */
+
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { resolveTenantBillingState, type TenantBillingState } from '@/lib/billing';
+import { resolveTenantBillingState, type TenantBillingState, type BillingStatus } from '@/lib/billing';
 import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
+import { deriveTrialPresentationState } from '@/lib/state/stateSelectors';
 import type { AsyncState } from '@/types/async';
 
 export interface TenantStatusInfo {
@@ -77,21 +85,17 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     tenant ? { is_active: tenant.isActive } : null
   );
 
-  // Calculate presentation-only flags
-  const isTrialActive = billingState.status === 'TRIALING';
+  // PI U5 — Delegate presentation derivation to pure selector
+  const trialPresentation = deriveTrialPresentationState(
+    billingState.status as BillingStatus | null,
+    billing?.current_period_end ? new Date(billing.current_period_end) : null,
+    TRIAL_WARNING_DAYS,
+  );
+
+  const { isTrialActive, isTrialEndingSoon, daysToTrialEnd } = trialPresentation;
   const currentPeriodEnd = billing?.current_period_end
     ? new Date(billing.current_period_end)
     : null;
-
-  const daysToTrialEnd = (() => {
-    if (!isTrialActive || !currentPeriodEnd) return null;
-    const now = new Date();
-    const diffTime = currentPeriodEnd.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  })();
-
-  const isTrialEndingSoon =
-    isTrialActive && daysToTrialEnd !== null && daysToTrialEnd <= TRIAL_WARNING_DAYS && daysToTrialEnd > 0;
 
   const asyncState: AsyncState<TenantBillingData> = normalizeAsyncState({
     data: billing,
