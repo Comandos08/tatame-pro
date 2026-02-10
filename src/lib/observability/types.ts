@@ -13,7 +13,7 @@
  * Status: FROZEN
  */
 
-import type { ErrorContext } from '@/lib/errors/institutionalErrors';
+
 import type { SafeHealthStatus } from '@/types/health-state';
 import { logger } from './logger';
 
