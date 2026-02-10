@@ -195,6 +195,7 @@ export function AdminBadgeManager({ athleteId, tenantId }: AdminBadgeManagerProp
                 <BadgeChip
                   name={ab.badges.name}
                   description={ab.badges.description}
+                  surface="ATHLETE_CARD"
                 />
                 <button
                   onClick={() => setRevokeTarget({ badgeId: ab.badge_id, name: ab.badges.name })}

@@ -400,7 +400,7 @@ export default function AthleteArea() {
                       <Badge key={sport} variant="secondary">{sport}</Badge>
                     ))}
                   </div>
-                  <AthleteBadgesList athleteId={athlete.id} className="mt-2" />
+                  <AthleteBadgesList athleteId={athlete.id} surface="ATHLETE_PROFILE" className="mt-2" />
                 </div>
               </div>
             </div>

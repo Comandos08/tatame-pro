@@ -83,6 +83,61 @@ app_role  ≠ badge
 │  → Autorização          │    │  → Semântica            │
 └─────────────────────────┘    └─────────────────────────┘
         ❌ NENHUMA REFERÊNCIA CRUZADA ❌
+
+---
+
+## 5. Authorized Display Surfaces (D2)
+
+> **PI D2 — Pontos Únicos de Exibição de Badge**
+
+Badge só pode ser renderizado nas superfícies listadas abaixo.
+Qualquer outro ponto é **implicitamente proibido**.
+
+### 5.1 Superfícies Permitidas (Whitelist)
+
+| Superfície | Componente | Contexto | Observação |
+|------------|------------|----------|------------|
+| Perfil do Atleta | `AthleteBadgesList` | Trajetória | Lista completa, visual |
+| Card do Atleta (Admin) | `AdminBadgeManager` | Administração | Preview + assign/revoke |
+| Timeline Pública | `BadgeTimeline` | Histórico | Read-only, auditável |
+| Chip Contextual | `BadgeChip` | Contextual | Uso pontual, documentado |
+
+### 5.2 Superfícies Proibidas (Hard Rules)
+
+Badges **NUNCA** podem aparecer em:
+
+- ❌ Header / AppShell
+- ❌ Sidebar / Navigation
+- ❌ Botões / CTAs
+- ❌ Gates de acesso
+- ❌ Feature toggles
+- ❌ Empty states
+- ❌ Estados de erro / loading
+- ❌ Banners de status
+- ❌ Indicadores de permissão
+- ❌ Componentes de decisão (if, guard, resolver)
+
+### 5.3 Regra de Ouro
+
+> Se a remoção do badge altera o comportamento do sistema, ele está sendo usado errado.
+
+### 5.4 Enforcement Técnico
+
+Todos os componentes de exibição de badge:
+
+- **DEVEM** declarar `surface: BadgeSurface`
+- **NÃO** podem renderizar sem `surface` explícita
+- Em DEV, um `console.warn` é emitido para superfícies não-autorizadas
+
+```typescript
+// src/types/badge.ts
+export type BadgeSurface =
+  | 'ATHLETE_PROFILE'
+  | 'ATHLETE_CARD'
+  | 'BADGE_TIMELINE'
+  | 'BADGE_MODAL'
+  | 'BADGE_CHIP';
+```
 ```
 
 ---
