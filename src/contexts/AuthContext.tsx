@@ -78,55 +78,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Auth listener + init (SYNCHRONOUS — PI FIX) ──
   useEffect(() => {
     mountedRef.current = true;
 
-    // Set up auth listener FIRST (as recommended by Supabase)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         if (!mountedRef.current) return;
 
-        // Update session immediately
         setSession(newSession);
-        
+
         if (newSession) {
           setAuthState("authenticated");
-          
-          // Load profile deterministically (PI Z0.4 — no setTimeout)
-          const profile = await fetchProfile(newSession.user);
-          if (mountedRef.current) {
-            setCurrentUser(profile);
-          }
         } else {
           setAuthState("unauthenticated");
           setCurrentUser(null);
         }
-        
-        // Bootstrap complete
+
         setIsLoading(false);
       }
     );
 
-    // Then check initial session
     const initSession = async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        
         if (!mountedRef.current) return;
 
-        if (data.session) {
-          setSession(data.session);
-          setAuthState("authenticated");
-          
-          // Load profile in parallel
-          const profile = await fetchProfile(data.session.user);
-          if (mountedRef.current) {
-            setCurrentUser(profile);
-          }
-        } else {
-          setSession(null);
-          setAuthState("unauthenticated");
-        }
+        setSession(data.session);
+        setAuthState(data.session ? "authenticated" : "unauthenticated");
       } catch {
         if (mountedRef.current) {
           setSession(null);
@@ -146,6 +125,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // ── Profile fetch (deterministic, StrictMode-safe — PI FIX) ──
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let cancelled = false;
+
+    fetchProfile(session.user).then((profile) => {
+      if (!cancelled && mountedRef.current) {
+        setCurrentUser(profile);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
 
   const signIn = async (email: string, password: string) => {
     // Don't set isLoading here - onAuthStateChange handles state transitions

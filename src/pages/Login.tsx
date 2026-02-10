@@ -90,6 +90,7 @@ export default function Login() {
 
     try {
       await signIn(email, password);
+      setIsSubmitting(false);
       toast({
         title: t("auth.welcome"),
         description: t("auth.loginSuccess"),
