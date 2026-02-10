@@ -442,7 +442,7 @@ export default function AdminDashboard() {
           {/* System Health Dashboard Card (P4.1.C) */}
           <Card 
             className="mb-8 card-hover cursor-pointer" 
-            onClick={() => navigate('/app/health')}
+            onClick={() => navigate('/admin/health')}
           >
             <CardHeader className="flex flex-row items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center">
