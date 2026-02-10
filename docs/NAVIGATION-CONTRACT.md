@@ -162,8 +162,42 @@
 
 ---
 
+## Federation Domain (Declared / Inactive)
+
+> **PI E1.1 — Status: FROZEN**
+
+The Federation Domain is institutionally declared but **NOT active**.
+
+### Current Status
+- ❌ No active routes
+- ❌ No UI
+- ❌ No data model in use
+- ❌ No guards
+- ❌ No permissions
+- ❌ No implicit access
+
+### Rule of Enforcement
+Any attempt to create, access, or expose federation-related routes, components,
+or permissions **WITHOUT an explicit activation PI** is forbidden.
+
+Activation requires:
+- New PI with explicit scope definition
+- Guard contracts
+- Observability & audit alignment
+- Governance approval
+
+### Hard Rules
+1. ❌ No `/federation/*` route may exist in production
+2. ❌ No `requireFederation*` guard may be implemented
+3. ❌ No `FEDERATION_ADMIN` persona may be activated
+4. ❌ No federation UI may be rendered
+5. ❌ No indirect access via SUPERADMIN or TENANT is permitted
+
+---
+
 ## Changelog
 
 | Version | Date | Description |
 |---------|------|-------------|
 | 1.0.0 | 2026-02-10 | Initial contract (PI E1) — FROZEN |
+| 1.1.0 | 2026-02-10 | Federation Domain declared & inactive (PI E1.1) — FROZEN |

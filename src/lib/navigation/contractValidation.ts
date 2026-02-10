@@ -6,7 +6,7 @@
  * Never throws. Never blocks. Zero production impact.
  */
 
-type Persona = 'SUPERADMIN_GLOBAL' | 'ADMIN_TENANT' | 'ATHLETE' | 'PUBLIC' | 'FEDERATION_ADMIN';
+type Persona = 'SUPERADMIN_GLOBAL' | 'ADMIN_TENANT' | 'ATHLETE' | 'PUBLIC';
 
 interface ContractEntry {
   pattern: RegExp;
@@ -30,8 +30,8 @@ const ROUTE_CONTRACT: ContractEntry[] = [
   { pattern: /^\/[^/]+\/portal(\/|$)/, persona: ['ATHLETE'], description: 'Athlete Portal (tenant)' },
   { pattern: /^\/portal(\/|$)/, persona: ['ATHLETE'], description: 'Portal Router' },
 
-  // 4️⃣ Federation
-  { pattern: /^\/federation\//, persona: ['FEDERATION_ADMIN'], description: 'Federation Dashboard' },
+  // 4️⃣ Federation — DECLARED / INACTIVE (PI E1.1)
+  // No federation routes are allowed without an explicit activation PI.
 
   // 5️⃣ Public (always allowed)
   { pattern: /^\/$/, persona: ['PUBLIC'], description: 'Landing' },
@@ -49,6 +49,15 @@ const ROUTE_CONTRACT: ContractEntry[] = [
  */
 export function validateRouteContract(pathname: string): void {
   if (import.meta.env.PROD) return;
+
+  // PI E1.1: Federation Domain is DECLARED but INACTIVE
+  if (pathname.startsWith('/federation')) {
+    console.warn(
+      '[Navigation Contract] ⚠️ Federation Domain is DECLARED but INACTIVE (PI E1.1). ' +
+      'No federation routes are allowed without an explicit activation PI.'
+    );
+    return;
+  }
 
   const matched = ROUTE_CONTRACT.some((entry) => entry.pattern.test(pathname));
 
