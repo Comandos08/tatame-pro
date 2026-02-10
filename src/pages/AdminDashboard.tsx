@@ -28,7 +28,7 @@ import { CreateTenantDialog } from '@/components/admin/CreateTenantDialog';
 import { EditTenantDialog } from '@/components/admin/EditTenantDialog';
 import { ManageAdminsDialog } from '@/components/admin/ManageAdminsDialog';
 import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
-import { PlatformHealthCard } from '@/components/admin/PlatformHealthCard';
+
 
 import { StartImpersonationDialog } from '@/components/impersonation/StartImpersonationDialog';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
@@ -455,8 +455,6 @@ export default function AdminDashboard() {
             </CardHeader>
           </Card>
 
-          {/* Platform Health Card */}
-          <PlatformHealthCard />
 
 
           {/* Tenants em Override Manual */}
