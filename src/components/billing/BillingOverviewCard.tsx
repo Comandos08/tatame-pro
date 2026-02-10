@@ -69,8 +69,23 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
   const { t } = useI18n();
   const [isRedirecting, setIsRedirecting] = React.useState(false);
 
-  // Don't render for non-ACTIVE tenants (still in SETUP)
-  if (tenant?.status !== 'ACTIVE') {
+  // Tenant not yet loaded — show loading skeleton
+  if (!tenant) {
+    return (
+      <Card className={cn('animate-pulse', className)}>
+        <CardHeader>
+          <div className="h-6 w-32 bg-muted rounded" />
+          <div className="h-4 w-48 bg-muted rounded mt-2" />
+        </CardHeader>
+        <CardContent>
+          <div className="h-10 w-full bg-muted rounded" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Tenant in SETUP — billing not applicable, render nothing (explicit conditional)
+  if (tenant.status !== 'ACTIVE') {
     return null;
   }
 
@@ -91,9 +106,23 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     );
   }
 
-  // P3.3.P1.3: Handle null status explicitly - don't invent INCOMPLETE
+  // P3.3.P1.3: Handle null status explicitly — empty state, not silent null
   if (!status) {
-    return null; // No billing data available yet
+    return (
+      <Card className={cn('overflow-hidden', className)} data-testid="billing-card" data-billing-status="empty">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-muted">
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">{t('billing.overview.title')}</CardTitle>
+              <CardDescription>{t('billing.overview.noData')}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
   }
 
   const variant = resolveBillingStatusVariant(status);

@@ -1318,6 +1318,7 @@ export const en: Record<string, string> = {
   'billing.overview.canceled': 'Subscription canceled',
   'billing.overview.unknown': 'Unknown status',
   'billing.overview.currentPlan': 'Current plan',
+  'billing.overview.noData': 'Billing data not available',
 
   // P3.3 — Billing Status Labels
   'billing.status.active': 'Active',

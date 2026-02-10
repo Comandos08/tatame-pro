@@ -100,7 +100,23 @@ export function SystemHealthCard() {
 
   const isHealthy = metrics?.lastExpireRun || metrics?.lastCleanupRun;
 
-  if (!tenant) return null;
+  if (!tenant) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">{t('health.title')}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
