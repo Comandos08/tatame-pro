@@ -102,10 +102,8 @@ export default function ResetPassword() {
         description: t('auth.passwordChangedDesc'),
       });
 
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        navigate("/login");
-      }, 3000);
+      // PI Z0.4: Deterministic redirect — navigate immediately after confirmed success
+      navigate("/login");
     } catch (error) {
       console.error("Password reset error:", error);
       toast({

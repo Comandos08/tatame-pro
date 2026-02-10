@@ -93,15 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession) {
           setAuthState("authenticated");
           
-          // Load profile in parallel (non-blocking)
-          // Use setTimeout to avoid potential deadlock with Supabase client
-          setTimeout(async () => {
-            if (!mountedRef.current) return;
-            const profile = await fetchProfile(newSession.user);
-            if (mountedRef.current) {
-              setCurrentUser(profile);
-            }
-          }, 0);
+          // Load profile deterministically (PI Z0.4 — no setTimeout)
+          const profile = await fetchProfile(newSession.user);
+          if (mountedRef.current) {
+            setCurrentUser(profile);
+          }
         } else {
           setAuthState("unauthenticated");
           setCurrentUser(null);
