@@ -1729,7 +1729,9 @@ export const ptBR = {
   'impersonation.modeOnboarding': 'Onboarding',
   'impersonation.modePublic': 'Público',
   'impersonation.supportMode': 'modo suporte',
-  'impersonation.badge': 'Impersonation',
+  'impersonation.badge': 'IMPERSONATING',
+  'impersonation.c3Banner': 'Você está atuando como SUPERADMIN em modo de impersonation',
+  'impersonation.effectiveRole': 'Papel efetivo',
   
   // Onboarding Wizard
   'onboarding.title': 'Configuração Inicial',

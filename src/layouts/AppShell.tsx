@@ -369,11 +369,12 @@ export function AppShell({ children }: AppShellProps) {
               </span>
             </div>
             
-            {/* Impersonation badge */}
+            {/* C3: Redundant impersonation badge — always visible for superadmin */}
             {isImpersonating && (
               <Badge 
                 variant="outline" 
-                className="text-xs border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"
+                className="text-xs font-bold border-warning/50 bg-warning/10 text-warning-foreground dark:text-warning uppercase tracking-wider"
+                data-testid="impersonation-header-badge"
               >
                 {t('impersonation.badge')}
               </Badge>
