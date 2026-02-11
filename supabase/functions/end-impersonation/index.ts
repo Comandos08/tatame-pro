@@ -94,9 +94,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !superadminRole) {
+      log.setStep("actor_validated");
       log.warn("Non-superadmin attempted end impersonation");
       return forbiddenResponse(corsHeaders, "auth.superadmin_required", undefined, correlationId);
     }
+
+    log.setStep("actor_validated");
 
     // 6️⃣ Parse request body
     const body: EndImpersonationRequest = await req.json();
@@ -182,6 +185,7 @@ Deno.serve(async (req) => {
       },
     });
 
+    log.setStep("impersonation_ended");
     log.info("Session ended successfully", { impersonationId });
 
     return okResponse({ ok: true, status: 'ENDED' }, corsHeaders, correlationId);
