@@ -4,6 +4,13 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
+import {
+  type BillingStatus,
+  isKnownBillingStatus,
+  assertValidBillingTransition,
+  deriveTenantActive,
+  assertBillingConsistency,
+} from "../_shared/billing-state-machine.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 
 type SupabaseClientAny = SupabaseClient<any, any, any>;
@@ -551,6 +558,56 @@ async function handleSubscriptionChange(
 
   const previousStatus = existingBilling?.status;
 
+  // A03 — Billing State Machine: Validate transition
+  if (previousStatus != null) {
+    if (!isKnownBillingStatus(previousStatus)) {
+      // Unknown/corrupt previous status — audit but allow (data corruption scenario)
+      log.error("Unknown previous billing status", { previousStatus, tenantId: actualTenantId });
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+        tenant_id: actualTenantId,
+        metadata: {
+          previous_status: previousStatus,
+          attempted_status: billingStatus,
+          stripe_subscription_id: subscription.id,
+          reason: "unknown_previous_status",
+          automatic: true,
+          source: "billing_state_machine",
+        },
+      });
+    } else if (previousStatus !== billingStatus) {
+      // Known status, different from new — validate transition
+      try {
+        assertValidBillingTransition(previousStatus, billingStatus as BillingStatus);
+      } catch (transitionError) {
+        // Invalid transition — block DB writes, audit, return (Stripe-safe)
+        log.error("BILLING_TRANSITION_BLOCKED", { 
+          from: previousStatus, 
+          to: billingStatus, 
+          subscriptionId: subscription.id,
+          tenantId: actualTenantId,
+        });
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+          tenant_id: actualTenantId,
+          metadata: {
+            previous_status: previousStatus,
+            attempted_status: billingStatus,
+            stripe_subscription_id: subscription.id,
+            reason: "invalid_transition",
+            error_message: transitionError instanceof Error ? transitionError.message : String(transitionError),
+            automatic: true,
+            source: "billing_state_machine",
+          },
+        });
+        // Do NOT update DB — return early (outer handler returns 200)
+        return;
+      }
+    }
+    // If previousStatus === billingStatus → no-op transition, skip validation
+  }
+  // If previousStatus is null/undefined → initial insert, no validation needed
+
   // Upsert billing record
   const planType = subscription.metadata?.plan_type || 'annual';
   const planName = planType === 'monthly' ? 'Plano Federação Mensal' : 'Plano Federação Anual';
@@ -616,12 +673,40 @@ async function handleSubscriptionChange(
     } as Record<string, unknown>);
   }
 
-  // Update tenant isActive - also reactivate if coming from TRIAL_EXPIRED/PENDING_DELETE
-  const isActive = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
+  // A03 — deriveTenantActive: single source of truth for is_active
+  const isActive = isKnownBillingStatus(billingStatus) 
+    ? deriveTenantActive(billingStatus as BillingStatus) 
+    : false;
   await supabase
     .from("tenants")
     .update({ is_active: isActive } as Record<string, unknown>)
     .eq("id", actualTenantId);
+
+  // A03 — Post-update consistency check (detection-only, never 500)
+  if (isKnownBillingStatus(billingStatus)) {
+    try {
+      assertBillingConsistency(billingStatus as BillingStatus, isActive);
+    } catch (consistencyError) {
+      log.error("BILLING_CONSISTENCY_MISMATCH", { 
+        billingStatus, 
+        isActive, 
+        tenantId: actualTenantId,
+      });
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+        tenant_id: actualTenantId,
+        metadata: {
+          previous_status: previousStatus ?? null,
+          attempted_status: billingStatus,
+          stripe_subscription_id: subscription.id,
+          reason: "consistency_mismatch",
+          error_message: consistencyError instanceof Error ? consistencyError.message : String(consistencyError),
+          automatic: true,
+          source: "billing_state_machine",
+        },
+      });
+    }
+  }
 
   log.info("Subscription updated", { tenantId: actualTenantId, status: billingStatus, isActive });
 
@@ -649,7 +734,7 @@ async function handleSubscriptionDeleted(
 
   const { data: billing } = await supabase
     .from("tenant_billing")
-    .select("id, tenant_id")
+    .select("id, tenant_id, status")
     .eq("stripe_subscription_id", subscription.id)
     .maybeSingle();
 
@@ -660,6 +745,50 @@ async function handleSubscriptionDeleted(
 
   log.setTenant(billing.tenant_id);
 
+  // A03 — Validate transition to CANCELED
+  const prevStatus = billing.status;
+  if (prevStatus != null) {
+    if (!isKnownBillingStatus(prevStatus)) {
+      log.error("Unknown previous billing status in handleSubscriptionDeleted", { previousStatus: prevStatus });
+      await createAuditLog(supabase, {
+        event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+        tenant_id: billing.tenant_id,
+        metadata: {
+          previous_status: prevStatus,
+          attempted_status: "CANCELED",
+          stripe_subscription_id: subscription.id,
+          reason: "unknown_previous_status",
+          automatic: true,
+          source: "billing_state_machine",
+        },
+      });
+    } else if (prevStatus !== "CANCELED") {
+      try {
+        assertValidBillingTransition(prevStatus, "CANCELED");
+      } catch (transitionError) {
+        log.error("BILLING_TRANSITION_BLOCKED in handleSubscriptionDeleted", {
+          from: prevStatus,
+          to: "CANCELED",
+          subscriptionId: subscription.id,
+        });
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+          tenant_id: billing.tenant_id,
+          metadata: {
+            previous_status: prevStatus,
+            attempted_status: "CANCELED",
+            stripe_subscription_id: subscription.id,
+            reason: "invalid_transition",
+            error_message: transitionError instanceof Error ? transitionError.message : String(transitionError),
+            automatic: true,
+            source: "billing_state_machine",
+          },
+        });
+        return;
+      }
+    }
+  }
+
   // Update billing to canceled
   await supabase
     .from("tenant_billing")
@@ -669,10 +798,11 @@ async function handleSubscriptionDeleted(
     } as Record<string, unknown>)
     .eq("id", billing.id);
 
-  // Deactivate tenant
+  // A03 — deriveTenantActive for CANCELED
+  const isActiveCanceled = deriveTenantActive("CANCELED");
   await supabase
     .from("tenants")
-    .update({ is_active: false } as Record<string, unknown>)
+    .update({ is_active: isActiveCanceled } as Record<string, unknown>)
     .eq("id", billing.tenant_id);
 
   log.info("Subscription deleted, tenant deactivated", { tenantId: billing.tenant_id });

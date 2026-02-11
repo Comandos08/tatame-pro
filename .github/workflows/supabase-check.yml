@@ -126,8 +126,42 @@ jobs:
           if [ "$FAILED" -eq 1 ]; then exit 1; fi
           echo "✅ G4 passed"
 
+      - name: G5 — Billing transitions must use assertValidBillingTransition
+        run: |
+          echo "🔍 G5: Checking billing state machine enforcement..."
+          WEBHOOK="supabase/functions/stripe-webhook/index.ts"
+          FAILED=0
+
+          # Must import billing-state-machine
+          if ! grep -q "billing-state-machine" "$WEBHOOK"; then
+            echo "❌ FAIL: stripe-webhook does not import billing-state-machine"
+            FAILED=1
+          fi
+
+          # Must call assertValidBillingTransition
+          if ! grep -q "assertValidBillingTransition" "$WEBHOOK"; then
+            echo "❌ FAIL: stripe-webhook does not call assertValidBillingTransition"
+            FAILED=1
+          fi
+
+          # Must call deriveTenantActive
+          if ! grep -q "deriveTenantActive" "$WEBHOOK"; then
+            echo "❌ FAIL: stripe-webhook does not call deriveTenantActive"
+            FAILED=1
+          fi
+
+          # Must appear in both handlers (handleSubscriptionChange + handleSubscriptionDeleted)
+          CHANGE_COUNT=$(grep -c "assertValidBillingTransition" "$WEBHOOK" || true)
+          if [ "$CHANGE_COUNT" -lt 2 ]; then
+            echo "❌ FAIL: assertValidBillingTransition must be called in both handlers (found $CHANGE_COUNT)"
+            FAILED=1
+          fi
+
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G5 passed"
+
       - name: Summary
         run: |
           echo "✅ Supabase Governance Check PASSED"
           echo "📋 SAFE GOLD compliance verified"
-          echo "🛡️ Gates G1-G4 enforced"
+          echo "🛡️ Gates G1-G5 enforced"
