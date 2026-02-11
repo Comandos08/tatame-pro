@@ -918,7 +918,7 @@ async function handleInvoicePaymentSucceeded(
 
   const { data: billing } = await supabase
     .from("tenant_billing")
-    .select("id, tenant_id")
+    .select("id, tenant_id, status")
     .eq("stripe_subscription_id", invoice.subscription as string)
     .maybeSingle();
 
@@ -929,7 +929,44 @@ async function handleInvoicePaymentSucceeded(
 
   log.setTenant(billing.tenant_id);
 
-  // Ensure tenant is active and billing is up to date
+  // A03 — Billing State Machine: Validate transition to ACTIVE
+  const previousStatus = billing.status;
+  if (previousStatus != null) {
+    if (!isKnownBillingStatus(previousStatus)) {
+      log.error("Unknown previous billing status in invoice_payment_succeeded", { previousStatus, tenantId: billing.tenant_id });
+      // Allow but audit (data corruption scenario)
+    } else if (previousStatus !== "ACTIVE") {
+      try {
+        assertValidBillingTransition(previousStatus, "ACTIVE");
+      } catch (transitionError) {
+        log.error("BILLING_TRANSITION_BLOCKED in invoice_payment_succeeded", {
+          from: previousStatus,
+          to: "ACTIVE",
+          invoiceId: invoice.id,
+          tenantId: billing.tenant_id,
+        });
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+          tenant_id: billing.tenant_id,
+          metadata: {
+            previous_status: previousStatus,
+            attempted_status: "ACTIVE",
+            stripe_invoice_id: invoice.id,
+            reason: "invalid_transition",
+            error_message: transitionError instanceof Error ? transitionError.message : String(transitionError),
+            automatic: true,
+            source: "invoice_handler",
+          },
+        });
+        return; // Skip writes, never 500
+      }
+    }
+    // If previousStatus === "ACTIVE" → no-op, skip validation
+  }
+
+  // A03 — deriveTenantActive: single source of truth for is_active
+  const isActive = deriveTenantActive("ACTIVE" as BillingStatus);
+
   await supabase
     .from("tenant_billing")
     .update({ status: "ACTIVE" } as Record<string, unknown>)
@@ -937,10 +974,10 @@ async function handleInvoicePaymentSucceeded(
 
   await supabase
     .from("tenants")
-    .update({ is_active: true } as Record<string, unknown>)
+    .update({ is_active: isActive } as Record<string, unknown>)
     .eq("id", billing.tenant_id);
 
-  log.info("Invoice paid, tenant activated", { tenantId: billing.tenant_id });
+  log.info("Invoice paid, tenant activated", { tenantId: billing.tenant_id, isActive });
 
   // Send payment success email
   sendBillingEmail(supabaseUrl, supabaseServiceKey, "INVOICE_PAYMENT_SUCCEEDED", billing.tenant_id, log, {
@@ -977,7 +1014,7 @@ async function handleInvoicePaymentFailed(
 
   const { data: billing } = await supabase
     .from("tenant_billing")
-    .select("id, tenant_id")
+    .select("id, tenant_id, status")
     .eq("stripe_subscription_id", invoice.subscription as string)
     .maybeSingle();
 
@@ -988,13 +1025,57 @@ async function handleInvoicePaymentFailed(
 
   log.setTenant(billing.tenant_id);
 
+  // A03 — Billing State Machine: Validate transition to PAST_DUE
+  const previousStatus = billing.status;
+  if (previousStatus != null) {
+    if (!isKnownBillingStatus(previousStatus)) {
+      log.error("Unknown previous billing status in invoice_payment_failed", { previousStatus, tenantId: billing.tenant_id });
+      // Allow but audit (data corruption scenario)
+    } else if (previousStatus !== "PAST_DUE") {
+      try {
+        assertValidBillingTransition(previousStatus, "PAST_DUE");
+      } catch (transitionError) {
+        log.error("BILLING_TRANSITION_BLOCKED in invoice_payment_failed", {
+          from: previousStatus,
+          to: "PAST_DUE",
+          invoiceId: invoice.id,
+          tenantId: billing.tenant_id,
+        });
+        await createAuditLog(supabase, {
+          event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
+          tenant_id: billing.tenant_id,
+          metadata: {
+            previous_status: previousStatus,
+            attempted_status: "PAST_DUE",
+            stripe_invoice_id: invoice.id,
+            reason: "invalid_transition",
+            error_message: transitionError instanceof Error ? transitionError.message : String(transitionError),
+            automatic: true,
+            source: "invoice_handler",
+          },
+        });
+        return; // Skip writes, never 500
+      }
+    }
+    // If previousStatus === "PAST_DUE" → no-op, skip validation
+  }
+
+  // A03 — deriveTenantActive: single source of truth for is_active
+  const isActive = deriveTenantActive("PAST_DUE" as BillingStatus);
+
   // Mark as past due
   await supabase
     .from("tenant_billing")
     .update({ status: "PAST_DUE" } as Record<string, unknown>)
     .eq("id", billing.id);
 
-  log.info("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id });
+  // CRITICAL FIX: Update tenants.is_active (was missing before A04.S1)
+  await supabase
+    .from("tenants")
+    .update({ is_active: isActive } as Record<string, unknown>)
+    .eq("id", billing.tenant_id);
+
+  log.info("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id, isActive });
 
   // Log payment failure to audit for tracking policy (2-3 failures in 7 days = PAST_DUE maintained)
   // This event is used by PlatformHealthCard to show billing errors count

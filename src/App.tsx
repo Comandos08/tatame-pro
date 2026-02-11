@@ -27,6 +27,7 @@ import TenantControl from "@/pages/TenantControl";
 import SystemHealth from "@/pages/admin/SystemHealth";
 import AuditLog from "@/pages/admin/AuditLog";
 import SecurityDashboard from "@/pages/admin/SecurityDashboard";
+import { RequireRoles } from "@/components/auth/RequireRoles";
 
 
 // Tenant
@@ -73,14 +74,14 @@ export default function App() {
         {/* Portal */}
         <Route path="/portal/*" element={<PortalRouter />} />
 
-        {/* Admin (Superadmin only - protected by IdentityGate R5) */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/health" element={<SystemHealth />} />
-        <Route path="/admin/audit" element={<AuditLog />} />
-        <Route path="/admin/security" element={<SecurityDashboard />} />
-        <Route path="/admin/diagnostics" element={<AdminDiagnostics />} />
-        <Route path="/admin/landing" element={<AdminLandingSettings />} />
-        <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />
+        {/* Admin (Superadmin only - explicit RequireRoles guard) */}
+        <Route path="/admin" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDashboard /></RequireRoles>} />
+        <Route path="/admin/health" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><SystemHealth /></RequireRoles>} />
+        <Route path="/admin/audit" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AuditLog /></RequireRoles>} />
+        <Route path="/admin/security" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><SecurityDashboard /></RequireRoles>} />
+        <Route path="/admin/diagnostics" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDiagnostics /></RequireRoles>} />
+        <Route path="/admin/landing" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminLandingSettings /></RequireRoles>} />
+        <Route path="/admin/tenants/:tenantId/control" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><TenantControl /></RequireRoles>} />
 
 
         {/* Tenant routes */}
