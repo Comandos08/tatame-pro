@@ -59,7 +59,7 @@ export default function MembershipRenew() {
       try {
         // Primeiro buscar athlete vinculado
         // Cast early to avoid TS2589 (excessively deep type instantiation)
-        const athleteResult = await (supabase.from('athletes') as any)
+        const athleteResult = await supabase.from('athletes')
           .select('id, full_name')
           .eq('tenant_id', tenant.id)
           .eq('profile_id', currentUser.id)
@@ -73,7 +73,7 @@ export default function MembershipRenew() {
         }
 
         // Buscar membership mais recente do atleta
-        const membershipResult = await (supabase.from('memberships') as any)
+        const membershipResult = await supabase.from('memberships')
           .select('id, status, end_date, created_at, athlete_id')
           .eq('tenant_id', tenant.id)
           .eq('athlete_id', athleteData.id)

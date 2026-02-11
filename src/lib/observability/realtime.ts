@@ -95,7 +95,7 @@ function toAlert(event: Record<string, unknown>): Alert | null {
       tenant_id: tenantId ?? undefined,
     };
   } catch (error) {
-    realtimeLogger.warn('Transform failed', { action: 'toAlert' } as any);
+    realtimeLogger.warn('Transform failed', { action: 'toAlert' });
     return null;
   }
 }
@@ -191,7 +191,7 @@ export function subscribeObservabilityRealtime(
             options.onEvent(alert);
           }
         } catch (error) {
-          realtimeLogger.error('Event processing error', { action: 'onPayload' } as any, error instanceof Error ? error : new Error(String(error)));
+          realtimeLogger.error('Event processing error', { action: 'onPayload' }, error instanceof Error ? error : new Error(String(error)));
           options.onError?.(error instanceof Error ? error : new Error(String(error)));
         }
       }
@@ -204,7 +204,7 @@ export function subscribeObservabilityRealtime(
       }
       
       if (err) {
-        realtimeLogger.error('Subscription error', { action: 'subscribe' } as any, err);
+        realtimeLogger.error('Subscription error', { action: 'subscribe' }, err);
         options.onError?.(err);
       }
     });

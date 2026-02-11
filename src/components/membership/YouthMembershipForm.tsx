@@ -16,6 +16,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
@@ -296,7 +297,7 @@ export function YouthMembershipForm() {
 
       const { data: membership, error: membershipError } = await supabase
         .from('memberships')
-        .insert(membershipPayload as any) // Type assertion for JSONB fields
+        .insert(membershipPayload as unknown as Database['public']['Tables']['memberships']['Insert'])
         .select()
         .single();
 

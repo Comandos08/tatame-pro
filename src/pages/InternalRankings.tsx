@@ -171,7 +171,7 @@ export default function InternalRankings() {
           allGradings?.forEach(g => {
             gradingCountMap[g.athlete_id] = (gradingCountMap[g.athlete_id] || 0) + 1;
             if (!lastGradingMap[g.athlete_id]) {
-              lastGradingMap[g.athlete_id] = (g.grading_levels as any)?.display_name || null;
+              lastGradingMap[g.athlete_id] = (g.grading_levels as Record<string, unknown>)?.display_name as string || null;
             }
           });
 

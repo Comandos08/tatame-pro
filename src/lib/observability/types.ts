@@ -142,13 +142,13 @@ export function validateHealthSignal(
     logger.warn('Invalid health signal: missing domain', {
       component: 'ObservabilityContract',
       metadata: { signal },
-    } as any);
+    });
   }
 
   if (signal.relatedErrorCode && !knownErrorCodes.has(signal.relatedErrorCode)) {
     logger.warn('Invalid health signal: unknown error code', {
       component: 'ObservabilityContract',
       metadata: { signal, relatedErrorCode: signal.relatedErrorCode },
-    } as any);
+    });
   }
 }

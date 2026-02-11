@@ -129,7 +129,7 @@ export default function MembershipStatus() {
 
       try {
         // First try to find by linked athlete
-        const athleteResult = await (supabase.from('athletes') as any)
+        const athleteResult = await supabase.from('athletes')
           .select('id')
           .eq('tenant_id', tenant.id)
           .eq('profile_id', currentUser.id)
@@ -140,7 +140,7 @@ export default function MembershipStatus() {
         let data: MembershipData | null = null;
 
         if (athleteData?.id) {
-          const result = await (supabase.from('memberships') as any)
+          const result = await supabase.from('memberships')
             .select('id, status, payment_status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('athlete_id', athleteData.id)
@@ -149,7 +149,7 @@ export default function MembershipStatus() {
             .maybeSingle();
           data = result?.data as MembershipData | null;
         } else {
-          const result = await (supabase.from('memberships') as any)
+          const result = await supabase.from('memberships')
             .select('id, status, payment_status, created_at, rejection_reason')
             .eq('tenant_id', tenant.id)
             .eq('applicant_profile_id', currentUser.id)

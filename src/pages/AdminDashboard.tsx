@@ -411,7 +411,7 @@ export default function AdminDashboard() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        {t(card.labelKey as any)}
+                        {t(card.labelKey)}
                       </CardTitle>
                       <card.icon className={`h-5 w-5 ${card.color}`} />
                     </CardHeader>

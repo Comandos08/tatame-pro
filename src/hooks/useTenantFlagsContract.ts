@@ -66,7 +66,7 @@ function validateContract(raw: unknown): TenantFlagsContract | null {
   
   const billing = obj.billing as Record<string, unknown>;
   const status = billing.status as string;
-  if (!VALID_BILLING_STATUSES.includes(status as any)) return null;
+  if (!(VALID_BILLING_STATUSES as readonly string[]).includes(status)) return null;
   if (typeof billing.is_manual_override !== 'boolean') return null;
   if (typeof billing.has_billing_record !== 'boolean') return null;
   

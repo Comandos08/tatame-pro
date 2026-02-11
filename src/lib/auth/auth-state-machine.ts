@@ -77,7 +77,7 @@ export function transitionAuthState(
       from: currentState,
       to: targetState,
       context: context || undefined,
-    } as any);
+    });
   }
   
   return {
@@ -116,7 +116,7 @@ export function mapSupabaseEventToAuthState(
     
     default:
       // Unknown event - fail safe to unauthenticated
-      authLogger.warn('Unknown auth event', { action: 'mapSupabaseEvent', event } as any);
+      authLogger.warn('Unknown auth event', { action: 'mapSupabaseEvent', event });
       return 'unauthenticated';
   }
 }

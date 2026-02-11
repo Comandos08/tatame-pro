@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
-import { MEMBERSHIP_STATUS_LABELS } from '@/types/membership';
+import { MEMBERSHIP_STATUS_LABELS, type MembershipStatus } from '@/types/membership';
 import { EditablePersonalData } from '@/components/athlete/EditablePersonalData';
 import { DocumentsSection } from '@/components/athlete/DocumentsSection';
 import { RenewalBanner } from '@/components/membership/RenewalBanner';
@@ -420,7 +420,7 @@ export default function AthleteArea() {
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50">
                   <Badge className={getStatusColor(activeMembership?.status || 'DRAFT')}>
-                    {activeMembership ? (MEMBERSHIP_STATUS_LABELS as any)[activeMembership.status] : t('athleteArea.noMembership')}
+                    {activeMembership ? MEMBERSHIP_STATUS_LABELS[activeMembership.status as MembershipStatus] ?? activeMembership.status : t('athleteArea.noMembership')}
                   </Badge>
                   <p className="text-xs text-muted-foreground mt-1">{t('athleteArea.membershipStatus')}</p>
                 </div>
@@ -581,7 +581,7 @@ export default function AthleteArea() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getStatusColor(membership.status)}>
-                          {(MEMBERSHIP_STATUS_LABELS as any)[membership.status]}
+                          {MEMBERSHIP_STATUS_LABELS[membership.status as MembershipStatus] ?? membership.status}
                         </Badge>
                       </div>
                     </div>

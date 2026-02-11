@@ -29,7 +29,7 @@ export function useAthleteBadgeTimeline(athleteId: string | undefined) {
       const events: BadgeTimelineEvent[] = [];
 
       for (const row of data || []) {
-        const badge = (row as any).badges;
+        const badge = (row as unknown as { badges: { name: string; code: string } | null }).badges;
         const name = badge?.name ?? "";
         const code = badge?.code ?? "";
 

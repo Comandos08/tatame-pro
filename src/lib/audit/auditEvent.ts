@@ -18,6 +18,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { auditLogger } from '@/lib/observability/logger';
+import type { Json } from '@/integrations/supabase/types';
 
 /** Canonical audit categories (mirrors backend detectCategory) */
 export type AuditCategory =
@@ -115,19 +116,19 @@ export async function auditEvent(input: AuditEventInput): Promise<void> {
       ...input.metadata,
     };
 
-    const { error } = await (supabase.from('audit_logs') as any).insert({
+    const { error } = await supabase.from('audit_logs').insert({
       event_type: input.event_type,
       tenant_id: input.tenant_id,
       profile_id: input.profile_id,
       category,
-      metadata,
+      metadata: metadata as unknown as Json,
     });
 
     if (error) {
-      auditLogger.error('Audit insert failed', { component: 'AuditEvent', action: 'insert', metadata: { error: error.message } } as any);
+      auditLogger.error('Audit insert failed', { component: 'AuditEvent', action: 'insert', metadata: { error: error.message } });
     }
   } catch (err) {
     // Best-effort — never block UI
-    auditLogger.error('Audit exception', { component: 'AuditEvent', action: 'insert' } as any, err instanceof Error ? err : new Error(String(err)));
+    auditLogger.error('Audit exception', { component: 'AuditEvent', action: 'insert' }, err instanceof Error ? err : new Error(String(err)));
   }
 }

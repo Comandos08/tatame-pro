@@ -132,9 +132,9 @@ export function BillingUxBanner({ billingState, billingViewState }: BillingUxBan
     CANCELED: 'Entrar em contato',
   };
 
-  const title = t(config.titleKey as any) || titleFallbacks[billingState];
-  const description = t(config.descriptionKey as any) || descFallbacks[billingState];
-  const ctaText = t(config.ctaKey as any) || ctaFallbacks[billingState];
+  const title = t(config.titleKey) || titleFallbacks[billingState];
+  const description = t(config.descriptionKey) || descFallbacks[billingState];
+  const ctaText = t(config.ctaKey) || ctaFallbacks[billingState];
 
   return (
     <Alert
