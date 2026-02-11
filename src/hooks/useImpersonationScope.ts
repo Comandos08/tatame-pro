@@ -68,6 +68,7 @@ export function useImpersonationScope() {
     isImpersonating,
     remainingMinutes,
     endImpersonation,
+    clearSession,
     isLoading,
     resolutionStatus,
   } = useImpersonation();
@@ -156,29 +157,37 @@ export function useImpersonationScope() {
   );
 
   // ========================================================================
-  // clearImpersonationScope — Fail-safe shutdown with reason logging
-  // BY DESIGN: Local state is cleared IMMEDIATELY before any async call
-  // to guarantee the UI never stays in a stale impersonation state.
+  // clearImpersonationScope — A02.T1.4.1 SAFE GOLD HARDENED
+  // Fail-closed shutdown: memory FIRST, then storage, then backend (best effort)
+  // BY DESIGN: UI NEVER remains in ACTIVE state after this call, even if
+  // network fails. The order is non-negotiable.
   // ========================================================================
   const clearImpersonationScope = useCallback(
     async (reason: string) => {
-      logger.log('[ImpersonationScope] Clearing scope (fail-safe)', { reason });
+      logger.log('[ImpersonationScope] Clearing scope (A02.T1.4.1 fail-safe)', { reason });
 
-      // 1️⃣ Clear local storage IMMEDIATELY (fail-safe — always runs)
+      // 1️⃣ Clear in-memory React state FIRST (fail-closed — UI updates immediately)
+      try {
+        clearSession();
+      } catch {
+        // BY DESIGN: Never throw — fail-safe
+      }
+
+      // 2️⃣ Clear persisted storage (redundant with clearSession but explicit guarantee)
       try {
         sessionStorage.removeItem('impersonation_session');
       } catch {
         // BY DESIGN: Storage access may fail in restricted contexts — ignore
       }
 
-      // 2️⃣ Attempt backend cleanup (best effort)
+      // 3️⃣ Backend cleanup (best effort — do not block UI)
       try {
         await endImpersonation(reason);
-      } catch (err) {
+      } catch {
         logger.warn('[ImpersonationScope] Backend endImpersonation failed (ignored)', { reason });
       }
     },
-    [endImpersonation],
+    [clearSession, endImpersonation],
   );
 
   return {
