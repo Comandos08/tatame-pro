@@ -3,9 +3,12 @@
  * 
  * Centralized function to create consistent audit log entries across all edge functions.
  * This ensures all critical business events are logged with a standardized format.
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 /**
  * Standard audit event types for the TATAME platform.
@@ -264,6 +267,9 @@ export async function createAuditLog(
   supabase: SupabaseClient<any, any, any>,
   entry: AuditLogEntry
 ): Promise<{ success: boolean; error?: string }> {
+  const log = createBackendLogger("audit-logger", crypto.randomUUID());
+  log.setTenant(entry.tenant_id);
+
   try {
     // Auto-detect category if not provided
     const category = entry.metadata?.category || detectCategory(entry.event_type);
@@ -275,12 +281,12 @@ export async function createAuditLog(
     const isCouncilEvent = entry.event_type.startsWith('COUNCIL_');
     
     if (isFederationEvent && !entry.metadata?.federation_id) {
-      console.error(`[AUDIT-LOGGER] PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id`);
+      log.error(`PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id`);
       return { success: false, error: `PI-D5.A: ${entry.event_type} requires metadata.federation_id` };
     }
     
     if (isCouncilEvent && (!entry.metadata?.federation_id || !entry.metadata?.council_id)) {
-      console.error(`[AUDIT-LOGGER] PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id AND metadata.council_id`);
+      log.error(`PI-D5.A VIOLATION: ${entry.event_type} requires metadata.federation_id AND metadata.council_id`);
       return { success: false, error: `PI-D5.A: ${entry.event_type} requires metadata.federation_id AND metadata.council_id` };
     }
     
@@ -300,14 +306,14 @@ export async function createAuditLog(
     });
 
     if (error) {
-      console.error('[AUDIT-LOGGER] Failed to create audit log:', error.message);
+      log.error('Failed to create audit log', error, { event_type: entry.event_type });
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[AUDIT-LOGGER] Exception creating audit log:', errorMessage);
+    log.error('Exception creating audit log', err, { event_type: entry.event_type });
     return { success: false, error: errorMessage };
   }
 }

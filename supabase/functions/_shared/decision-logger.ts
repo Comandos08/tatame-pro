@@ -5,9 +5,12 @@
  * Each log entry references the previous hash for tamper detection.
  * 
  * IMPORTANT: Only call from Edge Functions with service role client.
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SecuritySeverity } from "./security-logger.ts";
+import { createBackendLogger } from "./backend-logger.ts";
 
 // Use generic type for Supabase client to avoid version mismatches
 // deno-lint-ignore no-explicit-any
@@ -58,6 +61,8 @@ async function getLastHash(
   supabaseAdmin: SupabaseAdminClient,
   tenantId: string | null
 ): Promise<string | null> {
+  const log = createBackendLogger("decision-logger", crypto.randomUUID());
+
   if (!tenantId) {
     // For global events without tenant, get the last global event
     const { data, error } = await supabaseAdmin
@@ -69,7 +74,7 @@ async function getLastHash(
       .maybeSingle();
 
     if (error) {
-      console.error('[DECISION-LOG] Failed to get last global hash:', error.message);
+      log.error('Failed to get last global hash', error);
       return null;
     }
     return data?.current_hash || null;
@@ -84,7 +89,7 @@ async function getLastHash(
     .maybeSingle();
 
   if (error) {
-    console.error('[DECISION-LOG] Failed to get last hash:', error.message);
+    log.error('Failed to get last hash', error, { tenant_id: tenantId });
     return null;
   }
 
@@ -102,6 +107,10 @@ export async function logDecision(
   supabaseAdmin: SupabaseAdminClient,
   decision: DecisionLogData
 ): Promise<string | null> {
+  const log = createBackendLogger("decision-logger", crypto.randomUUID());
+  log.setTenant(decision.tenant_id ?? null);
+  log.setUser(decision.user_id ?? null);
+
   try {
     const timestamp = new Date().toISOString();
     
@@ -145,15 +154,15 @@ export async function logDecision(
       .single();
 
     if (error) {
-      console.error('[DECISION-LOG] Failed to insert:', error.message);
+      log.error('Failed to insert decision log', error, { decision_type: decision.decision_type });
       return null;
     }
 
-    console.log(`[DECISION-LOG] Created: ${decision.decision_type} (${decision.reason_code}) -> ${data.id}`);
+    log.info('Decision logged', { decision_type: decision.decision_type, reason_code: decision.reason_code, id: data.id });
     return data.id;
 
   } catch (err) {
-    console.error('[DECISION-LOG] Unexpected error:', err);
+    log.error('Unexpected error logging decision', err, { decision_type: decision.decision_type });
     return null;
   }
 }
@@ -360,11 +369,13 @@ export async function verifyHashChain(
   supabaseAdmin: SupabaseAdminClient,
   tenantId: string
 ): Promise<{ valid: boolean; brokenAt?: string; totalLogs: number }> {
+  const log = createBackendLogger("decision-logger", crypto.randomUUID());
+
   const { data, error } = await supabaseAdmin
     .rpc('verify_decision_log_chain', { p_tenant_id: tenantId });
 
   if (error) {
-    console.error('[DECISION-LOG] Chain verification failed:', error.message);
+    log.error('Chain verification failed', error, { tenant_id: tenantId });
     return { valid: false, totalLogs: 0 };
   }
 

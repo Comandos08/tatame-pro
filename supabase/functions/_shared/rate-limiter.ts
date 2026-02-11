@@ -8,6 +8,9 @@
  * - UPSTASH_REDIS_REST_URL: Upstash Redis REST API URL
  * - UPSTASH_REDIS_REST_TOKEN: Upstash Redis REST API Token
  * 
+ * A02: All console.* calls migrated to createBackendLogger.
+ * A02: tooManyRequestsResponse migrated to A07 envelope.
+ * 
  * Usage:
  * ```typescript
  * import { RateLimiter, RateLimitConfig } from "../_shared/rate-limiter.ts";
@@ -21,6 +24,9 @@
  * const { success, remaining, reset } = await limiter.check(identifier);
  * ```
  */
+
+import { createBackendLogger } from "./backend-logger.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "./errors/envelope.ts";
 
 export interface RateLimitConfig {
   /** Prefix for Redis keys (e.g., "password-reset", "checkout") */
@@ -59,9 +65,11 @@ export class RateLimiter {
    * @returns RateLimitResult with success status and metadata
    */
   async check(identifier: string): Promise<RateLimitResult> {
+    const log = createBackendLogger("rate-limiter", crypto.randomUUID());
+
     // If Redis is not configured, allow all requests (fail-open)
     if (!this.redisUrl || !this.redisToken) {
-      console.warn("[RATE-LIMITER] Redis not configured, allowing request");
+      log.warn("Redis not configured, allowing request (fail-open)");
       return {
         success: true,
         remaining: this.config.limit,
@@ -94,7 +102,8 @@ export class RateLimiter {
       });
 
       if (!response.ok) {
-        console.error("[RATE-LIMITER] Redis error:", await response.text());
+        const errorText = await response.text();
+        log.error("Redis error", undefined, { response: errorText });
         // Fail-open on Redis errors
         return {
           success: true,
@@ -109,7 +118,7 @@ export class RateLimiter {
       const remaining = Math.max(0, this.config.limit - count);
       const success = count <= this.config.limit;
 
-      console.log(`[RATE-LIMITER] ${this.config.prefix}:${identifier} - count: ${count}, limit: ${this.config.limit}, success: ${success}`);
+      log.info("Rate limit check", { prefix: this.config.prefix, identifier, count, limit: this.config.limit, success });
 
       return {
         success,
@@ -118,7 +127,7 @@ export class RateLimiter {
         count,
       };
     } catch (error) {
-      console.error("[RATE-LIMITER] Error:", error);
+      log.error("Rate limit check error", error);
       // Fail-open on errors
       return {
         success: true,
@@ -141,25 +150,26 @@ export class RateLimiter {
   }
 
   /**
-   * Create a 429 Too Many Requests response
+   * Create a 429 Too Many Requests response (A07 Envelope)
    */
-  tooManyRequestsResponse(result: RateLimitResult, corsHeaders: Record<string, string>): Response {
+  tooManyRequestsResponse(
+    result: RateLimitResult,
+    corsHeaders: Record<string, string>,
+    correlationId?: string,
+  ): Response {
     const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
-    return new Response(
-      JSON.stringify({
-        error: "Muitas requisições. Tente novamente mais tarde.",
-        retryAfter,
-      }),
-      {
-        status: 429,
-        headers: {
-          ...corsHeaders,
-          ...this.getHeaders(result),
-          "Content-Type": "application/json",
-          "Retry-After": retryAfter.toString(),
-        },
-      }
+    const envelope = buildErrorEnvelope(
+      ERROR_CODES.RATE_LIMITED,
+      "system.rate_limited",
+      true,
+      undefined,
+      correlationId,
     );
+    return errorResponse(429, envelope, {
+      ...corsHeaders,
+      ...this.getHeaders(result),
+      "Retry-After": retryAfter.toString(),
+    });
   }
 }
 
