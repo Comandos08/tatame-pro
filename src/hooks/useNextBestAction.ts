@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { useAccessContract } from '@/hooks/useAccessContract';
 import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
 import { failSafeAccess } from '@/lib/safety/failSafe';
@@ -23,6 +24,7 @@ export function useNextBestAction(): NextBestAction {
   const { identityState, role } = useIdentity();
   const { tenant } = useTenant();
   const { billingStatus } = useTenantStatus();
+  const { isManualOverride } = useBillingOverride();
   const { isLoading, isError } = useAccessContract(tenant?.id);
 
   const tenantLifecycle: TenantLifecycleState | null = tenant?.status
@@ -33,10 +35,11 @@ export function useNextBestAction(): NextBestAction {
     identityState,
     tenantLifecycle,
     billingStatus: (billingStatus as BillingStatus) ?? null,
+    billingOverride: isManualOverride,
     hasTenant: !!tenant?.id,
     hasRole: !!role,
     canAccess: failSafeAccess(!isError && !isLoading, isLoading, isError),
-  }), [identityState, tenantLifecycle, billingStatus, tenant?.id, role, isLoading, isError]);
+  }), [identityState, tenantLifecycle, billingStatus, isManualOverride, tenant?.id, role, isLoading, isError]);
 
   return useMemo(() => deriveNextBestAction(input), [input]);
 }

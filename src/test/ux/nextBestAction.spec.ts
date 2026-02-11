@@ -157,18 +157,45 @@ describe('Priority order', () => {
     expect(result!.reason).toBe('WIZARD_REQUIRED');
   });
 
-  it('Billing blocked takes priority over tenant blocked', () => {
+  it('Tenant blocked takes priority over billing blocked', () => {
     const result = deriveNextBestAction(okInput({
       billingStatus: 'PAST_DUE',
       tenantLifecycle: 'BLOCKED',
     }));
-    expect(result!.reason).toBe('BILLING_BLOCKED');
+    expect(result!.reason).toBe('TENANT_BLOCKED');
   });
 
   it('Tenant blocked takes priority over access denied', () => {
     const result = deriveNextBestAction(okInput({
       tenantLifecycle: 'BLOCKED',
       canAccess: false,
+    }));
+    expect(result!.reason).toBe('TENANT_BLOCKED');
+  });
+
+  it('Billing override neutralizes financial block when tenant is ACTIVE', () => {
+    const result = deriveNextBestAction(okInput({
+      billingStatus: 'PAST_DUE',
+      billingOverride: true,
+      tenantLifecycle: 'ACTIVE',
+    }));
+    expect(result).toBeNull();
+  });
+
+  it('Billing override does NOT override tenant BLOCKED lifecycle', () => {
+    const result = deriveNextBestAction(okInput({
+      billingStatus: 'PAST_DUE',
+      billingOverride: true,
+      tenantLifecycle: 'BLOCKED',
+    }));
+    expect(result!.reason).toBe('TENANT_BLOCKED');
+  });
+
+  it('Billing override does NOT override tenant DELETED lifecycle', () => {
+    const result = deriveNextBestAction(okInput({
+      billingStatus: 'PAST_DUE',
+      billingOverride: true,
+      tenantLifecycle: 'DELETED',
     }));
     expect(result!.reason).toBe('TENANT_BLOCKED');
   });

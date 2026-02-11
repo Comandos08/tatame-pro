@@ -45,6 +45,7 @@ export interface NextBestActionInput {
   identityState: IdentityState;
   tenantLifecycle: TenantLifecycleState | null;
   billingStatus: BillingStatus | null;
+  billingOverride?: boolean;
   hasTenant: boolean;
   hasRole: boolean;
   canAccess: boolean;
@@ -115,6 +116,7 @@ export function deriveNextBestAction(
     canAccess: input.canAccess,
     tenantLifecycle: input.tenantLifecycle,
     billingStatus: input.billingStatus,
+    billingOverride: input.billingOverride,
   });
 
   if (blockReason && BLOCK_REASON_TO_NBA[blockReason]) {
