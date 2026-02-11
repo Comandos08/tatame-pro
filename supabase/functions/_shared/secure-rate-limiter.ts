@@ -15,6 +15,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logSecurityEvent, SECURITY_EVENTS, extractRequestContext } from "./security-logger.ts";
 import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "./errors/envelope.ts";
+import { createBackendLogger } from "./backend-logger.ts";
 
 export interface SecureRateLimitConfig {
   /** Operation name for key prefix */
@@ -92,10 +93,11 @@ export class SecureRateLimiter {
   ): Promise<SecureRateLimitResult> {
     const key = this.buildKey(ctx);
     const now = Date.now();
+    const log = createBackendLogger("secure-rate-limiter", crypto.randomUUID());
 
     // If Redis is not configured, fail closed
     if (!this.redisUrl || !this.redisToken) {
-      console.error("[RATE-LIMITER] Redis not configured - BLOCKING request (fail-closed)");
+      log.error("Redis not configured - BLOCKING request (fail-closed)");
       
       if (this.config.failClosed) {
         return {
@@ -140,7 +142,7 @@ export class SecureRateLimiter {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[RATE-LIMITER] Redis error:", errorText);
+        log.error("Redis error", undefined, { response: errorText });
         
         if (this.config.failClosed) {
           return {
@@ -167,7 +169,7 @@ export class SecureRateLimiter {
       const remaining = Math.max(0, this.config.limit - count);
       const allowed = count <= this.config.limit;
 
-      console.log(`[RATE-LIMITER] ${this.config.operation}: count=${count}, limit=${this.config.limit}, allowed=${allowed}`);
+      log.info("Rate limit check", { operation: this.config.operation, count, limit: this.config.limit, allowed });
 
       // Log security event if rate limit exceeded
       if (!allowed && this.config.logSecurityEvent && supabaseAdmin) {
@@ -195,7 +197,7 @@ export class SecureRateLimiter {
         count,
       };
     } catch (error) {
-      console.error("[RATE-LIMITER] Error:", error);
+      log.error("Rate limit check error", error);
       
       if (this.config.failClosed) {
         return {
@@ -242,7 +244,7 @@ export class SecureRateLimiter {
       ERROR_CODES.RATE_LIMITED,
       "system.rate_limited",
       true,
-      [`Retry after ${retryAfter}s`],
+      undefined,
       correlationId,
     );
     return errorResponse(429, envelope, {

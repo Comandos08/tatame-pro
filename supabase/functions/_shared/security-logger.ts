@@ -5,9 +5,12 @@
  * Used for rate limiting violations, anomaly detection, and audit trails.
  * 
  * IMPORTANT: Only call from Edge Functions with service role client.
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 export type SecuritySeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -50,6 +53,10 @@ export async function logSecurityEvent(
   supabaseAdmin: SupabaseClient<any, any, any>,
   event: SecurityEventData
 ): Promise<void> {
+  const log = createBackendLogger("security-logger", crypto.randomUUID());
+  log.setTenant(event.tenant_id ?? null);
+  log.setUser(event.user_id ?? null);
+
   try {
     const { error } = await supabaseAdmin
       .from('security_events')
@@ -65,12 +72,12 @@ export async function logSecurityEvent(
       });
 
     if (error) {
-      console.error('[SECURITY-EVENT] Failed to log event:', error.message);
+      log.error('Failed to log security event', error, { event_type: event.event_type });
     } else {
-      console.log(`[SECURITY-EVENT] Logged: ${event.event_type} (${event.severity || 'MEDIUM'})`);
+      log.info('Security event logged', { event_type: event.event_type, severity: event.severity || 'MEDIUM' });
     }
   } catch (err) {
-    console.error('[SECURITY-EVENT] Unexpected error:', err);
+    log.error('Unexpected error logging security event', err, { event_type: event.event_type });
   }
 }
 
@@ -106,6 +113,7 @@ export async function detectAnomaly(
     windowMinutes: number;
   }
 ): Promise<{ detected: boolean; count: number }> {
+  const log = createBackendLogger("security-logger", crypto.randomUUID());
   const windowStart = new Date(Date.now() - options.windowMinutes * 60 * 1000);
   
   let query = supabaseAdmin
@@ -124,7 +132,7 @@ export async function detectAnomaly(
   const { count, error } = await query;
   
   if (error) {
-    console.error('[ANOMALY-DETECT] Query failed:', error);
+    log.error('Anomaly detection query failed', error, { event_type: options.event_type });
     return { detected: false, count: 0 };
   }
 
