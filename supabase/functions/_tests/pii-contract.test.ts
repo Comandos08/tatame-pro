@@ -1,59 +1,87 @@
 /**
- * PI-A08 — PII Contract Tests (Deno)
+ * PI-A08.H1 — PII Contract Tests (Deno) — FAIL-CLOSED
  *
  * Validates that the PII contract infrastructure works correctly.
- * - sanitizePublicPayload strips sensitive columns
+ * - sanitizePublicPayload THROWS for non-public tables
+ * - sanitizePublicPayload strips sensitive columns for public-safe tables
  * - isSensitiveTable classifies correctly
- * - classifyAnonAccess returns correct risk levels
+ * - sanitizePublicPayloadArray applies to all items
  */
 
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.190.0/testing/asserts.ts";
 
-// Import shared utilities
-import { sanitizePublicPayload, isSensitiveTable, sanitizePublicPayloadArray } from "../_shared/security/sanitizePublicPayload.ts";
+import {
+  sanitizePublicPayload,
+  isSensitiveTable,
+  sanitizePublicPayloadArray,
+} from "../_shared/security/sanitizePublicPayload.ts";
 
 // ============================================================================
-// sanitizePublicPayload
+// FAIL-CLOSED: throws for non-public tables
 // ============================================================================
 
-Deno.test("sanitizePublicPayload: strips email from athletes", () => {
-  const input = { id: "123", full_name: "Test", email: "test@test.com", phone: "123" };
-  const result = sanitizePublicPayload("athletes", input);
-  assertEquals(result.id, "123");
-  assertEquals(result.full_name, "Test");
-  assertEquals("email" in result, false);
-  assertEquals("phone" in result, false);
+Deno.test("sanitizePublicPayload: throws for non-public table (athletes)", () => {
+  const input = { id: "1", email: "a@b.com" };
+  let threw = false;
+  try {
+    sanitizePublicPayload("athletes", input);
+  } catch (e) {
+    threw = true;
+    assertEquals((e as Error).message, "PII_CONTRACT_VIOLATION:athletes");
+  }
+  assertEquals(threw, true);
 });
 
-Deno.test("sanitizePublicPayload: strips profile_id from coaches", () => {
-  const input = { id: "c1", full_name: "Coach", profile_id: "p1", rank: "black" };
-  const result = sanitizePublicPayload("coaches", input);
-  assertEquals(result.id, "c1");
-  assertEquals(result.full_name, "Coach");
-  assertEquals(result.rank, "black");
-  assertEquals("profile_id" in result, false);
+Deno.test("sanitizePublicPayload: throws for non-public table (profiles)", () => {
+  const input = { id: "1", email: "a@b.com" };
+  let threw = false;
+  try {
+    sanitizePublicPayload("profiles", input);
+  } catch (e) {
+    threw = true;
+    assertEquals((e as Error).message, "PII_CONTRACT_VIOLATION:profiles");
+  }
+  assertEquals(threw, true);
 });
 
-Deno.test("sanitizePublicPayload: strips stripe fields from memberships", () => {
-  const input = { id: "m1", status: "ACTIVE", stripe_checkout_session_id: "cs_xxx", stripe_payment_intent_id: "pi_xxx" };
-  const result = sanitizePublicPayload("memberships", input);
-  assertEquals(result.id, "m1");
-  assertEquals(result.status, "ACTIVE");
-  assertEquals("stripe_checkout_session_id" in result, false);
-  assertEquals("stripe_payment_intent_id" in result, false);
+Deno.test("sanitizePublicPayload: throws for unknown table", () => {
+  const input = { id: "1", name: "test" };
+  let threw = false;
+  try {
+    sanitizePublicPayload("unknown_table", input);
+  } catch (e) {
+    threw = true;
+    assertEquals((e as Error).message, "PII_CONTRACT_VIOLATION:unknown_table");
+  }
+  assertEquals(threw, true);
 });
 
-Deno.test("sanitizePublicPayload: passes through unknown table unchanged", () => {
-  const input = { id: "1", name: "test", secret: "keep" };
-  const result = sanitizePublicPayload("unknown_table", input);
-  assertEquals(result, input);
+// ============================================================================
+// PUBLIC-SAFE tables: returns copy without mutation
+// ============================================================================
+
+Deno.test("sanitizePublicPayload: public-safe table returns copy (platform_partners)", () => {
+  const input = { id: "1", name: "Partner X" };
+  const out = sanitizePublicPayload("platform_partners", input);
+  // Returns equal content but different reference (copy)
+  assertNotEquals(out === input, true);
+  assertEquals(out.id, input.id);
+  assertEquals(out.name, input.name);
 });
 
-Deno.test("sanitizePublicPayload: does not mutate original", () => {
-  const input = { id: "123", email: "a@b.com", full_name: "Test" };
-  const result = sanitizePublicPayload("athletes", input);
-  assertNotEquals(result, input);
-  assertEquals(input.email, "a@b.com"); // original unchanged
+Deno.test("sanitizePublicPayload: public-safe table returns copy (feature_access)", () => {
+  const input = { id: "fa1", feature_key: "dashboard", is_active: true };
+  const out = sanitizePublicPayload("feature_access", input);
+  assertNotEquals(out === input, true);
+  assertEquals(out.feature_key, "dashboard");
+  assertEquals(out.is_active, true);
+});
+
+Deno.test("sanitizePublicPayload: does not mutate original on public-safe table", () => {
+  const input = { id: "1", name: "X", extra: "keep" };
+  const out = sanitizePublicPayload("billing_environment_config", input);
+  assertEquals(input.extra, "keep");
+  assertEquals(out.extra, "keep");
 });
 
 // ============================================================================
@@ -68,6 +96,10 @@ Deno.test("isSensitiveTable: athletes is sensitive", () => {
   assertEquals(isSensitiveTable("athletes"), true);
 });
 
+Deno.test("isSensitiveTable: audit_logs is sensitive (extra, no columns)", () => {
+  assertEquals(isSensitiveTable("audit_logs"), true);
+});
+
 Deno.test("isSensitiveTable: platform_partners is not sensitive", () => {
   assertEquals(isSensitiveTable("platform_partners"), false);
 });
@@ -80,14 +112,24 @@ Deno.test("isSensitiveTable: events is not sensitive", () => {
 // sanitizePublicPayloadArray
 // ============================================================================
 
-Deno.test("sanitizePublicPayloadArray: strips from all items", () => {
+Deno.test("sanitizePublicPayloadArray: works on public-safe tables", () => {
   const input = [
-    { id: "1", email: "a@b.com", full_name: "A" },
-    { id: "2", email: "c@d.com", full_name: "B" },
+    { id: "1", name: "A" },
+    { id: "2", name: "B" },
   ];
-  const result = sanitizePublicPayloadArray("athletes", input);
+  const result = sanitizePublicPayloadArray("platform_partners", input);
   assertEquals(result.length, 2);
-  assertEquals("email" in result[0], false);
-  assertEquals("email" in result[1], false);
-  assertEquals(result[0].full_name, "A");
+  assertEquals(result[0].name, "A");
+  assertEquals(result[1].name, "B");
+});
+
+Deno.test("sanitizePublicPayloadArray: throws for non-public table", () => {
+  const input = [{ id: "1", email: "a@b.com" }];
+  let threw = false;
+  try {
+    sanitizePublicPayloadArray("athletes", input);
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
 });

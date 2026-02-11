@@ -349,19 +349,23 @@ serve(async (req) => {
     // PHASE 4: PII Exposure Audit — Anon Access Snapshot (PI-A08)
     // ====================================================================
     let piiExposure: PiiExposureFinding[] = [];
+    let piiExposureError = false;
     try {
       const { data: anonPolicies, error: anonError } = await supabase
         .rpc("audit_public_access_snapshot");
 
-      if (!anonError && anonPolicies) {
+      if (anonError) {
+        console.warn("[AUDIT-RLS] RPC audit_public_access_snapshot failed (non-fatal):", anonError.message);
+        piiExposureError = true;
+      } else if (anonPolicies) {
         const policies_arr = Array.isArray(anonPolicies) ? anonPolicies : (anonPolicies as unknown as AnonPolicyRow[]);
         piiExposure = (policies_arr as AnonPolicyRow[]).map((p) =>
           classifyAnonAccess(p.tablename, p.cmd, p.policyname)
         );
       }
     } catch {
-      // Non-fatal: PII audit is additive
-      console.warn("[AUDIT-RLS] PII exposure audit failed (non-fatal)");
+      console.warn("[AUDIT-RLS] PII exposure audit failed unexpectedly (non-fatal)");
+      piiExposureError = true;
     }
 
     const piiCounts = { critical: 0, high: 0, safe: 0 };
@@ -400,6 +404,7 @@ serve(async (req) => {
           ...piiCounts,
         },
       },
+      piiExposureError,
       policies: policyFindings.filter(f => f.risk !== "SAFE"),
       securityDefinerFunctions: definerFindings.filter(f => f.risk !== "SAFE"),
       tablesWithoutRls,
