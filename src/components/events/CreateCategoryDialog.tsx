@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -104,7 +105,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
       };
 
       // LOG OBRIGATÓRIO — Diagnóstico (AJUSTE C)
-      console.log('[CREATE CATEGORY PAYLOAD]', payload);
+      logger.log('[CREATE CATEGORY PAYLOAD]', payload);
 
       const { data: result, error } = await supabase
         .from('event_categories')
@@ -114,7 +115,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
 
       if (error) {
         // LOG OBRIGATÓRIO — Diagnóstico (AJUSTE C)
-        console.error('[CREATE CATEGORY ERROR]', error);
+        logger.error('[CREATE CATEGORY ERROR]', error);
         throw error;
       }
 

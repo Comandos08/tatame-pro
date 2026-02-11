@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Trophy, Building2, Users, Loader2, Medal, Award } from 'lucide-react';
@@ -144,7 +145,7 @@ export default function PublicRankings() {
           setAthleteRankings(sorted);
         }
       } catch (error) {
-        console.error('Error fetching rankings:', error);
+        logger.error('Error fetching rankings:', error);
       } finally {
         setLoading(false);
       }

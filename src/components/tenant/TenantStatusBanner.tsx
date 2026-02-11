@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, XCircle, CreditCard, ExternalLink, X, Loader2 } from 'lucide-react';
@@ -34,7 +35,7 @@ export function TenantStatusBanner() {
         throw new Error('Portal URL not returned');
       }
     } catch (err) {
-      console.error('Error opening portal:', err);
+      logger.error('Error opening portal:', err);
       toast.error(t('billing.openPortalError'));
     } finally {
       setIsOpeningPortal(false);

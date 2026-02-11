@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, Loader2, Copy, Check, Mail, UserPlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -144,7 +145,7 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
       });
 
       if (error) {
-        console.error('[ManageAdminsDialog] revoke-roles invocation error:', error);
+        logger.error('[ManageAdminsDialog] revoke-roles invocation error:', error);
         throw new Error('Operation not permitted');
       }
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { Upload, Calendar, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -75,7 +76,7 @@ export function EventImageUpload({
       onUploaded(publicUrl);
       toast.success(t('events.imageUploadSuccess'));
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('Upload error:', error);
       setPreviewUrl(currentUrl);
       toast.error(t('events.imageUploadError'));
     } finally {
@@ -97,7 +98,7 @@ export function EventImageUpload({
       onUploaded(null);
       toast.success(t('events.imageRemoveSuccess'));
     } catch (error) {
-      console.error('Remove error:', error);
+      logger.error('Remove error:', error);
       toast.error(t('events.imageRemoveError'));
     } finally {
       setUploading(false);

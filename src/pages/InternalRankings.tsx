@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { logger } from '@/lib/logger';
 import { motion } from 'framer-motion';
 import { Trophy, Building2, Users, Medal, Loader2, AlertCircle, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -189,7 +190,7 @@ export default function InternalRankings() {
           setAthleteRankings(athleteRankingsData);
         }
       } catch (err) {
-        console.error('Error fetching internal rankings:', err);
+        logger.error('Error fetching internal rankings:', err);
         setError(err instanceof Error ? err.message : 'Failed to load rankings');
       } finally {
         setLoading(false);

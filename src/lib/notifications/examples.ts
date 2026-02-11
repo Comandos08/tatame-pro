@@ -8,6 +8,7 @@
  * It is NOT executed in production.
  */
 
+import { logger } from '@/lib/logger';
 import {
   resolveMembershipNotification,
   shouldSend,

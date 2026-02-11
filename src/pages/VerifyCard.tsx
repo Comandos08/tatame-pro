@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { logger } from '@/lib/logger';
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export default function VerifyCard() {
         });
 
         if (fnError) {
-          console.error("Edge function error:", fnError);
+          logger.error("Edge function error:", fnError);
           setError(t('verification.cardError'));
           setLoading(false);
           return;
@@ -93,7 +94,7 @@ export default function VerifyCard() {
           pdfUrl: data.pdfUrl,
         });
       } catch (err) {
-        console.error("Verification error:", err);
+        logger.error("Verification error:", err);
         setError(t('verification.cardError'));
       } finally {
         setLoading(false);

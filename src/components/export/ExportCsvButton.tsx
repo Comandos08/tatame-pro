@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { exportToCsv, CsvColumn } from '@/lib/exportCsv';
@@ -44,7 +45,7 @@ export function ExportCsvButton<T extends Record<string, any>>({
       exportToCsv(fullFilename, columns, data);
       toast.success(t('export.success', { count: String(data.length) }));
     } catch (error) {
-      console.error('Export error:', error);
+      logger.error('Export error:', error);
       toast.error(t('export.error'));
     } finally {
       setIsExporting(false);

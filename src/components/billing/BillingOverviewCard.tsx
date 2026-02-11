@@ -11,6 +11,7 @@
  */
 
 import React from 'react';
+import { logger } from '@/lib/logger';
 import { Clock, CheckCircle, AlertTriangle, AlertCircle, Trash2, XCircle, CreditCard, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -179,7 +180,7 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
           window.location.href = data.url;
         }
       } catch (err) {
-        console.error('Failed to create checkout session:', err);
+        logger.error('Failed to create checkout session:', err);
         toast.error(t('billing.error.checkoutFailed'));
         setIsRedirecting(false);
       }
@@ -196,7 +197,7 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
           window.location.href = data.url;
         }
       } catch (err) {
-        console.error('Failed to open customer portal:', err);
+        logger.error('Failed to open customer portal:', err);
         toast.error(t('billing.error.portalFailed'));
         setIsRedirecting(false);
       }

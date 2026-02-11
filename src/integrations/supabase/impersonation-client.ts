@@ -13,6 +13,7 @@
  */
 
 import { useMemo } from 'react';
+import { logger } from '@/lib/logger';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
@@ -46,7 +47,7 @@ export function createImpersonationAwareClient(
     options.global = {
       headers: { 'x-impersonation-id': impersonationId },
     };
-    console.log('[IMPERSONATION-CLIENT] Created client with header:', impersonationId.slice(0, 8) + '...');
+    logger.log('[IMPERSONATION-CLIENT] Created client with header:', impersonationId.slice(0, 8) + '...');
   }
   
   const client = createClient<Database>(
@@ -98,5 +99,5 @@ export function clearImpersonationClientCache(): void {
   const cacheSize = clientCache.size;
   clientCache.clear();
   if (defaultClient) clientCache.set('default', defaultClient);
-  console.log(`[IMPERSONATION-CLIENT] Cache cleared (${cacheSize - 1} impersonation clients removed)`);
+  logger.log(`[IMPERSONATION-CLIENT] Cache cleared (${cacheSize - 1} impersonation clients removed)`);
 }

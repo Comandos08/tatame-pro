@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { logger } from '@/lib/logger';
 import { AlertTriangle, XCircle, Info, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,7 +80,7 @@ export function CriticalEventsCard() {
         .limit(10);
       
       if (error) {
-        console.error('[CriticalEventsCard] Query error:', error.message);
+        logger.error('[CriticalEventsCard] Query error:', error.message);
         return [];
       }
       

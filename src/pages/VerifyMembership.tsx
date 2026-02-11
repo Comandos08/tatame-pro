@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useParams, Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
@@ -89,14 +90,14 @@ export default function VerifyMembership() {
           .maybeSingle();
 
         if (verificationError) {
-          console.error('Verification query error:', verificationError);
+          logger.error('Verification query error:', verificationError);
           setError(t('verification.membershipError'));
           setLoading(false);
           return;
         }
 
         if (!verificationData) {
-          console.error('Membership not found');
+          logger.error('Membership not found');
           setError(t('verification.membershipNotFound'));
           setLoading(false);
           return;
@@ -106,7 +107,7 @@ export default function VerifyMembership() {
         setData(verificationData as PublicVerificationData);
 
       } catch (err) {
-        console.error('Verification error:', err);
+        logger.error('Verification error:', err);
         setError(t('verification.membershipError'));
       } finally {
         setLoading(false);

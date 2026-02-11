@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { GitBranch, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -46,7 +47,7 @@ export function GenerateBracketButton({
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      console.log('[GenerateBracketButton] Generating bracket:', { categoryId, eventId });
+      logger.log('[GenerateBracketButton] Generating bracket:', { categoryId, eventId });
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session?.access_token) {
@@ -73,11 +74,11 @@ export function GenerateBracketButton({
       const result = await response.json();
 
       if (!response.ok) {
-        console.error('[GenerateBracketButton] Error:', result);
+        logger.error('[GenerateBracketButton] Error:', result);
         throw new Error(result.error || 'Failed to generate bracket');
       }
 
-      console.log('[GenerateBracketButton] Success:', result);
+      logger.log('[GenerateBracketButton] Success:', result);
       return result;
     },
     onSuccess: (data) => {
@@ -88,7 +89,7 @@ export function GenerateBracketButton({
       onSuccess?.(data.bracketId, data.version);
     },
     onError: (error: Error) => {
-      console.error('[GenerateBracketButton] Mutation error:', error);
+      logger.error('[GenerateBracketButton] Mutation error:', error);
       toast.error(error.message || t('events.brackets.generationError'));
     },
   });

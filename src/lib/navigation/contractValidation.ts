@@ -6,6 +6,8 @@
  * Never throws. Never blocks. Zero production impact.
  */
 
+import { logger } from '@/lib/logger';
+
 type Persona = 'SUPERADMIN_GLOBAL' | 'ADMIN_TENANT' | 'ATHLETE' | 'PUBLIC';
 
 interface ContractEntry {

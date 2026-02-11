@@ -9,6 +9,8 @@
  * - Sampling enabled (default 10%)
  */
 
+import { logger } from '@/lib/logger';
+
 export type IdentityTelemetryEvent =
   | 'identity.state_resolved'
   | 'identity.redirect_decision'

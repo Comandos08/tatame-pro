@@ -5,6 +5,7 @@
  * NUNCA throw em produção. NUNCA redireciona. NUNCA altera fluxo.
  */
 
+import { logger } from '@/lib/logger';
 import type { IdentityState } from './identity-state-machine';
 import type { RedirectDecision, RedirectContext } from './identity-redirect-map';
 import { isValidIdentityTransition } from './identity-state-machine';
