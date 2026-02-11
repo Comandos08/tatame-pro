@@ -236,8 +236,67 @@ Deno.serve(async (req) => {
       .select('id, target_tenant_id, expires_at, status')
       .single();
 
-    if (insertError || !newSession) {
+    // ======================================================================
+    // A02.T2: Anti-Concurrent Lock — handle unique violation (23505)
+    // If two requests race past the UPDATE, the partial unique index
+    // ensures only one INSERT succeeds. The loser gets the existing session.
+    // ======================================================================
+    if (insertError) {
+      const isUniqueViolation = (err: unknown): boolean => {
+        if (!err || typeof err !== 'object') return false;
+        const e = err as Record<string, unknown>;
+        if (e.code === '23505') return true;
+        if (typeof e.message === 'string' && e.message.includes('duplicate key value violates unique constraint')) return true;
+        return false;
+      };
+
+      if (isUniqueViolation(insertError)) {
+        log.warn("Concurrent active session detected; returning existing", { superadmin_user_id: user.id });
+
+        const { data: existing, error: fetchError } = await supabaseAdmin
+          .from('superadmin_impersonations')
+          .select('id, target_tenant_id, expires_at, status')
+          .eq('superadmin_user_id', user.id)
+          .eq('status', 'ACTIVE')
+          .maybeSingle();
+
+        if (fetchError || !existing) {
+          log.error("Failed to fetch existing active session after lock hit", fetchError);
+          return errorResponse(
+            500,
+            buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.lock_recovery_failed", true, undefined, correlationId),
+            corsHeaders,
+          );
+        }
+
+        // Fetch tenant info for the existing session
+        const { data: existingTenant } = await supabaseAdmin
+          .from('tenants')
+          .select('slug, name')
+          .eq('id', existing.target_tenant_id)
+          .maybeSingle();
+
+        return okResponse({
+          impersonationId: existing.id,
+          targetTenantId: existing.target_tenant_id,
+          targetTenantSlug: existingTenant?.slug ?? '',
+          targetTenantName: existingTenant?.name ?? '',
+          expiresAt: existing.expires_at,
+          status: 'ACTIVE',
+          lock: 'CONCURRENT_ACTIVE_SESSION',
+        }, corsHeaders, correlationId);
+      }
+
       log.error("Failed to create impersonation session", insertError);
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.create_failed", true, undefined, correlationId),
+        corsHeaders,
+      );
+    }
+
+    if (!newSession) {
+      log.error("Insert returned no data");
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.create_failed", true, undefined, correlationId),
