@@ -32,6 +32,7 @@ import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 import { auditEvent } from '@/lib/audit/auditEvent';
 import { cn } from '@/lib/utils';
+import { useSecurityAutoAlert } from '@/hooks/admin/useSecurityAutoAlert';
 import { 
   normalizeHealthViewState, 
   normalizeHealthStatus,
@@ -48,6 +49,7 @@ export default function SystemHealth() {
   const navigate = useNavigate();
   const { currentUser, isGlobalSuperadmin, isLoading: authLoading, session } = useCurrentUser();
   const { data: health, isLoading: healthLoading, refetch, isFetching } = useSystemHealthStatus();
+  useSecurityAutoAlert();
   
   // SAFE GOLD: Derive deterministic states
   const isAuthenticated = !!session;
