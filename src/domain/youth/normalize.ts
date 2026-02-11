@@ -15,7 +15,6 @@ import type {
 import {
   SAFE_YOUTH_MEMBERSHIP_TYPES,
   SAFE_YOUTH_VIEW_STATES,
-  SAFE_YOUTH_ELIGIBILITY,
   YOUTH_AGE_THRESHOLD,
   PRODUCTION_TO_SAFE_MEMBERSHIP_TYPE,
 } from '@/types/youth-membership-state';

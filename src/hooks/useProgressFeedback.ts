@@ -48,7 +48,7 @@ export function useProgressFeedback(lastEvent?: ProgressEvent | null): {
     if (lastEvent && dismissedEvents.has(lastEvent)) return null;
 
     return deriveProgressFeedback({
-      lastEvent,
+      lastEvent: lastEvent ?? null,
       canAccess,
       isLoading,
       isError,

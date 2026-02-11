@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -19,7 +19,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { AppShell } from '@/layouts/AppShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -67,7 +67,7 @@ interface Coach {
 }
 
 export default function AthleteGradingsPage() {
-  const { tenantSlug, athleteId } = useParams<{ tenantSlug: string; athleteId: string }>();
+  const { tenantSlug: _tenantSlug, athleteId } = useParams<{ tenantSlug: string; athleteId: string }>();
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const { t, locale } = useI18n();

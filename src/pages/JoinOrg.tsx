@@ -6,13 +6,13 @@
  * - No bypass allowed
  * - Selected tenant stored in JoinContext
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Building2, MapPin, ArrowRight, ArrowLeft, HelpCircle, Loader2 } from 'lucide-react';
+import { Search, Building2, ArrowRight, ArrowLeft, HelpCircle, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

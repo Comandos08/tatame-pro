@@ -23,7 +23,7 @@ export function useNextBestAction(): NextBestAction {
   const { identityState, role } = useIdentity();
   const { tenant } = useTenant();
   const { billingStatus } = useTenantStatus();
-  const { can, isLoading, isError } = useAccessContract(tenant?.id);
+  const { isLoading, isError } = useAccessContract(tenant?.id);
 
   const tenantLifecycle: TenantLifecycleState | null = tenant?.status
     ? assertTenantLifecycleState(tenant.status)

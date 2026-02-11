@@ -14,10 +14,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import { AuthProvider, useCurrentUser } from '@/contexts/AuthContext';
-import React from 'react';
-import { freezeTestTime, unfreezeTestTime } from '@/test/test-utils/mock-time';
-import { FIXED_TEST_IDS } from '@/test/test-utils/constants';
-import { FIXED_TEST_TIME } from '@/test/test-utils/constants';
+
+import { FIXED_TEST_IDS, FIXED_TEST_TIME } from '@/test/test-utils/constants';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Mutable mock state (read by hoisted vi.mock) ──

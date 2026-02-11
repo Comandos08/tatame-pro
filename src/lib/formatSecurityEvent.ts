@@ -62,7 +62,7 @@ function getEventTitle(eventType: string): string {
 /**
  * Get human-readable description for a decision/event
  */
-function getEventDescription(eventType: string, metadata: Record<string, unknown> | null): string {
+function getEventDescription(eventType: string, _metadata: Record<string, unknown> | null): string {
   const descriptions: Record<string, string> = {
     RATE_LIMIT_BLOCK: 'Request was blocked due to too many attempts in a short period.',
     PERMISSION_DENIED: 'User attempted an operation without required permissions.',

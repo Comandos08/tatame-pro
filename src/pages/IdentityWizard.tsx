@@ -35,7 +35,7 @@ export default function IdentityWizard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
-  const { identityState, createTenant, joinExistingTenant, setIdentityError } = useIdentity();
+  const { identityState, createTenant, joinExistingTenant } = useIdentity();
 
   // Wizard state
   const [step, setStep] = useState<WizardStep>(1);

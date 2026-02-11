@@ -9,7 +9,7 @@
  * 5. Purpose: diagnostics and support
  */
 
-import React, { useState } from 'react';
+
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Activity, AlertTriangle, ArrowLeft, Clock, 

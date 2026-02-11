@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useMemo } from "react";
 import { logger } from '@/lib/logger';
 import { ptBR } from "@/locales/pt-BR";
 import { en } from "@/locales/en";

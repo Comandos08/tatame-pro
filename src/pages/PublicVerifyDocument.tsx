@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CheckCircle2, XCircle, AlertCircle, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

@@ -13,7 +13,6 @@ import type {
 
 import {
   SAFE_ANALYTICS_METRICS,
-  SAFE_ANALYTICS_VIEW_STATES,
   SAFE_ANALYTICS_SCOPES,
   PRODUCTION_TO_SAFE_ANALYTICS_METRIC,
 } from '@/types/analytics-state';

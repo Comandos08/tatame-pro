@@ -8,7 +8,7 @@
  */
 
 import { Session } from '@supabase/supabase-js';
-import { TEST_SESSION, TEST_USER } from '@/test/mocks/supabaseAuth.mock';
+import { TEST_SESSION } from '@/test/mocks/supabaseAuth.mock';
 
 // ── Scenario Types ──
 

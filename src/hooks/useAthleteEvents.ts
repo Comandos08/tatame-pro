@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EventRegistrationStatus } from '@/types/event';
-import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
 import type { AsyncState } from '@/types/async';
 
 export interface RegistrationWithEvent {

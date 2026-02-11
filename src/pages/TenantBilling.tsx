@@ -10,7 +10,7 @@
  * - Invoice history (existing)
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CreditCard, ExternalLink, FileText, Loader2, TrendingUp, Clock, CalendarCheck } from 'lucide-react';
 import { AppShell } from '@/layouts/AppShell';

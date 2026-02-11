@@ -1,4 +1,4 @@
-import React from 'react';
+import { Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -10,9 +10,6 @@ import {
   Users,
   Eye,
   EyeOff,
-  Edit,
-  Trash2,
-  Plus,
   Trophy,
 } from 'lucide-react';
 
@@ -37,7 +34,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
-import { Event, EventCategory, EventRegistration, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG, canGenerateBracket } from '@/types/event';
+import { Event, EventCategory, EventStatus, EventRegistrationStatus, canPublishResults, canEditCategories, EVENT_REGISTRATION_STATUS_CONFIG } from '@/types/event';
 import { CreateCategoryDialog } from '@/components/events/CreateCategoryDialog';
 import { CategoryBracketsSection } from '@/components/events/CategoryBracketsSection';
 
@@ -385,7 +382,7 @@ export default function EventDetails() {
                     </TableHeader>
                     <TableBody>
                       {categories.map((cat) => (
-                        <React.Fragment key={cat.id}>
+                        <Fragment key={cat.id}>
                           <TableRow>
                             <TableCell className="font-medium">{cat.name}</TableCell>
                             <TableCell>
@@ -412,7 +409,7 @@ export default function EventDetails() {
                               />
                             </TableCell>
                           </TableRow>
-                        </React.Fragment>
+                        </Fragment>
                       ))}
                     </TableBody>
                   </Table>

@@ -4,7 +4,7 @@
  * P1.2.B — Institutional control without CMS complexity
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Image, Users, Save, Plus, Trash2, 
@@ -66,7 +66,7 @@ export default function AdminLandingSettings() {
   }, [authLoading, isGlobalSuperadmin, navigate]);
 
   // Fetch landing config
-  const { data: landingConfig, isLoading: configLoading } = useQuery({
+  const { data: landingConfig } = useQuery({
     queryKey: ['admin-landing-config'],
     queryFn: async () => {
       const { data, error } = await supabase

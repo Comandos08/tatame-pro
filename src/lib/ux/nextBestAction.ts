@@ -16,7 +16,7 @@
 import type { IdentityState } from '@/contexts/IdentityContext';
 import type { TenantLifecycleState } from '@/types/tenant-lifecycle-state';
 import type { BillingStatus } from '@/lib/billing';
-import { deriveBlockReason, type BlockReason } from './blockReason';
+import { deriveBlockReason } from './blockReason';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

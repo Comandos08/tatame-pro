@@ -22,7 +22,7 @@
     "noUnusedParameters": true,
     "noImplicitAny": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
+    
     "noImplicitReturns": true,
 
     "baseUrl": ".",

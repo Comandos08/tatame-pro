@@ -1,14 +1,13 @@
-import React from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, Plus, Filter, Search } from 'lucide-react';
+import { Calendar, Filter, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell } from '@/layouts/AppShell';
 import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -27,8 +26,8 @@ import { Event, EventStatus, EVENT_STATUS_CONFIG } from '@/types/event';
 export default function EventsList() {
   const { tenant } = useTenant();
   const { t } = useI18n();
-  const [search, setSearch] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState<EventStatus | 'ALL'>('ALL');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<EventStatus | 'ALL'>('ALL');
 
   const { data: events = [], isLoading, error } = useQuery({
     queryKey: ['events', tenant?.id, statusFilter],
@@ -84,7 +83,7 @@ export default function EventsList() {
     event.location?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const statusOptions: (EventStatus | 'ALL')[] = ['ALL', ...Object.keys(EVENT_STATUS_CONFIG) as EventStatus[]];
+  void (['ALL', ...Object.keys(EVENT_STATUS_CONFIG) as EventStatus[]] as const);
 
   return (
     <AppShell>

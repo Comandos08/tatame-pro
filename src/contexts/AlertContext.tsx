@@ -96,7 +96,7 @@ function getAlertTitle(eventType: string): string {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function getAlertDescription(eventType: string, severity: string, metadata?: Record<string, unknown>): string {
+function getAlertDescription(_eventType: string, severity: string, metadata?: Record<string, unknown>): string {
   const parts: string[] = [];
   if (metadata?.error) parts.push(String(metadata.error));
   if (metadata?.reason) parts.push(String(metadata.reason));

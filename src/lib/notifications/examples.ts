@@ -216,7 +216,7 @@ const example5_output = resolveMembershipNotification(example5_input);
 // TYPE GUARD USAGE EXAMPLE
 // ============================================================================
 
-function processDecision(input: NotificationInput): void {
+void function processDecision(input: NotificationInput): void {
   const decision = resolveMembershipNotification(input);
   
   if (shouldSend(decision)) {

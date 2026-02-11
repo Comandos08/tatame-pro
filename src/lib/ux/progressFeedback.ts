@@ -13,7 +13,7 @@
  * NO React, NO Supabase, NO side effects.
  */
 
-import { deriveBlockReason, type BlockReasonContext } from './blockReason';
+import { deriveBlockReason } from './blockReason';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

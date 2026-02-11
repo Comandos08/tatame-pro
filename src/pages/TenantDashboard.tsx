@@ -18,10 +18,10 @@ import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLog
 import { InstitutionalEnvironmentStatus } from '@/components/institutional';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { useI18n, Locale } from '@/contexts/I18nContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { supabase } from '@/integrations/supabase/client';
-import { subMonths, startOfMonth, endOfMonth, addDays, format } from 'date-fns';
+import { subMonths, startOfMonth, addDays, format } from 'date-fns';
 import { formatRelativeTime } from '@/lib/i18n/formatters';
 
 interface DashboardStats {

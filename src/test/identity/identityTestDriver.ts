@@ -12,7 +12,6 @@ import {
   IDENTITY_WIZARD_REQUIRED_RESPONSE,
   IDENTITY_SUPERADMIN_RESPONSE,
   IDENTITY_ERROR_RESPONSE,
-  TEST_TENANT,
   type IdentityMockOptions,
 } from '@/test/mocks/identity.mock';
 
