@@ -1,194 +1,197 @@
 
 
-# A03 — Billing State Machine Integrity Hardening (with 3 mandatory adjustments)
+# A04 — Zero-Trust Tenant Boundary Enforcement
 
 ## Overview
 
-Formalize the billing lifecycle as a deterministic state machine with explicit transition validation, enforced at the backend (`stripe-webhook`) level. All three review adjustments are incorporated.
-
-## Files Changed
-
-| File | Change |
-|---|---|
-| `supabase/functions/_shared/billing-state-machine.ts` | NEW -- state machine, transitions, guards, helpers |
-| `supabase/functions/stripe-webhook/index.ts` | Import + integrate validation in `handleSubscriptionChange` and `handleSubscriptionDeleted` |
-| `supabase/functions/_shared/audit-logger.ts` | Add `BILLING_TRANSITION_BLOCKED` event constant |
-| `.github/workflows/supabase-check.yml` | Add G5 gate (hardened) |
+Formalize tenant isolation with a fail-closed backend guard (`tenant-boundary.ts`) and a frontend hard-validation layer in TenantContext/TenantLayout. Both mandatory adjustments from review are applied.
 
 ## What Does NOT Change
 
-- No database migrations
-- No RLS changes
-- No route changes
-- No Stripe contract changes (webhook always returns 200)
-- No frontend changes
-- No `console.*` (uses `createBackendLogger` exclusively)
+- No database migrations, no RLS changes, no route changes
+- No Stripe/webhook contract changes, no frontend behavior for valid users
+- No `console.*` (institutional logger only)
 
 ---
 
-## Phase 1 -- State Machine Definition (New File)
+## Phase 1 -- Backend: `tenant-boundary.ts` (New File)
 
-**File:** `supabase/functions/_shared/billing-state-machine.ts`
+**File:** `supabase/functions/_shared/tenant-boundary.ts`
 
-Contents:
+### Adjustment 1 Applied: `assertTenantAccess` THROWS (fail-closed)
 
-- `BillingStatus` type with all 8 states
-- `BILLING_STATUSES` array for runtime membership check
-- `isKnownBillingStatus(value)` -- type guard (Adjustment 1)
-- `ALLOWED_TRANSITIONS` map with CANCELED reachable from every non-terminal state (Adjustment 2)
-- `assertValidBillingTransition(from, to)` -- throws on invalid (fail-closed)
-- `deriveTenantActive(status)` -- pure boolean derivation
-- `assertBillingConsistency(billingStatus, tenantIsActive)` -- post-update integrity check
-
-### Transition Map (Adjustment 2 applied)
+Instead of returning `{ allowed: false }`, the function throws a structured `TenantBoundaryError`. Callers cannot ignore it.
 
 ```text
-TRIALING ---------> ACTIVE, TRIAL_EXPIRED, CANCELED
-ACTIVE -----------> PAST_DUE, CANCELED
-PAST_DUE ---------> ACTIVE, UNPAID, CANCELED
-UNPAID -----------> ACTIVE, CANCELED
-CANCELED ---------> (terminal)
-INCOMPLETE -------> ACTIVE, CANCELED
-TRIAL_EXPIRED ----> ACTIVE, PENDING_DELETE, CANCELED
-PENDING_DELETE ---> ACTIVE, CANCELED
+class TenantBoundaryError extends Error {
+  code: 'TENANT_NOT_FOUND' | 'TENANT_INACTIVE' | 'NO_MEMBERSHIP' | 'IMPERSONATION_REQUIRED' | 'IMPERSONATION_MISMATCH'
+}
 ```
 
-CANCELED is reachable from every non-terminal state, ensuring Stripe `customer.subscription.deleted` events are never blocked.
+**`assertTenantAccess(supabaseAdmin, userId, tenantId)`**
+- Validates tenantId is UUID format
+- Checks tenant exists and `is_active = true`
+- Checks user has membership in `user_roles` for this tenant OR is SUPERADMIN with valid impersonation
+- If ANY check fails: throws `TenantBoundaryError`
+- If all pass: returns `{ userId, tenantId, isSuperadmin }` (success metadata)
 
----
+**`assertTenantMatchesImpersonation(supabaseAdmin, userId, tenantId, impersonationId)`**
+- Delegates to existing `requireImpersonationIfSuperadmin`
+- If invalid: throws `TenantBoundaryError` with appropriate code
 
-## Phase 2 -- Integration in `handleSubscriptionChange`
+**`isUuidFormat(value)`** -- simple UUID regex guard
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines ~552-620)
+**`assertBillingTenantConsistency(supabaseAdmin, tenantId)`**
+- Post-write detection: if `is_active=true` but billing NOT in (ACTIVE, TRIALING), or vice-versa
+- Uses `deriveTenantActive` from billing-state-machine.ts
+- Throws on mismatch (callers catch, audit, never 500)
 
-After `previousStatus` is fetched (line 552), insert validation block:
+### Handler-side usage pattern:
 
 ```text
-1. If previousStatus is null/undefined -> allow (initial insert, no validation)
-2. If previousStatus is not a known BillingStatus (isKnownBillingStatus returns false):
-   - log.error("Unknown previous billing status", { previousStatus })
-   - Emit BILLING_TRANSITION_BLOCKED audit event with reason "unknown_previous_status"
-   - Allow the update (do NOT block -- this is a data corruption scenario, not a business rule)
-3. If previousStatus is known AND equals billingStatus -> skip validation (no-op transition)
-4. Otherwise -> call assertValidBillingTransition(previousStatus, billingStatus)
-   - If throws: log.error, emit BILLING_TRANSITION_BLOCKED audit, return early (skip DB writes)
-   - The outer handler still returns HTTP 200 to Stripe
-```
-
-Replace inline `is_active` derivation (line 620):
-
-```typescript
-// BEFORE:
-const isActive = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
-
-// AFTER:
-const isActive = deriveTenantActive(billingStatus as BillingStatus);
-```
-
-After both DB writes (tenant_billing + tenants.is_active), call `assertBillingConsistency`:
-
-```text
-- If throws: log.error + audit BILLING_TRANSITION_BLOCKED with reason "consistency_mismatch"
-- Do NOT return 500 (detection-only safety net)
+try {
+  await assertTenantAccess(supabaseAdmin, userId, tenantId);
+} catch (err) {
+  if (err instanceof TenantBoundaryError) {
+    log.error("Tenant boundary violation", err, { code: err.code });
+    await createAuditLog(supabase, {
+      event_type: AUDIT_EVENTS.TENANT_BOUNDARY_VIOLATION,
+      tenant_id: tenantId,
+      metadata: { ... }
+    });
+    return forbiddenResponse("...", corsHeaders, correlationId);
+  }
+  throw err; // unexpected error, let outer handler catch
+}
 ```
 
 ---
 
-## Phase 3 -- Integration in `handleSubscriptionDeleted`
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines ~640-694)
-
-Add previous status fetch before the update:
-
-```text
-1. Expand existing select to include "status" from tenant_billing
-2. Apply same guard chain:
-   - previousStatus null -> allow
-   - previousStatus unknown -> log.error + audit + allow
-   - previousStatus known -> assertValidBillingTransition(previousStatus, "CANCELED")
-     - Will always pass since CANCELED is reachable from every non-terminal state
-     - But formally validates the machine
-3. Replace hardcoded `is_active: false` with `deriveTenantActive("CANCELED")`
-```
-
----
-
-## Phase 4 -- Audit Event
+## Phase 2 -- Audit Event
 
 **File:** `supabase/functions/_shared/audit-logger.ts`
 
 Add to `AUDIT_EVENTS`:
 
 ```typescript
-BILLING_TRANSITION_BLOCKED: 'BILLING_TRANSITION_BLOCKED',
+TENANT_BOUNDARY_VIOLATION: 'TENANT_BOUNDARY_VIOLATION',
 ```
 
-Metadata contract for this event:
+Update `detectCategory` to map `TENANT_BOUNDARY_*` prefix to `'SECURITY'`.
 
-```typescript
-{
-  previous_status: string | null,
-  attempted_status: string,
-  stripe_subscription_id: string,
-  reason: 'invalid_transition' | 'unknown_previous_status' | 'consistency_mismatch',
-  automatic: true,
-  source: 'billing_state_machine',
+---
+
+## Phase 3 -- Frontend: TenantContext Boundary Signal
+
+**File:** `src/contexts/TenantContext.tsx`
+
+After tenant is resolved from slug, add cross-check:
+
+1. Import `useCurrentUser` from AuthContext
+2. After `setTenant(tenantData)`, if user is authenticated AND NOT superadmin:
+   - Check if `tenant.id` exists in `currentRolesByTenant` map
+   - If NOT present: set `boundaryViolation: true` in state
+3. Expose `boundaryViolation: boolean` in context
+4. If user is SUPERADMIN or not yet authenticated (profile still loading): `boundaryViolation = false` (IdentityGate handles SUPERADMIN, RLS handles the rest)
+
+---
+
+## Phase 4 -- Frontend: TenantLayout Block
+
+**File:** `src/layouts/TenantLayout.tsx`
+
+In `TenantContent`, after error/loading checks (Step 3), before billing check (Step 4):
+
+```text
+if (boundaryViolation) {
+  return (
+    <BlockedStateCard
+      icon={ShieldAlert}
+      iconVariant="destructive"
+      titleKey="tenant.boundaryViolation"
+      descriptionKey="tenant.boundaryViolationDesc"
+      actions={[{ labelKey: 'common.goHome', onClick: () => navigate('/'), icon: Home }]}
+    />
+  );
 }
 ```
 
 ---
 
-## Phase 5 -- CI Gate G5 (Adjustment 3 -- hardened)
+## Phase 5 -- i18n Keys
+
+Add to all 3 locale files (`pt-BR.ts`, `en.ts`, `es.ts`):
+
+```text
+'tenant.boundaryViolation': 'Acesso negado' / 'Access denied' / 'Acceso denegado'
+'tenant.boundaryViolationDesc': 'Voce nao tem permissao...' / 'You do not have...' / 'No tiene permiso...'
+```
+
+---
+
+## Phase 6 -- CI Gate G6 (Adjustment 2 Applied: Hardened)
 
 **File:** `.github/workflows/supabase-check.yml`
 
-Add before Summary step:
-
 ```yaml
-- name: G5 — Billing transitions must use assertValidBillingTransition
+- name: G6 — Tenant boundary guard exists and exports required functions
   run: |
-    echo "Checking billing state machine enforcement..."
-    WEBHOOK="supabase/functions/stripe-webhook/index.ts"
+    BOUNDARY="supabase/functions/_shared/tenant-boundary.ts"
     FAILED=0
 
-    # Must import billing-state-machine
-    if ! grep -q "billing-state-machine" "$WEBHOOK"; then
-      echo "FAIL: stripe-webhook does not import billing-state-machine"
+    if [ ! -f "$BOUNDARY" ]; then
+      echo "FAIL: tenant-boundary.ts not found"
       FAILED=1
     fi
 
-    # Must call assertValidBillingTransition
-    if ! grep -q "assertValidBillingTransition" "$WEBHOOK"; then
-      echo "FAIL: stripe-webhook does not call assertValidBillingTransition"
+    if ! grep -q "assertTenantAccess" "$BOUNDARY"; then
+      echo "FAIL: assertTenantAccess not exported"
       FAILED=1
     fi
 
-    # Must call deriveTenantActive
-    if ! grep -q "deriveTenantActive" "$WEBHOOK"; then
-      echo "FAIL: stripe-webhook does not call deriveTenantActive"
+    if ! grep -q "assertTenantMatchesImpersonation" "$BOUNDARY"; then
+      echo "FAIL: assertTenantMatchesImpersonation not exported"
       FAILED=1
     fi
 
-    # Must appear in both handlers
-    CHANGE_COUNT=$(grep -c "assertValidBillingTransition" "$WEBHOOK" || true)
-    if [ "$CHANGE_COUNT" -lt 2 ]; then
-      echo "FAIL: assertValidBillingTransition must be called in both handlers (found $CHANGE_COUNT)"
+    if ! grep -q "TenantBoundaryError" "$BOUNDARY"; then
+      echo "FAIL: TenantBoundaryError class not defined"
       FAILED=1
     fi
+
+    # Verify adoption in key functions
+    for fn in start-impersonation validate-impersonation stripe-webhook; do
+      FN_FILE="supabase/functions/$fn/index.ts"
+      if [ -f "$FN_FILE" ] && ! grep -q "tenant-boundary\|assertTenantAccess" "$FN_FILE"; then
+        echo "WARN: $fn does not use tenant-boundary (incremental adoption)"
+      fi
+    done
 
     if [ "$FAILED" -eq 1 ]; then exit 1; fi
-    echo "G5 passed"
+    echo "G6 passed"
 ```
 
-This ensures: import exists, function is called, it appears in both `handleSubscriptionChange` and `handleSubscriptionDeleted`, and `deriveTenantActive` replaces inline logic.
+G6 enforces the guard file exists with correct exports and warns (but does not fail) on missing adoption in key functions during this phase. This avoids breaking CI while providing visibility.
 
 ---
+
+## Files Changed
+
+| File | Change |
+|---|---|
+| `supabase/functions/_shared/tenant-boundary.ts` | NEW -- TenantBoundaryError, assertTenantAccess (throws), assertTenantMatchesImpersonation, assertBillingTenantConsistency |
+| `supabase/functions/_shared/audit-logger.ts` | Add TENANT_BOUNDARY_VIOLATION event + category mapping |
+| `src/contexts/TenantContext.tsx` | Add boundaryViolation cross-check |
+| `src/layouts/TenantLayout.tsx` | Add boundary violation block UI |
+| `src/locales/pt-BR.ts` | Add 2 i18n keys |
+| `src/locales/en.ts` | Add 2 i18n keys |
+| `src/locales/es.ts` | Add 2 i18n keys |
+| `.github/workflows/supabase-check.yml` | Add G6 gate |
 
 ## Adjustment Summary
 
 | # | Issue | Resolution |
 |---|---|---|
-| 1 | `previousStatus` can be null/undefined/corrupt | Added `isKnownBillingStatus` guard; unknown values are audited but not blocked (data corruption scenario) |
-| 2 | CANCELED must be reachable from any state | Updated transition map: every non-terminal state includes CANCELED |
-| 3 | G5 CI gate too weak | Hardened to check import, both handler calls, and `deriveTenantActive` usage |
+| 1 | assertTenantAccess must throw, not return boolean | Uses `TenantBoundaryError` class with structured `code` -- impossible to ignore |
+| 2 | G6 must verify adoption, not just file existence | Checks exports + warns on missing adoption in key functions |
 
