@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
       .eq('id', impersonationId)
       .maybeSingle();
 
+
     if (sessionError || !session) {
       log.warn("Impersonation session not found", { impersonationId });
       return errorResponse(
@@ -257,6 +258,7 @@ Deno.serve(async (req) => {
       valid: true,
       targetTenantId: session.target_tenant_id,
       targetTenantSlug: tenantData?.slug || undefined,
+      targetTenantName: tenantData?.name || undefined,
       expiresAt: session.expires_at,
       status: 'ACTIVE',
       remainingMinutes,
