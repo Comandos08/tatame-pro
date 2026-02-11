@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle, Clock, CreditCard, XCircle, ExternalLink, Loader2, FileText } from 'lucide-react';
@@ -76,7 +77,7 @@ export function BillingStatusBanner() {
         throw new Error('URL do portal não retornada');
       }
     } catch (err) {
-      console.error('Error opening customer portal:', err);
+      logger.error('Error opening customer portal:', err);
       toast.error(t('billing.openPortalError'));
     } finally {
       setIsOpeningPortal(false);

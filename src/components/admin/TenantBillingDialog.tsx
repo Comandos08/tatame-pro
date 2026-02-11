@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, Loader2, ExternalLink, Calendar } from 'lucide-react';
 import {
@@ -131,7 +132,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
         throw new Error('URL do portal não retornada');
       }
     } catch (err) {
-      console.error('Error opening customer portal:', err);
+      logger.error('Error opening customer portal:', err);
       toast.error('Erro ao abrir portal Stripe');
     } finally {
       setIsOpeningPortal(false);

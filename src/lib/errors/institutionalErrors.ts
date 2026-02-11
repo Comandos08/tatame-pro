@@ -22,6 +22,7 @@
  * - DEV warnings for missing keys (zero PROD impact)
  */
 
+import { logger } from '@/lib/logger';
 import type { Severity, ObservabilityDomain } from '@/lib/observability/types';
 
 // ============================================

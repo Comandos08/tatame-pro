@@ -25,6 +25,7 @@
  */
 
 import React from 'react';
+import { logger } from '@/lib/logger';
 import { LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,10 +84,10 @@ export function EmptyStateCard({
     const titleValue = t(titleKey);
     const descValue = t(descriptionKey);
     if (titleValue === titleKey) {
-      console.warn(`[EmptyStateCard] Missing i18n key: "${titleKey}". Add it to locale files.`);
+      logger.warn(`[EmptyStateCard] Missing i18n key: "${titleKey}". Add it to locale files.`);
     }
     if (descValue === descriptionKey) {
-      console.warn(`[EmptyStateCard] Missing i18n key: "${descriptionKey}". Add it to locale files.`);
+      logger.warn(`[EmptyStateCard] Missing i18n key: "${descriptionKey}". Add it to locale files.`);
     }
   }
 
