@@ -45,6 +45,20 @@ export const en: Record<string, string> = {
   'trust.institutionalRegistry': 'Institutional registry verified',
   'trust.officialRecord': 'Official record',
 
+  // Trust Narrative — PI U17
+  'trust.narrative.identityLoading.title': 'Validating your access',
+  'trust.narrative.identityLoading.message': 'We are confirming security information before granting access.',
+  'trust.narrative.tenantBlocked.title': 'Environment suspended',
+  'trust.narrative.tenantBlocked.message': 'Access to this environment has been restricted by administrative decision.',
+  'trust.narrative.billingBlocked.title': 'Access temporarily limited',
+  'trust.narrative.billingBlocked.message': 'We identified an administrative issue that needs to be resolved.',
+  'trust.narrative.noPermission.title': 'Permission required',
+  'trust.narrative.noPermission.message': 'Your account does not have authorization to access this resource.',
+  'trust.narrative.featureDisabled.title': 'Feature unavailable',
+  'trust.narrative.featureDisabled.message': 'This feature is not enabled at this time.',
+  'trust.narrative.noData.title': 'No records found',
+  'trust.narrative.noData.message': 'There is no data available for display in this area.',
+
   // Common
   'common.loading': 'Loading...',
   'common.verifyingAccess': 'Verifying your access...',

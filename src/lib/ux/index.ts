@@ -33,3 +33,9 @@ export {
   type EmptyStateReason,
   type EmptyStateIcon,
 } from './emptyStateAuthority';
+
+export {
+  deriveTrustNarrative,
+  type TrustNarrative,
+  type TrustNarrativeKind,
+} from './trustNarrative';

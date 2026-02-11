@@ -45,6 +45,20 @@ export const es: Record<string, string> = {
   'trust.institutionalRegistry': 'Base institucional verificada',
   'trust.officialRecord': 'Registro oficial',
 
+  // Trust Narrative — PI U17
+  'trust.narrative.identityLoading.title': 'Validando su acceso',
+  'trust.narrative.identityLoading.message': 'Estamos confirmando la información de seguridad antes de habilitar el sistema.',
+  'trust.narrative.tenantBlocked.title': 'Ambiente suspendido',
+  'trust.narrative.tenantBlocked.message': 'El acceso a este ambiente fue restringido por decisión administrativa.',
+  'trust.narrative.billingBlocked.title': 'Acceso temporalmente limitado',
+  'trust.narrative.billingBlocked.message': 'Identificamos una pendiente administrativa que necesita ser resuelta.',
+  'trust.narrative.noPermission.title': 'Permiso necesario',
+  'trust.narrative.noPermission.message': 'Su cuenta no tiene autorización para acceder a este recurso.',
+  'trust.narrative.featureDisabled.title': 'Funcionalidad no disponible',
+  'trust.narrative.featureDisabled.message': 'Este recurso no está habilitado en este momento.',
+  'trust.narrative.noData.title': 'Ningún registro encontrado',
+  'trust.narrative.noData.message': 'No hay datos disponibles para mostrar en esta área.',
+
   // Common
   'common.loading': 'Cargando...',
   'common.verifyingAccess': 'Verificando su acceso...',

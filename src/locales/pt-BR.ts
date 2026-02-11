@@ -45,6 +45,20 @@ export const ptBR = {
   'trust.institutionalRegistry': 'Base institucional verificada',
   'trust.officialRecord': 'Registro oficial',
 
+  // Trust Narrative — PI U17
+  'trust.narrative.identityLoading.title': 'Validando seu acesso',
+  'trust.narrative.identityLoading.message': 'Estamos confirmando as informações de segurança antes de liberar o sistema.',
+  'trust.narrative.tenantBlocked.title': 'Ambiente suspenso',
+  'trust.narrative.tenantBlocked.message': 'O acesso a este ambiente foi restringido por decisão administrativa.',
+  'trust.narrative.billingBlocked.title': 'Acesso temporariamente limitado',
+  'trust.narrative.billingBlocked.message': 'Identificamos uma pendência administrativa que precisa ser resolvida.',
+  'trust.narrative.noPermission.title': 'Permissão necessária',
+  'trust.narrative.noPermission.message': 'Sua conta não possui autorização para acessar este recurso.',
+  'trust.narrative.featureDisabled.title': 'Funcionalidade indisponível',
+  'trust.narrative.featureDisabled.message': 'Este recurso não está habilitado no momento.',
+  'trust.narrative.noData.title': 'Nenhum registro encontrado',
+  'trust.narrative.noData.message': 'Não há dados disponíveis para exibição nesta área.',
+
   // Common
   'common.loading': 'Carregando...',
   'common.verifyingAccess': 'Verificando seu acesso...',
