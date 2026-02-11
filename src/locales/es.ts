@@ -59,6 +59,10 @@ export const es: Record<string, string> = {
   'trust.narrative.noData.title': 'Ningún registro encontrado',
   'trust.narrative.noData.message': 'No hay datos disponibles para mostrar en esta área.',
 
+  // Manifesto — PI U19
+  'manifesto.title': 'Sistema estable y bajo control',
+  'manifesto.message': 'Este ambiente opera con integridad, gobernanza y trazabilidad. La plataforma está saludable, los accesos son legítimos y las reglas se respetan.',
+
   // Common
   'common.loading': 'Cargando...',
   'common.verifyingAccess': 'Verificando su acceso...',
