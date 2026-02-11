@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/layouts/AppShell';
 import { useAccessContract } from '@/hooks/useAccessContract';
+import { useTenantOnboarding } from '@/hooks/tenant/useTenantOnboarding';
+import { TenantOnboardingCard } from '@/components/onboarding/TenantOnboardingCard';
 import { BillingStatusBanner } from '@/components/billing/BillingStatusBanner';
 import { SystemHealthCard } from '@/components/dashboard/SystemHealthCard';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
@@ -66,6 +68,7 @@ export default function TenantDashboard() {
   const { t, locale } = useI18n();
   const { tenantSlug } = useParams();
   const { can } = useAccessContract(tenant?.id);
+  const onboarding = useTenantOnboarding();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [membershipsByMonth, setMembershipsByMonth] = useState<MonthlyData[]>([]);
   const [diplomasByMonth, setDiplomasByMonth] = useState<MonthlyData[]>([]);
@@ -259,6 +262,14 @@ export default function TenantDashboard() {
         <BillingStatusBanner />
         <PostLoginInstitutionalBanner />
         <InstitutionalEnvironmentStatus />
+
+        {/* U02: Tenant Onboarding Checklist — only when not fully activated */}
+        {!onboarding.isFullyActivated && !onboarding.isLoading && (
+          <TenantOnboardingCard
+            steps={onboarding.steps}
+            completionPercent={onboarding.completionPercent}
+          />
+        )}
         
         <div>
           <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="font-display text-3xl font-bold mb-2">
