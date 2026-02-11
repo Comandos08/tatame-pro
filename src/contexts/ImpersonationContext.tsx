@@ -244,6 +244,101 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     };
   }, [session?.impersonationId, session?.status, isGlobalSuperadmin, validateSession, navigate, t, clearSession]);
 
+  // ==========================================================================
+  // A02.T1.5 — Realtime Revocation Channel — SAFE GOLD
+  // BY DESIGN: Subscribes to postgres_changes on superadmin_impersonations.
+  // Additive layer on top of polling A02.T1.4.2 (fallback preserved).
+  // Fail-closed: any non-ACTIVE status triggers immediate clearSession.
+  // Single subscription per session. Deterministic cleanup.
+  // ==========================================================================
+  useEffect(() => {
+    if (!isGlobalSuperadmin) return;
+    if (!session) return;
+    if (session.status !== 'ACTIVE') return;
+    if (!session.impersonationId) return;
+
+    let cancelled = false;
+
+    const channelName = `impersonation:${session.impersonationId}`;
+
+    const handleRevocation = (reason: string, payload?: Record<string, unknown>) => {
+      if (cancelled) return;
+
+      logger.warn('[IMPERSONATION] Realtime revocation detected', { reason, status: payload?.status });
+
+      // 1️⃣ Fail-closed: clear in-memory immediately
+      clearSession();
+
+      // 2️⃣ Redundant storage clear (belt-and-suspenders)
+      try {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+
+      // 3️⃣ Notify user
+      toast.warning(t('impersonation.sessionExpired'));
+
+      // 4️⃣ Navigate to admin
+      navigate('/admin', { replace: true });
+    };
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'superadmin_impersonations',
+          filter: `id=eq.${session.impersonationId}`,
+        },
+        (payload) => {
+          if (cancelled) return;
+          const newRow = payload.new as Record<string, unknown> | undefined;
+          if (!newRow) {
+            handleRevocation('UPDATE_NO_PAYLOAD');
+            return;
+          }
+          if (newRow.status && newRow.status !== 'ACTIVE') {
+            handleRevocation('STATUS_CHANGED', newRow);
+            return;
+          }
+          if (newRow.ended_at) {
+            handleRevocation('ENDED_AT_SET', newRow);
+            return;
+          }
+          if (newRow.expires_at && new Date(newRow.expires_at as string).getTime() < Date.now()) {
+            handleRevocation('EXPIRED_SERVER', newRow);
+            return;
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'superadmin_impersonations',
+          filter: `id=eq.${session.impersonationId}`,
+        },
+        () => {
+          if (cancelled) return;
+          handleRevocation('ROW_DELETED');
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          logger.warn('[IMPERSONATION] Realtime channel degraded, polling fallback active', { status });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session?.impersonationId, session?.status, isGlobalSuperadmin, clearSession, navigate, t]);
+
   // Start impersonation
   const startImpersonation = useCallback(async (targetTenantId: string, reason?: string): Promise<boolean> => {
     if (!isGlobalSuperadmin) {
