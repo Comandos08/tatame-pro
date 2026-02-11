@@ -92,7 +92,7 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
                     size="icon"
                     className="h-8 w-8"
                     aria-label={t("portal.downloadDiploma")}
-                    onClick={() => handleDownload(diploma.pdf_url)}
+                    onClick={() => handleDownload(diploma.pdf_url!)}
                   >
                     <Download className="h-4 w-4" />
                   </Button>

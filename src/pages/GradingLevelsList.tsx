@@ -51,6 +51,7 @@ export default function GradingLevelsList() {
   const { data: scheme, isLoading: schemeLoading } = useQuery({
     queryKey: ['grading-scheme', schemeId],
     queryFn: async () => {
+      if (!schemeId) throw new Error('Missing schemeId');
       const { data, error } = await supabase
         .from('grading_schemes')
         .select('*')
@@ -65,6 +66,7 @@ export default function GradingLevelsList() {
   const { data: levels, isLoading: levelsLoading } = useQuery({
     queryKey: ['grading-levels', schemeId],
     queryFn: async () => {
+      if (!schemeId) throw new Error('Missing schemeId');
       const { data, error } = await supabase
         .from('grading_levels')
         .select('*')
@@ -78,8 +80,9 @@ export default function GradingLevelsList() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (!tenant?.id || !schemeId) throw new Error('Missing tenant or scheme');
       const { error } = await supabase.from('grading_levels').insert({
-        tenant_id: tenant!.id,
+        tenant_id: tenant.id,
         grading_scheme_id: schemeId,
         code: data.code,
         display_name: data.display_name,

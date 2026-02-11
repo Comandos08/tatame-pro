@@ -98,7 +98,7 @@ export function useTenantFlagsContract(tenantId: string | undefined): TenantFlag
   });
 
   const status: ContractStatus = isLoading ? 'loading' : isError ? 'error' : 'ready';
-  const asyncState: AsyncState<TenantFlagsContract> = normalizeAsyncState({ data, isLoading, isError, error });
+  const asyncState: AsyncState<TenantFlagsContract> = normalizeAsyncState({ data: data ?? undefined, isLoading, isError, error });
   
   return {
     contract: data ?? null,

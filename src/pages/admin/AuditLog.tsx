@@ -417,9 +417,9 @@ export default function AuditLog() {
                               {tenant ? <span className="text-sm">{tenant.name}</span> : <span className="text-muted-foreground text-sm">—</span>}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
-                              {metadata?.document_type && <span>{String(metadata.document_type)}</span>}
-                              {metadata?.target_tenant_name && <span>{String(metadata.target_tenant_name)}</span>}
-                              {metadata?.membership_id && <span className="font-mono">
+                              {metadata?.document_type != null && <span>{String(metadata.document_type)}</span>}
+                              {metadata?.target_tenant_name != null && <span>{String(metadata.target_tenant_name)}</span>}
+                              {metadata?.membership_id != null && <span className="font-mono">
                                   {String(metadata.membership_id).slice(0, 8)}...
                                 </span>}
                             </TableCell>

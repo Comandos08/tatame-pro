@@ -39,7 +39,7 @@ export function useAthletePhoto(athleteId: string | undefined) {
     retry: false, // Don't retry if fails
   });
 
-  const asyncState: AsyncState<string> = normalizeAsyncState(query);
+  const asyncState: AsyncState<string> = normalizeAsyncState({ ...query, data: query.data ?? undefined });
 
   return { ...query, asyncState };
 }

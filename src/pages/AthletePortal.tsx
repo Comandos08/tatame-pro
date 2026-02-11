@@ -137,7 +137,7 @@ export default function AthletePortal() {
 
   const { data: membership, isLoading: membershipLoading } = useQuery<MembershipData | null>({
     queryKey: ["portal-membership", athlete?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<MembershipData | null> => {
       const { data, error } = await supabase
         .from("memberships")
         .select("id, status, payment_status, start_date, end_date, type, created_at")
@@ -146,7 +146,16 @@ export default function AthletePortal() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      return {
+        id: data.id,
+        status: data.status,
+        payment_status: data.payment_status,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        type: data.type,
+        created_at: data.created_at ?? '',
+      };
     },
     enabled: !!athlete?.id,
   });
@@ -326,7 +335,7 @@ export default function AthletePortal() {
             <GradingHistoryCard gradings={gradings} />
           </div>
 
-          <MembershipTimeline membership={membership} />
+          <MembershipTimeline membership={membership ?? null} />
 
           <MyEventsCard athleteId={athlete?.id} tenantSlug={tenant.slug} showFullHistoryLink />
         </div>

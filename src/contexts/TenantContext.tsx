@@ -132,13 +132,13 @@ export function TenantProvider({ children }: TenantProviderProps) {
             primaryColor: data.primary_color || '#dc2626',
             sportTypes: (data.sport_types || []) as Tenant['sportTypes'],
             stripeCustomerId: data.stripe_customer_id,
-            isActive: data.is_active,
-            createdAt: data.created_at,
-            updatedAt: data.updated_at,
+            isActive: data.is_active ?? true,
+            createdAt: data.created_at ?? '',
+            updatedAt: data.updated_at ?? '',
             // P3.1 — Load all lifecycle fields
-            onboardingCompleted: data.onboarding_completed,
-            status: data.status as Tenant['status'],
-            creationSource: data.creation_source as Tenant['creationSource'],
+            onboardingCompleted: data.onboarding_completed ?? undefined,
+            status: (data.status as Tenant['status']) ?? undefined,
+            creationSource: (data.creation_source as Tenant['creationSource']) ?? undefined,
           };
           setTenant(tenantData);
 

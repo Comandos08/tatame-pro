@@ -98,7 +98,7 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     : null;
 
   const asyncState: AsyncState<TenantBillingData> = normalizeAsyncState({
-    data: billing,
+    data: billing ?? undefined,
     isLoading,
     isError: false,
     error: null,

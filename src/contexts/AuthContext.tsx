@@ -67,11 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {
         id: profile.id,
         tenantId: profile.tenant_id,
-        email: profile.email,
-        name: profile.name,
-        avatarUrl: profile.avatar_url,
-        createdAt: profile.created_at,
-        updatedAt: profile.updated_at,
+        email: profile.email ?? '',
+        name: profile.name ?? null,
+        avatarUrl: profile.avatar_url ?? null,
+        createdAt: profile.created_at ?? '',
+        updatedAt: profile.updated_at ?? '',
         roles: userRoles,
       };
     } catch {
