@@ -144,13 +144,13 @@ export default function ApprovalsList() {
       label: 'E-mail', 
       format: (_: unknown, row: MembershipApplication) => row.applicant_data?.email || '' 
     },
-    { key: 'status', label: 'Status', format: (v: MembershipStatus) => MEMBERSHIP_STATUS_LABELS[v] || v },
-    { key: 'payment_status', label: 'Pagamento', format: (v: PaymentStatus) => PAYMENT_STATUS_LABELS[v] || v },
-    { key: 'created_at', label: 'Data Solicitação', format: (v: string) => formatDateForCsv(v) },
-    { key: 'start_date', label: 'Início', format: (v: string | null) => formatDateForCsv(v) },
-    { key: 'end_date', label: 'Fim', format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'status', label: 'Status', format: (v: unknown) => MEMBERSHIP_STATUS_LABELS[v as MembershipStatus] || String(v) },
+    { key: 'payment_status', label: 'Pagamento', format: (v: unknown) => PAYMENT_STATUS_LABELS[v as PaymentStatus] || String(v) },
+    { key: 'created_at', label: 'Data Solicitação', format: (v: unknown) => formatDateForCsv(v as string) },
+    { key: 'start_date', label: 'Início', format: (v: unknown) => formatDateForCsv(v as string | null) },
+    { key: 'end_date', label: 'Fim', format: (v: unknown) => formatDateForCsv(v as string | null) },
     { key: 'academy', label: 'Academia', format: (_: unknown, row: MembershipApplication) => row.academy?.name || '-' },
-    { key: 'price_cents', label: 'Valor', format: (v: number, row: MembershipApplication) => formatCurrencyForCsv(v, row.currency) },
+    { key: 'price_cents', label: 'Valor', format: (_: unknown, row: MembershipApplication) => formatCurrencyForCsv(row.price_cents, row.currency) },
   ], [t]);
 
   if (!tenant) return <LoadingState titleKey="common.loading" />;

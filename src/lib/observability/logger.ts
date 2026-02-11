@@ -23,7 +23,7 @@ interface Logger {
   debug: (message: string, context?: LogContext) => void;
   info: (message: string, context?: LogContext) => void;
   warn: (message: string, context?: LogContext) => void;
-  error: (message: string, context?: LogContext, error?: Error) => void;
+  error: (message: string, context?: LogContext, error?: unknown) => void;
 }
 
 const isDev = import.meta.env.DEV;
@@ -89,15 +89,19 @@ function shouldLog(level: LogLevel): boolean {
  * log.info('Resolving destination', { userId: user.id });
  */
 export function createLogger(scope: string): Logger {
-  const log = (level: LogLevel, message: string, context?: LogContext, error?: Error) => {
+  const log = (level: LogLevel, message: string, context?: LogContext, error?: unknown) => {
     if (!shouldLog(level)) return;
     
     const scopedContext = { ...context, component: scope };
     const formatted = formatLogEntry(level, message, scopedContext);
     const method = getConsoleMethod(level);
     
-    if (error) {
-      method(formatted, error);
+    if (error !== undefined) {
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error(String(error));
+      method(formatted, normalizedError);
     } else {
       method(formatted);
     }

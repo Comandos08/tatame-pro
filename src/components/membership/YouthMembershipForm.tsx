@@ -334,9 +334,9 @@ export function YouthMembershipForm() {
       } else {
         throw new Error(t('membership.errorPaymentSession'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error:', error);
-      const errorMessage = error?.message || t('membership.errorGeneric');
+      const errorMessage = error instanceof Error ? error.message : t('membership.errorGeneric');
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);

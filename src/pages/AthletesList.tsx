@@ -241,8 +241,8 @@ export default function AthletesList() {
   const csvColumns = useMemo(() => [
     { key: 'full_name', label: t('admin.athletes.csv.name') },
     { key: 'email', label: t('admin.athletes.csv.email') },
-    { key: 'birth_date', label: t('admin.athletes.csv.birthDate'), format: (v: string | null) => formatDateForCsv(v ?? '') },
-    { key: 'academy_name', label: t('admin.athletes.csv.academy'), format: (v: string | null) => v || '-' },
+    { key: 'birth_date', label: t('admin.athletes.csv.birthDate'), format: (v: unknown) => formatDateForCsv((v as string | null) ?? '') },
+    { key: 'academy_name', label: t('admin.athletes.csv.academy'), format: (v: unknown) => (v as string | null) || '-' },
     { 
       key: 'membershipStatus', 
       label: t('admin.athletes.csv.membershipStatus'), 
