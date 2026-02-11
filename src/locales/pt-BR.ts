@@ -2336,6 +2336,8 @@ export const ptBR = {
   'tenant.loading': 'Carregando organização...',
   'tenant.notFound': 'Organização não encontrada',
   'tenant.notFoundDesc': 'A organização que você está procurando não existe ou não está ativa no momento.',
+  'tenant.boundaryViolation': 'Acesso negado',
+  'tenant.boundaryViolationDesc': 'Você não tem permissão para acessar esta organização.',
 
   // Admin - Create Tenant Dialog keys (P1) - Only truly new keys (non-duplicates)
   'admin.organizationNameLabel': 'Nome da organização',

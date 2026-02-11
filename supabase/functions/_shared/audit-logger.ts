@@ -66,6 +66,9 @@ export const AUDIT_EVENTS = {
   // A03 — Billing State Machine
   BILLING_TRANSITION_BLOCKED: 'BILLING_TRANSITION_BLOCKED',
   
+  // A04 — Tenant Boundary Enforcement
+  TENANT_BOUNDARY_VIOLATION: 'TENANT_BOUNDARY_VIOLATION',
+  
   // PI-BILL-HARD-002 — Billing not provisioned (valid domain state)
   BILLING_NOT_PROVISIONED: 'BILLING_NOT_PROVISIONED',
   
@@ -160,6 +163,7 @@ function detectCategory(eventType: string): AuditCategory {
   if (eventType.startsWith('JOB_')) return 'JOB';
   if (eventType.startsWith('DIPLOMA_') || eventType.startsWith('GRADING_')) return 'GRADING';
   if (eventType.startsWith('IMPERSONATION_')) return 'SECURITY';
+  if (eventType.startsWith('TENANT_BOUNDARY_')) return 'SECURITY';
   if (eventType.startsWith('LOGIN_') || eventType.startsWith('PASSWORD_')) return 'AUTH';
   if (eventType.startsWith('ROLES_')) return 'ROLES';
   if (eventType.startsWith('TMP_') || eventType.startsWith('DIGITAL_')) return 'STORAGE';

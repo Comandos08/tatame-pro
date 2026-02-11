@@ -160,8 +160,45 @@ jobs:
           if [ "$FAILED" -eq 1 ]; then exit 1; fi
           echo "✅ G5 passed"
 
+      - name: G6 — Tenant boundary guard exists and exports required functions
+        run: |
+          echo "🔍 G6: Checking tenant boundary enforcement..."
+          BOUNDARY="supabase/functions/_shared/tenant-boundary.ts"
+          FAILED=0
+
+          if [ ! -f "$BOUNDARY" ]; then
+            echo "❌ FAIL: tenant-boundary.ts not found"
+            FAILED=1
+          fi
+
+          if ! grep -q "assertTenantAccess" "$BOUNDARY"; then
+            echo "❌ FAIL: assertTenantAccess not exported"
+            FAILED=1
+          fi
+
+          if ! grep -q "assertTenantMatchesImpersonation" "$BOUNDARY"; then
+            echo "❌ FAIL: assertTenantMatchesImpersonation not exported"
+            FAILED=1
+          fi
+
+          if ! grep -q "TenantBoundaryError" "$BOUNDARY"; then
+            echo "❌ FAIL: TenantBoundaryError class not defined"
+            FAILED=1
+          fi
+
+          # Verify adoption in key functions (WARN only — incremental adoption)
+          for fn in start-impersonation validate-impersonation stripe-webhook; do
+            FN_FILE="supabase/functions/$fn/index.ts"
+            if [ -f "$FN_FILE" ] && ! grep -q "tenant-boundary\|assertTenantAccess" "$FN_FILE"; then
+              echo "⚠️ WARN: $fn does not use tenant-boundary (incremental adoption)"
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G6 passed"
+
       - name: Summary
         run: |
           echo "✅ Supabase Governance Check PASSED"
           echo "📋 SAFE GOLD compliance verified"
-          echo "🛡️ Gates G1-G5 enforced"
+          echo "🛡️ Gates G1-G6 enforced"

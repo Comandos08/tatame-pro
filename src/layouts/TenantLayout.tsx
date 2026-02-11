@@ -41,7 +41,7 @@ import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
 import { useI18n } from '@/contexts/I18nContext';
 import { motion } from 'framer-motion';
-import { AlertCircle, Loader2, Home } from 'lucide-react';
+import { AlertCircle, Loader2, Home, ShieldAlert } from 'lucide-react';
 import { hexToHsl } from '@/lib/colorUtils';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 
@@ -50,7 +50,7 @@ import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 // =============================================================================
 
 function TenantContent() {
-  const { tenant, isLoading, error, billingInfo } = useTenant();
+  const { tenant, isLoading, error, billingInfo, boundaryViolation } = useTenant();
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -105,6 +105,29 @@ function TenantContent() {
         iconVariant="destructive"
         titleKey="tenant.notFound"
         descriptionKey="tenant.notFoundDesc"
+        actions={[
+          {
+            labelKey: 'common.goHome',
+            onClick: () => navigate('/'),
+            icon: Home,
+          },
+        ]}
+      />
+    );
+  }
+
+  // =========================================================================
+  // STEP 3.5: Tenant Boundary Violation (A04)
+  // =========================================================================
+  // FAIL-CLOSED: User has no membership in this tenant
+  // SUPERADMIN is excluded (IdentityGate handles impersonation scope)
+  if (boundaryViolation) {
+    return (
+      <BlockedStateCard
+        icon={ShieldAlert}
+        iconVariant="destructive"
+        titleKey="tenant.boundaryViolation"
+        descriptionKey="tenant.boundaryViolationDesc"
         actions={[
           {
             labelKey: 'common.goHome',

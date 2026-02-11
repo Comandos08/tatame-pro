@@ -3,10 +3,12 @@ import { logger } from '@/lib/logger';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Tenant, TenantContext as TenantContextType } from '@/types/tenant';
+import { useCurrentUser } from '@/contexts/AuthContext';
 
 interface ExtendedTenantContext extends TenantContextType {
   billingInfo: TenantBillingInfo | null;
   refetchTenant: () => void;
+  boundaryViolation: boolean;
 }
 
 interface TenantBillingInfo {
@@ -23,8 +25,10 @@ interface TenantProviderProps {
 
 export function TenantProvider({ children }: TenantProviderProps) {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { currentUser, isAuthenticated, isGlobalSuperadmin, currentRolesByTenant } = useCurrentUser();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [billingInfo, setBillingInfo] = useState<TenantBillingInfo | null>(null);
+  const [boundaryViolation, setBoundaryViolation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
@@ -139,7 +143,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
           };
           setTenant(tenantData);
 
-          // Fetch billing info if tenant is inactive
+          // A04 — Boundary violation cross-check
+          // If user is authenticated, NOT superadmin, and has no roles for this tenant → violation
+          if (isAuthenticated && currentUser && !isGlobalSuperadmin) {
+            const hasAccess = currentRolesByTenant.has(tenantData.id);
+            setBoundaryViolation(!hasAccess);
+          } else {
+            // SUPERADMIN handled by IdentityGate, unauthenticated handled by RLS
+            setBoundaryViolation(false);
+          }
+
           if (!data.is_active) {
             if (abortController.signal.aborted) return;
             
@@ -180,10 +193,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
     return () => {
       abortController.abort();
     };
-  }, [tenantSlug, refetchTrigger]); // ✅ UX/02 — Add refetchTrigger dependency
+  }, [tenantSlug, refetchTrigger, isAuthenticated, currentUser, isGlobalSuperadmin, currentRolesByTenant]);
 
   return (
-    <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo, refetchTenant }}>
+    <TenantContext.Provider value={{ tenant, isLoading, error, billingInfo, refetchTenant, boundaryViolation }}>
       {children}
     </TenantContext.Provider>
   );
