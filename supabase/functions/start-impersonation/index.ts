@@ -27,15 +27,26 @@
  * - All sessions are immutably logged (REQUIRED)
  * - Rate limiting is fail-closed (REQUIRED)
  * 
+ * A02: Institutional envelope + structured logger + correlationId
  * ============================================================================
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
   SecureRateLimitPresets,
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+  unauthorizedResponse,
+  forbiddenResponse,
+} from "../_shared/errors/envelope.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -43,7 +54,7 @@ import {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-correlation-id, x-impersonation-id',
 };
 
 // ============================================================================
@@ -75,16 +86,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("start-impersonation", correlationId);
+
   try {
     // ========================================================================
     // STEP 1: Authorization Validation
     // ========================================================================
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      log.warn("Missing authorization header");
+      return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
     }
 
     // ========================================================================
@@ -103,11 +115,11 @@ Deno.serve(async (req) => {
     // ========================================================================
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      log.warn("Invalid or expired token");
+      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
     }
+
+    log.setUser(user.id);
 
     // ========================================================================
     // STEP 4: Rate Limiting
@@ -118,7 +130,8 @@ Deno.serve(async (req) => {
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin);
 
     if (!rateLimitResult.allowed) {
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      log.warn("Rate limit exceeded");
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders, correlationId);
     }
 
     // ========================================================================
@@ -134,10 +147,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !superadmin) {
-      return new Response(
-        JSON.stringify({ error: 'Only SUPERADMIN_GLOBAL can start impersonation' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      log.warn("Non-superadmin attempted impersonation");
+      return forbiddenResponse(corsHeaders, "auth.superadmin_required", undefined, correlationId);
     }
 
     // ========================================================================
@@ -147,11 +158,15 @@ Deno.serve(async (req) => {
     const { targetTenantId, reason } = body;
 
     if (!targetTenantId || typeof targetTenantId !== 'string') {
-      return new Response(
-        JSON.stringify({ error: 'targetTenantId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      log.warn("Missing targetTenantId");
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.target_tenant_required", false, undefined, correlationId),
+        corsHeaders,
       );
     }
+
+    log.setTenant(targetTenantId);
 
     // ========================================================================
     // STEP 7: Target Tenant Existence Check
@@ -163,9 +178,11 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (tenantError || !targetTenant) {
-      return new Response(
-        JSON.stringify({ error: 'Target tenant not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      log.warn("Target tenant not found", { targetTenantId });
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "tenant.not_found", false, undefined, correlationId),
+        corsHeaders,
       );
     }
 
@@ -206,9 +223,11 @@ Deno.serve(async (req) => {
       .single();
 
     if (insertError || !newSession) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to create impersonation session' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      log.error("Failed to create impersonation session", insertError);
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.create_failed", true, undefined, correlationId),
+        corsHeaders,
       );
     }
 
@@ -232,25 +251,26 @@ Deno.serve(async (req) => {
       },
     });
 
+    log.info("Impersonation session created", { impersonationId: newSession.id });
+
     // ========================================================================
     // STEP 11: Success Response
     // ========================================================================
-    return new Response(
-      JSON.stringify({
-        impersonationId: newSession.id,
-        targetTenantId: targetTenant.id,
-        targetTenantSlug: targetTenant.slug,
-        targetTenantName: targetTenant.name,
-        expiresAt: expiresAt.toISOString(),
-        status: 'ACTIVE',
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return okResponse({
+      impersonationId: newSession.id,
+      targetTenantId: targetTenant.id,
+      targetTenantSlug: targetTenant.slug,
+      targetTenantName: targetTenant.name,
+      expiresAt: expiresAt.toISOString(),
+      status: 'ACTIVE',
+    }, corsHeaders, correlationId);
 
-  } catch (_error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  } catch (err) {
+    log.error("Unhandled exception", err);
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      corsHeaders,
     );
   }
 });

@@ -29,18 +29,27 @@
  * - Stripe customer must exist for tenant
  * - Portal actions are handled by Stripe, not by us
  * 
- * WHY STRIPE PORTAL?
- * - Customers manage their own payment methods
- * - Customers can view invoices and receipts
- * - Customers can upgrade/downgrade (if configured)
- * - We don't handle sensitive payment data
- * 
+ * A02: Institutional envelope + structured logger + correlationId
  * ============================================================================
  */
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
+import {
+  SecureRateLimitPresets,
+  buildRateLimitContext,
+} from "../_shared/secure-rate-limiter.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+  unauthorizedResponse,
+  forbiddenResponse,
+} from "../_shared/errors/envelope.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -48,17 +57,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// ============================================================================
-// LOGGING HELPER
-// NOTE: Pre-existing logging preserved for operational visibility
-// ============================================================================
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[TENANT-CUSTOMER-PORTAL] ${step}${detailsStr}`);
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-correlation-id, x-impersonation-id",
 };
 
 // ============================================================================
@@ -71,16 +70,25 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("tenant-customer-portal", correlationId);
+
   try {
-    logStep("Function started");
+    log.setStep("init");
 
     // ========================================================================
     // STEP 1: Environment Validation
     // SECURITY BOUNDARY: Function cannot operate without Stripe key
     // ========================================================================
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
+    if (!stripeKey) {
+      log.error("STRIPE_SECRET_KEY is not set");
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["STRIPE_SECRET_KEY"], correlationId),
+        corsHeaders,
+      );
+    }
 
     // ========================================================================
     // STEP 2: Supabase Client Initialization
@@ -95,25 +103,56 @@ serve(async (req) => {
     // STEP 3: Authorization Validation
     // ========================================================================
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
-    logStep("Authorization header found");
+    if (!authHeader) {
+      log.warn("Missing authorization header");
+      return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
+    }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      log.warn("Authentication error", { error: userError.message });
+      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+    }
     const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
-    logStep("User authenticated", { userId: user.id });
+    if (!user?.id) {
+      log.warn("User not authenticated");
+      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+    }
+
+    log.setUser(user.id);
+    log.setStep("auth_ok");
 
     // ========================================================================
-    // STEP 4: Request Body Validation
+    // STEP 4: Rate Limiting
+    // ========================================================================
+    const rateLimiter = SecureRateLimitPresets.tenantCustomerPortal();
+    const rateLimitCtx = buildRateLimitContext(req, user.id, null);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseClient);
+
+    if (!rateLimitResult.allowed) {
+      log.warn("Rate limit exceeded");
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders, correlationId);
+    }
+
+    // ========================================================================
+    // STEP 5: Request Body Validation
     // ========================================================================
     const { tenant_id: tenantId } = await req.json();
-    if (!tenantId) throw new Error("tenant_id is required");
-    logStep("Request body parsed", { tenant_id: tenantId });
+    if (!tenantId) {
+      log.warn("Missing tenant_id");
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.tenant_id_required", false, undefined, correlationId),
+        corsHeaders,
+      );
+    }
+
+    log.setTenant(tenantId);
+    log.setStep("role_check");
 
     // ========================================================================
-    // STEP 5: Role Authorization Check
+    // STEP 6: Role Authorization Check
     // SECURITY BOUNDARY: Only specific roles can access billing portal
     // BY DESIGN: ADMIN_TENANT, STAFF_ORGANIZACAO, or SUPERADMIN_GLOBAL
     // ========================================================================
@@ -134,12 +173,14 @@ serve(async (req) => {
 
     const isAuthorized = (tenantRoles && tenantRoles.length > 0) || (globalRoles && globalRoles.length > 0);
     if (!isAuthorized) {
-      throw new Error("User is not authorized to access billing for this tenant");
+      log.warn("User not authorized for billing portal");
+      return forbiddenResponse(corsHeaders, "auth.billing_access_denied", undefined, correlationId);
     }
-    logStep("User authorized", { tenantRoles, globalRoles });
+
+    log.setStep("fetch_stripe");
 
     // ========================================================================
-    // STEP 6: Fetch Stripe Customer ID
+    // STEP 7: Fetch Stripe Customer ID
     // DOES NOT modify billing records
     // ========================================================================
     const { data: billingData, error: billingError } = await supabaseClient
@@ -148,15 +189,28 @@ serve(async (req) => {
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
-    if (billingError) throw billingError;
+    if (billingError) {
+      log.error("Failed to fetch billing data", billingError);
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "billing.fetch_failed", true, undefined, correlationId),
+        corsHeaders,
+      );
+    }
     
     if (!billingData?.stripe_customer_id) {
-      throw new Error("No Stripe customer found for this tenant");
+      log.warn("No Stripe customer for tenant", { tenantId });
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "billing.no_stripe_customer", false, undefined, correlationId),
+        corsHeaders,
+      );
     }
-    logStep("Found Stripe customer", { customerId: billingData.stripe_customer_id });
+
+    log.setStep("create_portal");
 
     // ========================================================================
-    // STEP 7: Create Stripe Portal Session
+    // STEP 8: Create Stripe Portal Session
     // INTENTIONAL: We only create the session, Stripe handles the rest
     // DOES NOT modify subscription or billing in our database
     // ========================================================================
@@ -167,22 +221,20 @@ serve(async (req) => {
       customer: billingData.stripe_customer_id,
       return_url: `${origin}/`,
     });
-    logStep("Customer portal session created", { sessionId: portalSession.id, url: portalSession.url });
+
+    log.info("Customer portal session created", { sessionId: portalSession.id });
 
     // ========================================================================
-    // STEP 8: Success Response
+    // STEP 9: Success Response
     // Returns URL only; customer interacts with Stripe, not us
     // ========================================================================
-    return new Response(JSON.stringify({ url: portalSession.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in tenant-customer-portal", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return okResponse({ url: portalSession.url }, corsHeaders, correlationId);
+  } catch (err) {
+    log.error("Unhandled exception", err);
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      corsHeaders,
+    );
   }
 });
