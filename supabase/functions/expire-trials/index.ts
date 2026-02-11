@@ -10,29 +10,36 @@
  * 4. Keep tenant.is_active = true (partial access allowed)
  * 5. Send email "TRIAL_EXPIRED"
  * 6. Log to audit_logs
+ * 
+ * A02: Institutional envelope + structured logger + correlationId
+ * NOTE: Cron job — no rate limiting applied
  */
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret, x-correlation-id",
 };
 
 const GRACE_PERIOD_DAYS = 8;
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[EXPIRE-TRIALS] ${step}${detailsStr}`);
-};
 
 async function sendBillingEmail(
   supabaseUrl: string,
   supabaseServiceKey: string,
   eventType: string,
   tenantId: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  log?: ReturnType<typeof createBackendLogger>,
 ) {
   try {
     const emailUrl = `${supabaseUrl}/functions/v1/send-billing-email`;
@@ -44,9 +51,9 @@ async function sendBillingEmail(
       },
       body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
     });
-    logStep("Billing email triggered", { eventType, tenantId });
+    log?.info("Billing email triggered", { eventType, tenantId });
   } catch (err) {
-    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+    log?.warn("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
   }
 }
 
@@ -55,6 +62,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("expire-trials", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -62,18 +72,20 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[EXPIRE-TRIALS] CRON_SECRET not configured");
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    log.error("CRON_SECRET not configured");
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.cron_secret_missing", false, undefined, correlationId),
+      corsHeaders,
     );
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[EXPIRE-TRIALS] Invalid or missing x-cron-secret");
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    log.warn("Invalid or missing x-cron-secret");
+    return errorResponse(
+      403,
+      buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.cron_secret_invalid", false, undefined, correlationId),
+      corsHeaders,
     );
   }
   // ========================================
@@ -83,14 +95,19 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
     if (!supabaseServiceKey) {
-      throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+      log.error("Missing SUPABASE_SERVICE_ROLE_KEY");
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, undefined, correlationId),
+        corsHeaders,
+      );
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
 
-    logStep("Starting expire-trials job");
+    log.info("Starting expire-trials job");
 
     // Find tenants with expired trials
     const now = new Date().toISOString();
@@ -102,10 +119,15 @@ serve(async (req) => {
       .is("is_manual_override", false);
 
     if (fetchError) {
-      throw new Error(`Failed to fetch expired trials: ${fetchError.message}`);
+      log.error("Failed to fetch expired trials", fetchError);
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.fetch_failed", true, [`fetch: ${fetchError.message}`], correlationId),
+        corsHeaders,
+      );
     }
 
-    logStep("Found expired trials", { count: expiredTrials?.length || 0 });
+    log.info("Found expired trials", { count: expiredTrials?.length || 0 });
 
     const results = {
       processed: 0,
@@ -154,32 +176,26 @@ serve(async (req) => {
             month: "long",
             year: "numeric",
           }),
-        });
+        }, log);
 
         results.processed++;
         results.tenantIds.push(billing.tenant_id);
-        logStep("Expired trial", { tenantId: billing.tenant_id });
+        log.info("Expired trial", { tenantId: billing.tenant_id });
       } catch (err) {
         results.errors++;
-        logStep("Error expiring trial", { 
-          tenantId: billing.tenant_id, 
-          error: err instanceof Error ? err.message : "Unknown" 
-        });
+        log.error("Error expiring trial", err, { tenantId: billing.tenant_id });
       }
     }
 
-    logStep("Job completed", results);
+    log.info("Job completed", results);
 
-    return new Response(
-      JSON.stringify({ success: true, ...results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Job failed", { error: errorMessage });
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    return okResponse({ success: true, ...results }, corsHeaders, correlationId);
+  } catch (err) {
+    log.error("Unhandled exception", err);
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      corsHeaders,
     );
   }
 });

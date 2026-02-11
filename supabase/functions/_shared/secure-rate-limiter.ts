@@ -378,6 +378,20 @@ export const SecureRateLimitPresets = {
     limit: 10,
     windowSeconds: 3600,
   }),
+
+  /** End impersonation: 20 per hour per superadmin */
+  endImpersonation: () => new SecureRateLimiter({
+    operation: "end-impersonation",
+    limit: 20,
+    windowSeconds: 3600,
+  }),
+
+  /** Tenant customer portal: 10 per hour per user */
+  tenantCustomerPortal: () => new SecureRateLimiter({
+    operation: "tenant-customer-portal",
+    limit: 10,
+    windowSeconds: 3600,
+  }),
 };
 
 /**
