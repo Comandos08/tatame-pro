@@ -171,15 +171,15 @@ export default function AthletesList() {
       // Map memberships to athletes (get latest per athlete)
       const membershipsByAthlete = new Map<string, typeof membershipsData[0]>();
       membershipsData.forEach(m => {
-        if (!membershipsByAthlete.has(m.athlete_id)) {
+        if (m.athlete_id && !membershipsByAthlete.has(m.athlete_id)) {
           membershipsByAthlete.set(m.athlete_id, m);
         }
       });
 
       // Create grading map
       const gradingsByAthlete = new Map<string, AthleteCurrentGrading>();
-      gradingsData?.forEach(g => {
-        gradingsByAthlete.set(g.athlete_id, g as AthleteCurrentGrading);
+      (gradingsData as AthleteCurrentGrading[] | null)?.forEach(g => {
+        gradingsByAthlete.set(g.athlete_id, g);
       });
 
       // Combine data including grading
@@ -241,7 +241,7 @@ export default function AthletesList() {
   const csvColumns = useMemo(() => [
     { key: 'full_name', label: t('admin.athletes.csv.name') },
     { key: 'email', label: t('admin.athletes.csv.email') },
-    { key: 'birth_date', label: t('admin.athletes.csv.birthDate'), format: (v: string | null) => formatDateForCsv(v) },
+    { key: 'birth_date', label: t('admin.athletes.csv.birthDate'), format: (v: string | null) => formatDateForCsv(v ?? '') },
     { key: 'academy_name', label: t('admin.athletes.csv.academy'), format: (v: string | null) => v || '-' },
     { 
       key: 'membershipStatus', 

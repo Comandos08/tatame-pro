@@ -93,6 +93,7 @@ export default function AthleteGradingsPage() {
   const { data: athlete, isLoading: athleteLoading } = useQuery({
     queryKey: ['athlete', athleteId],
     queryFn: async () => {
+      if (!athleteId) throw new Error('Missing athleteId');
       const { data, error } = await supabase
         .from('athletes')
         .select('id, full_name, email, tenant_id, profile_id')
@@ -128,6 +129,7 @@ export default function AthleteGradingsPage() {
   const { data: gradings, isLoading: gradingsLoading } = useQuery({
     queryKey: ['athlete-gradings', athleteId],
     queryFn: async () => {
+      if (!athleteId) throw new Error('Missing athleteId');
       const { data, error } = await supabase
         .from('athlete_gradings')
         .select(`

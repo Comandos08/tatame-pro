@@ -66,7 +66,7 @@ export default function PortalCard() {
   // Query membership
   const { data: membership, isLoading: membershipLoading } = useQuery<MembershipData | null>({
     queryKey: ['portal-membership-card', athlete?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<MembershipData | null> => {
       const { data, error } = await supabase
         .from('memberships')
         .select('id, status, payment_status, start_date, end_date, type, created_at')
@@ -75,7 +75,16 @@ export default function PortalCard() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      return {
+        id: data.id,
+        status: data.status,
+        payment_status: data.payment_status,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        type: data.type,
+        created_at: data.created_at ?? '',
+      };
     },
     enabled: !!athlete?.id,
   });

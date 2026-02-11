@@ -82,12 +82,12 @@ export function isAthleteEligibleForCategory(
   
   // 4. Belt check
   if (athlete.current_grading && 
-      (category.belt_min_order_index !== null || category.belt_max_order_index !== null)) {
+      (category.belt_min_order_index != null || category.belt_max_order_index != null)) {
     const athleteBeltOrder = athlete.current_grading.order_index;
-    if (category.belt_min_order_index !== null && athleteBeltOrder < category.belt_min_order_index) {
+    if (category.belt_min_order_index != null && athleteBeltOrder < category.belt_min_order_index) {
       reasons.push('Faixa abaixo do mínimo');
     }
-    if (category.belt_max_order_index !== null && athleteBeltOrder > category.belt_max_order_index) {
+    if (category.belt_max_order_index != null && athleteBeltOrder > category.belt_max_order_index) {
       reasons.push('Faixa acima do máximo');
     }
   }

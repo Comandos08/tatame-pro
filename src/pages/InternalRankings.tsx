@@ -60,6 +60,7 @@ export default function InternalRankings() {
     if (!tenant?.id) return;
 
     async function fetchRankings() {
+      if (!tenant?.id) return;
       setLoading(true);
       setError(null);
 
@@ -68,7 +69,7 @@ export default function InternalRankings() {
         const { data: academiesData, error: academiesError } = await supabase
           .from('academies')
           .select('id, name')
-          .eq('tenant_id', tenant.id)
+          .eq('tenant_id', tenant!.id)
           .eq('is_active', true)
           .order('name');
 
@@ -79,7 +80,7 @@ export default function InternalRankings() {
         const { data: academiesWithStats } = await supabase
           .from('academies')
           .select('id, name, city, state, sport_type')
-          .eq('tenant_id', tenant.id)
+          .eq('tenant_id', tenant!.id)
           .eq('is_active', true);
 
         if (academiesWithStats && academiesWithStats.length > 0) {
@@ -87,7 +88,7 @@ export default function InternalRankings() {
           const { data: memberships } = await supabase
             .from('memberships')
             .select('academy_id')
-            .eq('tenant_id', tenant.id)
+            .eq('tenant_id', tenant!.id)
             .eq('status', 'ACTIVE')
             .not('academy_id', 'is', null);
 
@@ -95,7 +96,7 @@ export default function InternalRankings() {
           const { data: diplomas } = await supabase
             .from('diplomas')
             .select('academy_id')
-            .eq('tenant_id', tenant.id)
+            .eq('tenant_id', tenant!.id)
             .eq('status', 'ISSUED')
             .not('academy_id', 'is', null);
 
@@ -131,7 +132,7 @@ export default function InternalRankings() {
         const { data: athletes } = await supabase
           .from('athletes')
           .select('id, full_name, current_academy_id')
-          .eq('tenant_id', tenant.id);
+          .eq('tenant_id', tenant!.id);
 
         if (athletes && athletes.length > 0) {
           const athleteIds = athletes.map(a => a.id);
@@ -144,7 +145,7 @@ export default function InternalRankings() {
               promotion_date,
               grading_levels!inner(display_name, order_index)
             `)
-            .eq('tenant_id', tenant.id)
+            .eq('tenant_id', tenant!.id)
             .in('athlete_id', athleteIds)
             .order('promotion_date', { ascending: false });
 
@@ -158,7 +159,7 @@ export default function InternalRankings() {
             : { data: [] };
 
           const academyMap: Record<string, string> = {};
-          academiesForAthletes?.forEach(a => {
+          (academiesForAthletes as { id: string; name: string }[] | null)?.forEach(a => {
             academyMap[a.id] = a.name;
           });
 

@@ -194,7 +194,7 @@ export function BracketMatchCard({
         isWinner(match.athlete1_registration_id) && 'bg-primary/10 rounded px-1'
       )}>
         <span className="w-4 text-muted-foreground">1</span>
-        {getAthleteDisplay(athlete1, match.athlete1_registration_id, isBye && !athlete2)}
+        {getAthleteDisplay(athlete1, match.athlete1_registration_id, Boolean(isBye && !athlete2))}
       </div>
 
       {/* Athlete 2 */}
@@ -204,7 +204,7 @@ export function BracketMatchCard({
         isWinner(match.athlete2_registration_id) && 'bg-primary/10 rounded px-1'
       )}>
         <span className="w-4 text-muted-foreground">2</span>
-        {getAthleteDisplay(athlete2, match.athlete2_registration_id, isBye && !athlete1)}
+        {getAthleteDisplay(athlete2, match.athlete2_registration_id, Boolean(isBye && !athlete1))}
       </div>
 
       {/* Source info for future rounds */}

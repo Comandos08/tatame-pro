@@ -82,7 +82,7 @@ export default function AdminDiagnostics() {
   // Tenant-specific data (only if tenantId is provided via query param)
   const { diagnostics: tenantDiagnostics, isLoading: tenantLoading, refetch: refetchTenant } = useTenantDiagnostics(tenantId);
 
-  const isLoading = platformLoading || (tenantId && tenantLoading);
+  const isLoading = platformLoading || (!!tenantId && tenantLoading);
 
   const formatTimestamp = (ts: string | null) => {
     if (!ts) return t('diagnostics.noData');

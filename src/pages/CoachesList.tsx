@@ -111,7 +111,7 @@ export default function CoachesList() {
     mutationFn: async (data: typeof formData) => {
       if (!tenant) throw new Error('Tenant not found');
       
-      let profileId = null;
+      let profileId: string | null = null;
       
       // Try to find profile by email if provided
       if (data.profile_email) {

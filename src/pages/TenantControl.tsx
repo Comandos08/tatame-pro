@@ -60,8 +60,8 @@ interface TenantData {
   id: string;
   name: string;
   slug: string;
-  is_active: boolean;
-  created_at: string;
+  is_active: boolean | null;
+  created_at: string | null;
 }
 
 interface BillingData {
