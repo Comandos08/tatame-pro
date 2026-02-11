@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from "react";
+import { logger } from '@/lib/logger';
 import { ptBR } from "@/locales/pt-BR";
 import { en } from "@/locales/en";
 import { es } from "@/locales/es";
@@ -85,9 +86,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       let value = translations[locale]?.[key] ?? translations["pt-BR"]?.[key];
 
       if (!value) {
-        if (import.meta.env.DEV) {
-          console.warn(`[i18n] Missing key "${key}" for locale "${locale}"`);
-        }
+        logger.warn(`[i18n] Missing key "${key}" for locale "${locale}"`);
         return key;
       }
 
@@ -110,7 +109,7 @@ export function useI18n() {
   const context = useContext(I18nContext);
   if (!context) {
     // Return a safe fallback for server-side or during initial render
-    console.warn("useI18n called outside I18nProvider, returning fallback");
+    logger.warn("useI18n called outside I18nProvider, returning fallback");
     return {
       locale: "pt-BR" as Locale,
       setLocale: () => {},

@@ -10,6 +10,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
+import { logger } from '@/lib/logger';
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { emitInstitutionalEvent } from "@/lib/institutional";
@@ -301,7 +302,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return;
       }
 
-      console.error("[IdentityContext] checkIdentity error:", err);
+      logger.error("[IdentityContext] checkIdentity error:", err);
       setIdentityState("error");
       setError({
         code: "UNKNOWN",
@@ -425,7 +426,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
       }
 
-      console.error("[IdentityContext] completeWizard error:", err);
+      logger.error("[IdentityContext] completeWizard error:", err);
       if (isMountedRef.current) {
         setIdentityState("error");
         setError({ code: "UNKNOWN", message: "Falha ao completar wizard." });
@@ -521,7 +522,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." } };
       }
 
-      console.error("[IdentityContext] createTenant error:", err);
+      logger.error("[IdentityContext] createTenant error:", err);
       if (isMountedRef.current) {
         setIdentityState("error");
         setError({ code: "UNKNOWN", message: "Falha ao criar organização." });
@@ -613,7 +614,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." } };
       }
 
-      console.error("[IdentityContext] joinExistingTenant error:", err);
+      logger.error("[IdentityContext] joinExistingTenant error:", err);
       if (isMountedRef.current) {
         setIdentityState("error");
         setError({ code: "UNKNOWN", message: "Falha ao entrar na organização." });

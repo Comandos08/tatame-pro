@@ -15,6 +15,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { clearImpersonationClientCache } from '@/integrations/supabase/impersonation-client';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -88,12 +89,12 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         const parsed = JSON.parse(stored) as ImpersonationSession;
         // Quick local expiration check before validation
         if (new Date(parsed.expiresAt) > new Date()) {
-          console.log('[IMPERSONATION] Restored session from storage, status → RESOLVED');
+          logger.log('[IMPERSONATION] Restored session from storage, status → RESOLVED');
           setSession(parsed);
           setResolutionStatus('RESOLVED'); // ✅ P-IMP-FIX — Restored sessions are already resolved
         } else {
           // Already expired locally, clear it
-          console.log('[IMPERSONATION] Session expired in storage, clearing');
+          logger.log('[IMPERSONATION] Session expired in storage, clearing');
           sessionStorage.removeItem(STORAGE_KEY);
         }
       } catch {
@@ -126,7 +127,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // Clear session state and storage
   // IMPORTANT: Defined before validateSession to avoid hoisting issues
   const clearSession = useCallback(() => {
-    console.log('[IMPERSONATION] Clearing session, status → IDLE');
+    logger.log('[IMPERSONATION] Clearing session, status → IDLE');
     setSession(null);
     setRemainingMinutes(null);
     setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset to IDLE on clear
@@ -147,19 +148,19 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       });
 
       if (error) {
-        console.error('[IMPERSONATION] Validation failed:', error);
+        logger.error('[IMPERSONATION] Validation failed:', error);
         clearSession();
         return;
       }
 
       if (!data.valid) {
-        console.log('[IMPERSONATION] Session no longer valid:', data.status);
+        logger.log('[IMPERSONATION] Session no longer valid:', data.status);
         clearSession();
         toast.warning(t('impersonation.sessionExpired'));
         navigate('/admin', { replace: true });
       }
     } catch (err) {
-      console.error('[IMPERSONATION] Validation error:', err);
+      logger.error('[IMPERSONATION] Validation error:', err);
     }
   }, [session, isGlobalSuperadmin, navigate, t, clearSession]);
 
@@ -192,12 +193,12 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // Start impersonation
   const startImpersonation = useCallback(async (targetTenantId: string, reason?: string): Promise<boolean> => {
     if (!isGlobalSuperadmin) {
-      console.error('[IMPERSONATION] Cannot start: not a superadmin');
+      logger.error('[IMPERSONATION] Cannot start: not a superadmin');
       return false;
     }
 
     // ✅ P-IMP-FIX — Set RESOLVING before edge function call
-    console.log('[IMPERSONATION] Starting, status → RESOLVING');
+    logger.log('[IMPERSONATION] Starting, status → RESOLVING');
     setResolutionStatus('RESOLVING');
 
     try {
@@ -206,14 +207,14 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       });
 
       if (error) {
-        console.error('[IMPERSONATION] Start failed:', error);
+        logger.error('[IMPERSONATION] Start failed:', error);
         setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on failure
         toast.error(t('impersonation.startFailed'));
         return false;
       }
 
       if (data.error) {
-        console.error('[IMPERSONATION] Start failed:', data.error);
+        logger.error('[IMPERSONATION] Start failed:', data.error);
         setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on failure
         toast.error(data.error);
         return false;
@@ -232,13 +233,13 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
       
       // ✅ P-IMP-FIX — Mark as RESOLVED only after session is set
-      console.log('[IMPERSONATION] Success, status → RESOLVED');
+      logger.log('[IMPERSONATION] Success, status → RESOLVED');
       setResolutionStatus('RESOLVED');
 
       toast.success(`${t('impersonation.started')}: ${data.targetTenantName}`);
       return true;
     } catch (err) {
-      console.error('[IMPERSONATION] Start error:', err);
+      logger.error('[IMPERSONATION] Start error:', err);
       setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on error
       toast.error(t('impersonation.startFailed'));
       return false;
@@ -255,10 +256,10 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       });
 
       if (error) {
-        console.error('[IMPERSONATION] End failed:', error);
+        logger.error('[IMPERSONATION] End failed:', error);
       }
     } catch (err) {
-      console.error('[IMPERSONATION] End error:', err);
+      logger.error('[IMPERSONATION] End error:', err);
     } finally {
       clearSession();
       navigate('/admin', { replace: true });
