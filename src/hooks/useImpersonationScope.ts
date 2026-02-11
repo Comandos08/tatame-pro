@@ -58,6 +58,10 @@ export interface ImpersonationScope {
 // HOOK
 // ============================================================================
 
+// BY DESIGN: Deterministic slug normalization — single helper for all comparisons
+const normalizeSlug = (value?: string | null): string | null =>
+  value?.trim().toLowerCase() ?? null;
+
 export function useImpersonationScope() {
   const {
     session,
@@ -89,12 +93,14 @@ export function useImpersonationScope() {
       };
     }
 
-    // Map session status to scope status
+  // Map session status to scope status
+    // BY DESIGN: Explicit mapping — no implicit fallback for known states
     const statusMap: Record<string, ImpersonationScopeStatus> = {
       ACTIVE: 'ACTIVE',
       ENDED: 'ENDED',
       EXPIRED: 'EXPIRED',
       REVOKED: 'INVALID',
+      TENANT_INACTIVE: 'TENANT_INACTIVE',
     };
 
     return {
@@ -135,8 +141,8 @@ export function useImpersonationScope() {
         return false;
       }
 
-      // BY DESIGN: Case-insensitive slug comparison for robustness
-      if (scope.targetTenantSlug.toLowerCase() !== expectedSlug.toLowerCase()) {
+      // BY DESIGN: Deterministic slug normalization for robustness
+      if (normalizeSlug(scope.targetTenantSlug) !== normalizeSlug(expectedSlug)) {
         logger.warn('[ImpersonationScope] Slug mismatch detected', {
           expected: expectedSlug,
           actual: scope.targetTenantSlug,
@@ -150,12 +156,27 @@ export function useImpersonationScope() {
   );
 
   // ========================================================================
-  // clearImpersonationScope — Clean shutdown with reason logging
+  // clearImpersonationScope — Fail-safe shutdown with reason logging
+  // BY DESIGN: Local state is cleared IMMEDIATELY before any async call
+  // to guarantee the UI never stays in a stale impersonation state.
   // ========================================================================
   const clearImpersonationScope = useCallback(
-    (reason: string) => {
-      logger.log('[ImpersonationScope] Clearing scope', { reason });
-      endImpersonation(reason);
+    async (reason: string) => {
+      logger.log('[ImpersonationScope] Clearing scope (fail-safe)', { reason });
+
+      // 1️⃣ Clear local storage IMMEDIATELY (fail-safe — always runs)
+      try {
+        sessionStorage.removeItem('impersonation_session');
+      } catch {
+        // BY DESIGN: Storage access may fail in restricted contexts — ignore
+      }
+
+      // 2️⃣ Attempt backend cleanup (best effort)
+      try {
+        await endImpersonation(reason);
+      } catch (err) {
+        logger.warn('[ImpersonationScope] Backend endImpersonation failed (ignored)', { reason });
+      }
     },
     [endImpersonation],
   );
