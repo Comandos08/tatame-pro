@@ -46,9 +46,11 @@ import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
+import { useImpersonationScope } from "@/hooks/useImpersonationScope";
 import { useI18n } from "@/contexts/I18nContext";
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
+import { ImpersonationScopeMismatchCard } from "@/components/impersonation/ImpersonationScopeMismatchCard";
 import { logger } from "@/lib/logger";
 import {
   resolveIdentityState,
@@ -182,6 +184,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
   const { isImpersonating, session: impersonationSession, resolutionStatus } = useImpersonation();
+  const { scope: impersonationScope, requireValidImpersonation } = useImpersonationScope();
 
   // =========================================================================
   // STEP 2: State Resolution (pure function delegation)
@@ -367,7 +370,22 @@ export function IdentityGate({ children }: IdentityGateProps) {
         // INTENTIONAL: Check if superadmin is trying to access tenant route without impersonation
         const { isTenant, tenantSlug } = isTenantRoute(pathname);
         if (isTenant && tenantSlug) {
-          // P1.1: Uses BlockedStateCard for unified UX
+          // ================================================================
+          // A02.T1.4: Cross-verification of impersonation scope vs URL slug
+          // BY DESIGN: If impersonating, the scope slug MUST match the URL slug.
+          // If not impersonating, show the standard "go impersonate" card.
+          // ================================================================
+          if (impersonationScope.status === 'ACTIVE') {
+            // Superadmin IS impersonating — verify slug matches
+            if (!requireValidImpersonation(tenantSlug)) {
+              // SECURITY BOUNDARY: Slug mismatch — hard block
+              return <ImpersonationScopeMismatchCard urlSlug={tenantSlug} />;
+            }
+            // Slug matches — allow through (don't redirect)
+            return <>{children}</>;
+          }
+
+          // Not impersonating — show standard blocked card
           // SECURITY BOUNDARY: Superadmin must explicitly impersonate to access tenant data
           return (
             <BlockedStateCard
@@ -387,6 +405,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
         }
         return <Navigate to={redirectDecision.destination!} replace />;
       }
+      // BY DESIGN: Superadmin on non-tenant routes (e.g. /admin) — allow through
       return <>{children}</>;
 
     // -----------------------------------------------------------------

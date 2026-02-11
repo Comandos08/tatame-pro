@@ -138,7 +138,8 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     clearImpersonationClientCache();
   }, []);
 
-  // Validate session with backend
+  // Validate session with backend (cross-verification)
+  // BY DESIGN: Updates local session with server-authoritative data
   const validateSession = useCallback(async () => {
     if (!session || !isGlobalSuperadmin) return;
 
@@ -153,12 +154,36 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         return;
       }
 
-      if (!data.valid) {
-        logger.log('[IMPERSONATION] Session no longer valid:', data.status);
+      // BY DESIGN: Unwrap A07 envelope — data is in data.data when using okResponse
+      const payload = data?.data ?? data;
+
+      if (!payload?.valid) {
+        logger.log('[IMPERSONATION] Session no longer valid:', payload?.status);
         clearSession();
         toast.warning(t('impersonation.sessionExpired'));
         navigate('/admin', { replace: true });
+        return;
       }
+
+      // A02.T1.4: Cross-verify and update session with server-authoritative data
+      // BY DESIGN: Server slug/name/expiry overrides local state
+      if (payload.targetTenantSlug && payload.targetTenantSlug !== session.targetTenantSlug) {
+        logger.warn('[IMPERSONATION] Server slug differs from local, updating', {
+          local: session.targetTenantSlug,
+          server: payload.targetTenantSlug,
+        });
+      }
+
+      const updatedSession: ImpersonationSession = {
+        ...session,
+        targetTenantSlug: payload.targetTenantSlug || session.targetTenantSlug,
+        targetTenantName: payload.targetTenantName || session.targetTenantName,
+        expiresAt: payload.expiresAt || session.expiresAt,
+        status: 'ACTIVE',
+      };
+
+      setSession(updatedSession);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSession));
     } catch (err) {
       logger.error('[IMPERSONATION] Validation error:', err);
     }
