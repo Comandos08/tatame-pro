@@ -4,6 +4,8 @@
  * Utility function to validate user roles in edge functions.
  * DENY BY DEFAULT — returns false on any error.
  * 
+ * A02: All console.* calls migrated to createBackendLogger.
+ * 
  * @example
  * const { allowed, userId, roles } = await requireTenantRole(
  *   supabaseAdmin,
@@ -18,6 +20,7 @@
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 export type EdgeAppRole =
   | 'SUPERADMIN_GLOBAL'
@@ -58,6 +61,8 @@ export async function requireTenantRole(
   tenantId: string,
   allowedRoles: EdgeAppRole[]
 ): Promise<RoleCheckResult> {
+  const log = createBackendLogger("requireTenantRole", crypto.randomUUID());
+
   // Default deny result
   const denyResult: RoleCheckResult = {
     allowed: false,
@@ -112,7 +117,7 @@ export async function requireTenantRole(
       .eq('tenant_id', tenantId);
 
     if (rolesError) {
-      console.error('requireTenantRole: Error fetching roles', rolesError);
+      log.error('Error fetching roles', rolesError);
       return { ...denyResult, userId, error: 'Error fetching roles' };
     }
 
@@ -140,7 +145,7 @@ export async function requireTenantRole(
     };
 
   } catch (err) {
-    console.error('requireTenantRole: Unexpected error', err);
+    log.error('Unexpected error', err);
     return { ...denyResult, error: 'Unexpected error during role check' };
   }
 }

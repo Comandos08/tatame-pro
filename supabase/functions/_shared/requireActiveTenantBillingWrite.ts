@@ -16,10 +16,13 @@
  * - 423: BILLING_READ_ONLY (TRIAL_EXPIRED, PAST_DUE)
  * 
  * This is a READ-ONLY gate — does not modify any data except audit logs.
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { requireBillingStatus, BillingStatus } from "./requireBillingStatus.ts";
 import { emitBillingAuditEvent, AuditDomain } from "./emitBillingAuditEvent.ts";
+import { createBackendLogger } from "./backend-logger.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -57,9 +60,12 @@ export async function requireActiveTenantBillingWrite(
   params: TenantBillingWriteParams
 ): Promise<TenantBillingWriteResult> {
   const { supabase, tenantId, userId, domain, operation } = params;
+  const log = createBackendLogger("requireActiveTenantBillingWrite", crypto.randomUUID());
+  log.setTenant(tenantId);
+  log.setUser(userId);
 
   try {
-    console.log(`[requireActiveTenantBillingWrite] Checking ${domain}:${operation} for tenant:`, tenantId);
+    log.info(`Checking ${domain}:${operation}`);
 
     // ========================================================================
     // STEP 1: Fetch Tenant
@@ -71,7 +77,7 @@ export async function requireActiveTenantBillingWrite(
       .maybeSingle();
 
     if (tenantError) {
-      console.error("[requireActiveTenantBillingWrite] Tenant fetch error:", tenantError.message);
+      log.error("Tenant fetch error", tenantError);
       return {
         ok: false,
         httpStatus: 500,
@@ -84,7 +90,7 @@ export async function requireActiveTenantBillingWrite(
     // STEP 2: Tenant Not Found
     // ========================================================================
     if (!tenant) {
-      console.warn("[requireActiveTenantBillingWrite] Tenant not found:", tenantId);
+      log.warn("Tenant not found");
       return {
         ok: false,
         httpStatus: 404,
@@ -97,7 +103,7 @@ export async function requireActiveTenantBillingWrite(
     // STEP 3: Tenant Must Be ACTIVE
     // ========================================================================
     if (tenant.status !== "ACTIVE") {
-      console.log("[requireActiveTenantBillingWrite] Tenant not ACTIVE:", tenant.status);
+      log.info("Tenant not ACTIVE", { status: tenant.status });
       
       // P3.5: Audit the blocked decision
       await emitBillingAuditEvent(supabase, {
@@ -167,7 +173,7 @@ export async function requireActiveTenantBillingWrite(
     // STEP 5: Check for Hard Block (PENDING_DELETE, CANCELED)
     // ========================================================================
     if (status && BLOCKED_STATUSES.includes(status)) {
-      console.log("[requireActiveTenantBillingWrite] Billing BLOCKED:", status);
+      log.info("Billing BLOCKED", { status });
       
       // P3.5: Audit the blocked decision
       await emitBillingAuditEvent(supabase, {
@@ -195,7 +201,7 @@ export async function requireActiveTenantBillingWrite(
     // STEP 6: Check for Read-Only (TRIAL_EXPIRED, PAST_DUE)
     // ========================================================================
     if (status && READ_ONLY_STATUSES.includes(status) && !billingCheck.isManualOverride) {
-      console.log("[requireActiveTenantBillingWrite] Billing READ_ONLY:", status);
+      log.info("Billing READ_ONLY", { status });
       
       // P3.5: Audit the blocked decision
       await emitBillingAuditEvent(supabase, {
@@ -223,7 +229,7 @@ export async function requireActiveTenantBillingWrite(
     // STEP 7: Check if Billing Allows (ACTIVE, TRIALING, or manual override)
     // ========================================================================
     if (!billingCheck.allowed) {
-      console.log("[requireActiveTenantBillingWrite] Billing not allowed:", status);
+      log.info("Billing not allowed", { status });
       
       // P3.5: Audit the blocked decision
       await emitBillingAuditEvent(supabase, {
@@ -250,7 +256,7 @@ export async function requireActiveTenantBillingWrite(
     // ========================================================================
     // SUCCESS: Tenant is ACTIVE and Billing allows writes
     // ========================================================================
-    console.log(`[requireActiveTenantBillingWrite] ${domain}:${operation} allowed for tenant:`, tenantId);
+    log.info(`${domain}:${operation} allowed`);
     
     // P3.5: Audit the allowed decision
     await emitBillingAuditEvent(supabase, {
@@ -271,7 +277,7 @@ export async function requireActiveTenantBillingWrite(
     };
 
   } catch (err) {
-    console.error("[requireActiveTenantBillingWrite] Unexpected error:", err);
+    log.error("Unexpected error", err);
     return {
       ok: false,
       httpStatus: 500,

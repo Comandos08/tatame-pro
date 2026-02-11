@@ -11,7 +11,11 @@
  * - BEST-EFFORT: Audit failures do NOT break the main flow
  * 
  * This is a WRITE operation but is isolated from the main business logic.
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
+
+import { createBackendLogger } from "./backend-logger.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -66,6 +70,9 @@ export async function emitBillingAuditEvent(
   supabase: SupabaseClient,
   payload: BillingAwareAuditEvent
 ): Promise<void> {
+  const log = createBackendLogger("emitBillingAuditEvent", crypto.randomUUID());
+  log.setTenant(payload.tenant_id);
+
   try {
     const { error } = await supabase
       .from('audit_logs')
@@ -85,13 +92,13 @@ export async function emitBillingAuditEvent(
       });
 
     if (error) {
-      console.error('[emitBillingAuditEvent] Failed to insert audit log:', error.message);
+      log.error('Failed to insert audit log', error);
       // Do NOT throw - audit is best-effort
     } else {
-      console.log(`[emitBillingAuditEvent] ${payload.event_type} logged for ${payload.domain}:${payload.operation}`);
+      log.info(`${payload.event_type} logged for ${payload.domain}:${payload.operation}`);
     }
   } catch (err) {
     // BEST-EFFORT: Swallow all errors
-    console.error('[emitBillingAuditEvent] Unexpected error:', err);
+    log.error('Unexpected error', err);
   }
 }

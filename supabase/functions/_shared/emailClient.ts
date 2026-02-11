@@ -1,10 +1,13 @@
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createBackendLogger } from "./backend-logger.ts";
 
 /**
  * SAFE GOLD
  * Client centralizado para envio de e-mails via Resend
  * - Sem mudança funcional
  * - Sem mudança de payload
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 let resendClient: Resend | null = null;
@@ -15,7 +18,8 @@ export function getEmailClient(): Resend {
   const apiKey = Deno.env.get("RESEND_API_KEY");
 
   if (!apiKey) {
-    console.error("[EMAIL] RESEND_API_KEY not configured");
+    const log = createBackendLogger("emailClient", crypto.randomUUID());
+    log.error("RESEND_API_KEY not configured");
     throw new Error("Email service not configured");
   }
 

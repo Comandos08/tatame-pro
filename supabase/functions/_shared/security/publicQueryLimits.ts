@@ -10,6 +10,8 @@
  * - limit <= 0 → 400 VALIDATION_ERROR
  * - offset < 0 → normalized to 0
  * - page/perPage supported as alternative to offset/limit
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { PUBLIC_QUERY_MAX_LIMIT } from './piiContract.ts';
@@ -18,6 +20,7 @@ import {
   errorResponse,
   ERROR_CODES,
 } from '../errors/envelope.ts';
+import { createBackendLogger } from '../backend-logger.ts';
 
 // ============================================================================
 // CORS — Default for public endpoints
@@ -72,6 +75,7 @@ export function parsePublicPagination(
   corsHeaders: Record<string, string> = DEFAULT_CORS,
   maxLimit: number = PUBLIC_QUERY_MAX_LIMIT,
 ): PaginationResult {
+  const log = createBackendLogger("publicQueryLimits", crypto.randomUUID());
   const url = new URL(req.url);
   const params = url.searchParams;
 
@@ -89,7 +93,7 @@ export function parsePublicPagination(
     const perPage = parseInt(rawPerPage, 10);
 
     if (!Number.isFinite(page) || page < 1) {
-      console.warn("[PUBLIC_LIMIT] Invalid page parameter:", rawPage);
+      log.warn("Invalid page parameter", { rawPage });
       return {
         ok: false,
         response: errorResponse(
@@ -107,7 +111,7 @@ export function parsePublicPagination(
 
     const perPageValidation = validatePublicLimit(perPage, maxLimit);
     if (!perPageValidation.valid) {
-      console.warn("[PUBLIC_LIMIT] perPage rejected:", rawPerPage);
+      log.warn("perPage rejected", { rawPerPage });
       return {
         ok: false,
         response: errorResponse(
@@ -132,7 +136,7 @@ export function parsePublicPagination(
 
     const limitValidation = validatePublicLimit(limit, maxLimit);
     if (!limitValidation.valid) {
-      console.warn("[PUBLIC_LIMIT] limit rejected:", rawLimit);
+      log.warn("limit rejected", { rawLimit });
       return {
         ok: false,
         response: errorResponse(

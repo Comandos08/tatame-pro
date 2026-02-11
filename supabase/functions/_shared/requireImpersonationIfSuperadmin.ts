@@ -8,9 +8,12 @@
  * - If caller is SUPERADMIN_GLOBAL: requires valid impersonation for the target tenant
  * - If caller is tenant admin/staff: uses normal role-based checks
  * - Deny by default
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 interface ImpersonationValidation {
   valid: boolean;
@@ -35,6 +38,10 @@ export async function requireImpersonationIfSuperadmin(
   targetTenantId: string,
   impersonationId?: string | null
 ): Promise<ImpersonationValidation> {
+  const log = createBackendLogger("requireImpersonationIfSuperadmin", crypto.randomUUID());
+  log.setUser(userId);
+  log.setTenant(targetTenantId);
+
   // 1️⃣ Check if user is SUPERADMIN_GLOBAL
   const { data: superadminRole, error: roleError } = await supabaseAdmin
     .from('user_roles')
@@ -45,7 +52,7 @@ export async function requireImpersonationIfSuperadmin(
     .maybeSingle();
 
   if (roleError) {
-    console.error('[IMPERSONATION-CHECK] Role check failed:', roleError);
+    log.error('Role check failed', roleError);
     return { valid: false, isSuperadmin: false, error: 'Failed to verify role' };
   }
 
@@ -56,7 +63,7 @@ export async function requireImpersonationIfSuperadmin(
 
   // 3️⃣ Superadmin without impersonation ID
   if (!impersonationId) {
-    console.warn(`[IMPERSONATION-CHECK] Superadmin ${userId} attempted action without impersonation`);
+    log.warn('Superadmin attempted action without impersonation');
     return { 
       valid: false, 
       isSuperadmin: true, 
@@ -72,7 +79,7 @@ export async function requireImpersonationIfSuperadmin(
     .maybeSingle();
 
   if (sessionError || !session) {
-    console.warn(`[IMPERSONATION-CHECK] Invalid session ${impersonationId}`);
+    log.warn('Invalid impersonation session', undefined, { impersonation_id: impersonationId });
     return { 
       valid: false, 
       isSuperadmin: true, 
@@ -82,7 +89,7 @@ export async function requireImpersonationIfSuperadmin(
 
   // 5️⃣ Verify session ownership
   if (session.superadmin_user_id !== userId) {
-    console.warn(`[IMPERSONATION-CHECK] Session ${impersonationId} not owned by ${userId}`);
+    log.warn('Session not owned by user', undefined, { impersonation_id: impersonationId });
     return { 
       valid: false, 
       isSuperadmin: true, 
@@ -116,10 +123,10 @@ export async function requireImpersonationIfSuperadmin(
 
   // 8️⃣ Verify tenant matches
   if (session.target_tenant_id !== targetTenantId) {
-    console.warn(
-      `[IMPERSONATION-CHECK] Tenant mismatch: session is for ${session.target_tenant_id}, ` +
-      `but operation targets ${targetTenantId}`
-    );
+    log.warn('Tenant mismatch', undefined, { 
+      session_tenant: session.target_tenant_id, 
+      target_tenant: targetTenantId 
+    });
     return { 
       valid: false, 
       isSuperadmin: true, 

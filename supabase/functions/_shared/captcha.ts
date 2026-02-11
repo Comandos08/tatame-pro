@@ -7,6 +7,8 @@
  * Configuration:
  * - TURNSTILE_SECRET_KEY: Cloudflare Turnstile secret key
  * 
+ * A02: All console.* calls migrated to createBackendLogger.
+ * 
  * Usage:
  * ```typescript
  * import { validateCaptcha } from "../_shared/captcha.ts";
@@ -17,6 +19,8 @@
  * }
  * ```
  */
+
+import { createBackendLogger } from "./backend-logger.ts";
 
 export interface CaptchaResult {
   success: boolean;
@@ -34,17 +38,18 @@ export async function validateCaptcha(
   token: string | null | undefined,
   clientIP: string
 ): Promise<CaptchaResult> {
+  const log = createBackendLogger("captcha", crypto.randomUUID());
   const secretKey = Deno.env.get("TURNSTILE_SECRET_KEY");
 
   // If Turnstile is not configured, allow request (for development)
   if (!secretKey) {
-    console.warn("[CAPTCHA] Turnstile not configured, skipping validation");
+    log.warn("Turnstile not configured, skipping validation");
     return { success: true };
   }
 
   // Token is required when Turnstile is configured
   if (!token) {
-    console.log("[CAPTCHA] No token provided");
+    log.info("No token provided");
     return { 
       success: false, 
       error: "Verificação de segurança necessária. Por favor, complete o CAPTCHA." 
@@ -68,7 +73,7 @@ export async function validateCaptcha(
     );
 
     if (!response.ok) {
-      console.error("[CAPTCHA] Turnstile API error:", response.status);
+      log.error("Turnstile API error", undefined, { status: response.status });
       // Fail-open on API errors
       return { success: true };
     }
@@ -76,21 +81,21 @@ export async function validateCaptcha(
     const result = await response.json();
 
     if (!result.success) {
-      console.log("[CAPTCHA] Validation failed:", result["error-codes"]);
+      log.info("Validation failed", { error_codes: result["error-codes"] });
       return {
         success: false,
         error: "Verificação de segurança falhou. Tente novamente.",
       };
     }
 
-    console.log("[CAPTCHA] Validation successful");
+    log.info("Validation successful");
     return {
       success: true,
       challengeTs: result.challenge_ts,
       hostname: result.hostname,
     };
   } catch (error) {
-    console.error("[CAPTCHA] Error:", error);
+    log.error("Error", error);
     // Fail-open on errors
     return { success: true };
   }

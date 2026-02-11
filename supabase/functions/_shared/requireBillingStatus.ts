@@ -34,9 +34,13 @@
  * - Operations are blocked to protect data integrity during billing issues
  * - Users can always VIEW their data, just not MODIFY it
  * 
+ * A02: All console.* calls migrated to createBackendLogger.
+ * 
  * ============================================================================
  * @module requireBillingStatus
  */
+
+import { createBackendLogger } from "./backend-logger.ts";
 
 // Use generic type for Supabase client to avoid version mismatches
 // deno-lint-ignore no-explicit-any
@@ -105,6 +109,9 @@ export async function requireBillingStatus(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<BillingCheckResult> {
+  const log = createBackendLogger("requireBillingStatus", crypto.randomUUID());
+  log.setTenant(tenantId);
+
   try {
     // ========================================================================
     // STEP 1: Fetch Billing Record
@@ -120,7 +127,7 @@ export async function requireBillingStatus(
     // FAIL-CLOSED: Database error = blocked access
     // ========================================================================
     if (error) {
-      console.error("[requireBillingStatus] Database error:", error.message);
+      log.error("Database error", error);
       return {
         allowed: false,
         status: null,
@@ -135,7 +142,7 @@ export async function requireBillingStatus(
     // FAIL-CLOSED: No record = blocked access (INTENTIONAL)
     // ========================================================================
     if (!billing) {
-      console.warn("[requireBillingStatus] No billing record found for tenant:", tenantId);
+      log.warn("No billing record found for tenant");
       return {
         allowed: false,
         status: null,
@@ -153,7 +160,7 @@ export async function requireBillingStatus(
     // BY DESIGN: Support escape hatch for special cases
     // ========================================================================
     if (isManualOverride) {
-      console.log("[requireBillingStatus] Manual override active, allowing operation");
+      log.info("Manual override active, allowing operation");
       return {
         allowed: true,
         status,
@@ -166,7 +173,7 @@ export async function requireBillingStatus(
     // BY DESIGN: Only ACTIVE and TRIALING pass
     // ========================================================================
     if (!ALLOWED_STATUSES.includes(status)) {
-      console.log("[requireBillingStatus] Billing status not allowed:", status);
+      log.info("Billing status not allowed", { status });
       return {
         allowed: false,
         status,
@@ -189,7 +196,7 @@ export async function requireBillingStatus(
     // FALLBACK: Unexpected Errors
     // FAIL-CLOSED: Any exception = blocked access
     // ========================================================================
-    console.error("[requireBillingStatus] Unexpected error:", err);
+    log.error("Unexpected error", err);
     return {
       allowed: false,
       status: null,

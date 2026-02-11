@@ -8,9 +8,12 @@
  * - Never throw, always return structured results
  * - Fail-closed: any mismatch blocks operation
  * - All decisions are auditable
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 export type StripeEnv = 'test' | 'live';
 
@@ -66,26 +69,28 @@ export async function getStripeEnvConfig(
   // deno-lint-ignore no-explicit-any
   supabase: SupabaseClient<any, any, any>
 ): Promise<StripeEnv | null> {
+  const log = createBackendLogger("stripeEnv", crypto.randomUUID());
+
   const { data, error } = await supabase
     .from('billing_environment_config')
     .select('stripe_env')
     .limit(2);  // Fetch 2 to detect corruption
   
   if (error) {
-    console.error('[STRIPE-ENV] Failed to load billing_environment_config:', error.message);
+    log.error('Failed to load billing_environment_config', error);
     return null;
   }
   
   if (!data || data.length === 0) {
-    console.warn('[STRIPE-ENV] ⚠️ billing_environment_config is empty. No config found.');
+    log.warn('billing_environment_config is empty. No config found.');
     return null;
   }
   
   // Ajuste 3: Log WARN if corrupted (multiple rows in singleton table)
   if (data.length > 1) {
-    console.warn(
-      '[STRIPE-ENV] ⚠️ SINGLETON CORRUPTION: billing_environment_config has multiple rows. ' +
-      'Expected 1, found ' + data.length + '. Using first row.'
+    log.warn(
+      'SINGLETON CORRUPTION: billing_environment_config has multiple rows',
+      { expected: 1, found: data.length }
     );
   }
   
@@ -156,6 +161,7 @@ export async function resolvePriceId(
   planType: 'monthly' | 'annual',
   stripeEnv: StripeEnv
 ): Promise<PriceResolutionResult> {
+  const log = createBackendLogger("stripeEnv", crypto.randomUUID());
   const planCode = planType === 'monthly' ? 'FEDERATION_MONTHLY' : 'FEDERATION_ANNUAL';
   
   const { data: plan, error } = await supabase
@@ -166,7 +172,7 @@ export async function resolvePriceId(
     .maybeSingle();
   
   if (error) {
-    console.error('[STRIPE-ENV] Failed to load subscription_plans:', error.message);
+    log.error('Failed to load subscription_plans', error);
     return {
       ok: false,
       error_code: 'BILLING_PLAN_NOT_FOUND',
