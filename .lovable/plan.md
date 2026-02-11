@@ -1,69 +1,100 @@
 
+# PI-A05 — Edge Validation Layer (SAFE GOLD) — EXECUTION PLAN v3
 
-# PI FIX — Login Stuck (P0 Bloqueante)
+## Summary
 
-## Problema
+Create institutional server-side validation infrastructure using Zod, then retrofit `grant-roles` as pilot. All 3 micro-adjustments incorporated.
 
-O callback `onAuthStateChange` e `async` e faz `await fetchProfile(...)` **antes** de setar `isLoading = false`. Isso bloqueia a transicao auth e impede o IdentityContext de reagir a tempo. O usuario fica preso em `/login` com spinner infinito.
+---
 
-## Solucao (conforme sua diretriz)
+## Files to CREATE
 
-### 1. AuthContext.tsx — Callback sincrono + useEffect separado para profile
+### 1. `supabase/functions/_shared/validation/validate.ts`
 
-**onAuthStateChange**: remover `async`, setar session/authState/isLoading imediatamente, sem await.
+Core utilities:
 
-**initSession**: mesma logica — setar estado de auth imediatamente, sem esperar profile.
+**`parseRequestBody(req, corsHeaders, maxBytes?)`**
+- Read body via `req.text()` (NOT `req.json()`)
+- Check size using `new TextEncoder().encode(text).length` (bytes, not characters -- adjustment #2)
+- Default limit: 50,000 bytes
+- `JSON.parse` wrapped in explicit `try/catch` returning `MALFORMED_JSON` on failure (adjustment #1)
+- Returns `{ success: true, data }` or `{ success: false, response: Response }`
 
-**Novo useEffect**: carregar profile baseado em `session?.user?.id`, com cleanup `cancelled` flag para StrictMode safety.
+**`validateInput<T>(schema, raw)`**
+- Zod `safeParse` -- never throws
+- Returns typed `{ success: true, data: T }` or `{ success: false, error: ValidationError }`
 
-Remover `fetchProfile` de dentro do callback e do initSession. Profile passa a ser responsabilidade exclusiva do novo effect.
-
+**`validationErrorResponse(error, corsHeaders)`**
+- Produces institutional Error Envelope:
 ```text
-// Callback (sincrono):
-onAuthStateChange((event, session) => {
-  setSession(session);
-  setAuthState(session ? "authenticated" : "unauthenticated");
-  if (!session) setCurrentUser(null);
-  setIsLoading(false);
-});
+{
+  ok: false,
+  code: "VALIDATION_ERROR" | "PAYLOAD_TOO_LARGE" | "MALFORMED_JSON",
+  messageKey: "validation.invalid_payload" | ...,
+  retryable: false,
+  timestamp: "<ISO 8601>",
+  details?: string[]
+}
+```
+- HTTP 400 for validation/malformed, 413 for payload size
 
-// initSession (sincrono apos getSession):
-const { data } = await supabase.auth.getSession();
-setSession(data.session);
-setAuthState(data.session ? "authenticated" : "unauthenticated");
-setIsLoading(false);
+### 2. `supabase/functions/_shared/validation/sanitize.ts`
 
-// Novo effect (deterministico):
-useEffect(() => {
-  if (!session?.user) return;
-  let cancelled = false;
-  fetchProfile(session.user).then(profile => {
-    if (!cancelled && mountedRef.current) setCurrentUser(profile);
-  });
-  return () => { cancelled = true; };
-}, [session?.user?.id]);
+Reusable Zod primitives:
+- `zTrimmedString()` -- `z.string().trim()`
+- `zNormalizedEmail()` -- `z.string().trim().toLowerCase().email()`
+- `zUUID()` -- `z.string().uuid()`
+
+### 3. `supabase/functions/_shared/validation/schemas/grant-roles.ts`
+
+Zod schema for `grant-roles` input:
+- `targetProfileId`: `zUUID()` required
+- `tenantId`: `zUUID()` required
+- `roles`: `z.array(z.enum([...VALID_ROLES])).min(1).max(10)` (adjustment #3 preserved)
+- `reason`: `zTrimmedString().max(500).optional()`
+- `impersonationId`: `zUUID().optional()`
+- Schema uses `.strict()` -- unknown fields produce 400
+
+---
+
+## File to MODIFY
+
+### 4. `supabase/functions/grant-roles/index.ts`
+
+**Remove** (lines 46-62): `VALID_ROLES` array, `ValidRole` type, `GrantRolesRequest` interface
+
+**Replace** (lines 118-146): Manual parsing and validation block
+
+**With**: 
+```text
+const bodyResult = await parseRequestBody(req, corsHeaders);
+if (!bodyResult.success) return bodyResult.response;
+
+const parsed = validateInput(GrantRolesSchema, bodyResult.data);
+if (!parsed.success) return validationErrorResponse(parsed.error, corsHeaders);
+
+const { targetProfileId, tenantId, roles, reason } = parsed.data;
 ```
 
-### 2. Login.tsx — Reset isSubmitting
+**Downstream unchanged**: `impersonationId` extraction, role check, billing check, grant logic -- all untouched.
 
-Adicionar `setIsSubmitting(false)` apos `signIn` bem-sucedido, para que o botao volte ao normal caso a navegacao demore.
+---
 
-```text
-try {
-  await signIn(email, password);
-  setIsSubmitting(false);  // <-- NOVO
-  toast({ ... });
-} catch (error) { ... }
-```
+## 3 Micro-Adjustments Applied
 
-## Arquivos Afetados
+| # | Adjustment | Implementation |
+|---|---|---|
+| 1 | JSON.parse in try/catch | `parseRequestBody` wraps `JSON.parse` in try/catch, returns MALFORMED_JSON envelope |
+| 2 | Byte-based size check | `new TextEncoder().encode(text).length` instead of `text.length` |
+| 3 | max 10 roles | `z.array().max(10)` in schema |
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/contexts/AuthContext.tsx` | Callback sincrono, initSession sincrono, novo useEffect para profile |
-| `src/pages/Login.tsx` | Reset isSubmitting no sucesso |
+---
 
-## Risco
+## Acceptance Criteria
 
-Baixo. Nao altera RLS, permissoes, nem contracts de acesso. Apenas corrige a ordem de transicao de estado.
-
+- Payloads over 50KB rejected BEFORE JSON parsing (413)
+- Malformed JSON returns structured MALFORMED_JSON error (400)
+- Unknown fields in payload produce 400 (strict mode)
+- All error responses include ISO 8601 `timestamp`
+- `grant-roles` behavior identical: same HTTP codes, same field names, same downstream flow
+- Deploy and test via curl
