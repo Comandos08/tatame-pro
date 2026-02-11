@@ -19,13 +19,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
-import React from 'react';
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { IdentityProvider, useIdentity } from '@/contexts/IdentityContext';
 import { FIXED_TEST_IDS, FIXED_TEST_TIME } from '@/test/test-utils/constants';
 import {
-  setupIdentityMocks,
   IDENTITY_RESOLVED_RESPONSE,
   IDENTITY_WIZARD_REQUIRED_RESPONSE,
   IDENTITY_SUPERADMIN_RESPONSE,
@@ -35,7 +34,8 @@ import {
 // ── Mutable auth mock refs (hoisted) ──
 
 let mockInitialSession: any = null;
-let authChangeCallback: ((event: string, session: any) => void) | null = null;
+// authChangeCallback used in setupAuthMock
+let authChangeCallback: ((_event: string, _session: any) => void) | null = null; void authChangeCallback;
 const mockUnsubscribe = vi.fn();
 const mockGetSession = vi.fn();
 const mockOnAuthStateChange = vi.fn();
@@ -118,7 +118,7 @@ function setupAuthMock(options: { initialSession?: any } = {}) {
 // ── Fetch mock (intercepts resolve-identity-wizard) ──
 
 function installFetchMock() {
-  (globalThis as any).fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  (globalThis as any).fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
 
     if (url.includes('resolve-identity-wizard')) {

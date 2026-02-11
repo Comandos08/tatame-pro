@@ -7,12 +7,12 @@ import { AppShell } from '@/layouts/AppShell';
 import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useI18n, Locale } from '@/contexts/I18nContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { formatDate } from '@/lib/i18n/formatters';
 import {
@@ -56,7 +56,7 @@ const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgCo
 export default function MembershipList() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
-  const { t, locale } = useI18n();
+  const { locale } = useI18n();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
 

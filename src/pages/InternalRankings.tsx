@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { logger } from '@/lib/logger';
 import { motion } from 'framer-motion';
 import { Trophy, Building2, Users, Medal, Loader2, AlertCircle, Info } from 'lucide-react';

@@ -92,7 +92,7 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     TRIAL_WARNING_DAYS,
   );
 
-  const { isTrialActive, isTrialEndingSoon, daysToTrialEnd } = trialPresentation;
+  const { isTrialEndingSoon, daysToTrialEnd } = trialPresentation;
   const currentPeriodEnd = billing?.current_period_end
     ? new Date(billing.current_period_end)
     : null;

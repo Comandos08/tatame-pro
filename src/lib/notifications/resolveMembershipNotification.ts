@@ -273,7 +273,7 @@ function isSameStatusTransition(prev: MembershipStatus | null, next: MembershipS
  * Checks if the new status is a terminal error state.
  * RULE: Never send email for ERROR state.
  */
-function isErrorState(status: MembershipStatus | SpecialState): boolean {
+void function isErrorState(status: MembershipStatus | SpecialState): boolean {
   return status === 'ERROR' || status === 'NO_ATHLETE';
 }
 

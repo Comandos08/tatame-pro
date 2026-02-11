@@ -6,7 +6,7 @@
  * - NO roles are created here
  * - Redirects to /{tenantSlug}/membership/status
  */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Building2, User, CheckCircle2, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
@@ -90,7 +90,7 @@ export default function JoinConfirm() {
 
     try {
       // 🔐 Create membership with PENDING status
-      const { data: membership, error } = await supabase
+      const { error } = await supabase
         .from('memberships')
         .insert({
           tenant_id: selectedTenant.id,

@@ -28,7 +28,7 @@ interface DiplomaVerification {
 }
 
 // Calculate SHA-256 hash in browser
-async function calculateSHA256(data: string): Promise<string> {
+void async function calculateSHA256(data: string): Promise<string> {
   const encoder = new TextEncoder();
   const dataBuffer = encoder.encode(data);
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
@@ -66,7 +66,7 @@ export default function VerifyDiploma() {
         // Verify SHA-256 hash client-side if storedHash is present
         // Note: This requires the canonical payload structure from generate-diploma
         // For now, we trust the server-side hash and display it
-        let hashVerified: boolean | null = null;
+        void (null as boolean | null); // hash verification placeholder
         // Hash verification is display-only since we no longer have raw field access
         // The storedHash presence itself indicates the diploma was generated with integrity
 

@@ -8,7 +8,7 @@
  * Auth isolation only.
  */
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { render, RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useCurrentUser } from '@/contexts/AuthContext';

@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogOut, User, Sun, Moon, Globe } from 'lucide-react';
@@ -35,7 +35,7 @@ export function PortalLayout({
   'data-portal-view-state': dataPortalViewState,
 }: PortalLayoutProps) {
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale, t } = useI18n();
+  const { setLocale, t } = useI18n();
   const { signOut } = useCurrentUser();
   const { isImpersonating } = useImpersonation();
   const navigate = useNavigate();

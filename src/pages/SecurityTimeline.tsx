@@ -7,7 +7,7 @@
  * - Read-only: no mutations allowed
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Clock, Filter, Loader2, AlertCircle, Ban, Lock, User, ChevronDown, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/layouts/AppShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

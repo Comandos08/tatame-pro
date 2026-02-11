@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { deriveTrustNarrative, type TrustNarrative } from '@/lib/ux/trustNarrative';
+import { deriveTrustNarrative } from '@/lib/ux/trustNarrative';
 import type { BlockReason } from '@/lib/ux/blockReason';
 
 // ── All block reasons ──────────────────────────────────────────────────────

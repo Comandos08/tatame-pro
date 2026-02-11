@@ -9,7 +9,7 @@
  * - Session persists across wizard steps
  * - Context is cleared on successful membership creation
  */
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { logger } from '@/lib/logger';
 
 export interface SelectedTenant {

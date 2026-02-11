@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -49,7 +49,7 @@ import {
   MEMBERSHIP_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from '@/types/membership';
-import type { AthleteGrading, GradingLevel, GradingScheme, Diploma } from '@/types/grading';
+
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
@@ -92,7 +92,7 @@ interface MembershipDetails {
 
 export default function MembershipDetailsPage() {
   const { tenant } = useTenant();
-  const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
+  const { hasRole, isGlobalSuperadmin } = useCurrentUser();
   const { session: impersonationSession } = useImpersonation();
   const { t, locale } = useI18n();
   const navigate = useNavigate();

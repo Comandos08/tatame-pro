@@ -72,7 +72,7 @@ function toAlert(event: Record<string, unknown>): Alert | null {
   try {
     const id = event.id as string;
     const eventType = event.event_type as string;
-    const category = event.category as string;
+    void (event.category as string); // kept for future use
     const metadata = (event.metadata as Record<string, unknown>) || {};
     const createdAt = event.created_at as string;
     const tenantId = event.tenant_id as string | null;

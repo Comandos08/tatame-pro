@@ -12,8 +12,8 @@
  */
 
 import { vi } from 'vitest';
-import type { IdentityState, IdentityError, TenantInfo } from '@/contexts/IdentityContext';
-import { FIXED_TEST_IDS, FIXED_TEST_TIME } from '@/test/test-utils/constants';
+import type { TenantInfo } from '@/contexts/IdentityContext';
+import { FIXED_TEST_IDS } from '@/test/test-utils/constants';
 
 // ── Canonical test data ──
 

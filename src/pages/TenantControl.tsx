@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
   Building2, 
-  Calendar, 
   Clock, 
   Shield, 
   AlertTriangle,
@@ -26,7 +25,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { logger } from '@/lib/logger';
 import {

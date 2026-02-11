@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -131,7 +131,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 
 export default function ApprovalDetails() {
   const { tenant } = useTenant();
-  const { currentUser } = useCurrentUser();
+  const { } = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { tenantSlug, membershipId } = useParams();

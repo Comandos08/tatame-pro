@@ -11,7 +11,7 @@
  * 5. Coaches (optional)
  * 6. Review & Activate
  */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 

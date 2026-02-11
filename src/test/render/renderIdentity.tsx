@@ -8,7 +8,7 @@
  * For IdentityGate integration tests, use a MemoryRouter wrapper.
  */
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { render, RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';

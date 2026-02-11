@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -274,7 +274,7 @@ export default function AthleteArea() {
     return formatDate(dateString, locale);
   };
 
-  const maskNationalId = (id: string | null) => {
+  void function maskNationalId(id: string | null): string {
     if (!id) return '-';
     if (id.length <= 4) return '***' + id;
     return '***.' + id.slice(-4);

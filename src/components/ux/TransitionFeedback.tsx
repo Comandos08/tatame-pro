@@ -37,7 +37,7 @@
  * ============================================================================
  */
 
-import React from 'react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertTriangle, AlertCircle, Loader2, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';

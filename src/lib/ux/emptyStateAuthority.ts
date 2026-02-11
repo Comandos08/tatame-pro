@@ -19,7 +19,6 @@ import {
   BLOCK_REASON_UI,
   BLOCK_REASON_I18N,
   type BlockReason,
-  type BlockReasonContext,
 } from './blockReason';
 
 // ── Types ──────────────────────────────────────────────────────────────────

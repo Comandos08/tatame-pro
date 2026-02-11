@@ -25,7 +25,7 @@
  * ============================================================================
  */
 
-import React from 'react';
+
 import { WifiOff, Clock, ServerCrash, AlertTriangle, AlertCircle, RefreshCw, Mail, type LucideIcon } from 'lucide-react';
 import { BlockedStateCard, type BlockedStateAction } from './BlockedStateCard';
 import { TEMPORARY_ERROR_MAP, type TemporaryErrorType } from '@/lib/errors/temporaryErrorMap';

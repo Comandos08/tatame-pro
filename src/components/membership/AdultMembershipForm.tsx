@@ -387,7 +387,7 @@ export function AdultMembershipForm() {
 
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-8">
-          {STEPS.map((s, index) => (
+          {STEPS.map((s, _index) => (
             <React.Fragment key={s.id}>
 ...
             </React.Fragment>

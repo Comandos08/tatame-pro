@@ -9,13 +9,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Building2, X, User } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Building2, User } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useJoin } from '@/contexts/JoinContext';

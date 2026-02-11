@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';

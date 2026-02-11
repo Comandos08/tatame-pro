@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -52,9 +52,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const listener = (e: MediaQueryListEvent) => applyTheme(e.matches);
       mediaQuery.addEventListener('change', listener);
       return () => mediaQuery.removeEventListener('change', listener);
-    } else {
-      applyTheme(theme === 'dark');
     }
+    
+    applyTheme(theme === 'dark');
+    return undefined;
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {

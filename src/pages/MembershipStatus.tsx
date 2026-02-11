@@ -11,7 +11,7 @@
  * - CAPTCHA validation via TurnstileWidget
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, ArrowLeft, Loader2, CheckCircle2, XCircle, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';

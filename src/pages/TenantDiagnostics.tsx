@@ -11,7 +11,7 @@
  * 3. Explicit distinction between "no data" vs "no permission"
  */
 
-import React from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { 
   Activity, AlertTriangle, ArrowLeft, Clock, 

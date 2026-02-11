@@ -5,7 +5,7 @@
  * Profile loading happens in parallel and doesn't block navigation.
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { CurrentUser, UserRole, AppRole } from "@/types/auth";
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mountedRef.current = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      (_event, newSession) => {
         if (!mountedRef.current) return;
 
         setSession(newSession);

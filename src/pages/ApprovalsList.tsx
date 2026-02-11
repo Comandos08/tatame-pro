@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
