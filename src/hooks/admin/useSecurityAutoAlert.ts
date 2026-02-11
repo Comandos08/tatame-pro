@@ -20,7 +20,8 @@ export function useSecurityAutoAlert() {
   useEffect(() => {
     if (!isGlobalSuperadmin) return;
     if (postureState !== 'CRITICAL') return;
-    if (!report?.policies?.length) return;
+    if (!report?.ok) return;
+    if ((report.summary?.policies?.critical ?? 0) <= 0) return;
     if (hasTriggeredRef.current) return;
 
     try {
@@ -31,13 +32,18 @@ export function useSecurityAutoAlert() {
         effective_role: 'SUPERADMIN_GLOBAL',
         metadata: {
           criticalPolicies: report.summary.policies.critical,
-          highPolicies: report.summary.policies.high,
+          highPolicies: report.summary.policies.high ?? 0,
         },
       });
 
       hasTriggeredRef.current = true;
     } catch {
-      // Silent fail — nunca quebra UI
+      // Silent fail — never break UI
     }
-  }, [postureState, report, isGlobalSuperadmin, currentUser?.id]);
+  }, [
+    postureState,
+    isGlobalSuperadmin,
+    report?.summary?.policies?.critical,
+    currentUser?.id,
+  ]);
 }
