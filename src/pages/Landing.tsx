@@ -82,7 +82,7 @@ export default function Landing() {
       const {
         data,
         error
-      } = await supabase.from('platform_partners').select('id, name, logo_url').eq('is_active', true).order('display_order');
+      } = await supabase.from('platform_partners').select('id, name, logo_url').eq('is_active', true).order('display_order').range(0, 49);
       if (error) return [];
       return data;
     },

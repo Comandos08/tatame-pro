@@ -1,17 +1,19 @@
 /**
  * 🏢 list-public-academies — Public tenant-scoped academy listing
  *
- * SECURITY (PI U7.F2):
+ * SECURITY (PI U7.F2 + PI A08.H2):
  * - Uses service_role for controlled data access
  * - Tenant resolved by slug (no cross-tenant enumeration)
  * - Only returns active academies from valid tenants
  * - No PII exposed (academy data is institutional/public)
  * - Fail-closed: invalid slug → empty result
+ * - Anti-enumeration: institutional pagination enforced (A08.H2)
  *
  * @see docs/security/rls-vs-edge-functions.md §3
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { parsePublicPagination } from "../_shared/security/publicQueryLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +45,10 @@ serve(async (req) => {
       );
     }
 
+    // A08.H2 — Anti-enumeration: enforce institutional pagination limits
+    const pag = parsePublicPagination(req, corsHeaders);
+    if (!pag.ok) return pag.response;
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -69,13 +75,14 @@ serve(async (req) => {
       );
     }
 
-    // Step 2: Fetch active academies for this tenant
+    // Step 2: Fetch active academies with deterministic ordering and institutional limit
     const { data: academies, error: academiesError } = await supabase
       .from("academies")
       .select("id, name, city, state, sport_type")
       .eq("tenant_id", tenant.id)
       .eq("is_active", true)
-      .order("name");
+      .order("name", { ascending: true })
+      .range(pag.offset, pag.offset + pag.limit - 1);
 
     if (academiesError) {
       return new Response(
