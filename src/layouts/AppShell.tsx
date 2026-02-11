@@ -63,6 +63,7 @@ import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normal
 import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
 import { normalizeAuditViewState } from '@/domain/audit/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { useRouteFocusReset } from '@/hooks/a11y/useRouteFocusReset';
 import { resolveUXPersona } from '@/lib/ux/resolveUXPersona';
 import type { FeatureKey } from '@/hooks/useAccessContract';
 interface AppShellProps {
@@ -87,6 +88,7 @@ export function AppShell({ children }: AppShellProps) {
   const { billingStatus } = useTenantStatus();
   const navigate = useNavigate();
   const location = useLocation();
+  useRouteFocusReset();
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {
@@ -189,7 +191,15 @@ export function AppShell({ children }: AppShellProps) {
   const auditLevel = 'INFO';
 
   return (
-    <div 
+    <>
+      {/* U03.1: Skip link for screen readers */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-background text-foreground p-2 rounded border border-border"
+      >
+        Skip to main content
+      </a>
+    <div
       className="min-h-screen bg-background"
       data-testid="app-shell"
       data-impersonation-state={impersonationState}
@@ -415,7 +425,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6">
+        <main id="main-content" className="flex-1 p-4 lg:p-6">
           {/* PI U18: System self-awareness banner */}
           <SystemAwarenessBanner />
           {/* Tenant Status Banner - shows trial/billing warnings */}
@@ -431,5 +441,6 @@ export function AppShell({ children }: AppShellProps) {
         </main>
       </div>
     </div>
+    </>
   );
 }
