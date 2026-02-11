@@ -44,10 +44,10 @@ export function EventCategories({
   eventId,
   eventStatus,
   categories,
-  onEditCategory,
+  onEditCategory: _onEditCategory,
   onDeleteCategory,
   registrationCounts = {},
-  isLoading = false,
+  isLoading: _isLoading = false,
 }: EventCategoriesProps) {
   const { t } = useI18n();
   const [editingCategory, setEditingCategory] = useState<EventCategoryEntity | null>(null);

@@ -24,7 +24,7 @@
  * ============================================================================
  */
 
-import React from 'react';
+
 import { logger } from '@/lib/logger';
 import { LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';

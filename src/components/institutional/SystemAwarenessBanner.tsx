@@ -8,15 +8,14 @@
  * NO business logic. NO rules. Pure presentation of SystemAwarenessState.
  */
 
-import React from 'react';
-import { AlertTriangle, AlertCircle, Info, XCircle } from 'lucide-react';
+import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { useSystemSelfAwareness } from '@/hooks/useSystemSelfAwareness';
 import { useAccessContract } from '@/hooks/useAccessContract';
 import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import type { SystemAwarenessLevel, SystemLimitReason } from '@/lib/system/selfAwareness';
+import type { SystemAwarenessLevel } from '@/lib/system/selfAwareness';
 
 const LEVEL_CONFIG: Record<SystemAwarenessLevel, {
   icon: React.ElementType;

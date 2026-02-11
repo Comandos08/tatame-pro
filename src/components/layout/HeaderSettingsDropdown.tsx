@@ -4,9 +4,8 @@
  * Combines: Theme, Language, Help into a single dropdown
  * P-MENU-01: UX Cleanup
  */
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Globe, Sun, Moon, Monitor, HelpCircle, Check, ChevronRight } from 'lucide-react';
+import { Settings, Globe, Sun, Moon, Monitor, HelpCircle, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

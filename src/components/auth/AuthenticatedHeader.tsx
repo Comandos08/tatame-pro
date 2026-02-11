@@ -10,7 +10,7 @@
  * - User dropdown with Logout
  * - Respects ImpersonationBanner (z-index 40, below banner's 50)
  */
-import React from 'react';
+
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { LogOut, Sun, Moon, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';

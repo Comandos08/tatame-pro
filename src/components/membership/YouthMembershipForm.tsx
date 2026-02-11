@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,7 +35,7 @@ import type { YouthMembershipInsert, DocumentUploaded } from '@/types/membership
 export function YouthMembershipForm() {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const [searchParams] = useSearchParams();
+  const [_searchParams] = useSearchParams();
   const { tenant } = useTenant();
   const { t, locale } = useI18n();
   const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();

@@ -7,7 +7,7 @@
  * 
  * All strings now use i18n keys (no hardcoded text).
  */
-import React from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { Building2, Key, Shield, HelpCircle } from 'lucide-react';
 import { BlockedStateCard, type BlockedStateAction } from '@/components/ux/BlockedStateCard';

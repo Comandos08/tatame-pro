@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { motion } from 'framer-motion';
 import { AlertTriangle, Clock, CreditCard, ArrowRight, CheckCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,7 +15,7 @@ interface RenewalBannerProps {
   status: string;
 }
 
-export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }: RenewalBannerProps) {
+export function RenewalBanner({ membershipId: _membershipId, daysUntilExpiry, endDate, status }: RenewalBannerProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { t, locale } = useI18n();
@@ -28,7 +28,6 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
 
   const isExpired = status === 'EXPIRED' || daysUntilExpiry < 0;
   const isUrgent = daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
-  const isComfortable = daysUntilExpiry > 7 && daysUntilExpiry <= 30;
 
   const formattedEndDate = formatDate(endDate, locale, { dateStyle: 'long' });
 
@@ -58,12 +57,6 @@ export function RenewalBanner({ membershipId, daysUntilExpiry, endDate, status }
       return (t('renewal.urgentDesc') || 'Sua filiação vence em {date}. Renove com urgência para não perder acesso.').replace('{date}', formattedEndDate);
     }
     return (t('renewal.comfortableDesc') || 'Sua filiação vence em {date}. Renove com antecedência para continuar aproveitando os benefícios.').replace('{date}', formattedEndDate);
-  };
-
-  const getVariant = () => {
-    if (isExpired) return 'destructive';
-    if (isUrgent) return 'warning';
-    return 'default';
   };
 
   const getBgClass = () => {

@@ -279,7 +279,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('events.sportType.label')}</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={t('events.sportType.placeholder')} />

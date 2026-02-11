@@ -7,7 +7,7 @@
  * NO business logic. NO rules. Pure presentation.
  */
 
-import React from 'react';
+
 import { ArrowRight, Info, AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { useNavigate } from 'react-router-dom';

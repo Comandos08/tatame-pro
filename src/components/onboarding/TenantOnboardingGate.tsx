@@ -6,7 +6,7 @@
  * Rule: If tenant.status === 'SETUP', redirect to /app/onboarding
  * Fail-closed: if contract not loaded, show loader (never allow through)
  */
-import React, { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -30,7 +30,7 @@ const ALLOWED_ROUTES = [
 export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const { tenant, isLoading: isTenantLoading } = useTenant();
   const { isImpersonating, resolutionStatus } = useImpersonation();
-  const { contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
+  const { contract: _contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
   const navigate = useNavigate();
   const location = useLocation();
 

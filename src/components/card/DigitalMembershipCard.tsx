@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Share2, Download, CheckCircle, AlertCircle, Clock, Shield } from 'lucide-react';
 

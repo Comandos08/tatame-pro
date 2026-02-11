@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -58,9 +58,9 @@ export function MembershipSuccess() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <AuthenticatedHeader
-        tenantName={tenant?.name}
-        tenantLogo={tenant?.logoUrl}
-        tenantSlug={tenantSlug}
+        {...(tenant?.name ? { tenantName: tenant.name } : {})}
+        tenantLogo={tenant?.logoUrl ?? null}
+        {...(tenantSlug ? { tenantSlug } : {})}
       />
       <div className="flex-1 flex items-center justify-center p-4">
       <motion.div

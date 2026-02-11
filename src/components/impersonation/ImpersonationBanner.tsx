@@ -13,7 +13,7 @@
  * C3: Purely declarative — no access decisions, no side effects.
  */
 
-import React, { useMemo } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Clock, LogOut, AlertTriangle } from 'lucide-react';

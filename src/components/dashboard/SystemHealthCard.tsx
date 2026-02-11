@@ -1,6 +1,5 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, CheckCircle, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { Activity, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/contexts/TenantContext';

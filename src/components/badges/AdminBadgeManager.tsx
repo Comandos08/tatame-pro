@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Award, Plus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ interface AthleteBadgeRow {
  * @see docs/BADGE-CONTRACT.md
  */
 export function AdminBadgeManager({ athleteId, tenantId }: AdminBadgeManagerProps) {
-  const { t } = useI18n();
+  useI18n();
   const queryClient = useQueryClient();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<{ badgeId: string; name: string } | null>(null);

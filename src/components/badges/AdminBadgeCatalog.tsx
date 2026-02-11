@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Award, Pencil, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
 import { toast } from "sonner";

@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Link } from "react-router-dom";
 import { CreditCard, ArrowRight } from "lucide-react";
 
@@ -79,14 +79,14 @@ export function DigitalCardSection({
         <DigitalMembershipCard
           athleteName={athleteName}
           tenantName={tenant?.name || ""}
-          tenantLogo={tenant?.logoUrl}
+          tenantLogo={tenant?.logoUrl ?? null}
           tenantSlug={tenantSlug}
           membershipId={digitalCard.membership_id}
           membershipStatus="ACTIVE"
           validUntil={digitalCard.valid_until}
           pdfUrl={digitalCard.pdf_url}
           contentHash={digitalCard.content_hash_sha256}
-          publicToken={digitalCard.public_token}
+          publicToken={digitalCard.public_token ?? null}
         />
       </CardContent>
     </Card>

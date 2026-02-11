@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import { 
   FileText, 
@@ -7,8 +7,7 @@ import {
   XCircle, 
   Loader2,
   Download,
-  Calendar,
-  AlertCircle
+  Calendar
 } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
@@ -48,7 +47,7 @@ const DOCUMENT_ICONS: Record<string, React.ReactNode> = {
 };
 
 export function DocumentsSection({ athleteId, tenantId }: DocumentsSectionProps) {
-  const { t, locale } = useI18n();
+  const { locale } = useI18n();
   const { downloadDocument, isDownloading } = useSecureDocumentDownload();
 
   const { data: documents, isLoading } = useQuery({

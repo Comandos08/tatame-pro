@@ -10,7 +10,7 @@
  * Displayed when a user is authenticated but lacks the required roles.
  */
 
-import React from 'react';
+
 import { ShieldX, ArrowLeft, Home, Mail } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
