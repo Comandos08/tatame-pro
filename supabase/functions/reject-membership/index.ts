@@ -10,6 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { resolveMembershipNotification, shouldSend, type NotificationInput } from "../_shared/notification-engine.ts";
 import { getEmailClient, DEFAULT_EMAIL_FROM, isEmailConfigured } from "../_shared/emailClient.ts";
 import { getMembershipRejectedTemplate } from "../_shared/email-templates/membership/rejected.ts";
@@ -38,20 +39,12 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[REJECT] ${step}${detailsStr}`);
-};
-
-const logEmail = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[EMAIL] ${step}${detailsStr}`);
 };
 
 interface RejectMembershipRequest {
@@ -75,17 +68,19 @@ function rejectMembershipRateLimiter() {
 /**
  * Generic error response (anti-enumeration)
  */
-function forbiddenResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
+function forbiddenResp(correlationId?: string): Response {
+  return errorResponse(403, buildErrorEnvelope(
+    ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false, undefined, correlationId
+  ), corsHeaders);
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("reject-membership", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -97,34 +92,33 @@ serve(async (req) => {
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      logStep("Auth failed - missing header");
+      log.warn("Auth failed - missing header");
       await logPermissionDenied(supabase, {
         operation: 'reject-membership',
         reason: 'MISSING_AUTH',
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
+      ), corsHeaders);
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      logStep("Auth failed - invalid token");
+      log.warn("Auth failed - invalid token");
       await logPermissionDenied(supabase, {
         operation: 'reject-membership',
         reason: 'INVALID_TOKEN',
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId
+      ), corsHeaders);
     }
 
     const adminProfileId = user.id;
-    logStep("Admin authenticated", { adminProfileId });
+    log.setUser(adminProfileId);
+    log.info("Admin authenticated");
 
     // ========================================================================
     // 2️⃣ RATE LIMITING (before any business logic)
@@ -134,7 +128,7 @@ serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.warn("Rate limit exceeded", { count: rateLimitResult.count });
       
       await logRateLimitBlock(supabase, {
         operation: 'reject-membership',
@@ -154,7 +148,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      logStep("Validation failed - invalid JSON");
+      log.warn("Validation failed - invalid JSON");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -162,14 +156,14 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'INVALID_PAYLOAD',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     const membershipId = body.membershipId;
     const rejectionReason = body.rejectionReason || body.reason || "";
 
     if (!membershipId) {
-      logStep("Validation failed - missing membershipId");
+      log.warn("Validation failed - missing membershipId");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -177,7 +171,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MISSING_MEMBERSHIP_ID',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // ========================================================================
@@ -198,7 +192,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      logStep("Membership not found or error", { membershipId });
+      log.warn("Membership not found or error", { membershipId });
       // Anti-enumeration: don't reveal if it exists
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -207,12 +201,13 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MEMBERSHIP_NOT_FOUND',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     const targetTenantId = membership.tenant_id;
     const previousStatus = membership.status;
-    logStep("Fetched membership", { previousStatus, membershipId, tenantId: targetTenantId });
+    log.setTenant(targetTenantId);
+    log.info("Fetched membership", { previousStatus, membershipId });
 
     // ========================================================================
     // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
@@ -231,7 +226,7 @@ serve(async (req) => {
     );
 
     if (!isSuperadmin && !isTenantAdmin) {
-      logStep("Permission denied - no valid role");
+      log.warn("Permission denied - no valid role");
       await logPermissionDenied(supabase, {
         operation: 'reject-membership',
         user_id: user.id,
@@ -240,7 +235,7 @@ serve(async (req) => {
         actual_roles: roles?.map(r => r.role) || [],
         reason: 'INSUFFICIENT_PERMISSIONS',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // 5.2 If superadmin, REQUIRE valid impersonation
@@ -255,7 +250,7 @@ serve(async (req) => {
       );
 
       if (!impersonationCheck.valid) {
-        logStep("Impersonation validation failed", { error: impersonationCheck.error });
+        log.warn("Impersonation validation failed", { error: impersonationCheck.error });
         
         await logImpersonationBlock(supabase, {
           operation: 'reject-membership',
@@ -265,20 +260,20 @@ serve(async (req) => {
           reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
         });
         
-        return forbiddenResponse();
+        return forbiddenResp(correlationId);
       }
 
-      logStep("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
+      log.info("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
     }
 
-    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
+    log.info("Authorization verified", { isSuperadmin, isTenantAdmin });
 
     // ========================================================================
     // 5️⃣.5️⃣ BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, targetTenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", { 
+      log.warn("Billing status blocked operation", { 
         status: billingCheck.status, 
         code: billingCheck.code 
       });
@@ -293,13 +288,13 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // 6️⃣ VALIDATE MEMBERSHIP STATUS
     // ========================================================================
     if (previousStatus !== "PENDING_REVIEW") {
-      logStep("Invalid status for rejection", { status: previousStatus });
+      log.warn("Invalid status for rejection", { status: previousStatus });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -309,7 +304,7 @@ serve(async (req) => {
         reason_code: 'INVALID_STATUS',
         metadata: { current_status: previousStatus },
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // ========================================================================
@@ -331,14 +326,13 @@ serve(async (req) => {
       .eq("id", membershipId);
 
     if (updateError) {
-      logStep("Failed to update membership", { error: updateError.message });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      log.error("Failed to update membership", updateError);
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
+      ), corsHeaders);
     }
 
-    logStep("Membership rejected", { newStatus: "REJECTED" });
+    log.info("Membership rejected", { newStatus: "REJECTED" });
 
     // ========================================================================
     // 8️⃣ DECISION LOG — SUCCESS
@@ -383,7 +377,7 @@ serve(async (req) => {
       .single();
 
     if (tenantError || !tenant) {
-      logStep("Warning: Could not fetch tenant", { error: tenantError?.message });
+      log.warn("Could not fetch tenant", { error: tenantError?.message });
     }
 
     const applicantEmail = (membership.applicant_data as { email?: string } | null)?.email;
@@ -393,7 +387,7 @@ serve(async (req) => {
     const originHeader = req.headers.get("origin");
     const baseUrl = (publicAppUrl || originHeader || "https://tatame.pro").replace(/\/$/, "");
 
-    logStep("Data collected for engine", {
+    log.info("Data collected for engine", {
       hasApplicantEmail: !!applicantEmail,
       tenantSlug: tenant?.slug,
       baseUrl,
@@ -415,7 +409,7 @@ serve(async (req) => {
     };
 
     if (!tenant || !applicantEmail) {
-      logEmail("Skip - missing required data", { 
+      log.info("Email skip - missing required data", { 
         hasTenant: !!tenant, 
         hasApplicantEmail: !!applicantEmail 
       });
@@ -442,7 +436,7 @@ serve(async (req) => {
 
       const decision = resolveMembershipNotification(notificationInput);
       
-      logEmail("Engine decision", { 
+      log.info("Email engine decision", { 
         shouldSendEmail: decision.shouldSendEmail,
         templateId: shouldSend(decision) ? decision.templateId : null,
       });
@@ -455,10 +449,10 @@ serve(async (req) => {
         const emailAlreadySent = membership.email_sent_for_status === "REJECTED";
         
         if (emailAlreadySent) {
-          logEmail("Skip - already sent for status REJECTED");
+          log.info("Email skip - already sent for status REJECTED");
           emailResult.skippedReason = "already_sent";
         } else if (!isEmailConfigured()) {
-          logEmail("Skip - email not configured");
+          log.info("Email skip - email not configured");
           emailResult.skippedReason = "email_not_configured";
         } else {
           try {
@@ -478,7 +472,7 @@ serve(async (req) => {
               html,
             });
 
-            logEmail("Email sent successfully", { 
+            log.info("Email sent successfully", { 
               emailId: emailResponse?.data?.id,
               recipient: applicantEmail,
             });
@@ -503,11 +497,11 @@ serve(async (req) => {
               .update({ email_sent_for_status: "REJECTED" })
               .eq("id", membershipId);
 
-            logEmail("Idempotency flag set", { email_sent_for_status: "REJECTED" });
+            log.info("Idempotency flag set", { email_sent_for_status: "REJECTED" });
 
           } catch (emailError) {
             const errorMessage = emailError instanceof Error ? emailError.message : "Unknown email error";
-            logEmail("Email failed", { error: errorMessage });
+            log.error("Email failed", emailError);
 
             emailResult.sent = false;
             emailResult.skippedReason = "send_failed";
@@ -534,34 +528,25 @@ serve(async (req) => {
     // ========================================================================
     // SUCCESS RESPONSE
     // ========================================================================
-    logStep("Completed", { 
+    log.info("Completed", { 
       rejected: true, 
       emailSent: emailResult.sent 
     });
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        rejected: true,
-        membershipId,
-        previousStatus,
-        newStatus: "REJECTED",
-        email: emailResult,
-      }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
-        status: 200 
-      }
-    );
+    return okResponse({
+      rejected: true,
+      membershipId,
+      previousStatus,
+      newStatus: "REJECTED",
+      email: emailResult,
+    }, corsHeaders, correlationId);
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Unexpected error", { error: errorMessage });
+    log.error("Unexpected error", error);
     
     // Anti-enumeration: generic error response
-    return new Response(
-      JSON.stringify({ ok: false, error: "Operation not permitted" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-    );
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
+    ), corsHeaders);
   }
 });

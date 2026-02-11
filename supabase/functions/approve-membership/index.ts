@@ -10,7 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 import { getMembershipApprovedTemplate, type EmailLayoutData } from "../_shared/email-templates/index.ts";
 import {
@@ -44,15 +44,12 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[APPROVE] ${step}${detailsStr}`);
 };
 
 interface ApproveMembershipRequest {
@@ -138,9 +135,9 @@ function approveMembershipRateLimiter() {
 /**
  * Generic error response (anti-enumeration)
  */
-function forbiddenResponse(): Response {
+function forbiddenResp(correlationId?: string): Response {
   return errorResponse(403, buildErrorEnvelope(
-    ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false
+    ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false, undefined, correlationId
   ), corsHeaders);
 }
 
@@ -148,6 +145,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("approve-membership", correlationId);
 
   // Variables for response
   let approved = false;
@@ -171,13 +171,13 @@ serve(async (req) => {
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      logStep("Auth failed - missing header");
+      log.warn("Auth failed - missing header");
       await logPermissionDenied(supabase, {
         operation: 'approve-membership',
         reason: 'MISSING_AUTH',
       });
       return errorResponse(401, buildErrorEnvelope(
-        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false
+        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
       ), corsHeaders);
     }
 
@@ -185,18 +185,19 @@ serve(async (req) => {
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      logStep("Auth failed - invalid token");
+      log.warn("Auth failed - invalid token");
       await logPermissionDenied(supabase, {
         operation: 'approve-membership',
         reason: 'INVALID_TOKEN',
       });
       return errorResponse(401, buildErrorEnvelope(
-        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false
+        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId
       ), corsHeaders);
     }
 
     const adminProfileId = user.id;
-    logStep("Admin authenticated", { adminProfileId });
+    log.setUser(adminProfileId);
+    log.info("Admin authenticated");
 
     // ========================================================================
     // 2️⃣ RATE LIMITING (before any business logic)
@@ -206,7 +207,7 @@ serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.warn("Rate limit exceeded", { count: rateLimitResult.count });
       
       await logRateLimitBlock(supabase, {
         operation: 'approve-membership',
@@ -226,7 +227,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      logStep("Validation failed - invalid JSON");
+      log.warn("Validation failed - invalid JSON");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -234,14 +235,14 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'INVALID_PAYLOAD',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     membershipId = body.membershipId;
     const { academyId, coachId, reviewNotes, roles: requestedRoles } = body;
 
     if (!membershipId) {
-      logStep("Validation failed - missing membershipId");
+      log.warn("Validation failed - missing membershipId");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -249,7 +250,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MISSING_MEMBERSHIP_ID',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // ========================================================================
@@ -275,7 +276,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      logStep("Membership not found or error", { membershipId });
+      log.warn("Membership not found or error", { membershipId });
       // Anti-enumeration: don't reveal if it exists
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -284,12 +285,13 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MEMBERSHIP_NOT_FOUND',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     const targetTenantId = membership.tenant_id;
     previousStatus = membership.status as MembershipStatus;
-    logStep("Fetched membership", { status: previousStatus, payment: membership.payment_status, tenantId: targetTenantId });
+    log.setTenant(targetTenantId);
+    log.info("Fetched membership", { status: previousStatus, payment: membership.payment_status });
 
     // ========================================================================
     // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
@@ -308,7 +310,7 @@ serve(async (req) => {
     );
 
     if (!isSuperadmin && !isTenantAdmin) {
-      logStep("Permission denied - no valid role");
+      log.warn("Permission denied - no valid role");
       await logPermissionDenied(supabase, {
         operation: 'approve-membership',
         user_id: user.id,
@@ -317,7 +319,7 @@ serve(async (req) => {
         actual_roles: roles?.map(r => r.role) || [],
         reason: 'INSUFFICIENT_PERMISSIONS',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // 5.2 If superadmin, REQUIRE valid impersonation
@@ -332,7 +334,7 @@ serve(async (req) => {
       );
 
       if (!impersonationCheck.valid) {
-        logStep("Impersonation validation failed", { error: impersonationCheck.error });
+        log.warn("Impersonation validation failed", { error: impersonationCheck.error });
         
         await logImpersonationBlock(supabase, {
           operation: 'approve-membership',
@@ -342,24 +344,24 @@ serve(async (req) => {
           reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
         });
         
-        return forbiddenResponse();
+        return forbiddenResp(correlationId);
       }
 
       // 5.3 Verify tenant scope matches impersonation
       if (impersonationCheck.isSuperadmin && impersonationCheck.impersonationId) {
         // Already validated in requireImpersonationIfSuperadmin
-        logStep("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
+        log.info("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
       }
     }
 
-    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
+    log.info("Authorization verified", { isSuperadmin, isTenantAdmin });
 
     // ========================================================================
     // 5️⃣.5️⃣ BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, targetTenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", { 
+      log.warn("Billing status blocked operation", { 
         status: billingCheck.status, 
         code: billingCheck.code 
       });
@@ -374,13 +376,13 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // 6️⃣ VALIDATE MEMBERSHIP STATUS & PAYMENT
     // ========================================================================
     if (previousStatus !== "PENDING_REVIEW") {
-      logStep("Invalid status for approval", { status: previousStatus });
+      log.warn("Invalid status for approval", { status: previousStatus });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -390,11 +392,11 @@ serve(async (req) => {
         reason_code: 'INVALID_STATUS',
         metadata: { current_status: previousStatus },
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     if (membership.payment_status !== "PAID") {
-      logStep("Payment not completed", { payment_status: membership.payment_status });
+      log.warn("Payment not completed", { payment_status: membership.payment_status });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -403,12 +405,12 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: 'PAYMENT_INCOMPLETE',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     const applicantData = membership.applicant_data as ApplicantData | null;
     if (!applicantData) {
-      logStep("Missing applicant data");
+      log.warn("Missing applicant data");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
@@ -417,7 +419,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: 'MISSING_APPLICANT_DATA',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
     // ========================================================================
@@ -427,18 +429,18 @@ serve(async (req) => {
     
     if (!requestedRoles || requestedRoles.length === 0) {
       validatedRoles.push('ATLETA');
-      logStep("No roles provided, defaulting to ATLETA");
+      log.info("No roles provided, defaulting to ATLETA");
     } else {
       for (const role of requestedRoles) {
         if (VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
           validatedRoles.push(role as ApprovalRole);
         } else {
-          logStep("Invalid role rejected", { role });
+          log.warn("Invalid role rejected", { role });
         }
       }
       
       if (validatedRoles.length === 0) {
-        logStep("No valid roles provided");
+        log.warn("No valid roles provided");
         await logDecision(supabase, {
           decision_type: DECISION_TYPES.VALIDATION_FAILURE,
           severity: 'LOW',
@@ -447,11 +449,11 @@ serve(async (req) => {
           tenant_id: targetTenantId,
           reason_code: 'NO_VALID_ROLES',
         });
-        return forbiddenResponse();
+        return forbiddenResp(correlationId);
       }
     }
     
-    logStep("Roles validated", { roles: validatedRoles });
+    log.info("Roles validated", { roles: validatedRoles });
 
     // ========================================================================
     // 8️⃣ FETCH TENANT DATA
@@ -463,7 +465,7 @@ serve(async (req) => {
       .single();
 
     if (tenantError || !tenant) {
-      logStep("Tenant not found");
+      log.warn("Tenant not found");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'MEDIUM',
@@ -472,10 +474,10 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: 'TENANT_NOT_FOUND',
       });
-      return forbiddenResponse();
+      return forbiddenResp(correlationId);
     }
 
-    logStep("Tenant data fetched", { slug: tenant.slug });
+    log.info("Tenant data fetched", { slug: tenant.slug });
 
     // ========================================================================
     // 8️⃣.5️⃣ CREATE GUARDIAN (if minor)
@@ -483,7 +485,7 @@ serve(async (req) => {
     let guardianId: string | null = null;
     
     if (applicantData.is_minor && applicantData.guardian) {
-      logStep("Creating guardian for minor athlete");
+      log.info("Creating guardian for minor athlete");
       
       const { data: guardian, error: guardianError } = await supabase
         .from("guardians")
@@ -498,14 +500,14 @@ serve(async (req) => {
         .single();
 
       if (guardianError) {
-        logStep("Failed to create guardian", { error: guardianError.message });
+        log.error("Failed to create guardian", guardianError);
         return errorResponse(500, buildErrorEnvelope(
-          ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+          ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
         ), corsHeaders);
       }
 
       guardianId = guardian.id;
-      logStep("Guardian created", { guardianId });
+      log.info("Guardian created", { guardianId });
     }
 
     // ========================================================================
@@ -535,13 +537,13 @@ serve(async (req) => {
       .single();
 
     if (athleteError) {
-      logStep("Failed to create athlete", { error: athleteError.message });
+      log.error("Failed to create athlete", athleteError);
       return errorResponse(500, buildErrorEnvelope(
-        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
       ), corsHeaders);
     }
 
-    logStep("Athlete created", { athleteId: athlete.id });
+    log.info("Athlete created", { athleteId: athlete.id });
 
     // ========================================================================
     // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
@@ -558,10 +560,10 @@ serve(async (req) => {
         });
 
       if (linkError) {
-        logStep("Guardian link warning", { error: linkError.message });
+        log.warn("Guardian link warning", { error: linkError.message });
         // Non-fatal: continue with approval
       } else {
-        logStep("Guardian link created", { guardianId, athleteId: athlete.id });
+        log.info("Guardian link created", { guardianId, athleteId: athlete.id });
       }
     }
 
@@ -589,13 +591,13 @@ serve(async (req) => {
           });
 
         if (roleError) {
-          logStep("Role creation warning", { role, error: roleError.message });
+          log.warn("Role creation warning", { role, error: roleError.message });
         } else {
           createdRoles.push(role);
-          logStep("Role created", { role, profileId: membership.applicant_profile_id });
+          log.info("Role created", { role, profileId: membership.applicant_profile_id });
         }
       } else {
-        logStep("Role already exists, skipping", { role });
+        log.info("Role already exists, skipping", { role });
         createdRoles.push(role);
       }
     }
@@ -615,7 +617,7 @@ serve(async (req) => {
           granted_at: new Date().toISOString(),
         },
       });
-      logStep("Roles audit log created", { roles: createdRoles });
+      log.info("Roles audit log created", { roles: createdRoles });
     }
 
     // ========================================================================
@@ -636,7 +638,7 @@ serve(async (req) => {
             .copy(oldPath, newPath);
 
           if (copyError) {
-            logStep("Copy warning", { oldPath, newPath, error: copyError.message });
+            log.warn("Copy warning", { oldPath, newPath, error: copyError.message });
           }
 
           const { error: deleteError } = await supabase.storage
@@ -644,7 +646,7 @@ serve(async (req) => {
             .remove([oldPath]);
 
           if (deleteError) {
-            logStep("Delete warning", { oldPath, error: deleteError.message });
+            log.warn("Delete warning", { oldPath, error: deleteError.message });
           }
 
           const { error: docInsertError } = await supabase
@@ -658,13 +660,13 @@ serve(async (req) => {
             });
 
           if (docInsertError) {
-            logStep("Document insert warning", { error: docInsertError.message });
+            log.warn("Document insert warning", { error: docInsertError.message });
           }
 
           movedDocuments.push({ ...doc, storage_path: newPath });
-          logStep("Document moved", { oldPath, newPath });
+          log.info("Document moved", { oldPath, newPath });
         } catch (e) {
-          logStep("Document move error", { oldPath, error: String(e) });
+          log.error("Document move error", e, { oldPath });
         }
       }
     }
@@ -694,15 +696,15 @@ serve(async (req) => {
       .eq("id", membershipId);
 
     if (updateError) {
-      logStep("Failed to update membership", { error: updateError.message });
+      log.error("Failed to update membership", updateError);
       return errorResponse(500, buildErrorEnvelope(
-        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
       ), corsHeaders);
     }
 
     approved = true;
     newStatus = "APPROVED";
-    logStep("Membership updated to APPROVED");
+    log.info("Membership updated to APPROVED");
 
     // ========================================================================
     // 1️⃣3️⃣ GENERATE DIGITAL CARD
@@ -714,13 +716,13 @@ serve(async (req) => {
       });
       
       if (cardResponse.error) {
-        logStep("Card generation warning", { error: cardResponse.error.message });
+        log.warn("Card generation warning", { error: cardResponse.error.message });
       } else {
         cardGenerated = true;
-        logStep("Digital card generated");
+        log.info("Digital card generated");
       }
     } catch (e) {
-      logStep("Card generation error", { error: String(e) });
+      log.error("Card generation error", e);
     }
 
     // ========================================================================
@@ -749,7 +751,7 @@ serve(async (req) => {
       baseUrl,
     });
 
-    logStep("[EMAIL] Engine decision", { 
+    log.info("Email engine decision", { 
       shouldSend: notificationDecision.shouldSendEmail,
       templateId: shouldSend(notificationDecision) ? notificationDecision.templateId : null,
     });
@@ -764,10 +766,10 @@ serve(async (req) => {
       const emailAlreadySent = membership.email_sent_for_status === "APPROVED";
 
       if (emailAlreadySent) {
-        logStep("[EMAIL] Skip: already sent for status=APPROVED");
+        log.info("Email skip: already sent for status=APPROVED");
         emailResult.skippedReason = 'already_sent';
       } else if (!isEmailConfigured()) {
-        logStep("[EMAIL] Skip: RESEND_API_KEY not configured");
+        log.info("Email skip: RESEND_API_KEY not configured");
         emailResult.skippedReason = 'resend_not_configured';
       } else {
         try {
@@ -795,7 +797,7 @@ serve(async (req) => {
           }
 
           emailResult.sent = true;
-          logStep("[EMAIL] Sent successfully", { 
+          log.info("Email sent successfully", { 
             to: applicantData.email, 
             templateId: notificationDecision.templateId 
           });
@@ -819,11 +821,11 @@ serve(async (req) => {
             .update({ email_sent_for_status: "APPROVED" })
             .eq("id", membershipId);
 
-          logStep("[EMAIL] Idempotency flag set", { email_sent_for_status: "APPROVED" });
+          log.info("Idempotency flag set", { email_sent_for_status: "APPROVED" });
 
         } catch (emailErr) {
           const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
-          logStep("[EMAIL] Failed", { error: errMsg });
+          log.error("Email failed", emailErr);
 
           await supabase.from("audit_logs").insert({
             event_type: "EMAIL_FAILED",
@@ -842,7 +844,7 @@ serve(async (req) => {
       }
     } else {
       emailResult.skippedReason = 'engine_noop';
-      logStep("[EMAIL] Skip: engine returned shouldSendEmail=false");
+      log.info("Email skip: engine returned shouldSendEmail=false");
     }
 
     // ========================================================================
@@ -886,33 +888,28 @@ serve(async (req) => {
       },
     });
 
-    logStep("Audit log created", { roles: createdRoles });
+    log.info("Audit log created", { roles: createdRoles });
 
     // ========================================================================
     // SUCCESS RESPONSE
     // ========================================================================
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        approved: true,
-        membershipId,
-        previousStatus,
-        newStatus,
-        athleteId: athlete.id,
-        rolesAssigned: createdRoles,
-        cardGenerated,
-        email: emailResult,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
+    return okResponse({
+      approved: true,
+      membershipId,
+      previousStatus,
+      newStatus,
+      athleteId: athlete.id,
+      rolesAssigned: createdRoles,
+      cardGenerated,
+      email: emailResult,
+    }, corsHeaders, correlationId);
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Unexpected error", { error: errorMessage });
+    log.error("Unexpected error", error);
     
     // Anti-enumeration: generic error response
     return errorResponse(500, buildErrorEnvelope(
-      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
     ), corsHeaders);
   }
 });

@@ -18,6 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import {
   type BillingStatus,
   isKnownBillingStatus,
@@ -212,7 +213,7 @@ async function extendTrial(
   // A03 — Post-write consistency check (detection-only)
   try {
     assertBillingConsistency("TRIALING", isActive);
-  } catch (consistencyErr) {
+  } catch {
     // Detection-only, never throw to client
   }
 
@@ -304,7 +305,7 @@ async function markAsPaid(
   // A03 — Post-write consistency check (detection-only)
   try {
     assertBillingConsistency("ACTIVE", isActive);
-  } catch (consistencyErr) {
+  } catch {
     // Detection-only, never throw to client
   }
 
@@ -388,7 +389,7 @@ async function blockTenant(
   // A03 — Post-write consistency check (detection-only)
   try {
     assertBillingConsistency("PAST_DUE", isActive);
-  } catch (consistencyErr) {
+  } catch {
     // Detection-only, never throw to client
   }
 
@@ -466,7 +467,7 @@ async function unblockTenant(
   // A03 — Post-write consistency check (detection-only)
   try {
     assertBillingConsistency("ACTIVE", isActive);
-  } catch (consistencyErr) {
+  } catch {
     // Detection-only, never throw to client
   }
 
@@ -537,10 +538,8 @@ async function resetToStripe(
       stripeStatus = statusMap[subscription.status] || "INCOMPLETE";
       periodStart = new Date(subscription.current_period_start * 1000).toISOString();
       periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-    } catch (stripeError) {
+    } catch {
       // Stripe error handled gracefully — default to INCOMPLETE
-      stripeStatus = "INCOMPLETE";
-      // If subscription not found or error, set to INCOMPLETE
       stripeStatus = "INCOMPLETE";
     }
   } else if (before.billing.stripe_customer_id) {
@@ -569,7 +568,7 @@ async function resetToStripe(
         periodStart = new Date(sub.current_period_start * 1000).toISOString();
         periodEnd = new Date(sub.current_period_end * 1000).toISOString();
       }
-    } catch (stripeError) {
+    } catch {
       // Stripe error handled gracefully
     }
   }
@@ -609,7 +608,7 @@ async function resetToStripe(
     // A03 — Post-write consistency check (detection-only)
     try {
       assertBillingConsistency(stripeStatus as BillingStatus, isActiveReset);
-    } catch (consistencyErr) {
+    } catch {
       // Detection-only, never throw to client
     }
   }
@@ -651,32 +650,41 @@ Deno.serve(async (req) => {
     // Validate superadmin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
+      ), corsHeaders);
     }
 
     const validation = await validateSuperadmin(authHeader);
     if (!validation.valid) {
-      return new Response(
-        JSON.stringify({ error: validation.error }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(403, buildErrorEnvelope(
+        ERROR_CODES.FORBIDDEN, "auth.forbidden", false,
+        [validation.error || "Access denied"], correlationId
+      ), corsHeaders);
     }
 
     const userId = validation.userId!;
+    log.setUser(userId);
     const serviceClient = getServiceClient();
 
     // Parse request
-    const payload: RequestPayload = await req.json();
+    let payload: RequestPayload;
+    try {
+      payload = await req.json();
+    } catch {
+      return errorResponse(400, buildErrorEnvelope(
+        ERROR_CODES.MALFORMED_JSON, "validation.malformed_json", false, undefined, correlationId
+      ), corsHeaders);
+    }
     
     if (!payload.action || !payload.tenantId || !payload.reason) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: action, tenantId, reason" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(400, buildErrorEnvelope(
+        ERROR_CODES.VALIDATION_ERROR, "validation.missing_fields", false,
+        ["Missing required fields: action, tenantId, reason"], correlationId
+      ), corsHeaders);
     }
+
+    log.setTenant(payload.tenantId);
 
     // Validate tenant exists
     const { data: tenant } = await serviceClient
@@ -686,10 +694,9 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!tenant) {
-      return new Response(
-        JSON.stringify({ error: "Tenant not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(404, buildErrorEnvelope(
+        ERROR_CODES.NOT_FOUND, "tenant.not_found", false, undefined, correlationId
+      ), corsHeaders);
     }
 
     // PI-BILL-HARD-002 — Check if billing exists before any action
@@ -714,14 +721,11 @@ Deno.serve(async (req) => {
         }
       });
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          billing_state: "NOT_PROVISIONED",
-          message: "Tenant has no billing record yet"
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return okResponse({
+        success: true,
+        billing_state: "NOT_PROVISIONED",
+        message: "Tenant has no billing record yet"
+      }, corsHeaders, correlationId);
     }
 
     // Execute action
@@ -730,20 +734,20 @@ Deno.serve(async (req) => {
     switch (payload.action) {
       case "extend-trial":
         if (!payload.days || payload.days < 1) {
-          return new Response(
-            JSON.stringify({ error: "Invalid days value (minimum 1)" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return errorResponse(400, buildErrorEnvelope(
+            ERROR_CODES.VALIDATION_ERROR, "validation.invalid_days", false,
+            ["Invalid days value (minimum 1)"], correlationId
+          ), corsHeaders);
         }
         result = await extendTrial(serviceClient, payload.tenantId, payload.days, payload.reason, userId);
         break;
 
       case "mark-as-paid":
         if (!payload.untilDate) {
-          return new Response(
-            JSON.stringify({ error: "untilDate is required for mark-as-paid action" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return errorResponse(400, buildErrorEnvelope(
+            ERROR_CODES.VALIDATION_ERROR, "validation.missing_until_date", false,
+            ["untilDate is required for mark-as-paid action"], correlationId
+          ), corsHeaders);
         }
         result = await markAsPaid(serviceClient, payload.tenantId, payload.untilDate, payload.reason, userId);
         break;
@@ -761,33 +765,30 @@ Deno.serve(async (req) => {
         break;
 
       default:
-        return new Response(
-          JSON.stringify({ error: `Unknown action: ${payload.action}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(400, buildErrorEnvelope(
+          ERROR_CODES.VALIDATION_ERROR, "validation.unknown_action", false,
+          [`Unknown action: ${payload.action}`], correlationId
+        ), corsHeaders);
     }
 
     if (!result.success) {
       const status = result.requiresConfirmation ? 409 : 400;
-      return new Response(
-        JSON.stringify({ error: result.error, requiresConfirmation: result.requiresConfirmation }),
-        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(status, buildErrorEnvelope(
+        result.requiresConfirmation ? ERROR_CODES.CONFLICT : ERROR_CODES.VALIDATION_ERROR,
+        "billing.action_failed", false,
+        [result.error || "Unknown error"], correlationId
+      ), corsHeaders);
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Action '${payload.action}' completed successfully for tenant ${tenant.name}` 
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return okResponse({ 
+      success: true, 
+      message: `Action '${payload.action}' completed successfully for tenant ${tenant.name}` 
+    }, corsHeaders, correlationId);
 
   } catch (error) {
     log.error("Admin billing control error", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", true, undefined, correlationId
+    ), corsHeaders);
   }
 });

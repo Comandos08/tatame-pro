@@ -10,6 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
 import { 
   requireImpersonationIfSuperadmin, 
@@ -34,15 +35,12 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[REVOKE-ROLES] ${step}${detailsStr}`);
 };
 
 interface RevokeRolesRequest {
@@ -58,6 +56,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("revoke-roles", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -79,7 +80,8 @@ serve(async (req) => {
       return unauthorizedResponse("Invalid token");
     }
 
-    logStep("User authenticated", { userId: user.id });
+    log.setUser(user.id);
+    log.info("User authenticated");
 
     // ========================================================================
     // RATE LIMITING (before any business logic)
@@ -89,7 +91,7 @@ serve(async (req) => {
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
 
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.warn("Rate limit exceeded", { count: rateLimitResult.count });
       
       // Log decision BEFORE responding
       await logRateLimitBlock(supabase, {
@@ -105,15 +107,24 @@ serve(async (req) => {
     // ========================================================================
     // PARSE INPUT
     // ========================================================================
-    const body: RevokeRolesRequest = await req.json();
+    let body: RevokeRolesRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(400, buildErrorEnvelope(
+        ERROR_CODES.MALFORMED_JSON, "validation.malformed_json", false, undefined, correlationId
+      ), corsHeaders);
+    }
     const { targetProfileId, tenantId, roles, reason, forceRemoveAll } = body;
 
     if (!targetProfileId || !tenantId || !roles || roles.length === 0) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing required fields: targetProfileId, tenantId, roles", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(400, buildErrorEnvelope(
+        ERROR_CODES.VALIDATION_ERROR, "validation.missing_fields", false,
+        ["Missing required fields: targetProfileId, tenantId, roles"], correlationId
+      ), corsHeaders);
     }
+
+    log.setTenant(tenantId);
 
     // ========================================================================
     // IMPERSONATION CHECK (if superadmin)
@@ -127,7 +138,7 @@ serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      logStep("Impersonation validation failed", { error: impersonationCheck.error });
+      log.warn("Impersonation validation failed", { error: impersonationCheck.error });
       
       // Log decision BEFORE responding
       await logImpersonationBlock(supabase, {
@@ -153,7 +164,7 @@ serve(async (req) => {
       );
 
       if (!roleCheck.allowed) {
-        logStep("Role check failed", { error: roleCheck.error });
+        log.warn("Role check failed", { error: roleCheck.error });
         
         // Log decision BEFORE responding
         await logPermissionDenied(supabase, {
@@ -168,14 +179,14 @@ serve(async (req) => {
       }
     }
 
-    logStep("Permissions verified");
+    log.info("Permissions verified");
 
     // ========================================================================
     // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, tenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", { 
+      log.warn("Billing status blocked operation", { 
         status: billingCheck.status, 
         code: billingCheck.code 
       });
@@ -190,7 +201,7 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // GET CURRENT ROLES (for validation and audit)
@@ -202,7 +213,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId);
 
     const rolesBefore = currentRoles?.map(r => r.role) || [];
-    logStep("Current roles fetched", { rolesBefore });
+    log.info("Current roles fetched", { rolesBefore });
 
     // ========================================================================
     // PREVENT ORPHANING (unless forceRemoveAll)
@@ -210,15 +221,10 @@ serve(async (req) => {
     const rolesAfterRevoke = rolesBefore.filter(r => !roles.includes(r));
     
     if (rolesAfterRevoke.length === 0 && !forceRemoveAll) {
-      return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: "Cannot remove all roles. User would become orphaned. Use forceRemoveAll if ending membership.",
-          code: "VALIDATION_FAILED",
-          rolesBefore,
-        }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(422, buildErrorEnvelope(
+        ERROR_CODES.VALIDATION_ERROR, "validation.cannot_orphan_user", false,
+        ["Cannot remove all roles. User would become orphaned. Use forceRemoveAll if ending membership."], correlationId
+      ), corsHeaders);
     }
 
     // ========================================================================
@@ -232,7 +238,7 @@ serve(async (req) => {
       
       if (!roleRecord) {
         notFoundRoles.push(role);
-        logStep("Role not found, skipping", { role });
+        log.info("Role not found, skipping", { role });
         continue;
       }
 
@@ -243,10 +249,10 @@ serve(async (req) => {
         .eq("id", roleRecord.id);
 
       if (deleteError) {
-        logStep("Role delete failed", { role, error: deleteError.message });
+        log.error("Role delete failed", deleteError, { role });
       } else {
         revokedRoles.push(role);
-        logStep("Role revoked", { role });
+        log.info("Role revoked", { role });
       }
     }
 
@@ -272,26 +278,21 @@ serve(async (req) => {
           impersonation_id: impersonationCheck.impersonationId || null,
         },
       });
-      logStep("Audit log created");
+      log.info("Audit log created");
     }
 
-    return new Response(
-      JSON.stringify({ 
-        ok: true, 
-        message: `Revoked ${revokedRoles.length} role(s)`,
-        revokedRoles,
-        notFoundRoles,
-        rolesBefore,
-        rolesAfter,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return okResponse({ 
+      message: `Revoked ${revokedRoles.length} role(s)`,
+      revokedRoles,
+      notFoundRoles,
+      rolesBefore,
+      rolesAfter,
+    }, corsHeaders, correlationId);
 
   } catch (error) {
-    logStep("Unexpected error", { error: String(error) });
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    log.error("Unexpected error", error);
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
+    ), corsHeaders);
   }
 });

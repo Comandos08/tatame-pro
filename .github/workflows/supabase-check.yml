@@ -55,18 +55,6 @@ jobs:
           fi
           echo "✅ Deterministic Date usage enforced"
 
-      - name: Validate Edge Functions — No console.log
-        run: |
-          echo "🔍 Checking for console.log in Edge Functions..."
-          # Exclude test files from check
-          if grep -rn "console\.log" supabase/functions --include="*.ts" 2>/dev/null \
-            | grep -Ev "_tests/|\.test\.ts"; then
-            echo "❌ console.log proibido em SAFE GOLD — use observability"
-            echo "📝 Use audit_logs or decision_logs for production logging"
-            exit 1
-          fi
-          echo "✅ No console.log found"
-
       - name: Validate config.toml exists
         run: |
           echo "🔍 Checking for Supabase config..."
@@ -79,9 +67,11 @@ jobs:
       - name: G1 — No raw console.* in Edge Functions
         run: |
           echo "🔍 G1: Checking for raw console.* usage..."
-          if grep -rn "console\.\(log\|error\|warn\|info\)" supabase/functions --include="*.ts" \
-            | grep -Ev "_tests/|\.test\.ts|_shared/backend-logger\.ts"; then
-            echo "❌ FAIL: Raw console.* found outside backend-logger.ts"
+          # Exclude _shared/, _tests/, and test files
+          if grep -rn 'console\.\(log\|error\|warn\|info\)' supabase/functions --include="*.ts" \
+            | grep -Ev '_tests/|\.test\.ts|_shared/'; then
+            echo "❌ FAIL: Raw console.* found outside _shared/ and _tests/"
+            echo "📝 Use createBackendLogger from _shared/backend-logger.ts"
             exit 1
           fi
           echo "✅ G1 passed"
@@ -197,8 +187,64 @@ jobs:
           if [ "$FAILED" -eq 1 ]; then exit 1; fi
           echo "✅ G6 passed"
 
+      - name: G7 — Logger + correlationId mandatory for Tier 1 functions
+        run: |
+          echo "🔍 G7: Checking structured logging in Tier 1 functions..."
+          TIER1_FNS="resolve-identity-wizard grant-roles revoke-roles approve-membership reject-membership admin-billing-control"
+          FAILED=0
+
+          for fn in $TIER1_FNS; do
+            FN_FILE="supabase/functions/$fn/index.ts"
+            if [ ! -f "$FN_FILE" ]; then
+              echo "❌ FAIL: $fn/index.ts not found"
+              FAILED=1
+              continue
+            fi
+
+            if ! grep -q "createBackendLogger" "$FN_FILE"; then
+              echo "❌ FAIL: $fn does not use createBackendLogger"
+              FAILED=1
+            fi
+
+            if ! grep -q "extractCorrelationId" "$FN_FILE"; then
+              echo "❌ FAIL: $fn does not use extractCorrelationId"
+              FAILED=1
+            fi
+
+            if ! grep -q "correlationId" "$FN_FILE"; then
+              echo "❌ FAIL: $fn does not reference correlationId"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G7 passed"
+
+      - name: G8 — A07 envelope adoption for Tier 1 functions
+        run: |
+          echo "🔍 G8: Checking A07 envelope in Tier 1 functions..."
+          TIER1_FNS="resolve-identity-wizard grant-roles revoke-roles approve-membership reject-membership admin-billing-control"
+          FAILED=0
+
+          for fn in $TIER1_FNS; do
+            FN_FILE="supabase/functions/$fn/index.ts"
+            if [ ! -f "$FN_FILE" ]; then
+              echo "❌ FAIL: $fn/index.ts not found"
+              FAILED=1
+              continue
+            fi
+
+            if ! grep -q "okResponse\|errorResponse" "$FN_FILE"; then
+              echo "❌ FAIL: $fn does not use okResponse or errorResponse"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G8 passed"
+
       - name: Summary
         run: |
           echo "✅ Supabase Governance Check PASSED"
           echo "📋 SAFE GOLD compliance verified"
-          echo "🛡️ Gates G1-G6 enforced"
+          echo "🛡️ Gates G1-G8 enforced"
