@@ -195,7 +195,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* U03.1: Skip link for screen readers */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-background text-foreground p-2 rounded border border-border"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-background border border-border px-4 py-2 rounded-md text-foreground"
       >
         Skip to main content
       </a>
