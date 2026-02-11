@@ -13,4 +13,5 @@ export * from './InstitutionalErrorsCard';
 export * from './DependenciesCard';
 export * from './AlertBadge';
 export * from './AlertsPanel';
+export * from './SecurityPostureBanner';
 
