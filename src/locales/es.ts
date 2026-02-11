@@ -2357,6 +2357,8 @@ export const es: Record<string, string> = {
   'tenant.loading': 'Cargando organización...',
   'tenant.notFound': 'Organización no encontrada',
   'tenant.notFoundDesc': 'La organización que busca no existe o no está activa en este momento.',
+  'tenant.boundaryViolation': 'Acceso denegado',
+  'tenant.boundaryViolationDesc': 'No tiene permiso para acceder a esta organización.',
 
   // Admin - Create Tenant Dialog keys (P1) - Only truly new keys (non-duplicates)
   'admin.organizationNameLabel': 'Nombre de la organización',

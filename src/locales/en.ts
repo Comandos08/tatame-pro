@@ -2357,6 +2357,8 @@ export const en: Record<string, string> = {
   'tenant.loading': 'Loading organization...',
   'tenant.notFound': 'Organization not found',
   'tenant.notFoundDesc': 'The organization you are looking for does not exist or is not active at the moment.',
+  'tenant.boundaryViolation': 'Access denied',
+  'tenant.boundaryViolationDesc': 'You do not have permission to access this organization.',
 
   // Admin - Create Tenant Dialog keys (P1) - Only truly new keys (non-duplicates)
   'admin.organizationNameLabel': 'Organization name',
