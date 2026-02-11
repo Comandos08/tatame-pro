@@ -9,6 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { logger } from '@/lib/logger';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, EventSeverity } from '@/types/observability';
@@ -64,7 +65,7 @@ function getDismissedIds(): Set<string> {
       return new Set(JSON.parse(stored));
     }
   } catch (error) {
-    console.warn('[AlertContext] Failed to parse dismissed alerts:', error);
+    logger.warn('[AlertContext] Failed to parse dismissed alerts:', error);
   }
   return new Set();
 }
@@ -76,7 +77,7 @@ function saveDismissedIds(ids: Set<string>): void {
   try {
     localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify([...ids]));
   } catch (error) {
-    console.warn('[AlertContext] Failed to save dismissed alerts:', error);
+    logger.warn('[AlertContext] Failed to save dismissed alerts:', error);
   }
 }
 
@@ -191,7 +192,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         .limit(50);
       
       if (error) {
-        console.error('[AlertContext] Query error:', error.message);
+        logger.error('[AlertContext] Query error:', error.message);
         return [];
       }
       
@@ -232,7 +233,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         setIsRealtimeConnected(connected);
       },
       onError: (error) => {
-        console.error('[AlertContext] Realtime error:', error);
+        logger.error('[AlertContext] Realtime error:', error);
       },
     });
     

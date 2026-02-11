@@ -10,6 +10,7 @@
  * - Context is cleared on successful membership creation
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { logger } from '@/lib/logger';
 
 export interface SelectedTenant {
   id: string;
@@ -60,7 +61,7 @@ export function JoinProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('JoinContext: Failed to load persisted state', error);
+      logger.error('JoinContext: Failed to load persisted state', error);
       sessionStorage.removeItem(STORAGE_KEY);
     }
     setIsInitialized(true);

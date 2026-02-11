@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Tenant, TenantContext as TenantContextType } from '@/types/tenant';
@@ -58,9 +59,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
     async function fetchTenant() {
       // ✅ P-IMP-01 — Prevent concurrent fetches
       if (isFetchingRef.current) {
-        if (import.meta.env.DEV) {
-          console.log('[TENANT] Fetch already in progress, skipping');
-        }
+        logger.debug('[TENANT] Fetch already in progress, skipping');
         return;
       }
       
@@ -74,9 +73,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       }
 
       isFetchingRef.current = true;
-      if (import.meta.env.DEV) {
-        console.log('[TENANT] Fetch started for slug:', tenantSlug);
-      }
+      logger.debug('[TENANT] Fetch started for slug:', tenantSlug);
 
       if (isMountedRef.current) {
         setIsLoading(true);
@@ -162,7 +159,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
         
-        console.error('[TENANT] Fetch error:', err);
+        logger.error('[TENANT] Fetch error:', err);
         setError(err instanceof Error ? err : new Error('Erro ao carregar organização'));
         setTenant(null);
         setBillingInfo(null);
@@ -171,9 +168,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
         isFetchingRef.current = false;
         if (!abortController.signal.aborted && isMountedRef.current) {
           setIsLoading(false);
-          if (import.meta.env.DEV) {
-            console.log('[TENANT] Fetch completed');
-          }
+          logger.debug('[TENANT] Fetch completed');
         }
       }
     }
