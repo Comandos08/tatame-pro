@@ -1,21 +1,31 @@
-/**
- * U03.1 — Route Focus Reset (SAFE GOLD)
- *
- * Resets focus to <main> on route change so screen readers
- * announce the new page and keyboard users start from the top.
- * No mutations, no side effects beyond focus management.
- */
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
+/**
+ * SAFE GOLD — Route Focus Reset (WCAG compliant)
+ *
+ * Moves focus to main landmark on route change
+ * without leaving permanent tabIndex pollution.
+ */
 export function useRouteFocusReset() {
   const location = useLocation();
 
   useEffect(() => {
-    const main = document.querySelector('main');
-    if (main) {
-      main.setAttribute('tabindex', '-1');
-      main.focus();
-    }
+    const main = document.getElementById('main-content');
+    if (!main) return;
+
+    // Make temporarily focusable
+    main.setAttribute('tabIndex', '-1');
+
+    // Move focus
+    main.focus();
+
+    // Remove tabIndex after blur (prevents permanent focus trap)
+    const cleanup = () => main.removeAttribute('tabIndex');
+    main.addEventListener('blur', cleanup, { once: true });
+
+    return () => {
+      main.removeEventListener('blur', cleanup);
+    };
   }, [location.pathname]);
 }
