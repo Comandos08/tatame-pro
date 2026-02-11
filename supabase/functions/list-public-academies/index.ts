@@ -14,6 +14,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parsePublicPagination } from "../_shared/security/publicQueryLimits.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,17 +36,29 @@ serve(async (req) => {
     const tenantSlug = url.searchParams.get("tenant_slug");
 
     if (!tenantSlug || typeof tenantSlug !== "string" || tenantSlug.length > 100) {
-      return new Response(
-        JSON.stringify({ academies: [], error: "Missing or invalid tenant_slug" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.VALIDATION_ERROR,
+          "public.tenant_slug_invalid",
+          false,
+          ["tenant_slug missing or invalid"],
+        ),
+        corsHeaders,
       );
     }
 
     // Validate slug format (alphanumeric + hyphens only)
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/i.test(tenantSlug) && !/^[a-z0-9]$/i.test(tenantSlug)) {
-      return new Response(
-        JSON.stringify({ academies: [], error: "Invalid tenant slug format" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.VALIDATION_ERROR,
+          "public.tenant_slug_format_invalid",
+          false,
+          ["tenant_slug must be alphanumeric with hyphens"],
+        ),
+        corsHeaders,
       );
     }
 
@@ -85,9 +102,15 @@ serve(async (req) => {
       .range(pag.offset, pag.offset + pag.limit - 1);
 
     if (academiesError) {
-      return new Response(
-        JSON.stringify({ academies: [], error: "Failed to fetch academies" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR,
+          "public.academies_fetch_failed",
+          true,
+          ["database error while fetching academies"],
+        ),
+        corsHeaders,
       );
     }
 
@@ -96,9 +119,14 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
-    return new Response(
-      JSON.stringify({ academies: [], error: "Internal error" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        true,
+      ),
+      corsHeaders,
     );
   }
 });
