@@ -191,20 +191,45 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
   }, [session, isGlobalSuperadmin, navigate, t, clearSession]);
 
-  // Set up validation interval
+  // ==========================================================================
+  // A02.T1.4.2 — Validation Cadence (Heartbeat Controlado) — SAFE GOLD
+  // BY DESIGN: Only runs for SUPERADMIN_GLOBAL with ACTIVE session.
+  // Visibility-aware: revalidates immediately when tab regains focus.
+  // Fail-closed: invalid response triggers immediate clearSession + redirect.
+  // ==========================================================================
   useEffect(() => {
+    // GUARD: Only superadmin with active session gets heartbeat
+    if (!isGlobalSuperadmin) return;
     if (!session) return;
+    if (session.status !== 'ACTIVE') return;
 
-    // Validate immediately
-    validateSession();
+    let cancelled = false;
 
-    // Then validate periodically
-    validationInterval.current = setInterval(validateSession, VALIDATION_INTERVAL);
+    const validate = async () => {
+      if (cancelled) return;
+      await validateSession();
+    };
 
-    // Set up expiration timeout
+    // Validate immediately on mount/session change
+    validate();
+
+    // Periodic heartbeat — exactly 1 interval, deterministic
+    const intervalId = setInterval(validate, VALIDATION_INTERVAL);
+
+    // Visibility-aware: revalidate when tab becomes visible again
+    // BY DESIGN: Catches server-side revocations that happened while tab was hidden
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        validate();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Set up local expiration timeout (fail-closed)
     const expiresIn = new Date(session.expiresAt).getTime() - Date.now();
     if (expiresIn > 0) {
       expirationTimeout.current = setTimeout(() => {
+        if (cancelled) return;
         clearSession();
         toast.warning(t('impersonation.sessionExpired'));
         navigate('/admin', { replace: true });
@@ -212,10 +237,12 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
 
     return () => {
-      if (validationInterval.current) clearInterval(validationInterval.current);
+      cancelled = true;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
     };
-  }, [session, validateSession, navigate, t, clearSession]);
+  }, [session?.impersonationId, session?.status, isGlobalSuperadmin, validateSession, navigate, t, clearSession]);
 
   // Start impersonation
   const startImpersonation = useCallback(async (targetTenantId: string, reason?: string): Promise<boolean> => {
