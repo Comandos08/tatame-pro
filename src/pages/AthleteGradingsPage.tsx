@@ -349,7 +349,7 @@ export default function AthleteGradingsPage() {
         return level?.grading_schemes?.sport_type || '-';
       }
     },
-    { key: 'promotion_date', label: 'Data Graduação', format: (v: string) => formatDateForCsv(v) },
+    { key: 'promotion_date', label: 'Data Graduação', format: (v: unknown) => formatDateForCsv(v as string) },
     { 
       key: 'academy', 
       label: 'Academia', 

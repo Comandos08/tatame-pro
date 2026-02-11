@@ -20,16 +20,16 @@ import {
 } from '@/types/observability';
 
 interface JobExecutionRow {
-  job_name: string;
+  job_name: string | null;
   last_success_at: string | null;
   last_failure_at: string | null;
   last_run_at: string | null;
-  runs_24h: number;
-  success_24h: number;
-  failures_24h: number;
-  items_processed_24h: number;
-  runs_7d: number;
-  items_processed_7d: number;
+  runs_24h: number | null;
+  success_24h: number | null;
+  failures_24h: number | null;
+  items_processed_24h: number | null;
+  runs_7d: number | null;
+  items_processed_7d: number | null;
 }
 
 interface CriticalEventRow {
@@ -47,10 +47,24 @@ function classifyJobStatus(job: JobExecutionRow): JobStatus {
   const lastRun = job.last_run_at ? new Date(job.last_run_at) : null;
   const lastFailure = job.last_failure_at ? new Date(job.last_failure_at) : null;
   
+  // Normalize nullable fields from DB view
+  const normalized = {
+    job_name: job.job_name || 'unknown',
+    last_success_at: job.last_success_at,
+    last_failure_at: job.last_failure_at,
+    last_run_at: job.last_run_at,
+    runs_24h: job.runs_24h ?? 0,
+    success_24h: job.success_24h ?? 0,
+    failures_24h: job.failures_24h ?? 0,
+    items_processed_24h: job.items_processed_24h ?? 0,
+    runs_7d: job.runs_7d ?? 0,
+    items_processed_7d: job.items_processed_7d ?? 0,
+  };
+
   // Never ran
   if (!lastRun) {
     return {
-      ...job,
+      ...normalized,
       status: 'NEVER_RAN',
     };
   }
@@ -58,12 +72,12 @@ function classifyJobStatus(job: JobExecutionRow): JobStatus {
   const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
   
   // Check for recent failures
-  if (lastFailure && job.failures_24h > 0) {
+  if (lastFailure && normalized.failures_24h > 0) {
     const lastSuccess = job.last_success_at ? new Date(job.last_success_at) : null;
     // If last failure is more recent than last success, mark as failed
     if (!lastSuccess || lastFailure > lastSuccess) {
       return {
-        ...job,
+        ...normalized,
         status: 'FAILED',
       };
     }
@@ -72,20 +86,20 @@ function classifyJobStatus(job: JobExecutionRow): JobStatus {
   // Check for delays
   if (hoursSinceLastRun >= HEALTH_THRESHOLDS.JOB_DELAY_CRITICAL_HOURS) {
     return {
-      ...job,
+      ...normalized,
       status: 'DELAYED',
     };
   }
   
   if (hoursSinceLastRun >= HEALTH_THRESHOLDS.JOB_DELAY_WARNING_HOURS) {
     return {
-      ...job,
+      ...normalized,
       status: 'DELAYED',
     };
   }
   
   return {
-    ...job,
+    ...normalized,
     status: 'OK',
   };
 }

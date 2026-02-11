@@ -290,10 +290,10 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       }
 
       applyResult(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!isMountedRef.current) return;
 
-      if (err?.name === "AbortError") {
+      if (err instanceof Error && err.name === "AbortError") {
         setIdentityState("error");
         setError({
           code: "IDENTITY_TIMEOUT",
@@ -417,8 +417,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       setIdentityState("error");
       setError({ code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." });
       return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." } };
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         if (isMountedRef.current) {
           setIdentityState("error");
           setError({ code: "UNKNOWN", message: "Timeout ao completar wizard (abort)." });
@@ -513,8 +513,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         setError({ code: "UNKNOWN", message: "Resposta inesperada ao criar organização." });
       }
       return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao criar organização." } };
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         if (isMountedRef.current) {
           setIdentityState("error");
           setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." });
@@ -605,8 +605,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         setError({ code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." });
       }
       return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." } };
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         if (isMountedRef.current) {
           setIdentityState("error");
           setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." });
