@@ -22,9 +22,12 @@
  *   - Tenant in SETUP: destructive operations blocked
  *   - Tenant in BLOCKED: ALL operations blocked
  *   - Only ACTIVE status allows critical operations
+ * 
+ * A02: All console.* calls migrated to createBackendLogger.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "./backend-logger.ts";
 
 /**
  * Valid tenant lifecycle statuses (matches database enum)
@@ -62,6 +65,9 @@ export async function requireTenantActive(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<TenantActiveCheckResult> {
+  const log = createBackendLogger("requireTenantActive", crypto.randomUUID());
+  log.setTenant(tenantId);
+
   try {
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -82,7 +88,7 @@ export async function requireTenantActive(
 
     // FAIL-CLOSED: Any error = blocked
     if (error) {
-      console.error('[requireTenantActive] Database error:', error.message);
+      log.error('Database error', error);
       return { 
         allowed: false, 
         status: null, 
@@ -134,7 +140,7 @@ export async function requireTenantActive(
 
   } catch (err) {
     // FAIL-CLOSED: Exception = blocked
-    console.error('[requireTenantActive] Exception:', err);
+    log.error('Exception', err);
     return { 
       allowed: false, 
       status: null, 
@@ -155,8 +161,9 @@ export async function requireTenantActive(
 export function tenantNotActiveResponse(
   status: TenantLifecycleStatus | null
 ): Response {
+  const log = createBackendLogger("requireTenantActive", crypto.randomUUID());
   // Log internally but don't expose status to client
-  console.log('[requireTenantActive] Blocked operation for tenant status:', status);
+  log.info('Blocked operation for tenant status', { status });
   
   return new Response(
     JSON.stringify({
