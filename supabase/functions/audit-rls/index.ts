@@ -12,6 +12,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,20 +229,18 @@ serve(async (req) => {
     // ====================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ ok: false, code: "UNAUTHORIZED", messageKey: "auth.missing_token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false
+      ), corsHeaders);
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ ok: false, code: "UNAUTHORIZED", messageKey: "auth.invalid_token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false
+      ), corsHeaders);
     }
 
     const { data: superadminRole } = await supabase
@@ -253,10 +252,9 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!superadminRole) {
-      return new Response(
-        JSON.stringify({ ok: false, code: "FORBIDDEN", messageKey: "auth.superadmin_required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(403, buildErrorEnvelope(
+        ERROR_CODES.FORBIDDEN, "auth.superadmin_required", false
+      ), corsHeaders);
     }
 
     // ====================================================================
@@ -267,15 +265,10 @@ serve(async (req) => {
 
     if (policiesError) {
       console.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
-      return new Response(
-        JSON.stringify({
-          ok: false, code: "RPC_ERROR",
-          messageKey: "audit.rpc_failed",
-          timestamp: new Date().toISOString(),
-          details: ["audit_rls_snapshot: " + policiesError.message],
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
+        ["audit_rls_snapshot: " + policiesError.message]
+      ), corsHeaders);
     }
 
     const policyFindings = (policies as PolicyRow[]).map(classifyPolicyRisk);
@@ -288,15 +281,10 @@ serve(async (req) => {
 
     if (definersError) {
       console.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
-      return new Response(
-        JSON.stringify({
-          ok: false, code: "RPC_ERROR",
-          messageKey: "audit.rpc_failed",
-          timestamp: new Date().toISOString(),
-          details: ["audit_security_definer_snapshot: " + definersError.message],
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
+        ["audit_security_definer_snapshot: " + definersError.message]
+      ), corsHeaders);
     }
 
     const definerFindings = (definers as DefinerRow[]).map(classifyDefinerRisk);
@@ -309,15 +297,10 @@ serve(async (req) => {
 
     if (tablesError) {
       console.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
-      return new Response(
-        JSON.stringify({
-          ok: false, code: "RPC_ERROR",
-          messageKey: "audit.rpc_failed",
-          timestamp: new Date().toISOString(),
-          details: ["audit_tables_without_rls: " + tablesError.message],
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
+        ["audit_tables_without_rls: " + tablesError.message]
+      ), corsHeaders);
     }
 
     const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map(r => r.tablename);
@@ -363,14 +346,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("[AUDIT-RLS] Unexpected error:", error);
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        code: "INTERNAL_ERROR",
-        messageKey: "system.internal_error",
-        timestamp: new Date().toISOString(),
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+    ), corsHeaders);
   }
 });
