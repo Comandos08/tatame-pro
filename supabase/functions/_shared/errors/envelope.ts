@@ -82,3 +82,53 @@ export function errorResponse(
     },
   });
 }
+
+// ============================================================================
+// CONVENIENCE HELPERS — Canonical responses for common error paths
+// ============================================================================
+
+const DEFAULT_CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
+};
+
+export function unauthorizedResponse(
+  corsHeaders: Record<string, string> = DEFAULT_CORS,
+  messageKey = "auth.invalid_token",
+  details?: string[],
+): Response {
+  return errorResponse(
+    401,
+    buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, messageKey, false, details),
+    corsHeaders,
+  );
+}
+
+export function forbiddenResponse(
+  corsHeaders: Record<string, string> = DEFAULT_CORS,
+  messageKey = "auth.forbidden",
+  details?: string[],
+): Response {
+  return errorResponse(
+    403,
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, messageKey, false, details),
+    corsHeaders,
+  );
+}
+
+export function rpcErrorResponse(
+  corsHeaders: Record<string, string> = DEFAULT_CORS,
+  rpcName: string,
+  message?: string,
+): Response {
+  return errorResponse(
+    500,
+    buildErrorEnvelope(
+      ERROR_CODES.RPC_ERROR,
+      "system.rpc_failed",
+      false,
+      [`${rpcName}: ${message || "unknown error"}`],
+    ),
+    corsHeaders,
+  );
+}
