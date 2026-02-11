@@ -1,177 +1,138 @@
 
-
-# A04 — Zero-Trust Tenant Boundary Enforcement
+# A04.S1 — Critical Financial & Admin Hardening
 
 ## Overview
 
-Formalize tenant isolation with a fail-closed backend guard (`tenant-boundary.ts`) and a frontend hard-validation layer in TenantContext/TenantLayout. Both mandatory adjustments from review are applied.
+Three surgical changes: (1) invoice handlers enter the A03 billing state machine, (2) admin-billing-control validates all transitions, (3) admin routes get explicit RequireRoles guards.
 
 ## What Does NOT Change
 
-- No database migrations, no RLS changes, no route changes
-- No Stripe/webhook contract changes, no frontend behavior for valid users
-- No `console.*` (institutional logger only)
+- No database migrations, no RLS changes, no route structure changes
+- No Stripe contract changes (webhook always returns 200)
+- No changes to billing-state-machine.ts, A02, A03, or A07 envelope
+- No `console.*` additions
 
 ---
 
-## Phase 1 -- Backend: `tenant-boundary.ts` (New File)
+## Part 1 -- Invoice Handlers (stripe-webhook/index.ts)
 
-**File:** `supabase/functions/_shared/tenant-boundary.ts`
+### 1A. handleInvoicePaymentSucceeded (lines 900-958)
 
-### Adjustment 1 Applied: `assertTenantAccess` THROWS (fail-closed)
+**Line 921:** Expand `.select("id, tenant_id")` to `.select("id, tenant_id, status")`
 
-Instead of returning `{ allowed: false }`, the function throws a structured `TenantBoundaryError`. Callers cannot ignore it.
-
-```text
-class TenantBoundaryError extends Error {
-  code: 'TENANT_NOT_FOUND' | 'TENANT_INACTIVE' | 'NO_MEMBERSHIP' | 'IMPERSONATION_REQUIRED' | 'IMPERSONATION_MISMATCH'
-}
-```
-
-**`assertTenantAccess(supabaseAdmin, userId, tenantId)`**
-- Validates tenantId is UUID format
-- Checks tenant exists and `is_active = true`
-- Checks user has membership in `user_roles` for this tenant OR is SUPERADMIN with valid impersonation
-- If ANY check fails: throws `TenantBoundaryError`
-- If all pass: returns `{ userId, tenantId, isSuperadmin }` (success metadata)
-
-**`assertTenantMatchesImpersonation(supabaseAdmin, userId, tenantId, impersonationId)`**
-- Delegates to existing `requireImpersonationIfSuperadmin`
-- If invalid: throws `TenantBoundaryError` with appropriate code
-
-**`isUuidFormat(value)`** -- simple UUID regex guard
-
-**`assertBillingTenantConsistency(supabaseAdmin, tenantId)`**
-- Post-write detection: if `is_active=true` but billing NOT in (ACTIVE, TRIALING), or vice-versa
-- Uses `deriveTenantActive` from billing-state-machine.ts
-- Throws on mismatch (callers catch, audit, never 500)
-
-### Handler-side usage pattern:
+**Lines 932-941:** Replace the direct updates with state machine validation:
 
 ```text
-try {
-  await assertTenantAccess(supabaseAdmin, userId, tenantId);
-} catch (err) {
-  if (err instanceof TenantBoundaryError) {
-    log.error("Tenant boundary violation", err, { code: err.code });
-    await createAuditLog(supabase, {
-      event_type: AUDIT_EVENTS.TENANT_BOUNDARY_VIOLATION,
-      tenant_id: tenantId,
-      metadata: { ... }
-    });
-    return forbiddenResponse("...", corsHeaders, correlationId);
-  }
-  throw err; // unexpected error, let outer handler catch
-}
+1. Extract previousStatus = billing.status
+2. If previousStatus is known (isKnownBillingStatus) and !== "ACTIVE":
+   - try assertValidBillingTransition(previousStatus, "ACTIVE")
+   - on throw: log.error + createAuditLog(BILLING_TRANSITION_BLOCKED) + return (skip writes)
+3. If previousStatus is unknown string: log.error, allow (data corruption scenario)
+4. const isActive = deriveTenantActive("ACTIVE" as BillingStatus)
+5. Update tenant_billing.status = "ACTIVE"
+6. Update tenants.is_active = isActive (replaces hardcoded true)
 ```
+
+### 1B. handleInvoicePaymentFailed (lines 960-1021)
+
+**Line 980:** Expand `.select("id, tenant_id")` to `.select("id, tenant_id, status")`
+
+**Lines 991-995:** Replace direct update with state machine validation:
+
+```text
+1. Extract previousStatus = billing.status
+2. If previousStatus is known and !== "PAST_DUE":
+   - try assertValidBillingTransition(previousStatus, "PAST_DUE")
+   - on throw: log.error + createAuditLog(BILLING_TRANSITION_BLOCKED) + return
+3. If previousStatus unknown: log.error, allow
+4. const isActive = deriveTenantActive("PAST_DUE" as BillingStatus)
+5. Update tenant_billing.status = "PAST_DUE"
+6. ADD: Update tenants.is_active = isActive (CRITICAL FIX -- today this is missing)
+```
+
+The missing `tenants.is_active` update on payment failure is a real bug: PAST_DUE tenants remain operationally active until a subscription-level event fires.
 
 ---
 
-## Phase 2 -- Audit Event
+## Part 2 -- admin-billing-control/index.ts
 
-**File:** `supabase/functions/_shared/audit-logger.ts`
-
-Add to `AUDIT_EVENTS`:
+### 2A. Add imports (after line 20)
 
 ```typescript
-TENANT_BOUNDARY_VIOLATION: 'TENANT_BOUNDARY_VIOLATION',
+import { AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import {
+  type BillingStatus,
+  isKnownBillingStatus,
+  assertValidBillingTransition,
+  deriveTenantActive,
+  assertBillingConsistency,
+} from "../_shared/billing-state-machine.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 ```
 
-Update `detectCategory` to map `TENANT_BOUNDARY_*` prefix to `'SECURITY'`.
+### 2B. Main handler (line 509): Create logger instance
 
----
+```typescript
+const correlationId = extractCorrelationId(req);
+const log = createBackendLogger("admin-billing-control", correlationId);
+```
 
-## Phase 3 -- Frontend: TenantContext Boundary Signal
+### 2C. extendTrial (lines 148-212)
 
-**File:** `src/contexts/TenantContext.tsx`
-
-After tenant is resolved from slug, add cross-check:
-
-1. Import `useCurrentUser` from AuthContext
-2. After `setTenant(tenantData)`, if user is authenticated AND NOT superadmin:
-   - Check if `tenant.id` exists in `currentRolesByTenant` map
-   - If NOT present: set `boundaryViolation: true` in state
-3. Expose `boundaryViolation: boolean` in context
-4. If user is SUPERADMIN or not yet authenticated (profile still loading): `boundaryViolation = false` (IdentityGate handles SUPERADMIN, RLS handles the rest)
-
----
-
-## Phase 4 -- Frontend: TenantLayout Block
-
-**File:** `src/layouts/TenantLayout.tsx`
-
-In `TenantContent`, after error/loading checks (Step 3), before billing check (Step 4):
+After fetching `before.billing` (line 160), before update (line 173):
 
 ```text
-if (boundaryViolation) {
-  return (
-    <BlockedStateCard
-      icon={ShieldAlert}
-      iconVariant="destructive"
-      titleKey="tenant.boundaryViolation"
-      descriptionKey="tenant.boundaryViolationDesc"
-      actions={[{ labelKey: 'common.goHome', onClick: () => navigate('/'), icon: Home }]}
-    />
-  );
-}
+1. const previousStatus = before.billing.status
+2. If known and !== "TRIALING":
+   - try assertValidBillingTransition(previousStatus, "TRIALING")
+   - catch: return { success: false, error: `Invalid transition: ${previousStatus} -> TRIALING` }
+3. After billing update (line 180), ADD:
+   - const isActive = deriveTenantActive("TRIALING" as BillingStatus)
+   - await serviceClient.from("tenants").update({ is_active: isActive }).eq("id", tenantId)
+4. Post-write: try { assertBillingConsistency("TRIALING", isActive) } catch { log.error(...) }
 ```
+
+### 2D. markAsPaid (lines 214-277)
+
+Same pattern: validate previousStatus -> "ACTIVE", add `tenants.is_active` update with `deriveTenantActive("ACTIVE")`, post-write consistency check.
+
+### 2E. blockTenant (lines 279-335)
+
+Validate previousStatus -> "PAST_DUE". ADD `tenants.is_active` update with `deriveTenantActive("PAST_DUE")` (returns false). Post-write consistency.
+
+### 2F. unblockTenant (lines 337-389)
+
+Validate previousStatus -> "ACTIVE". ADD `tenants.is_active` update with `deriveTenantActive("ACTIVE")`. Post-write consistency.
+
+### 2G. resetToStripe (lines 391-506)
+
+After resolving `stripeStatus` (line 431/461):
+- If `isKnownBillingStatus(stripeStatus)` and previous is known and different: validate transition
+- After billing update: ADD `tenants.is_active` update with `deriveTenantActive` (guarded by isKnownBillingStatus)
+- Post-write consistency
+
+### 2H. Replace console.error (lines 435, 466, 652)
+
+Replace 3 instances of `console.error` with `log.error`.
 
 ---
 
-## Phase 5 -- i18n Keys
+## Part 3 -- Admin Routes (src/App.tsx)
 
-Add to all 3 locale files (`pt-BR.ts`, `en.ts`, `es.ts`):
+**Add import:** `import { RequireRoles } from "@/components/auth/RequireRoles";`
 
-```text
-'tenant.boundaryViolation': 'Acesso negado' / 'Access denied' / 'Acceso denegado'
-'tenant.boundaryViolationDesc': 'Voce nao tem permissao...' / 'You do not have...' / 'No tiene permiso...'
-```
+**Wrap all 7 admin routes** with `<RequireRoles allowed={['SUPERADMIN_GLOBAL']}>`:
 
----
-
-## Phase 6 -- CI Gate G6 (Adjustment 2 Applied: Hardened)
-
-**File:** `.github/workflows/supabase-check.yml`
-
-```yaml
-- name: G6 — Tenant boundary guard exists and exports required functions
-  run: |
-    BOUNDARY="supabase/functions/_shared/tenant-boundary.ts"
-    FAILED=0
-
-    if [ ! -f "$BOUNDARY" ]; then
-      echo "FAIL: tenant-boundary.ts not found"
-      FAILED=1
-    fi
-
-    if ! grep -q "assertTenantAccess" "$BOUNDARY"; then
-      echo "FAIL: assertTenantAccess not exported"
-      FAILED=1
-    fi
-
-    if ! grep -q "assertTenantMatchesImpersonation" "$BOUNDARY"; then
-      echo "FAIL: assertTenantMatchesImpersonation not exported"
-      FAILED=1
-    fi
-
-    if ! grep -q "TenantBoundaryError" "$BOUNDARY"; then
-      echo "FAIL: TenantBoundaryError class not defined"
-      FAILED=1
-    fi
-
-    # Verify adoption in key functions
-    for fn in start-impersonation validate-impersonation stripe-webhook; do
-      FN_FILE="supabase/functions/$fn/index.ts"
-      if [ -f "$FN_FILE" ] && ! grep -q "tenant-boundary\|assertTenantAccess" "$FN_FILE"; then
-        echo "WARN: $fn does not use tenant-boundary (incremental adoption)"
-      fi
-    done
-
-    if [ "$FAILED" -eq 1 ]; then exit 1; fi
-    echo "G6 passed"
-```
-
-G6 enforces the guard file exists with correct exports and warns (but does not fail) on missing adoption in key functions during this phase. This avoids breaking CI while providing visibility.
+| Route | Lines |
+|---|---|
+| `/admin` | ~80 |
+| `/admin/health` | ~81 |
+| `/admin/audit` | ~82 |
+| `/admin/security` | ~83 |
+| `/admin/diagnostics` | ~84 |
+| `/admin/landing` | ~85 |
+| `/admin/tenants/:tenantId/control` | ~86 |
 
 ---
 
@@ -179,19 +140,18 @@ G6 enforces the guard file exists with correct exports and warns (but does not f
 
 | File | Change |
 |---|---|
-| `supabase/functions/_shared/tenant-boundary.ts` | NEW -- TenantBoundaryError, assertTenantAccess (throws), assertTenantMatchesImpersonation, assertBillingTenantConsistency |
-| `supabase/functions/_shared/audit-logger.ts` | Add TENANT_BOUNDARY_VIOLATION event + category mapping |
-| `src/contexts/TenantContext.tsx` | Add boundaryViolation cross-check |
-| `src/layouts/TenantLayout.tsx` | Add boundary violation block UI |
-| `src/locales/pt-BR.ts` | Add 2 i18n keys |
-| `src/locales/en.ts` | Add 2 i18n keys |
-| `src/locales/es.ts` | Add 2 i18n keys |
-| `.github/workflows/supabase-check.yml` | Add G6 gate |
+| `supabase/functions/stripe-webhook/index.ts` | Invoice handlers: state machine validation + is_active fix |
+| `supabase/functions/admin-billing-control/index.ts` | All 5 actions: transition validation + is_active updates + replace console.error |
+| `src/App.tsx` | 7 admin routes wrapped with RequireRoles |
 
-## Adjustment Summary
+## Mental Tests
 
-| # | Issue | Resolution |
-|---|---|---|
-| 1 | assertTenantAccess must throw, not return boolean | Uses `TenantBoundaryError` class with structured `code` -- impossible to ignore |
-| 2 | G6 must verify adoption, not just file existence | Checks exports + warns on missing adoption in key functions |
-
+| Scenario | Expected |
+|---|---|
+| CANCELED -> ACTIVE via invoice | BLOCKED + audit |
+| ACTIVE -> ACTIVE via invoice (no-op) | Allowed (skip validation) |
+| CANCELED -> TRIALING via extendTrial | BLOCKED |
+| ACTIVE -> PAST_DUE via blockTenant | Allowed |
+| ADMIN_TENANT navigates /admin | Blocked by RequireRoles |
+| invoice.payment_failed fires | tenants.is_active set to false |
+| Webhook never returns 500 | Guaranteed (return after audit) |
