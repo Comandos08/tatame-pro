@@ -26,6 +26,7 @@ import AdminLandingSettings from "@/pages/AdminLandingSettings";
 import TenantControl from "@/pages/TenantControl";
 import SystemHealth from "@/pages/admin/SystemHealth";
 import AuditLog from "@/pages/admin/AuditLog";
+import SecurityDashboard from "@/pages/admin/SecurityDashboard";
 
 
 // Tenant
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/health" element={<SystemHealth />} />
         <Route path="/admin/audit" element={<AuditLog />} />
+        <Route path="/admin/security" element={<SecurityDashboard />} />
         <Route path="/admin/diagnostics" element={<AdminDiagnostics />} />
         <Route path="/admin/landing" element={<AdminLandingSettings />} />
         <Route path="/admin/tenants/:tenantId/control" element={<TenantControl />} />

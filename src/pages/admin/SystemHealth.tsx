@@ -26,6 +26,7 @@ import {
   DependenciesCard,
   AlertsPanel,
   AlertBadge,
+  SecurityPostureBanner,
 } from '@/components/observability';
 import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
@@ -187,6 +188,9 @@ export default function SystemHealth() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
+          {/* O01.1: Security Posture Banner */}
+          <SecurityPostureBanner className="mb-6" />
+
           {/* PI E3.1: Institutional Health Banner */}
           {health && (
             <HealthBanner status={health.overall} className="mb-6" />
