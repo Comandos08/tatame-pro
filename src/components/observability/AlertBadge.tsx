@@ -8,7 +8,7 @@
  * AlertsPanel must NOT render data-conn-state to ensure single-element contract.
  */
 
-import React from 'react';
+
 import { Bell, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAlertsOptional } from '@/contexts/AlertContext';

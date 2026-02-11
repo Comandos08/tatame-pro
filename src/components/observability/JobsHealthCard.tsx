@@ -4,7 +4,7 @@
  * Card showing status of all background jobs with individual indicators.
  */
 
-import React from 'react';
+
 import { Clock, CheckCircle, AlertTriangle, XCircle, HelpCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

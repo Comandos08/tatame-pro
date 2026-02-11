@@ -60,9 +60,10 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.href = '/portal';
   };
 
-  private handleGoToLanding = () => {
-    window.location.href = '/';
-  };
+  // Reserved for future use
+  // private handleGoToLanding = () => {
+  //   window.location.href = '/';
+  // };
 
   private handleRetry = () => {
     this.setState({ hasError: false, error: null, errorId: null });

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Trophy, Globe, Sun, Moon, Check } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';

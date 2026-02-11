@@ -54,7 +54,7 @@ interface EventBracketsProps {
 }
 
 export function EventBrackets({
-  eventId,
+  eventId: _eventId,
   eventStatus,
   categories,
   brackets,
@@ -222,7 +222,7 @@ export function EventBrackets({
         </CardHeader>
         <CardContent>
           <Tabs
-            value={selectedCategoryId ?? undefined}
+            value={selectedCategoryId ?? ""}
             onValueChange={setSelectedCategoryId}
           >
             <TabsList className="mb-4 flex-wrap h-auto">

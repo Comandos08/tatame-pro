@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';

@@ -6,10 +6,9 @@
  * Includes publish button for DRAFT brackets (admin only).
  */
 
-import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, FileEdit, GitBranch } from 'lucide-react';
+import { Loader2, CheckCircle2, GitBranch } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

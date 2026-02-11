@@ -124,9 +124,9 @@ const DENIAL_CONFIG: Record<AccessDeniedReason, {
  * </Route>
  */
 export function AccessGate({ children, requiredRoles }: AccessGateProps) {
-  const { access, retry } = useAccessResolver({ requiredRoles });
+  const { access, retry } = useAccessResolver({ requiredRoles: requiredRoles ?? [] });
   const { signOut } = useCurrentUser();
-  const { t } = useI18n();
+  useI18n();
 
   // =========================================================================
   // LOADING State

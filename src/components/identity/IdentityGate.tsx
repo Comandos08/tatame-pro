@@ -40,13 +40,12 @@
  * ============================================================================
  */
 
-import React, { useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
-import { Button } from "@/components/ui/button";
 import { useI18n } from "@/contexts/I18nContext";
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
@@ -179,7 +178,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // STEP 1: Hook Initialization (unconditional — React rules)
   // =========================================================================
   // BY DESIGN: All hooks called before any early returns
-  const { t } = useI18n();
+  useI18n();
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
   const { isImpersonating, session: impersonationSession, resolutionStatus } = useImpersonation();
@@ -206,7 +205,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
     currentPath: pathname,
     redirectPath,
     isImpersonating,
-    impersonationTenantSlug: impersonationSession?.targetTenantSlug,
+    impersonationTenantSlug: impersonationSession?.targetTenantSlug ?? null,
   });
 
   useEffect(() => {
@@ -221,7 +220,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
       context: {
         redirectPath,
         isImpersonating,
-        impersonationTenantSlug: impersonationSession?.targetTenantSlug,
+        impersonationTenantSlug: impersonationSession?.targetTenantSlug ?? null,
       },
     });
 

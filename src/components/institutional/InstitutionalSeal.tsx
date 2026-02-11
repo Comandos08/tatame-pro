@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { ShieldCheck } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/contexts/I18nContext';

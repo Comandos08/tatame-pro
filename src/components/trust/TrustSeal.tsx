@@ -12,7 +12,7 @@
  * PI-P7.5: Trust UX & Institutional Signals
  */
 
-import React from 'react';
+
 import { Shield, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

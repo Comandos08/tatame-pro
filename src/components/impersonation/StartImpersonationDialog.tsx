@@ -8,7 +8,7 @@
  * - Clear security warning
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Shield, AlertTriangle, Clock } from 'lucide-react';
 import {
   Dialog,

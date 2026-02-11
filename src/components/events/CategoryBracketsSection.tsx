@@ -29,7 +29,7 @@ interface CategoryBracketsSectionProps {
 
 export function CategoryBracketsSection({
   categoryId,
-  categoryName,
+  categoryName: _categoryName,
   eventId,
   eventStatus,
   isAdmin = false,

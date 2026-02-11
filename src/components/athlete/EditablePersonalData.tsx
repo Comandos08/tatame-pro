@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Edit2, Loader2, X, Phone, MapPin, Mail, Home } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';

@@ -3,7 +3,7 @@
  * Banner visual para exibir quando billing está em override manual
  */
 
-import React from 'react';
+
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useI18n } from '@/contexts/I18nContext';

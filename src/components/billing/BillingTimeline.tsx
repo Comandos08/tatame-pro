@@ -18,7 +18,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useTenant } from '@/contexts/TenantContext';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/i18n/formatters';
+
 
 interface TimelineStep {
   id: string;
@@ -35,7 +35,7 @@ interface BillingTimelineProps {
 export function BillingTimeline({ className }: BillingTimelineProps) {
   const { tenant } = useTenant();
   const { billingState, isLoading } = useTenantStatus();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
 
   // Don't render for non-ACTIVE tenants (still in SETUP)
   if (tenant?.status !== 'ACTIVE') {
@@ -197,7 +197,7 @@ export function BillingTimeline({ className }: BillingTimelineProps) {
           
           {/* Steps */}
           <div className="flex justify-between">
-            {steps.map((step, index) => {
+            {steps.map((step, _index) => {
               const StepIcon = step.status === 'completed' ? CheckCircle : step.icon;
               const styles = stepStyles[step.status];
 

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { EventStatus, EVENT_STATUS_CONFIG, EventStatusColor } from '@/types/event';

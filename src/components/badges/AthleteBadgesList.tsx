@@ -1,4 +1,4 @@
-import React from "react";
+
 import { BadgeChip } from "./BadgeChip";
 import { useAthleteBadges } from "@/hooks/useAthleteBadges";
 import type { BadgeSurface } from "@/types/badge";

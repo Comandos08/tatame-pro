@@ -11,8 +11,8 @@
  * with clear messaging and actionable escape hatches.
  */
 
-import React from 'react';
-import { Clock, Lock, AlertCircle, RefreshCw, XCircle, HelpCircle } from 'lucide-react';
+
+import { Clock, Lock, AlertCircle, RefreshCw, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/contexts/I18nContext';
@@ -52,7 +52,7 @@ export interface RecoveryGuideProps {
 }
 
 interface VariantConfig {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<Record<string, unknown>>;
   iconColorClass: string;
   bgColorClass: string;
   titleKey: string;

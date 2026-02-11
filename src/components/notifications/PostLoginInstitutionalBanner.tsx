@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 
 const STORAGE_KEY = 'tatame:postlogin_institutional_seen';

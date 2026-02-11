@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CreditCard, ExternalLink, Loader2, Mail, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

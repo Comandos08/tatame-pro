@@ -14,7 +14,7 @@
  * - NO clickable actions
  */
 
-import React from 'react';
+
 import { CheckCircle, Circle, ArrowRight } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { cn } from '@/lib/utils';

@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Clock, Award, XCircle } from "lucide-react";
 import { useAthleteBadgeTimeline } from "@/hooks/useAthleteBadgeTimeline";
 import { useI18n } from "@/contexts/I18nContext";

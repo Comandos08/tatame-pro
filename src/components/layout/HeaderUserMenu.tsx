@@ -4,9 +4,8 @@
  * Contains: Profile info, Global Admin access (if superadmin), Logout
  * P-MENU-01: UX Cleanup
  */
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Shield } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {

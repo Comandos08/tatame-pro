@@ -8,7 +8,7 @@
  * NO business logic. NO rules. Pure presentation.
  */
 
-import React from 'react';
+
 import { CheckCircle2, Info, X } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';

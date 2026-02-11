@@ -32,7 +32,7 @@ interface BillingGateProps {
 export function BillingGate({ children, strictMode = false, fallback }: BillingGateProps) {
   const { tenant } = useTenant();
   const { contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
-  const { t } = useI18n();
+  useI18n();
   const navigate = useNavigate();
 
   const isTenantActive = tenant?.status === 'ACTIVE';

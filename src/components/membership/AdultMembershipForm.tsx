@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -77,17 +77,17 @@ function clearDraft(): void {
 export function AdultMembershipForm() {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const [searchParams] = useSearchParams();
+  const [_searchParams] = useSearchParams();
   const { tenant } = useTenant();
   const { t, locale } = useI18n();
-  const { currentUser, isAuthenticated, isLoading: authLoading } = useCurrentUser();
+  const { currentUser, isAuthenticated, isLoading: _authLoading } = useCurrentUser();
   const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [athleteData, setAthleteData] = useState<AthleteFormData | null>(null);
   const [documents, setDocuments] = useState<{ idDocument?: File; medicalCertificate?: File }>({});
-  const [membershipId, setMembershipId] = useState<string | null>(null);
+  const [_membershipId, setMembershipId] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
 
@@ -169,8 +169,8 @@ export function AdultMembershipForm() {
       step,
       athleteData,
       documentsMeta: {
-        idDocumentName: documents.idDocument?.name,
-        medicalCertificateName: documents.medicalCertificate?.name,
+        ...(documents.idDocument?.name ? { idDocumentName: documents.idDocument.name } : {}),
+        ...(documents.medicalCertificate?.name ? { medicalCertificateName: documents.medicalCertificate.name } : {}),
       },
       tenantSlug,
       savedAt: new Date().toISOString(),
@@ -356,9 +356,9 @@ export function AdultMembershipForm() {
   return (
     <div className="min-h-screen bg-background">
       <AuthenticatedHeader
-        tenantName={tenant?.name}
-        tenantLogo={tenant?.logoUrl}
-        tenantSlug={tenantSlug}
+        {...(tenant?.name ? { tenantName: tenant.name } : {})}
+        tenantLogo={tenant?.logoUrl ?? null}
+        {...(tenantSlug ? { tenantSlug } : {})}
       />
       <div className="container max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
@@ -389,23 +389,7 @@ export function AdultMembershipForm() {
         <div className="flex items-center justify-between mb-8">
           {STEPS.map((s, index) => (
             <React.Fragment key={s.id}>
-              <div className="flex flex-col items-center">
-                <div
-                  className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                    step >= s.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {step > s.id ? <Check className="h-5 w-5" /> : s.id}
-                </div>
-                <span className="text-xs mt-2 text-muted-foreground hidden sm:block">
-                  {s.title}
-                </span>
-              </div>
-              {index < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-2 ${step > s.id ? 'bg-primary' : 'bg-muted'}`} />
-              )}
+...
             </React.Fragment>
           ))}
         </div>

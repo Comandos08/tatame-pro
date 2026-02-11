@@ -5,7 +5,7 @@
  * Allows admins to record results on PUBLISHED brackets.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Trophy, Check } from 'lucide-react';
 import { toast } from 'sonner';

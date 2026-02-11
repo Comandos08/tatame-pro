@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, AlertCircle, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
