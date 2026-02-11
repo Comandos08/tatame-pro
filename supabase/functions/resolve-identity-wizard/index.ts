@@ -64,6 +64,9 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { emitBillingAuditEvent } from "../_shared/emitBillingAuditEvent.ts";
+import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
+import { okResponse, errorResponse, buildErrorEnvelope, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * CORS HEADERS
@@ -138,6 +141,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("resolve-identity-wizard", correlationId);
+
   try {
     /* ─────────────────────────────────────────────────────────────────────────
      * VALIDAÇÃO DE AUTENTICAÇÃO
@@ -180,6 +186,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    log.setUser(user.id);
+
     /* ─────────────────────────────────────────────────────────────────────────
      * ROTEAMENTO DE AÇÃO
      * ───────────────────────────────────────────────────────────────────────── */
@@ -187,20 +195,20 @@ Deno.serve(async (req) => {
 
     switch (body.action) {
       case "CHECK":
-        return json(await handleIdentityCheck(supabaseAdmin, user.id));
+        return json(await handleIdentityCheck(supabaseAdmin, user.id, log));
 
       case "CREATE_TENANT":
-        return json(await handleCreateTenant(supabaseAdmin, user.id, body.payload));
+        return json(await handleCreateTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "JOIN_EXISTING_TENANT":
-        return json(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload));
+        return json(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "ACCEPT_INVITE":
-        return json(await handleAcceptInvite(supabaseAdmin, user.id, body.payload));
+        return json(await handleAcceptInvite(supabaseAdmin, user.id, body.payload, log));
 
       case "COMPLETE_WIZARD":
         // ⚠️ COMPATIBILIDADE TEMPORÁRIA — roteia para action correta
-        return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload));
+        return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
 
       default:
         return json({
@@ -209,7 +217,7 @@ Deno.serve(async (req) => {
         });
     }
   } catch (err) {
-    console.error("[resolve-identity-wizard]", err);
+    log.error("Unhandled error", err);
     return json({
       status: "ERROR",
       error: { code: "INTERNAL", message: "Unexpected error" },
@@ -244,7 +252,9 @@ function json(payload: IdentityResponse) {
  *   4. Fallback → ERROR
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
-async function handleIdentityCheck(supabase: SupabaseClient, userId: string): Promise<IdentityResponse> {
+async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log: BackendLogger): Promise<IdentityResponse> {
+  log.setStep("identity-check");
+
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 1: VERIFICAR SUPERADMIN GLOBAL
    * ───────────────────────────────────────────────────────────────────────────── */
@@ -415,9 +425,11 @@ function isReservedSlug(slug: string): boolean {
 async function handleJoinExistingTenant(
   supabase: SupabaseClient,
   userId: string,
-  payload: JoinExistingTenantPayload
+  payload: JoinExistingTenantPayload,
+  log: BackendLogger,
 ): Promise<IdentityResponse> {
-  console.log("[resolve-identity-wizard] JOIN_EXISTING_TENANT started:", { userId });
+  log.setStep("join-existing-tenant");
+  log.info("JOIN_EXISTING_TENANT started", { userId });
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * VALIDAÇÃO 1: tenantCode obrigatório e formato permitido
@@ -449,7 +461,7 @@ async function handleJoinExistingTenant(
     .limit(1);
 
   if (tenantErr) {
-    console.error("[JOIN_EXISTING_TENANT] Tenant lookup error:", tenantErr);
+    log.error("Tenant lookup error", tenantErr);
     return {
       status: "ERROR",
       error: { code: "UNKNOWN", message: "Erro ao validar organização." },
@@ -486,7 +498,7 @@ async function handleJoinExistingTenant(
     .limit(1);
 
   if (memErr) {
-    console.error("[JOIN_EXISTING_TENANT] Membership lookup error:", memErr);
+    log.error("Membership lookup error", memErr);
     return {
       status: "ERROR",
       error: { code: "UNKNOWN", message: "Erro ao validar vínculo existente." },
@@ -532,7 +544,7 @@ async function handleJoinExistingTenant(
     });
 
   if (insertErr) {
-    console.error("[JOIN_EXISTING_TENANT] Membership insert error:", insertErr);
+    log.error("Membership insert error", insertErr);
     
     // Idempotência por unique index: se duplicou por race condition
     const msg = (insertErr.message ?? "").toLowerCase();
@@ -559,7 +571,7 @@ async function handleJoinExistingTenant(
     .eq("id", userId);
 
   if (profileErr) {
-    console.error("[JOIN_EXISTING_TENANT] Profile update error:", profileErr);
+    log.error("Profile update error", profileErr);
     // Continue anyway - não é bloqueante
   }
 
@@ -573,7 +585,7 @@ async function handleJoinExistingTenant(
     metadata: { tenant_slug: tenant.slug },
   });
 
-  console.log("[JOIN_EXISTING_TENANT] Success - membership PENDING_REVIEW created:", {
+  log.info("Success - membership PENDING_REVIEW created", {
     userId,
     tenantId: tenant.id,
     tenantSlug: tenant.slug,
@@ -597,7 +609,8 @@ async function handleJoinExistingTenant(
 async function handleAcceptInvite(
   _supabase: SupabaseClient,
   _userId: string,
-  _payload: { inviteToken: string }
+  _payload: { inviteToken: string },
+  _log: BackendLogger,
 ): Promise<IdentityResponse> {
   return {
     status: "ERROR",
@@ -615,18 +628,20 @@ async function handleAcceptInvite(
 async function handleLegacyCompleteWizard(
   supabase: SupabaseClient,
   userId: string,
-  payload: LegacyCompleteWizardPayload
+  payload: LegacyCompleteWizardPayload,
+  log: BackendLogger,
 ): Promise<IdentityResponse> {
-  console.log("[resolve-identity-wizard] COMPLETE_WIZARD (legacy) - routing based on joinMode:", payload?.joinMode);
+  log.setStep("legacy-complete-wizard");
+  log.info("COMPLETE_WIZARD (legacy) - routing based on joinMode", { joinMode: payload?.joinMode });
 
   if (payload?.joinMode === "new") {
     // Mapear para CREATE_TENANT
-    return handleCreateTenant(supabase, userId, { orgName: payload.newOrgName || "" });
+    return handleCreateTenant(supabase, userId, { orgName: payload.newOrgName || "" }, log);
   }
 
   if (payload?.joinMode === "existing") {
     // Mapear para JOIN_EXISTING_TENANT
-    return handleJoinExistingTenant(supabase, userId, { tenantCode: payload.inviteCode || "" });
+    return handleJoinExistingTenant(supabase, userId, { tenantCode: payload.inviteCode || "" }, log);
   }
 
   return {
@@ -658,16 +673,18 @@ async function handleLegacyCompleteWizard(
 async function handleCreateTenant(
   supabase: SupabaseClient,
   userId: string,
-  payload: CreateTenantPayload
+  payload: CreateTenantPayload,
+  log: BackendLogger,
 ): Promise<IdentityResponse> {
-  console.log("[resolve-identity-wizard] CREATE_TENANT started:", { userId });
+  log.setStep("create-tenant");
+  log.info("CREATE_TENANT started", { userId });
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * VALIDAÇÃO 1: Nome da organização
    * ───────────────────────────────────────────────────────────────────────────── */
   const orgName = payload?.orgName?.trim();
   if (!orgName || orgName.length < 3) {
-    console.warn("[CREATE_TENANT] INVALID_PAYLOAD: orgName missing or too short");
+    log.warn("INVALID_PAYLOAD: orgName missing or too short");
     return {
       status: "ERROR",
       error: {
@@ -696,7 +713,7 @@ async function handleCreateTenant(
       .limit(1);
 
     if (existingTenantData?.[0]) {
-      console.log("[CREATE_TENANT] IDEMPOTENT: Wizard already completed, returning existing tenant");
+      log.info("IDEMPOTENT: Wizard already completed, returning existing tenant");
       return {
         status: "RESOLVED",
         role: "ADMIN_TENANT",
@@ -714,7 +731,7 @@ async function handleCreateTenant(
   
   // ✅ Validação de slug reservado
   if (isReservedSlug(baseSlug)) {
-    console.warn("[CREATE_TENANT] RESERVED_SLUG:", baseSlug);
+    log.warn("RESERVED_SLUG detected", { slug: baseSlug });
     return {
       status: "ERROR",
       error: {
@@ -738,7 +755,7 @@ async function handleCreateTenant(
     }
 
     if (attemptIndex === 20) {
-      console.error("[CREATE_TENANT] SLUG_CONFLICT: Could not generate unique slug after 20 attempts");
+      log.error("SLUG_CONFLICT: Could not generate unique slug after 20 attempts");
       return {
         status: "ERROR",
         error: { code: "SLUG_CONFLICT", message: "Could not generate unique slug." },
@@ -762,7 +779,7 @@ async function handleCreateTenant(
     sport_types: [] as string[],
   };
   
-  console.log("[CREATE_TENANT] Creating tenant in SETUP mode:", {
+  log.info("Creating tenant in SETUP mode", {
     name: sanitizedPayload.name,
     slug: sanitizedPayload.slug,
     status: sanitizedPayload.status,
@@ -776,17 +793,15 @@ async function handleCreateTenant(
     .single();
 
   if (tenantError || !newTenant) {
-    console.error("[CREATE_TENANT] Failed to create tenant:", {
-      error: tenantError,
+    log.error("Failed to create tenant", tenantError, {
       code: tenantError?.code,
-      message: tenantError?.message,
       details: tenantError?.details,
       hint: tenantError?.hint,
       user_id: userId,
     });
     
     if (tenantError?.code === "42501" || tenantError?.message?.includes("row-level security")) {
-      console.error("[CREATE_TENANT] RLS policy violation detected - service_role key may be misconfigured");
+      log.error("RLS policy violation detected - service_role key may be misconfigured");
     }
     
     return {
@@ -800,7 +815,7 @@ async function handleCreateTenant(
 
   // ✅ SANITY CHECK PÓS-CRIAÇÃO
   if (newTenant.status !== "SETUP") {
-    console.error("[CREATE_TENANT][SANITY_CHECK]", {
+    log.error("SANITY_CHECK failed", undefined, {
       expected: "SETUP",
       actual: newTenant.status,
       tenantId: newTenant.id,
@@ -833,7 +848,7 @@ async function handleCreateTenant(
     };
   }
 
-  console.log("[CREATE_TENANT] Tenant created successfully:", {
+  log.info("Tenant created successfully", {
     id: newTenant.id,
     slug: newTenant.slug,
     status: newTenant.status,
@@ -849,10 +864,9 @@ async function handleCreateTenant(
   });
 
   if (roleError) {
-    console.error("[CREATE_TENANT][ROLE_ASSIGN]", {
+    log.error("ROLE_ASSIGN failed", roleError, {
       tenantId: newTenant.id,
       userId,
-      error: roleError.message,
       code: roleError.code,
       details: roleError.details,
     });
@@ -883,7 +897,7 @@ async function handleCreateTenant(
     };
   }
 
-  console.log("[CREATE_TENANT] ADMIN_TENANT role assigned to user:", userId);
+  log.info("ADMIN_TENANT role assigned to user", { userId });
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 6: Atualizar profile com wizard_completed e tenant_id
@@ -897,7 +911,7 @@ async function handleCreateTenant(
     .eq("id", userId);
 
   if (profileError) {
-    console.error("[CREATE_TENANT] Failed to update profile:", profileError);
+    log.error("Failed to update profile", profileError);
     // Continue anyway - wizard_completed can be set later
   }
 
@@ -916,7 +930,7 @@ async function handleCreateTenant(
     },
   });
 
-  console.log("[CREATE_TENANT] Success - redirecting to onboarding");
+  log.info("Success - redirecting to onboarding");
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * RETORNO: RESOLVED com redirecionamento para onboarding

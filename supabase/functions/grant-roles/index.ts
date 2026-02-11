@@ -10,7 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
 import { 
   requireImpersonationIfSuperadmin, 
@@ -44,22 +44,21 @@ import {
   GrantRolesSchema,
   type ValidRole,
 } from "../_shared/validation/schemas/grant-roles.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
 };
 
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[GRANT-ROLES] ${step}${detailsStr}`);
-};
-
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("grant-roles", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -81,7 +80,8 @@ serve(async (req) => {
       return unauthorizedResponse("Invalid token");
     }
 
-    logStep("User authenticated", { userId: user.id });
+    log.setUser(user.id);
+    log.info("User authenticated");
 
     // ========================================================================
     // RATE LIMITING (before any business logic)
@@ -91,7 +91,7 @@ serve(async (req) => {
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
 
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.warn("Rate limit exceeded", { count: rateLimitResult.count });
       
       // Log decision BEFORE responding
       await logRateLimitBlock(supabase, {
@@ -117,6 +117,8 @@ serve(async (req) => {
     const { targetProfileId, tenantId, roles, reason } = parsed.data;
     const validatedRoles: ValidRole[] = [...roles];
 
+    log.setTenant(tenantId);
+
     // ========================================================================
     // IMPERSONATION CHECK (if superadmin)
     // ========================================================================
@@ -129,7 +131,7 @@ serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      logStep("Impersonation validation failed", { error: impersonationCheck.error });
+      log.warn("Impersonation validation failed", { error: impersonationCheck.error });
       
       // Log security event for invalid impersonation attempt
       const { ip_address, user_agent } = extractRequestContext(req);
@@ -168,7 +170,7 @@ serve(async (req) => {
       );
 
       if (!roleCheck.allowed) {
-        logStep("Role check failed", { error: roleCheck.error });
+        log.warn("Role check failed", { error: roleCheck.error });
         
         // Log permission denied decision BEFORE responding
         await logPermissionDenied(supabase, {
@@ -183,14 +185,14 @@ serve(async (req) => {
       }
     }
 
-    logStep("Permissions verified");
+    log.info("Permissions verified");
 
     // ========================================================================
     // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, tenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", { 
+      log.warn("Billing status blocked operation", { 
         status: billingCheck.status, 
         code: billingCheck.code 
       });
@@ -205,7 +207,7 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // GET CURRENT ROLES (for audit)
@@ -217,7 +219,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId);
 
     const rolesBefore = currentRoles?.map(r => r.role) || [];
-    logStep("Current roles fetched", { rolesBefore });
+    log.info("Current roles fetched", { rolesBefore });
 
     // ========================================================================
     // GRANT ROLES (idempotent)
@@ -237,7 +239,7 @@ serve(async (req) => {
 
       if (existingRole) {
         skippedRoles.push(role);
-        logStep("Role already exists, skipping", { role });
+        log.info("Role already exists, skipping", { role });
         continue;
       }
 
@@ -251,10 +253,10 @@ serve(async (req) => {
         });
 
       if (insertError) {
-        logStep("Role insert failed", { role, error: insertError.message });
+        log.error("Role insert failed", insertError, { role });
       } else {
         grantedRoles.push(role);
-        logStep("Role granted", { role });
+        log.info("Role granted", { role });
       }
     }
 
@@ -279,25 +281,21 @@ serve(async (req) => {
           impersonation_id: impersonationCheck.impersonationId || null,
         },
       });
-      logStep("Audit log created");
+      log.info("Audit log created");
     }
 
-    return new Response(
-      JSON.stringify({ 
-        ok: true, 
-        message: `Granted ${grantedRoles.length} role(s)`,
-        grantedRoles,
-        skippedRoles,
-        rolesBefore,
-        rolesAfter,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return okResponse({ 
+      message: `Granted ${grantedRoles.length} role(s)`,
+      grantedRoles,
+      skippedRoles,
+      rolesBefore,
+      rolesAfter,
+    }, corsHeaders, correlationId);
 
   } catch (error) {
-    logStep("Unexpected error", { error: String(error) });
+    log.error("Unexpected error", error);
     return errorResponse(500, buildErrorEnvelope(
-      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
     ), corsHeaders);
   }
 });
