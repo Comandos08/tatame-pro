@@ -12,7 +12,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES, unauthorizedResponse, forbiddenResponse, rpcErrorResponse } from "../_shared/errors/envelope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -229,18 +229,14 @@ serve(async (req) => {
     // ====================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return errorResponse(401, buildErrorEnvelope(
-        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false
-      ), corsHeaders);
+      return unauthorizedResponse(corsHeaders, "auth.missing_token");
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      return errorResponse(401, buildErrorEnvelope(
-        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false
-      ), corsHeaders);
+      return unauthorizedResponse(corsHeaders, "auth.invalid_token");
     }
 
     const { data: superadminRole } = await supabase
@@ -252,9 +248,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!superadminRole) {
-      return errorResponse(403, buildErrorEnvelope(
-        ERROR_CODES.FORBIDDEN, "auth.superadmin_required", false
-      ), corsHeaders);
+      return forbiddenResponse(corsHeaders, "auth.superadmin_required");
     }
 
     // ====================================================================
@@ -265,10 +259,7 @@ serve(async (req) => {
 
     if (policiesError) {
       console.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
-      return errorResponse(500, buildErrorEnvelope(
-        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
-        ["audit_rls_snapshot: " + policiesError.message]
-      ), corsHeaders);
+      return rpcErrorResponse(corsHeaders, "audit_rls_snapshot", policiesError.message);
     }
 
     const policyFindings = (policies as PolicyRow[]).map(classifyPolicyRisk);
@@ -281,10 +272,7 @@ serve(async (req) => {
 
     if (definersError) {
       console.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
-      return errorResponse(500, buildErrorEnvelope(
-        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
-        ["audit_security_definer_snapshot: " + definersError.message]
-      ), corsHeaders);
+      return rpcErrorResponse(corsHeaders, "audit_security_definer_snapshot", definersError.message);
     }
 
     const definerFindings = (definers as DefinerRow[]).map(classifyDefinerRisk);
@@ -297,10 +285,7 @@ serve(async (req) => {
 
     if (tablesError) {
       console.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
-      return errorResponse(500, buildErrorEnvelope(
-        ERROR_CODES.RPC_ERROR, "audit.rpc_failed", false,
-        ["audit_tables_without_rls: " + tablesError.message]
-      ), corsHeaders);
+      return rpcErrorResponse(corsHeaders, "audit_tables_without_rls", tablesError.message);
     }
 
     const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map(r => r.tablename);

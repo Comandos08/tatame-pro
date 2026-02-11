@@ -499,10 +499,9 @@ serve(async (req) => {
 
       if (guardianError) {
         logStep("Failed to create guardian", { error: guardianError.message });
-        return new Response(
-          JSON.stringify({ ok: false, error: "Operation not permitted" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(500, buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+        ), corsHeaders);
       }
 
       guardianId = guardian.id;
@@ -537,11 +536,9 @@ serve(async (req) => {
 
     if (athleteError) {
       logStep("Failed to create athlete", { error: athleteError.message });
-      // Internal error, don't expose details
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+      ), corsHeaders);
     }
 
     logStep("Athlete created", { athleteId: athlete.id });
@@ -698,10 +695,9 @@ serve(async (req) => {
 
     if (updateError) {
       logStep("Failed to update membership", { error: updateError.message });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+      ), corsHeaders);
     }
 
     approved = true;

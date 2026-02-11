@@ -168,35 +168,43 @@ export async function requireGlobalSuperadmin(
 }
 
 /**
- * Create a standardized 403 Forbidden response.
+ * Create a standardized 403 Forbidden response (Institutional Envelope).
  */
 export function forbiddenResponse(message: string = 'Forbidden'): Response {
+  const corsH = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-impersonation-id',
+  };
   return new Response(
-    JSON.stringify({ error: message }),
-    { 
-      status: 403, 
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      } 
-    }
+    JSON.stringify({
+      ok: false,
+      code: "FORBIDDEN",
+      messageKey: "auth.operation_not_permitted",
+      retryable: false,
+      timestamp: new Date().toISOString(),
+      ...(message !== 'Forbidden' ? { details: [message] } : {}),
+    }),
+    { status: 403, headers: { ...corsH, 'Content-Type': 'application/json' } }
   );
 }
 
 /**
- * Create a standardized 401 Unauthorized response.
+ * Create a standardized 401 Unauthorized response (Institutional Envelope).
  */
 export function unauthorizedResponse(message: string = 'Unauthorized'): Response {
+  const corsH = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-impersonation-id',
+  };
   return new Response(
-    JSON.stringify({ error: message }),
-    { 
-      status: 401, 
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      } 
-    }
+    JSON.stringify({
+      ok: false,
+      code: "UNAUTHORIZED",
+      messageKey: "auth.invalid_token",
+      retryable: false,
+      timestamp: new Date().toISOString(),
+      ...(message !== 'Unauthorized' ? { details: [message] } : {}),
+    }),
+    { status: 401, headers: { ...corsH, 'Content-Type': 'application/json' } }
   );
 }
