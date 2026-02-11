@@ -1,8 +1,11 @@
 /**
  * PI-U02 — Tenant Onboarding Derivation (SAFE GOLD)
  *
- * Pure deterministic derivation of tenant activation checklist.
- * No React, No Supabase, No side effects, No mutations.
+ * SAFE GOLD RULES:
+ * - No mutations
+ * - Pure function
+ * - Deterministic output
+ * - isFullyActivated MUST never be true when security posture is CRITICAL
  *
  * All steps are computed from real state — nothing is saved manually.
  */
@@ -67,19 +70,19 @@ export function deriveTenantOnboarding(input: TenantOnboardingInput): TenantOnbo
   });
 
   // 3. MEMBERSHIP_CONFIGURED — locked if role not done
-  const membershipConfigured = input.membershipCount > 0;
+  const hasAnyMembership = input.membershipCount > 0;
   const membershipUnlocked = tenantDone && roleDone;
   steps.push({
     id: 'MEMBERSHIP_CONFIGURED',
     titleKey: 'onboarding.checklist.membershipConfigured',
     descriptionKey: 'onboarding.checklist.membershipConfiguredDesc',
-    status: !membershipUnlocked ? 'LOCKED' : membershipConfigured ? 'DONE' : 'PENDING',
-    blocking: !membershipConfigured,
+    status: !membershipUnlocked ? 'LOCKED' : hasAnyMembership ? 'DONE' : 'PENDING',
+    blocking: !hasAnyMembership,
   });
 
   // 4. FIRST_MEMBER_APPROVED — locked if membership not configured
   const memberApproved = input.membershipCount >= 1;
-  const memberUnlocked = membershipUnlocked && membershipConfigured;
+  const memberUnlocked = membershipUnlocked && hasAnyMembership;
   steps.push({
     id: 'FIRST_MEMBER_APPROVED',
     titleKey: 'onboarding.checklist.firstMemberApproved',
@@ -116,6 +119,6 @@ export function deriveTenantOnboarding(input: TenantOnboardingInput): TenantOnbo
   return {
     steps,
     completionPercent,
-    isFullyActivated: completionPercent === 100,
+    isFullyActivated: completionPercent === 100 && !securityCritical,
   };
 }
