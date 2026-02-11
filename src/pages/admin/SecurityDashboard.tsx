@@ -10,14 +10,14 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Shield, ArrowLeft, RefreshCw, AlertTriangle, Database, Lock, XCircle } from 'lucide-react';
+import { Shield, ArrowLeft, RefreshCw, AlertTriangle, Database, Lock, XCircle, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { useSecurityPosture, type PolicyFinding, type DefinerFinding } from '@/hooks/admin/useSecurityPosture';
+import { useSecurityPosture, type PolicyFinding, type DefinerFinding, type PiiExposureFinding } from '@/hooks/admin/useSecurityPosture';
 import { LoadingState } from '@/components/ux';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 import { auditEvent } from '@/lib/audit/auditEvent';
@@ -140,6 +140,42 @@ function DefinerFindingsSection({ findings }: { findings: DefinerFinding[] }) {
   );
 }
 
+function PiiExposureSection({ findings }: { findings: PiiExposureFinding[] }) {
+  if (findings.length === 0) return null;
+
+  return (
+    <Card className="border-l-4 border-l-warning/60">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <Eye className="h-5 w-5 text-warning" />
+          <CardTitle className="text-base">PII Exposure</CardTitle>
+          <Badge variant="secondary" className="ml-auto">{findings.length}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {findings.map((f, i) => (
+            <div key={`${f.table}-${f.policy}-${i}`} className="rounded-md border bg-card p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-sm font-medium">{f.table}</span>
+                    <span className="text-muted-foreground text-xs">→</span>
+                    <span className="text-sm text-muted-foreground truncate">{f.policy}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">{f.reason}</p>
+                  <Badge variant="outline" className="text-xs mt-2">{f.cmd}</Badge>
+                </div>
+                <RiskBadge risk={f.risk} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TablesWithoutRlsSection({ tables }: { tables: string[] }) {
   if (tables.length === 0) return null;
 
@@ -221,6 +257,7 @@ export default function SecurityDashboard() {
   const highFindings = report?.policies.filter(p => p.risk === 'HIGH') ?? [];
   const mediumFindings = report?.policies.filter(p => p.risk === 'MEDIUM') ?? [];
   const definerFindings = report?.securityDefinerFunctions ?? [];
+  const piiFindings = report?.piiExposure ?? [];
 
   return (
     <div
@@ -278,6 +315,7 @@ export default function SecurityDashboard() {
                 <SummaryCard label="Medium" value={report.summary.policies.medium} variant="medium" />
                 <SummaryCard label="SECURITY DEFINER" value={report.summary.securityDefinerFunctions.total} variant="neutral" />
                 <SummaryCard label="Tables w/o RLS" value={report.summary.tablesWithoutRls} variant={report.summary.tablesWithoutRls > 0 ? 'critical' : 'safe'} />
+                <SummaryCard label="PII Exposure" value={report.summary.piiExposure?.critical ?? 0} variant={(report.summary.piiExposure?.critical ?? 0) > 0 ? 'critical' : 'safe'} />
               </div>
 
               {/* Risk Matrix */}
@@ -306,6 +344,9 @@ export default function SecurityDashboard() {
 
                 {/* Tables Without RLS */}
                 <TablesWithoutRlsSection tables={report.tablesWithoutRls} />
+
+                {/* PII Exposure (PI-A08) */}
+                <PiiExposureSection findings={piiFindings} />
               </div>
             </>
           )}

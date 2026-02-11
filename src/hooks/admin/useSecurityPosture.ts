@@ -32,6 +32,14 @@ export interface DefinerFinding {
   reason: string;
 }
 
+export interface PiiExposureFinding {
+  table: string;
+  policy: string;
+  cmd: string;
+  risk: 'CRITICAL' | 'HIGH' | 'SAFE';
+  reason: string;
+}
+
 export interface SecurityPostureSummary {
   policies: {
     total: number;
@@ -48,6 +56,12 @@ export interface SecurityPostureSummary {
     safe: number;
   };
   tablesWithoutRls: number;
+  piiExposure?: {
+    total: number;
+    critical: number;
+    high: number;
+    safe: number;
+  };
 }
 
 export interface SecurityPostureReport {
@@ -57,8 +71,10 @@ export interface SecurityPostureReport {
   policies: PolicyFinding[];
   securityDefinerFunctions: DefinerFinding[];
   tablesWithoutRls: string[];
+  piiExposure?: PiiExposureFinding[];
   allPolicies: PolicyFinding[];
   allDefinerFunctions: DefinerFinding[];
+  allPiiExposure?: PiiExposureFinding[];
 }
 
 // ============================================
