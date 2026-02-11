@@ -60,6 +60,8 @@ interface ImpersonationContextType {
   startImpersonation: (targetTenantId: string, reason?: string) => Promise<boolean>;
   /** End the current impersonation session */
   endImpersonation: (reason?: string) => Promise<void>;
+  /** A02.T1.4.1: Synchronous in-memory + storage clear (fail-closed) */
+  clearSession: () => void;
   /** Check if the given tenant ID matches the impersonated tenant */
   isImpersonatingTenant: (tenantId: string) => boolean;
 }
@@ -306,6 +308,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     resolutionStatus, // ✅ P-IMP-FIX — Expose resolution status
     startImpersonation,
     endImpersonation,
+    clearSession, // A02.T1.4.1 — Exposed for fail-closed scope clearing
     isImpersonatingTenant,
   };
 
