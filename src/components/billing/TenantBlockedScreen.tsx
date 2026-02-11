@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 interface TenantBlockedScreenProps {
   tenantName: string;
@@ -54,7 +55,7 @@ export function TenantBlockedScreen({
         throw new Error('URL do portal não retornada');
       }
     } catch (err) {
-      console.error('Error opening customer portal:', err);
+      logger.error('Error opening customer portal:', err);
       toast.error(t('blocked.portalError'));
     } finally {
       setIsOpeningPortal(false);

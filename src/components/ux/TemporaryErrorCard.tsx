@@ -29,6 +29,7 @@ import React from 'react';
 import { WifiOff, Clock, ServerCrash, AlertTriangle, AlertCircle, RefreshCw, Mail, type LucideIcon } from 'lucide-react';
 import { BlockedStateCard, type BlockedStateAction } from './BlockedStateCard';
 import { TEMPORARY_ERROR_MAP, type TemporaryErrorType } from '@/lib/errors/temporaryErrorMap';
+import { logger } from '@/lib/logger';
 
 // =============================================================================
 // TYPES
@@ -67,9 +68,9 @@ export function TemporaryErrorCard({
   onSecondaryAction,
   className,
 }: TemporaryErrorCardProps) {
-  // DEV-only guard: warn if onRetry is missing
-  if (!onRetry && import.meta.env.DEV) {
-    console.warn(
+  // DEV-only guard: warn if onRetry is missing (logger gates by env)
+  if (!onRetry) {
+    logger.warn(
       '[TemporaryErrorCard] onRetry is required for primary action. Component may not behave as expected.',
     );
   }

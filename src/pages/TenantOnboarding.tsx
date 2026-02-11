@@ -20,6 +20,7 @@ import {
   Loader2, AlertCircle, PartyPopper, Medal
 } from 'lucide-react';
 import { LoadingState } from '@/components/ux/LoadingState';
+import { logger } from '@/lib/logger';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -137,7 +138,7 @@ export default function TenantOnboarding() {
     },
     onError: (error) => {
       toast.error(t('onboarding.sportTypesError'));
-      console.error('[ONBOARDING] Sport types save error:', error);
+      logger.error('[ONBOARDING] Sport types save error:', error);
     },
   });
 

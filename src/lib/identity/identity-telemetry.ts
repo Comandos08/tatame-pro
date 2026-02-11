@@ -55,7 +55,7 @@ export function emitIdentityTelemetry(payload: IdentityTelemetryPayload): void {
     queueMicrotask(() => {
       try {
         // eslint-disable-next-line no-console
-        console.info('[IdentityTelemetry]', payload);
+        logger.info('[IdentityTelemetry]', payload);
 
         // FUTURE EXPANSION:
         // navigator.sendBeacon('/api/telemetry', JSON.stringify(payload))

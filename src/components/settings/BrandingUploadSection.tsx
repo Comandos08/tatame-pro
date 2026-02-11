@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { useI18n } from '@/contexts/I18nContext';
 
 interface BrandingUploadSectionProps {
@@ -64,7 +65,7 @@ function UploadItem({ label, description, currentUrl, uploadPath, onUploaded, as
       onUploaded(publicUrl);
       toast.success('Imagem enviada com sucesso!');
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('Upload error:', error);
       toast.error('Erro ao enviar imagem.');
     } finally {
       setUploading(false);
@@ -84,7 +85,7 @@ function UploadItem({ label, description, currentUrl, uploadPath, onUploaded, as
       onUploaded(null);
       toast.success('Imagem removida.');
     } catch (error) {
-      console.error('Remove error:', error);
+      logger.error('Remove error:', error);
       toast.error('Erro ao remover imagem.');
     } finally {
       setUploading(false);

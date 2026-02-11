@@ -26,6 +26,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 
 type MembershipStatusValue = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
 
@@ -160,7 +161,7 @@ export default function MembershipStatus() {
 
         setMembership(data);
       } catch (error) {
-        console.error('Error fetching membership:', error);
+        logger.error('Error fetching membership:', error);
       } finally {
         setIsLoading(false);
       }
@@ -258,7 +259,7 @@ export default function MembershipStatus() {
       window.location.href = data.url;
       
     } catch (err) {
-      console.error('Retry payment error:', err);
+      logger.error('Retry payment error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to retry payment';
       setRetryError(errorMessage);
       toast.error(t('membership.errorPaymentSession'));

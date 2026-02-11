@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
+import { logger } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -120,7 +121,7 @@ export default function IdentityWizard() {
         }
       }
     } catch (err) {
-      console.error('Wizard completion failed:', err);
+      logger.error('Wizard completion failed:', err);
       toast({
         title: 'Erro',
         description: 'Falha ao finalizar configuração. Tente novamente.',

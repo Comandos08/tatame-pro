@@ -122,7 +122,7 @@ export async function writeAuditLog(entry: AuditEntryInput): Promise<WriteAuditR
       .single();
     
     if (error) {
-      console.error('[AUDIT-WRITE] Insert failed:', error.message);
+      logger.error('[AUDIT-WRITE] Insert failed:', error.message);
       return { success: false, error: error.message };
     }
     
@@ -134,7 +134,7 @@ export async function writeAuditLog(entry: AuditEntryInput): Promise<WriteAuditR
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[AUDIT-WRITE] Exception:', errorMessage);
+    logger.error('[AUDIT-WRITE] Exception:', errorMessage);
     return { success: false, error: errorMessage };
   }
 }

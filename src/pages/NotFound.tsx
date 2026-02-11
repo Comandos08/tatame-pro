@@ -6,6 +6,7 @@ import { useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Home, ArrowLeft, Building2, Shield } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
+import { logger } from "@/lib/logger";
 
 type NotFoundContext = 'admin' | 'tenant' | 'public';
 
@@ -23,10 +24,8 @@ const NotFound = () => {
   
   const context = deriveContext(location.pathname);
 
-  // Log 404 for monitoring (kept for production tracking)
-  if (import.meta.env.DEV) {
-    console.warn("404 - Route not found:", location.pathname, "context:", context);
-  }
+  // Log 404 for monitoring (logger gates by env)
+  logger.warn("404 - Route not found:", location.pathname, "context:", context);
 
   const config = {
     admin: {

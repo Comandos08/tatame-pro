@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 // Turnstile site key - will be read from env or use empty for development
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
@@ -47,18 +48,18 @@ export function TurnstileWidget({
         sitekey: TURNSTILE_SITE_KEY,
         callback: onSuccess,
         'error-callback': (error) => {
-          console.error('[Turnstile] Error:', error);
+          logger.error('[Turnstile] Error:', error);
           onError?.(error);
         },
         'expired-callback': () => {
-          console.log('[Turnstile] Token expired');
+          logger.log('[Turnstile] Token expired');
           onExpire?.();
         },
         theme: 'auto',
         size: 'normal',
       });
     } catch (err) {
-      console.error('[Turnstile] Render error:', err);
+      logger.error('[Turnstile] Render error:', err);
       onError?.('Failed to initialize security verification');
     }
   }, [onSuccess, onError, onExpire]);
@@ -66,7 +67,7 @@ export function TurnstileWidget({
   useEffect(() => {
     // If no site key configured, skip loading
     if (!TURNSTILE_SITE_KEY) {
-      console.warn('[Turnstile] No site key configured, widget disabled');
+      logger.warn('[Turnstile] No site key configured, widget disabled');
       // In development, auto-generate a fake token
       onSuccess('dev-mode-token');
       return;
@@ -94,7 +95,7 @@ export function TurnstileWidget({
       script.defer = true;
       script.onload = initWidget;
       script.onerror = () => {
-        console.error('[Turnstile] Failed to load script');
+        logger.error('[Turnstile] Failed to load script');
         onError?.('Failed to load security verification');
       };
       document.head.appendChild(script);

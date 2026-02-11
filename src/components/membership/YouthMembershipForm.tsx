@@ -17,6 +17,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
@@ -59,7 +60,7 @@ export function YouthMembershipForm() {
         if (parsed.step) setStep(parsed.step);
         sessionStorage.removeItem('membershipYouthFormData');
       } catch (e) {
-        console.error('Failed to restore form data:', e);
+        logger.error('Failed to restore form data:', e);
       }
     }
   }, [isAuthenticated]);
@@ -224,7 +225,7 @@ export function YouthMembershipForm() {
           .upload(storagePath, documents.idDocument);
 
         if (uploadError) {
-          console.error('Upload error:', uploadError);
+          logger.error('Upload error:', uploadError);
           toast.error(t('membership.errorIdDocument'));
           setIsLoading(false);
           return;
@@ -244,7 +245,7 @@ export function YouthMembershipForm() {
           .upload(storagePath, documents.medicalCertificate);
 
         if (uploadError) {
-          console.error('Upload error:', uploadError);
+          logger.error('Upload error:', uploadError);
           toast.error(t('membership.errorGeneric'));
           setIsLoading(false);
           return;
@@ -333,7 +334,7 @@ export function YouthMembershipForm() {
         throw new Error(t('membership.errorPaymentSession'));
       }
     } catch (error: any) {
-      console.error('Error:', error);
+      logger.error('Error:', error);
       const errorMessage = error?.message || t('membership.errorGeneric');
       toast.error(errorMessage);
     } finally {

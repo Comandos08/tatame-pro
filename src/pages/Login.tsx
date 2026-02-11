@@ -13,6 +13,7 @@ import { useIdentity } from "@/contexts/IdentityContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -97,7 +98,7 @@ export default function Login() {
       });
       // DO NOT navigate here. Wait for isAuthenticated and then go to destination.
     } catch (error) {
-      console.error("Auth error:", error);
+      logger.error("Auth error:", error);
       const errorKey = getAuthErrorKey(error);
       toast({
         title: t("auth.error"),

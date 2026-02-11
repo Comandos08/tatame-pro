@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 import { Loader2, Lock, ArrowLeft, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
+import { logger } from "@/lib/logger";
 
 type ValidationState = "loading" | "valid" | "invalid";
 
@@ -53,7 +54,7 @@ export default function ResetPassword() {
           setValidationMessage(data.message || t('auth.invalidLink'));
         }
       } catch (error) {
-        console.error("Token validation error:", error);
+        logger.error("Token validation error:", error);
         setValidationState("invalid");
         setValidationMessage(t('auth.genericError'));
       }
@@ -105,7 +106,7 @@ export default function ResetPassword() {
       // PI Z0.4: Deterministic redirect — navigate immediately after confirmed success
       navigate("/login");
     } catch (error) {
-      console.error("Password reset error:", error);
+      logger.error("Password reset error:", error);
       toast({
         title: t('auth.resetError'),
         description: error instanceof Error ? error.message : t('auth.genericError'),

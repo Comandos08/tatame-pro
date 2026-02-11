@@ -26,6 +26,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { logger } from '@/lib/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -264,7 +265,7 @@ export default function ApprovalDetails() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Download error:', err);
+      logger.error('Download error:', err);
       toast.error(t('common.error'));
     } finally {
       setDownloadingDoc(null);
@@ -314,7 +315,7 @@ export default function ApprovalDetails() {
     },
     onError: (error) => {
       toast.error(error.message || t('approval.errorApprove'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -354,7 +355,7 @@ export default function ApprovalDetails() {
     },
     onError: (error) => {
       toast.error(error.message || t('approval.errorReject'));
-      console.error(error);
+      logger.error(error);
     },
   });
 

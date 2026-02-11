@@ -12,6 +12,7 @@ import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 export function MembershipTypeSelector() {
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ export function MembershipTypeSelector() {
         window.open(data.url, '_blank');
       }
     } catch (err) {
-      console.error('Error opening portal:', err);
+      logger.error('Error opening portal:', err);
       toast.error(t('billing.openPortalError'));
     } finally {
       setIsOpeningPortal(false);

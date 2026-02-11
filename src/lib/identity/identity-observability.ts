@@ -85,11 +85,9 @@ export function devLogIdentityObservation(payload: {
   console.groupCollapsed(
     `[IdentityObs] ${event.from ?? '∅'} → ${event.to} @ ${event.pathname}`
   );
-  // eslint-disable-next-line no-console
-  console.log('event', event);
+  logger.log('event', event);
   if (violations.length) {
-    // eslint-disable-next-line no-console
-    console.warn('violations', violations);
+    logger.warn('violations', violations);
   }
   // eslint-disable-next-line no-console
   console.groupEnd();

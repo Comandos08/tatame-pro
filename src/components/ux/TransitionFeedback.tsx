@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertTriangle, AlertCircle, Loader2, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 // =============================================================================
 // TYPES
@@ -133,14 +134,12 @@ export function TransitionFeedback({
 }: TransitionFeedbackProps) {
   const { t } = useI18n();
 
-  // DEV-only: warn if required i18n key is missing
-  if (import.meta.env.DEV) {
-    const titleValue = t(titleKey);
-    if (titleValue === titleKey) {
-      console.warn(
-        `[TransitionFeedback] Missing i18n key: "${titleKey}". Add it to locale files.`
-      );
-    }
+  // DEV-only: warn if required i18n key is missing (logger gates by env)
+  const titleValue = t(titleKey);
+  if (titleValue === titleKey) {
+    logger.warn(
+      `[TransitionFeedback] Missing i18n key: "${titleKey}". Add it to locale files.`
+    );
   }
 
   // Idle state: render nothing

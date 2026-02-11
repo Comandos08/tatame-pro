@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { logger } from '@/lib/logger';
 import {
   Dialog,
   DialogContent,
@@ -180,7 +181,7 @@ export default function TenantControl() {
       setAuditLogs(logsData as AuditLogEntry[]);
 
     } catch (error) {
-      console.error('Error fetching tenant data:', error);
+      logger.error('Error fetching tenant data:', error);
       toast({
         title: t('common.error'),
         description: t('controlTower.loadError'),
@@ -290,7 +291,7 @@ export default function TenantControl() {
       fetchData(); // Refresh data
 
     } catch (error) {
-      console.error('Action error:', error);
+      logger.error('Action error:', error);
       toast({
         title: t('common.error'),
         description: error instanceof Error ? error.message : t('controlTower.actionFailed'),

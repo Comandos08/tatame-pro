@@ -12,6 +12,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import {
   type InstitutionalFeatureFlag,
   type FeatureFlagMap,
@@ -40,7 +41,7 @@ export function useFeatureFlags(tenantId?: string): UseFeatureFlagsResult {
       );
 
       if (error || !data) {
-        console.error('[U15-FLAGS] Edge Function failed:', error);
+        logger.error('[U15-FLAGS] Edge Function failed:', error);
         return buildDefaultFlagMap();
       }
 

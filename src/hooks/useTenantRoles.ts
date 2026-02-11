@@ -13,6 +13,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import { AppRole } from '@/types/auth';
 import { useCurrentUser } from '@/contexts/AuthContext';
 
@@ -62,7 +63,7 @@ export function useTenantRoles(tenantId: string | null | undefined): TenantRoles
         .eq('tenant_id', tenantId);
 
       if (error) {
-        console.error('useTenantRoles: Failed to fetch roles', error);
+        logger.error('useTenantRoles: Failed to fetch roles', error);
         throw error;
       }
 
@@ -121,7 +122,7 @@ export async function fetchTenantRoles(
     .eq('tenant_id', tenantId);
 
   if (error) {
-    console.error('fetchTenantRoles: Failed to fetch roles', error);
+    logger.error('fetchTenantRoles: Failed to fetch roles', error);
     return []; // Deny by default on error
   }
 

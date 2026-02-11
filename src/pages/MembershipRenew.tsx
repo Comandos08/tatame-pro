@@ -22,6 +22,7 @@ import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner'
 import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveAthletePostLoginRedirect, MembershipStatus } from '@/lib/resolveAthletePostLoginRedirect';
+import { logger } from '@/lib/logger';
 import { MEMBERSHIP_PRICE_CENTS, MEMBERSHIP_CURRENCY } from '@/types/membership';
 import { toast } from 'sonner';
 
@@ -95,7 +96,7 @@ export default function MembershipRenew() {
           });
         }
       } catch (error) {
-        console.error('Error fetching membership:', error);
+        logger.error('Error fetching membership:', error);
       } finally {
         setIsLoadingMembership(false);
       }
@@ -187,7 +188,7 @@ export default function MembershipRenew() {
         throw new Error(t('membership.errorPaymentSession'));
       }
     } catch (error: unknown) {
-      console.error('Renewal error:', error);
+      logger.error('Renewal error:', error);
       const errorMessage = error instanceof Error ? error.message : t('membership.errorGeneric');
       toast.error(errorMessage);
     } finally {

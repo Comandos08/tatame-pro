@@ -220,13 +220,13 @@ function processDecision(input: NotificationInput): void {
   
   if (shouldSend(decision)) {
     // TypeScript knows decision has templateId, ctaUrl, locale, payload
-    console.log(`Template: ${decision.templateId}`);
-    console.log(`CTA: ${decision.ctaUrl}`);
-    console.log(`Locale: ${decision.locale}`);
+    logger.log(`Template: ${decision.templateId}`);
+    logger.log(`CTA: ${decision.ctaUrl}`);
+    logger.log(`Locale: ${decision.locale}`);
     // This is where the email sender would be called
   } else {
     // TypeScript knows decision only has shouldSendEmail: false
-    console.log('No email to send');
+    logger.log('No email to send');
   }
 }
 

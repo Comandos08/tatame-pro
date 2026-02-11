@@ -13,6 +13,7 @@ import { Clock, AlertTriangle, XCircle, CreditCard, X, Loader2 } from 'lucide-re
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
+import { logger } from '@/lib/logger';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
@@ -43,7 +44,7 @@ export function TrialStatusBanner() {
         throw new Error('Portal URL not returned');
       }
     } catch (err) {
-      console.error('Error opening portal:', err);
+      logger.error('Error opening portal:', err);
       toast.error(t('billing.openPortalError'));
     } finally {
       setIsOpeningPortal(false);
