@@ -1,14 +1,15 @@
 /**
- * PI-A07 — Institutional Error Envelope (SAFE GOLD)
+ * PI-A07 — Institutional Error & Success Envelope (SAFE GOLD)
  *
- * Single source of truth for all Edge Function error responses.
- * Every error MUST use this envelope — no ad-hoc { error: "..." } allowed.
+ * Single source of truth for all Edge Function responses.
+ * Every response MUST use this envelope — no ad-hoc payloads allowed.
  *
  * SAFE GOLD RULES:
  * - No mutations
  * - Deterministic output
  * - Never expose stack traces
- * - Always include timestamp + retryable
+ * - Always include timestamp + retryable (errors)
+ * - Always include correlationId when available
  */
 
 // ============================================================================
@@ -33,7 +34,7 @@ export const ERROR_CODES = {
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 
 // ============================================================================
-// ENVELOPE TYPE
+// ERROR ENVELOPE TYPE
 // ============================================================================
 
 export interface InstitutionalErrorEnvelope {
@@ -42,11 +43,23 @@ export interface InstitutionalErrorEnvelope {
   messageKey: string;
   retryable: boolean;
   timestamp: string;
+  correlationId?: string;
   details?: string[];
 }
 
 // ============================================================================
-// BUILDER — Pure, deterministic
+// SUCCESS ENVELOPE TYPE
+// ============================================================================
+
+export interface InstitutionalSuccessEnvelope<T = unknown> {
+  ok: true;
+  data: T;
+  correlationId?: string;
+  timestamp: string;
+}
+
+// ============================================================================
+// ERROR BUILDER — Pure, deterministic
 // ============================================================================
 
 export function buildErrorEnvelope(
@@ -54,6 +67,7 @@ export function buildErrorEnvelope(
   messageKey: string,
   retryable = false,
   details?: string[],
+  correlationId?: string,
 ): InstitutionalErrorEnvelope {
   return {
     ok: false,
@@ -61,12 +75,29 @@ export function buildErrorEnvelope(
     messageKey,
     retryable,
     timestamp: new Date().toISOString(),
+    ...(correlationId ? { correlationId } : {}),
     ...(details && details.length ? { details } : {}),
   };
 }
 
 // ============================================================================
-// RESPONSE HELPER
+// SUCCESS BUILDER — Pure, deterministic
+// ============================================================================
+
+export function buildSuccessEnvelope<T>(
+  data: T,
+  correlationId?: string,
+): InstitutionalSuccessEnvelope<T> {
+  return {
+    ok: true,
+    data,
+    ...(correlationId ? { correlationId } : {}),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// ============================================================================
+// RESPONSE HELPERS
 // ============================================================================
 
 export function errorResponse(
@@ -76,6 +107,20 @@ export function errorResponse(
 ): Response {
   return new Response(JSON.stringify(envelope), {
     status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+export function okResponse<T>(
+  data: T,
+  corsHeaders: Record<string, string>,
+  correlationId?: string,
+): Response {
+  return new Response(JSON.stringify(buildSuccessEnvelope(data, correlationId)), {
+    status: 200,
     headers: {
       ...corsHeaders,
       "Content-Type": "application/json",
@@ -96,10 +141,11 @@ export function unauthorizedResponse(
   corsHeaders: Record<string, string> = DEFAULT_CORS,
   messageKey = "auth.invalid_token",
   details?: string[],
+  correlationId?: string,
 ): Response {
   return errorResponse(
     401,
-    buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, messageKey, false, details),
+    buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, messageKey, false, details, correlationId),
     corsHeaders,
   );
 }
@@ -108,10 +154,11 @@ export function forbiddenResponse(
   corsHeaders: Record<string, string> = DEFAULT_CORS,
   messageKey = "auth.forbidden",
   details?: string[],
+  correlationId?: string,
 ): Response {
   return errorResponse(
     403,
-    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, messageKey, false, details),
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, messageKey, false, details, correlationId),
     corsHeaders,
   );
 }
@@ -120,6 +167,7 @@ export function rpcErrorResponse(
   corsHeaders: Record<string, string> = DEFAULT_CORS,
   rpcName: string,
   message?: string,
+  correlationId?: string,
 ): Response {
   return errorResponse(
     500,
@@ -128,6 +176,7 @@ export function rpcErrorResponse(
       "system.rpc_failed",
       false,
       [`${rpcName}: ${message || "unknown error"}`],
+      correlationId,
     ),
     corsHeaders,
   );

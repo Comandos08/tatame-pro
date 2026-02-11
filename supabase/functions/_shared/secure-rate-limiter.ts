@@ -14,6 +14,7 @@
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logSecurityEvent, SECURITY_EVENTS, extractRequestContext } from "./security-logger.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "./errors/envelope.ts";
 
 export interface SecureRateLimitConfig {
   /** Operation name for key prefix */
@@ -229,30 +230,26 @@ export class SecureRateLimiter {
   }
 
   /**
-   * Create 429 Too Many Requests response
+   * Create 429 Too Many Requests response (A07 Envelope)
    */
   tooManyRequestsResponse(
-    result: SecureRateLimitResult, 
-    corsHeaders: Record<string, string>
+    result: SecureRateLimitResult,
+    corsHeaders: Record<string, string>,
+    correlationId?: string,
   ): Response {
     const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: "Too many requests. Please try again later.",
-        code: "RATE_LIMITED",
-        retryAfter,
-      }),
-      {
-        status: 429,
-        headers: {
-          ...corsHeaders,
-          ...this.getHeaders(result),
-          "Content-Type": "application/json",
-          "Retry-After": retryAfter.toString(),
-        },
-      }
+    const envelope = buildErrorEnvelope(
+      ERROR_CODES.RATE_LIMITED,
+      "system.rate_limited",
+      true,
+      [`Retry after ${retryAfter}s`],
+      correlationId,
     );
+    return errorResponse(429, envelope, {
+      ...corsHeaders,
+      ...this.getHeaders(result),
+      "Retry-After": retryAfter.toString(),
+    });
   }
 }
 
@@ -313,6 +310,70 @@ export const SecureRateLimitPresets = {
   passwordReset: () => new SecureRateLimiter({
     operation: "password-reset",
     limit: 5,
+    windowSeconds: 3600,
+  }),
+
+  /** Admin create user: 10 per hour per admin */
+  adminCreateUser: () => new SecureRateLimiter({
+    operation: "admin-create-user",
+    limit: 10,
+    windowSeconds: 3600,
+  }),
+
+  /** Publish bracket: 20 per hour per admin */
+  publishBracket: () => new SecureRateLimiter({
+    operation: "publish-bracket",
+    limit: 20,
+    windowSeconds: 3600,
+  }),
+
+  /** Generate bracket: 20 per hour per admin */
+  generateBracket: () => new SecureRateLimiter({
+    operation: "generate-bracket",
+    limit: 20,
+    windowSeconds: 3600,
+  }),
+
+  /** Record match result: 100 per hour per admin */
+  recordMatch: () => new SecureRateLimiter({
+    operation: "record-match",
+    limit: 100,
+    windowSeconds: 3600,
+  }),
+
+  /** Verify document (public): 60 per minute per IP, fail-open */
+  verifyDocument: () => new SecureRateLimiter({
+    operation: "verify-document",
+    limit: 60,
+    windowSeconds: 60,
+    failClosed: false,
+  }),
+
+  /** Create subscription: 5 per hour per user */
+  createSubscription: () => new SecureRateLimiter({
+    operation: "create-subscription",
+    limit: 5,
+    windowSeconds: 3600,
+  }),
+
+  /** Create tenant admin: 5 per hour per user */
+  createTenantAdmin: () => new SecureRateLimiter({
+    operation: "create-tenant-admin",
+    limit: 5,
+    windowSeconds: 3600,
+  }),
+
+  /** Billing control: 10 per hour per superadmin */
+  billingControl: () => new SecureRateLimiter({
+    operation: "billing-control",
+    limit: 10,
+    windowSeconds: 3600,
+  }),
+
+  /** Membership checkout: 10 per hour per user */
+  membershipCheckout: () => new SecureRateLimiter({
+    operation: "membership-checkout",
+    limit: 10,
     windowSeconds: 3600,
   }),
 };
