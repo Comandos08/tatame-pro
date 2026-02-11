@@ -59,6 +59,10 @@ export const ptBR = {
   'trust.narrative.noData.title': 'Nenhum registro encontrado',
   'trust.narrative.noData.message': 'Não há dados disponíveis para exibição nesta área.',
 
+  // Manifesto — PI U19
+  'manifesto.title': 'Sistema estável e sob controle',
+  'manifesto.message': 'Este ambiente opera com integridade, governança e rastreabilidade. A plataforma está saudável, os acessos são legítimos e as regras são respeitadas.',
+
   // Common
   'common.loading': 'Carregando...',
   'common.verifyingAccess': 'Verificando seu acesso...',

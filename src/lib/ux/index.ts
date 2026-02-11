@@ -39,3 +39,9 @@ export {
   type TrustNarrative,
   type TrustNarrativeKind,
 } from './trustNarrative';
+
+export {
+  deriveManifestoMode,
+  type Manifesto,
+  type ManifestoKind,
+} from './manifestoMode';
