@@ -76,7 +76,58 @@ jobs:
           fi
           echo "✅ config.toml found"
 
+      - name: G1 — No raw console in Edge Functions
+        run: |
+          echo "🔍 G1: Checking for raw console.* outside backend-logger.ts..."
+          if grep -rn "console\.\(log\|error\|warn\|info\)" supabase/functions --include="*.ts" \
+            | grep -Ev "_tests/|\.test\.ts|_shared/backend-logger\.ts"; then
+            echo "❌ FAIL: Raw console.* found outside backend-logger.ts"
+            exit 1
+          fi
+          echo "✅ G1 passed"
+
+      - name: G2 — No ad-hoc error responses
+        run: |
+          echo "🔍 G2: Checking for ad-hoc { error } responses..."
+          if grep -rn 'JSON\.stringify({[[:space:]]*error:' supabase/functions --include="*.ts" \
+            | grep -Ev "_tests/|\.test\.ts|_shared/"; then
+            echo "❌ FAIL: Ad-hoc { error } response found"
+            exit 1
+          fi
+          echo "✅ G2 passed"
+
+      - name: G3 — All functions must use envelope helpers
+        run: |
+          echo "🔍 G3: Checking envelope usage in all Edge Functions..."
+          FAILED=0
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            [[ "$fn" == _* ]] && continue
+            if ! grep -q "okResponse\|errorResponse" "$dir/index.ts" 2>/dev/null; then
+              echo "❌ FAIL: $fn does not use envelope helpers"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G3 passed"
+
+      - name: G4 — All functions must use backend-logger
+        run: |
+          echo "🔍 G4: Checking backend-logger usage in all Edge Functions..."
+          FAILED=0
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            [[ "$fn" == _* ]] && continue
+            if ! grep -q "backend-logger" "$dir/index.ts" 2>/dev/null; then
+              echo "❌ FAIL: $fn does not import backend-logger"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "✅ G4 passed"
+
       - name: Summary
         run: |
           echo "✅ Supabase Governance Check PASSED"
           echo "📋 SAFE GOLD compliance verified"
+          echo "🛡️ Gates G1-G4 enforced"
