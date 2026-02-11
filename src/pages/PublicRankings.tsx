@@ -72,15 +72,15 @@ export default function PublicRankings() {
           });
 
           // Merge counts with academies
-          const academyWithCounts = academiesData.map(academy => ({
+          const academyWithCounts = academiesData.map((academy: { id: string; name: string; city: string | null; state: string | null }) => ({
             ...academy,
             athlete_count: academyCounts[academy.id] || 0,
           }));
 
           // Sort by athlete count and take top 10 with at least 1 athlete
           const sorted = academyWithCounts
-            .filter(a => a.athlete_count > 0)
-            .sort((a, b) => b.athlete_count - a.athlete_count)
+            .filter((a: { athlete_count: number }) => a.athlete_count > 0)
+            .sort((a: { athlete_count: number }, b: { athlete_count: number }) => b.athlete_count - a.athlete_count)
             .slice(0, 10);
           
           setAcademyRankings(sorted);
@@ -109,7 +109,7 @@ export default function PublicRankings() {
           const academiesForAthletes = academiesData || [];
 
           const academyMap: Record<string, string> = {};
-          academiesForAthletes?.forEach(a => {
+          academiesForAthletes?.forEach((a: { id: string; name: string }) => {
             academyMap[a.id] = a.name;
           });
 
@@ -121,7 +121,8 @@ export default function PublicRankings() {
             gradingCountMap[g.athlete_id] = (gradingCountMap[g.athlete_id] || 0) + 1;
             // First occurrence is the most recent due to ordering
             if (!lastGradingMap[g.athlete_id]) {
-              lastGradingMap[g.athlete_id] = (g.grading_levels as any)?.display_name || null;
+              const gradingLevel = g.grading_levels as { display_name: string } | null;
+              lastGradingMap[g.athlete_id] = gradingLevel?.display_name || null;
             }
           });
 
