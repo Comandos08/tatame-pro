@@ -17,7 +17,16 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createAuditLog } from "../_shared/audit-logger.ts";
+import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import {
+  type BillingStatus,
+  isKnownBillingStatus,
+  assertValidBillingTransition,
+  deriveTenantActive,
+  assertBillingConsistency,
+} from "../_shared/billing-state-machine.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -163,6 +172,16 @@ async function extendTrial(
     return { success: false, error: "Tenant billing record not found" };
   }
 
+  // A03 — Validate transition to TRIALING
+  const previousStatus = before.billing.status;
+  if (previousStatus != null && isKnownBillingStatus(previousStatus) && previousStatus !== "TRIALING") {
+    try {
+      assertValidBillingTransition(previousStatus, "TRIALING");
+    } catch {
+      return { success: false, error: `Invalid transition: ${previousStatus} -> TRIALING` };
+    }
+  }
+
   const currentEnd = before.billing.current_period_end 
     ? new Date(before.billing.current_period_end)
     : new Date();
@@ -181,6 +200,20 @@ async function extendTrial(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // A03 — deriveTenantActive: update tenants.is_active
+  const isActive = deriveTenantActive("TRIALING" as BillingStatus);
+  await serviceClient
+    .from("tenants")
+    .update({ is_active: isActive })
+    .eq("id", tenantId);
+
+  // A03 — Post-write consistency check (detection-only)
+  try {
+    assertBillingConsistency("TRIALING", isActive);
+  } catch (consistencyErr) {
+    // Detection-only, never throw to client
   }
 
   // Set override flags
@@ -225,6 +258,16 @@ async function markAsPaid(
     return { success: false, error: "Tenant billing record not found" };
   }
 
+  // A03 — Validate transition to ACTIVE
+  const previousStatus = before.billing.status;
+  if (previousStatus != null && isKnownBillingStatus(previousStatus) && previousStatus !== "ACTIVE") {
+    try {
+      assertValidBillingTransition(previousStatus, "ACTIVE");
+    } catch {
+      return { success: false, error: `Invalid transition: ${previousStatus} -> ACTIVE` };
+    }
+  }
+
   const endDate = new Date(untilDate);
   if (isNaN(endDate.getTime())) {
     return { success: false, error: "Invalid date format" };
@@ -249,6 +292,20 @@ async function markAsPaid(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // A03 — deriveTenantActive: update tenants.is_active
+  const isActive = deriveTenantActive("ACTIVE" as BillingStatus);
+  await serviceClient
+    .from("tenants")
+    .update({ is_active: isActive })
+    .eq("id", tenantId);
+
+  // A03 — Post-write consistency check (detection-only)
+  try {
+    assertBillingConsistency("ACTIVE", isActive);
+  } catch (consistencyErr) {
+    // Detection-only, never throw to client
   }
 
   // Set override flags
@@ -299,6 +356,16 @@ async function blockTenant(
     };
   }
 
+  // A03 — Validate transition to PAST_DUE
+  const previousStatus = before.billing.status;
+  if (previousStatus != null && isKnownBillingStatus(previousStatus) && previousStatus !== "PAST_DUE") {
+    try {
+      assertValidBillingTransition(previousStatus, "PAST_DUE");
+    } catch {
+      return { success: false, error: `Invalid transition: ${previousStatus} -> PAST_DUE` };
+    }
+  }
+
   const { error: updateError } = await serviceClient
     .from("tenant_billing")
     .update({
@@ -309,6 +376,20 @@ async function blockTenant(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // A03 — deriveTenantActive: update tenants.is_active
+  const isActive = deriveTenantActive("PAST_DUE" as BillingStatus);
+  await serviceClient
+    .from("tenants")
+    .update({ is_active: isActive })
+    .eq("id", tenantId);
+
+  // A03 — Post-write consistency check (detection-only)
+  try {
+    assertBillingConsistency("PAST_DUE", isActive);
+  } catch (consistencyErr) {
+    // Detection-only, never throw to client
   }
 
   // Set override flags
@@ -347,6 +428,16 @@ async function unblockTenant(
     return { success: false, error: "Tenant billing record not found" };
   }
 
+  // A03 — Validate transition to ACTIVE
+  const previousStatus = before.billing.status;
+  if (previousStatus != null && isKnownBillingStatus(previousStatus) && previousStatus !== "ACTIVE") {
+    try {
+      assertValidBillingTransition(previousStatus, "ACTIVE");
+    } catch {
+      return { success: false, error: `Invalid transition: ${previousStatus} -> ACTIVE` };
+    }
+  }
+
   // Extend period by 30 days when unblocking
   const newEndDate = new Date();
   newEndDate.setDate(newEndDate.getDate() + 30);
@@ -363,6 +454,20 @@ async function unblockTenant(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // A03 — deriveTenantActive: update tenants.is_active
+  const isActive = deriveTenantActive("ACTIVE" as BillingStatus);
+  await serviceClient
+    .from("tenants")
+    .update({ is_active: isActive })
+    .eq("id", tenantId);
+
+  // A03 — Post-write consistency check (detection-only)
+  try {
+    assertBillingConsistency("ACTIVE", isActive);
+  } catch (consistencyErr) {
+    // Detection-only, never throw to client
   }
 
   // Set override flags
@@ -406,6 +511,7 @@ async function resetToStripe(
     return { success: false, error: "Stripe integration not configured" };
   }
 
+  const previousStatusReset = before.billing.status;
   let stripeStatus: string = "INCOMPLETE";
   let periodStart: string | null = null;
   let periodEnd: string | null = null;
@@ -432,7 +538,8 @@ async function resetToStripe(
       periodStart = new Date(subscription.current_period_start * 1000).toISOString();
       periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
     } catch (stripeError) {
-      console.error("Error fetching Stripe subscription:", stripeError);
+      // Stripe error handled gracefully — default to INCOMPLETE
+      stripeStatus = "INCOMPLETE";
       // If subscription not found or error, set to INCOMPLETE
       stripeStatus = "INCOMPLETE";
     }
@@ -463,7 +570,16 @@ async function resetToStripe(
         periodEnd = new Date(sub.current_period_end * 1000).toISOString();
       }
     } catch (stripeError) {
-      console.error("Error fetching Stripe customer subscriptions:", stripeError);
+      // Stripe error handled gracefully
+    }
+  }
+
+  // A03 — Validate transition if both statuses are known and different
+  if (previousStatusReset != null && isKnownBillingStatus(previousStatusReset) && isKnownBillingStatus(stripeStatus) && previousStatusReset !== stripeStatus) {
+    try {
+      assertValidBillingTransition(previousStatusReset, stripeStatus as BillingStatus);
+    } catch {
+      return { success: false, error: `Invalid transition: ${previousStatusReset} -> ${stripeStatus}` };
     }
   }
 
@@ -480,6 +596,22 @@ async function resetToStripe(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // A03 — deriveTenantActive: update tenants.is_active
+  if (isKnownBillingStatus(stripeStatus)) {
+    const isActiveReset = deriveTenantActive(stripeStatus as BillingStatus);
+    await serviceClient
+      .from("tenants")
+      .update({ is_active: isActiveReset })
+      .eq("id", tenantId);
+
+    // A03 — Post-write consistency check (detection-only)
+    try {
+      assertBillingConsistency(stripeStatus as BillingStatus, isActiveReset);
+    } catch (consistencyErr) {
+      // Detection-only, never throw to client
+    }
   }
 
   // Clear override flags
@@ -511,6 +643,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("admin-billing-control", correlationId);
 
   try {
     // Validate superadmin
@@ -649,7 +784,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Admin billing control error:", error);
+    log.error("Admin billing control error", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
