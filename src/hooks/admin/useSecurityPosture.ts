@@ -8,7 +8,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { logger } from '@/lib/logger';
 
 // ============================================
 // TYPES
@@ -66,8 +65,8 @@ export interface SecurityPostureReport {
 // STATE DERIVATION (Pure function)
 // ============================================
 
-export function deriveSecurityPosture(report: SecurityPostureReport | null | undefined): SecurityPostureState {
-  if (!report || !report.ok) return 'ERROR';
+export function deriveSecurityPosture(report: SecurityPostureReport): SecurityPostureState {
+  if (!report.ok || !report.summary) return 'ERROR';
   if (report.summary.policies.critical > 0) return 'CRITICAL';
   if (report.summary.policies.high > 0) return 'WARNING';
   return 'OK';
@@ -81,52 +80,43 @@ export function useSecurityPosture() {
   const query = useQuery<SecurityPostureReport>({
     queryKey: ['security-posture-audit'],
     queryFn: async ({ signal }): Promise<SecurityPostureReport> => {
-      const timeoutId = setTimeout(() => {
-        if (!signal?.aborted) {
-          logger.warn('[useSecurityPosture] Request approaching 10s timeout');
-        }
-      }, 9000);
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error('NOT_AUTHENTICATED');
-        }
-
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/audit-rls`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            signal: AbortSignal.timeout(10000),
-          },
-        );
-
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body.messageKey || `HTTP_${response.status}`);
-        }
-
-        const report: SecurityPostureReport = await response.json();
-        return report;
-      } finally {
-        clearTimeout(timeoutId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('NOT_AUTHENTICATED');
       }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/audit-rls`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          signal,
+        },
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.messageKey || `HTTP_${response.status}`);
+      }
+
+      const report: SecurityPostureReport = await response.json();
+      return report;
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     retry: 1,
   });
 
-  const postureState: SecurityPostureState = query.isLoading
-    ? 'LOADING'
-    : query.isError
-      ? 'ERROR'
-      : deriveSecurityPosture(query.data);
+  const postureState: SecurityPostureState = (() => {
+    if (query.isLoading) return 'LOADING';
+    if (query.isError) return 'ERROR';
+    if (!query.data) return 'ERROR';
+    return deriveSecurityPosture(query.data);
+  })();
 
   return {
     ...query,
