@@ -57,6 +57,61 @@ interface DefinerFinding {
   reason: string;
 }
 
+interface AnonPolicyRow {
+  schemaname: string;
+  tablename: string;
+  policyname: string;
+  cmd: string;
+  permissive: string;
+  roles: string[];
+  qual: string | null;
+  with_check: string | null;
+}
+
+interface PiiExposureFinding {
+  table: string;
+  policy: string;
+  cmd: string;
+  risk: "CRITICAL" | "HIGH" | "SAFE";
+  reason: string;
+}
+
+// ============================================================================
+// PII CONTRACT — Explicit lists (mirrors src/domain/security/piiContract.ts)
+// ============================================================================
+
+const PII_SENSITIVE_TABLES = new Set([
+  "profiles", "user_roles", "memberships", "athletes", "guardians",
+  "guardian_links", "coaches", "audit_logs", "decision_logs",
+  "security_events", "digital_cards", "diplomas", "documents",
+  "password_resets", "superadmin_impersonations", "tenant_billing",
+  "tenant_invoices", "webhook_events",
+]);
+
+const PII_PUBLIC_SAFE_TABLES = new Set([
+  "platform_landing_config", "platform_partners",
+  "billing_environment_config", "feature_access",
+]);
+
+function classifyAnonAccess(
+  tablename: string,
+  cmd: string,
+  policyname: string,
+): PiiExposureFinding {
+  const isWrite = cmd === "INSERT" || cmd === "UPDATE" || cmd === "DELETE" || cmd === "ALL";
+
+  if (isWrite) {
+    return { table: tablename, policy: policyname, cmd, risk: "CRITICAL", reason: `Anonymous ${cmd} access — potential data mutation` };
+  }
+  if (PII_SENSITIVE_TABLES.has(tablename)) {
+    return { table: tablename, policy: policyname, cmd, risk: "CRITICAL", reason: `Anonymous SELECT on sensitive PII table '${tablename}'` };
+  }
+  if (!PII_PUBLIC_SAFE_TABLES.has(tablename)) {
+    return { table: tablename, policy: policyname, cmd, risk: "HIGH", reason: `Anonymous SELECT on '${tablename}' not in PUBLIC_SAFE_TABLES` };
+  }
+  return { table: tablename, policy: policyname, cmd, risk: "SAFE", reason: "Anonymous SELECT on explicitly public table" };
+}
+
 // ============================================================================
 // RISK CLASSIFICATION — RLS POLICIES
 // ============================================================================
@@ -291,6 +346,30 @@ serve(async (req) => {
     const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map(r => r.tablename);
 
     // ====================================================================
+    // PHASE 4: PII Exposure Audit — Anon Access Snapshot (PI-A08)
+    // ====================================================================
+    let piiExposure: PiiExposureFinding[] = [];
+    try {
+      const { data: anonPolicies, error: anonError } = await supabase
+        .rpc("audit_public_access_snapshot");
+
+      if (!anonError && anonPolicies) {
+        const policies_arr = Array.isArray(anonPolicies) ? anonPolicies : (anonPolicies as unknown as AnonPolicyRow[]);
+        piiExposure = (policies_arr as AnonPolicyRow[]).map((p) =>
+          classifyAnonAccess(p.tablename, p.cmd, p.policyname)
+        );
+      }
+    } catch {
+      // Non-fatal: PII audit is additive
+      console.warn("[AUDIT-RLS] PII exposure audit failed (non-fatal)");
+    }
+
+    const piiCounts = { critical: 0, high: 0, safe: 0 };
+    for (const f of piiExposure) {
+      piiCounts[f.risk.toLowerCase() as keyof typeof piiCounts]++;
+    }
+
+    // ====================================================================
     // BUILD REPORT
     // ====================================================================
     const policyCounts = { critical: 0, high: 0, medium: 0, safe: 0 };
@@ -316,12 +395,18 @@ serve(async (req) => {
           ...definerCounts,
         },
         tablesWithoutRls: tablesWithoutRls.length,
+        piiExposure: {
+          total: piiExposure.length,
+          ...piiCounts,
+        },
       },
       policies: policyFindings.filter(f => f.risk !== "SAFE"),
       securityDefinerFunctions: definerFindings.filter(f => f.risk !== "SAFE"),
       tablesWithoutRls,
+      piiExposure: piiExposure.filter(f => f.risk !== "SAFE"),
       allPolicies: policyFindings,
       allDefinerFunctions: definerFindings,
+      allPiiExposure: piiExposure,
     };
 
     return new Response(JSON.stringify(report, null, 2), {

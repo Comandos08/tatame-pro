@@ -97,7 +97,7 @@ async function validateSuperadmin(authHeader: string): Promise<{ valid: boolean;
 async function getCurrentBillingState(serviceClient: ReturnType<typeof getServiceClient>, tenantId: string) {
   const { data: billing } = await serviceClient
     .from("tenant_billing")
-    .select("*")
+    .select("tenant_id, status, current_period_start, current_period_end, stripe_subscription_id, stripe_customer_id, is_manual_override, override_by, override_at, override_reason, updated_at")
     .eq("tenant_id", tenantId)
     .maybeSingle();
 

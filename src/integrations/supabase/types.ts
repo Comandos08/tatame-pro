@@ -3129,6 +3129,7 @@ export type Database = {
         Args: { _athlete_id: string }
         Returns: boolean
       }
+      audit_public_access_snapshot: { Args: never; Returns: Json }
       audit_rls_snapshot: {
         Args: never
         Returns: {
