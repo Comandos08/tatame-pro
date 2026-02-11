@@ -210,3 +210,55 @@ describe('Null/missing billing', () => {
     expect(result).toBeNull();
   });
 });
+
+// ============================================================================
+// T9 — Hierarchy determinism (institutional blindagem)
+// ============================================================================
+describe('Hierarchy determinism', () => {
+  it('returns exactly one reason — the highest precedence — when multiple blocks coexist', () => {
+    const result = deriveNextBestAction(okInput({
+      identityState: 'loading',
+      tenantLifecycle: 'BLOCKED',
+      billingStatus: 'PAST_DUE',
+      canAccess: false,
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.reason).toBe('IDENTITY_LOADING');
+  });
+
+  it('wizard_required outranks all downstream blocks', () => {
+    const result = deriveNextBestAction(okInput({
+      identityState: 'wizard_required',
+      tenantLifecycle: 'BLOCKED',
+      billingStatus: 'PAST_DUE',
+      canAccess: false,
+    }));
+    expect(result!.reason).toBe('WIZARD_REQUIRED');
+  });
+
+  it('tenant DELETED outranks billing + access denied', () => {
+    const result = deriveNextBestAction(okInput({
+      tenantLifecycle: 'DELETED',
+      billingStatus: 'UNPAID',
+      canAccess: false,
+    }));
+    expect(result!.reason).toBe('TENANT_BLOCKED');
+  });
+
+  it('billing blocked outranks access denied when no override', () => {
+    const result = deriveNextBestAction(okInput({
+      billingStatus: 'PAST_DUE',
+      canAccess: false,
+    }));
+    expect(result!.reason).toBe('BILLING_BLOCKED');
+  });
+
+  it('access denied surfaces when billing is overridden and tenant is ACTIVE', () => {
+    const result = deriveNextBestAction(okInput({
+      billingStatus: 'PAST_DUE',
+      billingOverride: true,
+      canAccess: false,
+    }));
+    expect(result!.reason).toBe('ACCESS_DENIED');
+  });
+});

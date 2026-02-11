@@ -67,19 +67,37 @@ export const BLOCK_REASON_I18N: Record<BlockReason, { titleKey: string; descript
   NO_DATA:          { titleKey: 'emptyState.noData.title',          descriptionKey: 'emptyState.noData.description' },
 } as const;
 
+// ── Precedence (Institutional Contract) ────────────────────────────────────
+
+/**
+ * Canonical blocking precedence order.
+ * See docs/DOMAIN_BLOCKING_HIERARCHY.md
+ */
+export const BLOCKING_PRECEDENCE = [
+  'IDENTITY_LOADING',
+  'TENANT_BLOCKED',
+  'BILLING_BLOCKED',
+  'NO_PERMISSION',
+  'FEATURE_DISABLED',
+  'NO_DATA',
+] as const;
+
 // ── Derivation ─────────────────────────────────────────────────────────────
 
 /**
- * Derive the single block reason from current institutional state.
+ * INSTITUTIONAL CONTRACT — Blocking Hierarchy
  *
- * Priority order (ABSOLUTE — mirrors U13/U10):
- * 1. Loading → IDENTITY_LOADING
- * 2. Tenant BLOCKED/DELETED → TENANT_BLOCKED
- * 3. Billing PAST_DUE/UNPAID/PENDING_DELETE → BILLING_BLOCKED
- * 4. No permission → NO_PERMISSION
- * 5. Feature disabled → FEATURE_DISABLED
- * 6. No data → NO_DATA
- * 7. Default → null (everything OK)
+ * Precedence order:
+ * 1. Identity loading (system not ready)
+ * 2. Tenant lifecycle (BLOCKED/DELETED — structural)
+ * 3. Billing (PAST_DUE/UNPAID/PENDING_DELETE — unless billingOverride === true)
+ * 4. Access (canAccess === false)
+ * 5. Feature disabled
+ * 6. No data
+ *
+ * Financial overrides NEVER bypass structural lifecycle blocks.
+ *
+ * See docs/DOMAIN_BLOCKING_HIERARCHY.md
  */
 export function deriveBlockReason(ctx: BlockReasonContext): BlockReason | null {
   // 1. Loading — system not ready
