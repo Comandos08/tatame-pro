@@ -34,6 +34,15 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import {
+  parseRequestBody,
+  validateInput,
+  validationErrorResponse,
+} from "../_shared/validation/validate.ts";
+import {
+  GrantRolesSchema,
+  type ValidRole,
+} from "../_shared/validation/schemas/grant-roles.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,26 +54,6 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[GRANT-ROLES] ${step}${detailsStr}`);
 };
 
-// Valid roles that can be granted
-const VALID_ROLES = [
-  'ATLETA',
-  'COACH_ASSISTENTE', 
-  'COACH_PRINCIPAL',
-  'INSTRUTOR',
-  'STAFF_ORGANIZACAO',
-  'ADMIN_TENANT',
-  'RECEPCAO',
-] as const;
-
-type ValidRole = typeof VALID_ROLES[number];
-
-interface GrantRolesRequest {
-  targetProfileId: string;
-  tenantId: string;
-  roles: string[];
-  reason?: string;
-  impersonationId?: string;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -116,39 +105,21 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // PARSE INPUT
+    // PARSE & VALIDATE INPUT (PI-A05 — Institutional Validation Layer)
     // ========================================================================
-    const body: GrantRolesRequest = await req.json();
-    const { targetProfileId, tenantId, roles, reason } = body;
+    const bodyResult = await parseRequestBody(req, corsHeaders);
+    if (!bodyResult.success) return bodyResult.response;
 
-    if (!targetProfileId || !tenantId || !roles || roles.length === 0) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing required fields: targetProfileId, tenantId, roles", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const parsed = validateInput(GrantRolesSchema, bodyResult.data);
+    if (!parsed.success) return validationErrorResponse(parsed.error, corsHeaders);
 
-    // Validate roles
-    const validatedRoles: ValidRole[] = [];
-    for (const role of roles) {
-      if (VALID_ROLES.includes(role as ValidRole)) {
-        validatedRoles.push(role as ValidRole);
-      } else {
-        logStep("Invalid role rejected", { role });
-      }
-    }
-
-    if (validatedRoles.length === 0) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "No valid roles provided", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { targetProfileId, tenantId, roles, reason } = parsed.data;
+    const validatedRoles: ValidRole[] = [...roles];
 
     // ========================================================================
     // IMPERSONATION CHECK (if superadmin)
     // ========================================================================
-    const impersonationId = extractImpersonationId(req, body);
+    const impersonationId = extractImpersonationId(req, parsed.data);
     const impersonationCheck = await requireImpersonationIfSuperadmin(
       supabase,
       user.id,
