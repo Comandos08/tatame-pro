@@ -1,100 +1,132 @@
 
-# PI-A05 — Edge Validation Layer (SAFE GOLD) — EXECUTION PLAN v3
+# A01 Fase 3 — Strict Real + Logger Upgrade Institucional
 
-## Summary
+## Resumo Executivo
 
-Create institutional server-side validation infrastructure using Zod, then retrofit `grant-roles` as pilot. All 3 micro-adjustments incorporated.
-
----
-
-## Files to CREATE
-
-### 1. `supabase/functions/_shared/validation/validate.ts`
-
-Core utilities:
-
-**`parseRequestBody(req, corsHeaders, maxBytes?)`**
-- Read body via `req.text()` (NOT `req.json()`)
-- Check size using `new TextEncoder().encode(text).length` (bytes, not characters -- adjustment #2)
-- Default limit: 50,000 bytes
-- `JSON.parse` wrapped in explicit `try/catch` returning `MALFORMED_JSON` on failure (adjustment #1)
-- Returns `{ success: true, data }` or `{ success: false, response: Response }`
-
-**`validateInput<T>(schema, raw)`**
-- Zod `safeParse` -- never throws
-- Returns typed `{ success: true, data: T }` or `{ success: false, error: ValidationError }`
-
-**`validationErrorResponse(error, corsHeaders)`**
-- Produces institutional Error Envelope:
-```text
-{
-  ok: false,
-  code: "VALIDATION_ERROR" | "PAYLOAD_TOO_LARGE" | "MALFORMED_JSON",
-  messageKey: "validation.invalid_payload" | ...,
-  retryable: false,
-  timestamp: "<ISO 8601>",
-  details?: string[]
-}
-```
-- HTTP 400 for validation/malformed, 413 for payload size
-
-### 2. `supabase/functions/_shared/validation/sanitize.ts`
-
-Reusable Zod primitives:
-- `zTrimmedString()` -- `z.string().trim()`
-- `zNormalizedEmail()` -- `z.string().trim().toLowerCase().email()`
-- `zUUID()` -- `z.string().uuid()`
-
-### 3. `supabase/functions/_shared/validation/schemas/grant-roles.ts`
-
-Zod schema for `grant-roles` input:
-- `targetProfileId`: `zUUID()` required
-- `tenantId`: `zUUID()` required
-- `roles`: `z.array(z.enum([...VALID_ROLES])).min(1).max(10)` (adjustment #3 preserved)
-- `reason`: `zTrimmedString().max(500).optional()`
-- `impersonationId`: `zUUID().optional()`
-- Schema uses `.strict()` -- unknown fields produce 400
+Ativar `strict: true` no `tsconfig.app.json`, eliminar todos os erros resultantes com duas intervenções cirúrgicas: (1) upgrade do logger estruturado para aceitar `unknown`, (2) correção dos 6 `catch (err: any)` explícitos restantes. Estimativa: ~8 arquivos modificados, zero alteracao funcional.
 
 ---
 
-## File to MODIFY
+## Diagnostico Pre-Execucao
 
-### 4. `supabase/functions/grant-roles/index.ts`
+| Fonte de erro                  | Quantidade | Estrategia                           |
+|-------------------------------|-----------|--------------------------------------|
+| `catch (err: any)` explicito  | 6         | Trocar para `catch (err: unknown)` + narrowing |
+| Logger structured aceita `Error` | 1 arquivo | Aceitar `unknown`, normalizar internamente |
+| Flags redundantes no tsconfig | 2         | Remover (`strictNullChecks`, `noImplicitAny`) |
+| Chamadas `logger.error(msg, err)` variadic | ~50 | Ja funcionam — variadic aceita `unknown[]` |
 
-**Remove** (lines 46-62): `VALID_ROLES` array, `ValidRole` type, `GrantRolesRequest` interface
+---
 
-**Replace** (lines 118-146): Manual parsing and validation block
+## Fase 1 — Logger Institucional (1 arquivo)
 
-**With**: 
+**Arquivo:** `src/lib/observability/logger.ts`
+
+Alterar a interface `Logger` e a implementacao interna:
+
 ```text
-const bodyResult = await parseRequestBody(req, corsHeaders);
-if (!bodyResult.success) return bodyResult.response;
+ANTES:
+  error: (message: string, context?: LogContext, error?: Error) => void;
 
-const parsed = validateInput(GrantRolesSchema, bodyResult.data);
-if (!parsed.success) return validationErrorResponse(parsed.error, corsHeaders);
-
-const { targetProfileId, tenantId, roles, reason } = parsed.data;
+DEPOIS:
+  error: (message: string, context?: LogContext, error?: unknown) => void;
 ```
 
-**Downstream unchanged**: `impersonationId` extraction, role check, billing check, grant logic -- all untouched.
+Dentro de `createLogger`, normalizar o parametro antes de logar:
+
+```text
+const normalizedError =
+  error instanceof Error
+    ? error
+    : error !== undefined
+    ? new Error(String(error))
+    : undefined;
+```
+
+Impacto: centralizado. Todas as ~5 chamadas que usam o logger estruturado (authLogger, securityLogger, etc.) passam a aceitar `unknown` automaticamente.
 
 ---
 
-## 3 Micro-Adjustments Applied
+## Fase 2 — Ativar strict: true (1 arquivo)
 
-| # | Adjustment | Implementation |
-|---|---|---|
-| 1 | JSON.parse in try/catch | `parseRequestBody` wraps `JSON.parse` in try/catch, returns MALFORMED_JSON envelope |
-| 2 | Byte-based size check | `new TextEncoder().encode(text).length` instead of `text.length` |
-| 3 | max 10 roles | `z.array().max(10)` in schema |
+**Arquivo:** `tsconfig.app.json`
+
+- Adicionar `"strict": true`
+- Remover `"strictNullChecks": true` (redundante sob strict)
+- Remover `"noImplicitAny": true` (redundante sob strict)
+- Manter `"noImplicitReturns"`, `"noUnusedLocals"`, `"noUnusedParameters"`, `"noFallthroughCasesInSwitch"` (nao inclusos em strict)
+
+**Arquivo:** `tsconfig.json` (root)
+
+- Adicionar `"strict": true`
+- Remover `"strictNullChecks": true` e `"noImplicitAny": true` (redundantes)
 
 ---
 
-## Acceptance Criteria
+## Fase 3 — Correcao dos catch blocks (6 ocorrencias em 3 arquivos)
 
-- Payloads over 50KB rejected BEFORE JSON parsing (413)
-- Malformed JSON returns structured MALFORMED_JSON error (400)
-- Unknown fields in payload produce 400 (strict mode)
-- All error responses include ISO 8601 `timestamp`
-- `grant-roles` behavior identical: same HTTP codes, same field names, same downstream flow
-- Deploy and test via curl
+### 3.1 `src/contexts/IdentityContext.tsx` (4 ocorrencias)
+
+Linhas ~293, ~420, ~516, ~608: trocar `catch (err: any)` por `catch (err: unknown)`.
+
+Para acessos a `err?.name === "AbortError"`:
+```text
+ANTES: err?.name === "AbortError"
+DEPOIS: err instanceof DOMException && err.name === "AbortError"
+```
+
+Ou alternativa equivalente com narrowing:
+```text
+err instanceof Error && err.name === "AbortError"
+```
+
+Chamadas `logger.error("[IdentityContext] ...", err)` ja funcionam (variadic logger aceita `unknown[]`).
+
+### 3.2 `src/components/membership/AdultMembershipForm.tsx` (1 ocorrencia)
+
+Linha ~347: trocar `catch (error: any)` por `catch (error: unknown)`.
+
+```text
+ANTES: const errorMessage = error?.message || t('membership.errorGeneric');
+DEPOIS: const errorMessage = error instanceof Error ? error.message : t('membership.errorGeneric');
+```
+
+### 3.3 `src/components/membership/YouthMembershipForm.tsx` (1 ocorrencia)
+
+Linha ~337: identico ao AdultMembershipForm.
+
+---
+
+## Fase 4 — Validacao
+
+1. `tsc --noEmit` deve retornar 0 erros
+2. Build Vite deve passar
+3. Nenhum teste alterado
+
+---
+
+## Arquivos Modificados (total: ~6)
+
+| Arquivo | Tipo de mudanca |
+|---------|----------------|
+| `tsconfig.json` | strict: true, remover flags redundantes |
+| `tsconfig.app.json` | strict: true, remover flags redundantes |
+| `src/lib/observability/logger.ts` | error param: `Error` -> `unknown` + normalizer |
+| `src/contexts/IdentityContext.tsx` | 4x `catch (err: any)` -> `catch (err: unknown)` + narrowing |
+| `src/components/membership/AdultMembershipForm.tsx` | 1x catch + narrowing |
+| `src/components/membership/YouthMembershipForm.tsx` | 1x catch + narrowing |
+
+---
+
+## Invariantes Preservados
+
+- Zero `as any` introduzido
+- Zero `@ts-ignore`
+- Zero alteracao de logica funcional
+- Zero alteracao de contrato publico
+- Zero alteracao de payload API
+- Zero alteracao de Error Envelope (A07)
+- Zero alteracao de PII Contract (A08)
+- Zero alteracao de rotas
+- Zero alteracao de RLS
+- Testes nao alterados
