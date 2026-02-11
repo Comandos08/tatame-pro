@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { ACADEMY_COACH_ROLE_LABELS, AcademyCoachRole } from '@/types/academy';
 
 interface Coach {
@@ -146,7 +147,7 @@ export default function CoachesList() {
     },
     onError: (error) => {
       toast.error(t('admin.coaches.createError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -171,7 +172,7 @@ export default function CoachesList() {
     },
     onError: (error) => {
       toast.error(t('admin.coaches.updateError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -190,7 +191,7 @@ export default function CoachesList() {
     },
     onError: (error) => {
       toast.error(t('admin.coaches.statusError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -221,7 +222,7 @@ export default function CoachesList() {
       } else {
         toast.error(t('admin.coaches.linkError'));
       }
-      console.error(error);
+      logger.error(error);
     },
   });
 

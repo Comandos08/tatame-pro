@@ -42,6 +42,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { AccessDenied } from './AccessDenied';
 import { AppRole } from '@/types/auth';
+import { logger } from '@/lib/logger';
 
 interface RequireRolesProps {
   /** Roles that are allowed to access this route */
@@ -110,7 +111,7 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
   // DIAGNOSTIC LOG: Debug impersonation issues (P0 - Safe Mode)
   // BY DESIGN: Warn-only, does not affect behavior
   if (isSuperadminAccessingTenant && !hasValidImpersonation) {
-    console.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
+    logger.warn('[REQUIRE_ROLES] Superadmin blocked - impersonation mismatch:', {
       isImpersonating,
       impersonatedTenantId,
       requiredTenantId: tenant?.id,

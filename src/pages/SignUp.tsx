@@ -13,6 +13,7 @@ import { useIdentity } from "@/contexts/IdentityContext";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -100,7 +101,7 @@ export default function SignUp() {
       });
       // Do not navigate manually - wait for isAuthenticated in useEffect
     } catch (error) {
-      console.error("SignUp error:", error);
+      logger.error("SignUp error:", error);
       const errorKey = getAuthErrorKey(error);
       toast({
         title: t("auth.error"),

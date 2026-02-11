@@ -6,6 +6,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
 import type { AsyncState } from '@/types/async';
@@ -214,7 +215,7 @@ export function useSystemHealthStatus(): ReturnType<typeof useQuery<SystemHealth
         .select('*');
       
       if (jobsError) {
-        console.error('[useSystemHealthStatus] Jobs query error:', jobsError.message);
+        logger.error('[useSystemHealthStatus] Jobs query error:', jobsError.message);
       }
       
       // Fetch critical events from last 7 days
@@ -225,7 +226,7 @@ export function useSystemHealthStatus(): ReturnType<typeof useQuery<SystemHealth
         .limit(50);
       
       if (eventsError) {
-        console.error('[useSystemHealthStatus] Events query error:', eventsError.message);
+        logger.error('[useSystemHealthStatus] Events query error:', eventsError.message);
       }
       
       // Classify jobs
@@ -267,7 +268,7 @@ export function useJobsHealth() {
         .select('*');
       
       if (error) {
-        console.error('[useJobsHealth] Query error:', error.message);
+        logger.error('[useJobsHealth] Query error:', error.message);
         return [];
       }
       

@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { logger } from '@/lib/logger';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { formatDate, formatCurrency, formatNumber } from '@/lib/i18n/formatters';
 import { supabase } from '@/integrations/supabase/client';
@@ -217,7 +218,7 @@ export default function AdminDashboard() {
     },
     onError: (error) => {
       toast.error(t('admin.updateError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 

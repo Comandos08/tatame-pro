@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Plus } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -111,7 +112,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
       setBannerUrl(null);
     },
     onError: (error) => {
-      console.error('Error creating event:', error);
+      logger.error('Error creating event:', error);
       toast.error(t('events.createError'));
     },
   });

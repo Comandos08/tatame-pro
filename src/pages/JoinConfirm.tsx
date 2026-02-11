@@ -22,6 +22,7 @@ import { useJoin } from '@/contexts/JoinContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import iconLogo from '@/assets/iconLogo.png';
 
@@ -71,7 +72,7 @@ export default function JoinConfirm() {
         if (error) throw error;
         setExistingMembership(data);
       } catch (error) {
-        console.error('Error checking existing membership:', error);
+        logger.error('Error checking existing membership:', error);
       } finally {
         setCheckingMembership(false);
       }
@@ -119,7 +120,7 @@ export default function JoinConfirm() {
       // Redirect to status page
       navigate(`/${selectedTenant.slug}/membership/status`, { replace: true });
     } catch (error) {
-      console.error('Error creating membership:', error);
+      logger.error('Error creating membership:', error);
       toast({
         title: t('common.error'),
         description: t('join.submitError'),

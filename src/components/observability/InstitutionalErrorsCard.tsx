@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/contexts/I18nContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import type { Severity } from '@/lib/observability/types';
 
@@ -59,7 +60,7 @@ export function InstitutionalErrorsCard() {
         .limit(50);
 
       if (error) {
-        console.error('[InstitutionalErrorsCard] Query error:', error.message);
+        logger.error('[InstitutionalErrorsCard] Query error:', error.message);
         return [];
       }
 

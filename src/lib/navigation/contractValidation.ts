@@ -52,7 +52,7 @@ export function validateRouteContract(pathname: string): void {
 
   // PI E1.1: Federation Domain is DECLARED but INACTIVE
   if (pathname.startsWith('/federation')) {
-    console.warn(
+    logger.warn(
       '[Navigation Contract] ⚠️ Federation Domain is DECLARED but INACTIVE (PI E1.1). ' +
       'No federation routes are allowed without an explicit activation PI.'
     );
@@ -62,7 +62,7 @@ export function validateRouteContract(pathname: string): void {
   const matched = ROUTE_CONTRACT.some((entry) => entry.pattern.test(pathname));
 
   if (!matched) {
-    console.warn(
+    logger.warn(
       `[Navigation Contract] ⚠️ Route "${pathname}" is not declared in the navigation contract (PI E1). ` +
       `If this route is intentional, add it to docs/NAVIGATION-CONTRACT.md and src/lib/navigation/contractValidation.ts.`
     );
@@ -86,7 +86,7 @@ export function validatePersonaAccess(
       if (entry.persona.includes('PUBLIC')) return;
 
       if (!entry.persona.includes(currentPersona)) {
-        console.warn(
+        logger.warn(
           `[Navigation Contract] ⚠️ Persona "${currentPersona}" accessing "${pathname}" (${entry.description}). ` +
           `Expected persona: ${entry.persona.join(' | ')}. ` +
           `This may indicate a guard misconfiguration.`

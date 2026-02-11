@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { resolveAthletePostLoginRedirect, MembershipStatus } from '@/lib/resolveAthletePostLoginRedirect';
 import { Loader2 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 /**
  * P3 — Sanitizador de tenant slug
@@ -215,7 +216,7 @@ export default function AuthCallback() {
       } catch (error) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
         
-        console.error('AuthCallback redirect error:', error);
+        logger.error('AuthCallback redirect error:', error);
         // 🔐 HARDENED: Catch goes to /portal (decision hub)
         // /portal will decide correct destination or redirect to /login if needed
         navigate('/portal', { replace: true });

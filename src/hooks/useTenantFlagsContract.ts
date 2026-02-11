@@ -12,6 +12,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
 import type { AsyncState } from '@/types/async';
 
@@ -86,7 +87,7 @@ export function useTenantFlagsContract(tenantId: string | undefined): TenantFlag
       
       const validated = validateContract(data);
       if (!validated) {
-        console.error('[B2-CONTRACT] Invalid contract payload from RPC:', data);
+        logger.error('[B2-CONTRACT] Invalid contract payload from RPC:', data);
         return null;
       }
       

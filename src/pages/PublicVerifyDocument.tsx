@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/contexts/I18nContext";
 import { formatDate } from "@/lib/i18n/formatters";
+import { logger } from "@/lib/logger";
 import { TrustSeal } from "@/components/trust/TrustSeal";
 type VerifyResponse =
   | {
@@ -66,7 +67,7 @@ export default function PublicVerifyDocument() {
           }
         }
       } catch (err) {
-        console.error("Verification error:", err);
+        logger.error("Verification error:", err);
         setState("not_found");
       }
     }

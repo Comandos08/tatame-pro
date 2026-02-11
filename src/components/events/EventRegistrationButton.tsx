@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Check, X, Loader2, UserPlus } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -110,7 +111,7 @@ export function EventRegistrationButton({
       setSelectedCategory('');
     },
     onError: (error: any) => {
-      console.error('Registration error:', error);
+      logger.error('Registration error:', error);
       if (error.message?.includes('unique constraint')) {
         toast.error(t('events.alreadyRegistered'));
       } else {
@@ -136,7 +137,7 @@ export function EventRegistrationButton({
       setShowCancelDialog(false);
     },
     onError: (error) => {
-      console.error('Cancellation error:', error);
+      logger.error('Cancellation error:', error);
       toast.error(t('events.cancellationError'));
     },
   });

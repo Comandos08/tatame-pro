@@ -12,6 +12,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n, Locale } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 import { hexToHsl } from '@/lib/colorUtils';
@@ -102,7 +103,7 @@ export default function TenantSettings() {
 
       toast.success(t('settings.saveSuccess'));
     } catch (error) {
-      console.error('Error saving settings:', error);
+      logger.error('Error saving settings:', error);
       toast.error(t('settings.saveError'));
     } finally {
       setSaving(false);

@@ -50,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { useI18n } from "@/contexts/I18nContext";
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
+import { logger } from "@/lib/logger";
 import {
   resolveIdentityState,
   IdentityResolutionInput,
@@ -299,7 +300,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // INTENTIONAL: Block during impersonation resolution to prevent race conditions
   // BY DESIGN: This ensures tenant context is stable before proceeding
   if (isImpersonating && resolutionStatus === 'RESOLVING') {
-    console.log('[IDENTITY-GATE] Waiting for impersonation resolution');
+    logger.log('[IDENTITY-GATE] Waiting for impersonation resolution');
     return (
       <IdentityLoadingScreen 
         onRetry={refreshIdentity} 
@@ -314,7 +315,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // BY DESIGN: This warning helps catch routing misconfigurations in development
   if (import.meta.env.DEV) {
     if (!isAuthenticated && pathname === '/identity/wizard') {
-      console.warn('[IdentityGate] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
+      logger.warn('[IdentityGate] 🚨 DEV GUARDRAIL: Unauthenticated user landed on /identity/wizard', {
         pathname,
         isAuthenticated,
         referrer: document.referrer,

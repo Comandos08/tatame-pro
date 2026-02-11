@@ -23,6 +23,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useToast } from '@/hooks/use-toast';
 import iconLogo from '@/assets/iconLogo.png';
+import { logger } from '@/lib/logger';
 
 export default function JoinAccount() {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ export default function JoinAccount() {
       // 🔐 Navigate to confirm step, NOT /portal
       navigate('/join/confirm', { replace: true });
     } catch (error) {
-      console.error('Auth error:', error);
+      logger.error('Auth error:', error);
       toast({
         title: t('auth.error'),
         description: error instanceof Error ? error.message : t('auth.genericError'),

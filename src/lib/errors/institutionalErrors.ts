@@ -203,7 +203,7 @@ export function getInstitutionalError(code: string): InstitutionalError {
   const entry = ERROR_CATALOG[code];
 
   if (!entry && !import.meta.env.PROD) {
-    console.warn(
+    logger.warn(
       `[Institutional Error] ⚠️ Unknown error code "${code}". ` +
       `Falling back to SYS-003. Add this code to src/lib/errors/institutionalErrors.ts.`
     );
@@ -222,7 +222,7 @@ export function validateErrorCatalogKeys(t: (key: string) => string): void {
   for (const [code, error] of Object.entries(ERROR_CATALOG)) {
     const translated = t(error.messageKey);
     if (!translated || translated === error.messageKey) {
-      console.warn(
+      logger.warn(
         `[Institutional Error] ⚠️ Missing i18n key "${error.messageKey}" for error code "${code}". ` +
         `Add it to your locale files.`
       );
@@ -243,7 +243,7 @@ export function validateErrorCatalogIntegrity(): void {
   for (const [key, entry] of Object.entries(ERROR_CATALOG)) {
     // Check duplicate codes
     if (seenCodes.has(entry.code)) {
-      console.warn(
+      logger.warn(
         `[Institutional Error] ⚠️ Duplicate code "${entry.code}" found at key "${key}". ` +
         `Each error must have a unique code.`
       );
@@ -252,7 +252,7 @@ export function validateErrorCatalogIntegrity(): void {
 
     // Check suspect combination
     if (entry.retryable && entry.severity === 'CRITICAL') {
-      console.warn(
+      logger.warn(
         `[Institutional Error] ⚠️ Suspect combination: "${entry.code}" is retryable but CRITICAL. ` +
         `CRITICAL errors should generally not be retryable.`
       );

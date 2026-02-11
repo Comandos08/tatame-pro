@@ -10,6 +10,7 @@ import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -62,7 +63,7 @@ export default function ForgotPassword() {
         description: data.message,
       });
     } catch (error) {
-      console.error("Password reset error:", error);
+      logger.error("Password reset error:", error);
       const errorKey = getAuthErrorKey(error);
       toast({
         title: t('auth.forgot.error'),

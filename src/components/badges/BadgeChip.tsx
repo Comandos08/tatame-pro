@@ -10,6 +10,7 @@ import { Award } from "lucide-react";
 import type { BadgeSurface } from "@/types/badge";
 import { ALLOWED_BADGE_SURFACES } from "@/types/badge";
 import { useI18n } from "@/contexts/I18nContext";
+import { logger } from "@/lib/logger";
 
 interface BadgeChipProps {
   name: string;
@@ -31,8 +32,8 @@ interface BadgeChipProps {
 export function BadgeChip({ name, description, surface, className }: BadgeChipProps) {
   const { t } = useI18n();
 
-  if (import.meta.env.DEV && !ALLOWED_BADGE_SURFACES.includes(surface)) {
-    console.warn(
+  if (!ALLOWED_BADGE_SURFACES.includes(surface)) {
+    logger.warn(
       `[D2] Badge rendered in non-authorized surface: ${surface}`
     );
   }

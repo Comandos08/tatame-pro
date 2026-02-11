@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { BillingState, BillingViewState } from '@/types/billing-view-state';
 
@@ -97,7 +98,7 @@ export function BillingUxBanner({ billingState, billingViewState }: BillingUxBan
         throw new Error('Portal URL not returned');
       }
     } catch (err) {
-      console.error('Error opening customer portal:', err);
+      logger.error('Error opening customer portal:', err);
       toast.error(t('billing.openPortalError'));
     } finally {
       setIsLoading(false);

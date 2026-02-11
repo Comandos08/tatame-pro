@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useTenantFlagsContract } from '@/hooks/useTenantFlagsContract';
+import { logger } from '@/lib/logger';
 
 interface TenantOnboardingGateProps {
   children: ReactNode;
@@ -55,7 +56,7 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     );
 
     if (!isAllowed) {
-      console.log('[ONBOARDING-GATE] Tenant in SETUP mode, redirecting to onboarding');
+      logger.log('[ONBOARDING-GATE] Tenant in SETUP mode, redirecting to onboarding');
       navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
     }
   }, [tenant, isTenantLoading, isContractLoading, location.pathname, navigate, isImpersonating, resolutionStatus]);

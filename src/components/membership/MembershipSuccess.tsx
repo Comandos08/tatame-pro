@@ -8,6 +8,7 @@ import { AuthenticatedHeader } from '@/components/auth/AuthenticatedHeader';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 
 export function MembershipSuccess() {
   const navigate = useNavigate();
@@ -45,7 +46,7 @@ export function MembershipSuccess() {
           setMessage(data?.message || t('membershipSuccess.confirmError'));
         }
       } catch (error) {
-        console.error('Error confirming payment:', error);
+        logger.error('Error confirming payment:', error);
         setStatus('error');
         setMessage(t('membershipSuccess.processError'));
       }

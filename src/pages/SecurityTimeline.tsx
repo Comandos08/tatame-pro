@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import { formatSecurityEvent, getSeverityVariant, SecurityTimelineEntry } from '@/lib/formatSecurityEvent';
 import { formatDateTime, formatRelativeTime } from '@/lib/i18n/formatters';
 
@@ -150,7 +151,7 @@ export default function SecurityTimeline() {
         setEvents(prev => [...prev, ...combined]);
       }
     } catch (err) {
-      console.error('Error fetching security timeline:', err);
+      logger.error('Error fetching security timeline:', err);
       setError('Failed to load security events');
     } finally {
       setLoading(false);

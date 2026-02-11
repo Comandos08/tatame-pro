@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 interface Academy {
   id: string;
@@ -94,7 +95,7 @@ export default function AcademiesList() {
     },
     onError: (error) => {
       toast.error(t('admin.academies.createError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -123,7 +124,7 @@ export default function AcademiesList() {
     },
     onError: (error) => {
       toast.error(t('admin.academies.updateError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
@@ -142,7 +143,7 @@ export default function AcademiesList() {
     },
     onError: (error) => {
       toast.error(t('admin.academies.statusError'));
-      console.error(error);
+      logger.error(error);
     },
   });
 
