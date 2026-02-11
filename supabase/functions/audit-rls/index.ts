@@ -1,5 +1,5 @@
 /**
- * 🔐 audit-rls — Institutional RLS & SECURITY DEFINER Audit (PI-A06)
+ * 🔐 audit-rls — Institutional RLS & SECURITY DEFINER Audit (PI-A06 SAFE GOLD)
  *
  * READ-ONLY audit function. Zero mutations. Zero side effects.
  * - Detects permissive/dangerous RLS policies
@@ -7,6 +7,7 @@
  * - Returns structured JSON report
  *
  * ACCESS: SUPERADMIN_GLOBAL only
+ * DATA SOURCE: Exclusively via supabase.rpc() — no direct DB connections
  * SAFE GOLD: Deterministic, reexecutable, no side effects
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -18,7 +19,7 @@ const corsHeaders = {
 };
 
 // ============================================================================
-// RISK CLASSIFICATION — RLS POLICIES
+// TYPES
 // ============================================================================
 
 interface PolicyRow {
@@ -41,6 +42,23 @@ interface PolicyFinding {
   roles: string[];
   permissive: string;
 }
+
+interface DefinerRow {
+  schema: string;
+  function_name: string;
+  definition: string;
+}
+
+interface DefinerFinding {
+  name: string;
+  schema: string;
+  risk: "CRITICAL" | "HIGH" | "MEDIUM" | "SAFE";
+  reason: string;
+}
+
+// ============================================================================
+// RISK CLASSIFICATION — RLS POLICIES
+// ============================================================================
 
 const SENSITIVE_TABLES = [
   "profiles", "user_roles", "tenants", "tenant_billing",
@@ -103,7 +121,7 @@ function classifyPolicyRisk(p: PolicyRow): PolicyFinding {
     };
   }
 
-  // HIGH: anon access on non-sensitive table with write
+  // HIGH: anon access with write
   if (hasAnon && (p.cmd === "INSERT" || p.cmd === "UPDATE" || p.cmd === "DELETE")) {
     return {
       table: p.tablename, policy: p.policyname, cmd: p.cmd,
@@ -113,9 +131,8 @@ function classifyPolicyRisk(p: PolicyRow): PolicyFinding {
     };
   }
 
-  // MEDIUM: permissive when could be restrictive
+  // MEDIUM: permissive on write operations
   if (p.permissive === "PERMISSIVE" && (p.cmd === "UPDATE" || p.cmd === "DELETE")) {
-    // Not necessarily wrong, but worth noting
     return {
       table: p.tablename, policy: p.policyname, cmd: p.cmd,
       risk: "MEDIUM",
@@ -136,19 +153,6 @@ function classifyPolicyRisk(p: PolicyRow): PolicyFinding {
 // ============================================================================
 // RISK CLASSIFICATION — SECURITY DEFINER FUNCTIONS
 // ============================================================================
-
-interface DefinerRow {
-  schema: string;
-  function_name: string;
-  definition: string;
-}
-
-interface DefinerFinding {
-  name: string;
-  schema: string;
-  risk: "CRITICAL" | "HIGH" | "MEDIUM" | "SAFE";
-  reason: string;
-}
 
 function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   const def = (f.definition || "").toLowerCase();
@@ -180,7 +184,7 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
     };
   }
 
-  // MEDIUM: Used for RLS recursion avoidance (common pattern, acceptable)
+  // SAFE: RLS helper pattern
   if (def.includes("exists") && def.includes("select 1") && def.includes("auth.uid()")) {
     return {
       name: f.function_name, schema: f.schema,
@@ -189,7 +193,7 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
     };
   }
 
-  // MEDIUM: Generic definer
+  // MEDIUM: No explanatory comment
   if (!def.includes("-- security definer") && !def.includes("-- reason:")) {
     return {
       name: f.function_name, schema: f.schema,
@@ -203,15 +207,6 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
     risk: "SAFE",
     reason: "SECURITY DEFINER with proper scope, search_path, and justification",
   };
-}
-
-// ============================================================================
-// TABLES WITHOUT RLS
-// ============================================================================
-
-interface TableRlsRow {
-  tablename: string;
-  rowsecurity: boolean;
 }
 
 // ============================================================================
@@ -249,7 +244,6 @@ serve(async (req) => {
       );
     }
 
-    // Check SUPERADMIN_GLOBAL role
     const { data: superadminRole } = await supabase
       .from("user_roles")
       .select("id")
@@ -266,109 +260,67 @@ serve(async (req) => {
     }
 
     // ====================================================================
-    // PHASE 1: Audit RLS Policies
+    // PHASE 1: Audit RLS Policies (via RPC)
     // ====================================================================
-    const { data: policiesRaw, error: policiesError } = await supabase.rpc(
-      "audit_rls_policies"
-    ).returns<PolicyRow[]>();
+    const { data: policies, error: policiesError } = await supabase
+      .rpc("audit_rls_snapshot");
 
-    // Fallback: if RPC doesn't exist, use direct query via service role
-    let policies: PolicyRow[] = [];
-    if (policiesError || !policiesRaw) {
-      // Query pg_policies directly using the DB URL
-      const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-      if (dbUrl) {
-        const { Client } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-        const client = new Client(dbUrl);
-        await client.connect();
-        try {
-          const result = await client.queryObject<PolicyRow>(
-            `SELECT schemaname, tablename, policyname, 
-                    CASE WHEN polpermissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END as permissive,
-                    ARRAY(SELECT rolname FROM pg_roles WHERE oid = ANY(pol.polroles)) as roles,
-                    CASE pol.polcmd 
-                      WHEN 'r' THEN 'SELECT'
-                      WHEN 'a' THEN 'INSERT' 
-                      WHEN 'w' THEN 'UPDATE'
-                      WHEN 'd' THEN 'DELETE'
-                      WHEN '*' THEN 'ALL'
-                    END as cmd,
-                    pg_get_expr(pol.polqual, pol.polrelid) as qual,
-                    pg_get_expr(pol.polwithcheck, pol.polrelid) as with_check
-             FROM pg_policy pol
-             JOIN pg_class cls ON pol.polrelid = cls.oid
-             JOIN pg_namespace nsp ON cls.relnamespace = nsp.oid
-             WHERE nsp.nspname = 'public'
-             ORDER BY cls.relname, pol.polname`
-          );
-          policies = result.rows as PolicyRow[];
-        } finally {
-          await client.end();
-        }
-      }
-    } else {
-      policies = policiesRaw;
+    if (policiesError) {
+      console.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
+      return new Response(
+        JSON.stringify({
+          ok: false, code: "RPC_ERROR",
+          messageKey: "audit.rpc_failed",
+          timestamp: new Date().toISOString(),
+          details: ["audit_rls_snapshot: " + policiesError.message],
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const policyFindings = policies.map(classifyPolicyRisk);
+    const policyFindings = (policies as PolicyRow[]).map(classifyPolicyRisk);
 
     // ====================================================================
-    // PHASE 2: Audit SECURITY DEFINER Functions
+    // PHASE 2: Audit SECURITY DEFINER Functions (via RPC)
     // ====================================================================
-    let definerFunctions: DefinerRow[] = [];
-    {
-      const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-      if (dbUrl) {
-        const { Client } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-        const client = new Client(dbUrl);
-        await client.connect();
-        try {
-          const result = await client.queryObject<DefinerRow>(
-            `SELECT 
-               n.nspname AS schema,
-               p.proname AS function_name,
-               pg_get_functiondef(p.oid) AS definition
-             FROM pg_proc p
-             JOIN pg_namespace n ON p.pronamespace = n.oid
-             WHERE p.prosecdef = true
-               AND n.nspname = 'public'
-             ORDER BY p.proname`
-          );
-          definerFunctions = result.rows as DefinerRow[];
-        } finally {
-          await client.end();
-        }
-      }
+    const { data: definers, error: definersError } = await supabase
+      .rpc("audit_security_definer_snapshot");
+
+    if (definersError) {
+      console.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
+      return new Response(
+        JSON.stringify({
+          ok: false, code: "RPC_ERROR",
+          messageKey: "audit.rpc_failed",
+          timestamp: new Date().toISOString(),
+          details: ["audit_security_definer_snapshot: " + definersError.message],
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const definerFindings = definerFunctions.map(classifyDefinerRisk);
+    const definerFindings = (definers as DefinerRow[]).map(classifyDefinerRisk);
 
     // ====================================================================
-    // PHASE 3: Tables without RLS enabled
+    // PHASE 3: Tables Without RLS (via RPC)
     // ====================================================================
-    let tablesWithoutRls: string[] = [];
-    {
-      const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-      if (dbUrl) {
-        const { Client } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-        const client = new Client(dbUrl);
-        await client.connect();
-        try {
-          const result = await client.queryObject<TableRlsRow>(
-            `SELECT c.relname as tablename, c.relrowsecurity as rowsecurity
-             FROM pg_class c
-             JOIN pg_namespace n ON c.relnamespace = n.oid
-             WHERE n.nspname = 'public'
-               AND c.relkind = 'r'
-               AND c.relrowsecurity = false
-             ORDER BY c.relname`
-          );
-          tablesWithoutRls = (result.rows as TableRlsRow[]).map(r => r.tablename);
-        } finally {
-          await client.end();
-        }
-      }
+    const { data: tablesNoRls, error: tablesError } = await supabase
+      .rpc("audit_tables_without_rls");
+
+    if (tablesError) {
+      console.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
+      return new Response(
+        JSON.stringify({
+          ok: false, code: "RPC_ERROR",
+          messageKey: "audit.rpc_failed",
+          timestamp: new Date().toISOString(),
+          details: ["audit_tables_without_rls: " + tablesError.message],
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map(r => r.tablename);
 
     // ====================================================================
     // BUILD REPORT

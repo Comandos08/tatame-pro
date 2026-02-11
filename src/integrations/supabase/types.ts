@@ -3129,6 +3129,33 @@ export type Database = {
         Args: { _athlete_id: string }
         Returns: boolean
       }
+      audit_rls_snapshot: {
+        Args: never
+        Returns: {
+          cmd: string
+          permissive: string
+          policyname: string
+          qual: string
+          roles: string[]
+          schemaname: string
+          tablename: string
+          with_check: string
+        }[]
+      }
+      audit_security_definer_snapshot: {
+        Args: never
+        Returns: {
+          definition: string
+          function_name: string
+          schema: string
+        }[]
+      }
+      audit_tables_without_rls: {
+        Args: never
+        Returns: {
+          tablename: string
+        }[]
+      }
       can_access_feature: {
         Args: { p_feature_key: string; p_tenant_id: string }
         Returns: boolean
