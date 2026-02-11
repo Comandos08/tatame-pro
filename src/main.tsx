@@ -6,6 +6,7 @@ import App from "./App";
 import { AppProviders } from "@/contexts/AppProviders";
 
 import "@/index.css";
+import "@/styles/a11y.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

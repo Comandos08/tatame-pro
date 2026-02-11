@@ -1,0 +1,20 @@
+/**
+ * U03.1 — Institutional Focus Ring (SAFE GOLD)
+ *
+ * Provides consistent :focus-visible styles for keyboard navigation.
+ * Zero impact for mouse users — only keyboard activates focus ring.
+ */
+
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.35);
+}
