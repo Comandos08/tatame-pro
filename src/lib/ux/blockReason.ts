@@ -32,6 +32,7 @@ export interface BlockReasonContext {
   canAccess: boolean;
   tenantLifecycle: TenantLifecycleState | null;
   billingStatus: BillingStatus | null;
+  billingOverride?: boolean;
   featureEnabled?: boolean;
   hasData?: boolean;
 }
@@ -89,11 +90,12 @@ export function deriveBlockReason(ctx: BlockReasonContext): BlockReason | null {
     return 'TENANT_BLOCKED';
   }
 
-  // 3. Billing blocked
+  // 3. Billing blocked (neutralized by manual override)
   if (
-    ctx.billingStatus === 'PAST_DUE' ||
-    ctx.billingStatus === 'UNPAID' ||
-    ctx.billingStatus === 'PENDING_DELETE'
+    !ctx.billingOverride &&
+    (ctx.billingStatus === 'PAST_DUE' ||
+     ctx.billingStatus === 'UNPAID' ||
+     ctx.billingStatus === 'PENDING_DELETE')
   ) {
     return 'BILLING_BLOCKED';
   }
