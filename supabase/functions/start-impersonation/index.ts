@@ -147,9 +147,13 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !superadmin) {
+      log.setStep("actor_validated");
       log.warn("Non-superadmin attempted impersonation");
       return forbiddenResponse(corsHeaders, "auth.superadmin_required", undefined, correlationId);
     }
+
+    log.setStep("actor_validated");
+    log.info("SUPERADMIN_GLOBAL role confirmed");
 
     // ========================================================================
     // STEP 6: Request Body Validation
@@ -169,8 +173,9 @@ Deno.serve(async (req) => {
     log.setTenant(targetTenantId);
 
     // ========================================================================
-    // STEP 7: Target Tenant Existence Check
+    // STEP 7: Target Tenant Existence + Active Check
     // ========================================================================
+    log.setStep("tenant_validated");
     const { data: targetTenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
       .select('id, name, slug, is_active')
@@ -182,6 +187,15 @@ Deno.serve(async (req) => {
       return errorResponse(
         404,
         buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "tenant.not_found", false, undefined, correlationId),
+        corsHeaders,
+      );
+    }
+
+    if (!targetTenant.is_active) {
+      log.warn("Target tenant is inactive", { targetTenantId });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.TENANT_BLOCKED, "impersonation.tenant_inactive", false, undefined, correlationId),
         corsHeaders,
       );
     }
@@ -251,6 +265,7 @@ Deno.serve(async (req) => {
       },
     });
 
+    log.setStep("impersonation_started");
     log.info("Impersonation session created", { impersonationId: newSession.id });
 
     // ========================================================================
