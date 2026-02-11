@@ -10,6 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 import { getMembershipApprovedTemplate, type EmailLayoutData } from "../_shared/email-templates/index.ts";
 import {
@@ -138,10 +139,9 @@ function approveMembershipRateLimiter() {
  * Generic error response (anti-enumeration)
  */
 function forbiddenResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
+  return errorResponse(403, buildErrorEnvelope(
+    ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false
+  ), corsHeaders);
 }
 
 serve(async (req) => {
@@ -176,10 +176,9 @@ serve(async (req) => {
         operation: 'approve-membership',
         reason: 'MISSING_AUTH',
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false
+      ), corsHeaders);
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
@@ -191,10 +190,9 @@ serve(async (req) => {
         operation: 'approve-membership',
         reason: 'INVALID_TOKEN',
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(401, buildErrorEnvelope(
+        ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false
+      ), corsHeaders);
     }
 
     const adminProfileId = user.id;
@@ -917,9 +915,8 @@ serve(async (req) => {
     logStep("Unexpected error", { error: errorMessage });
     
     // Anti-enumeration: generic error response
-    return new Response(
-      JSON.stringify({ ok: false, error: "Operation not permitted" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-    );
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+    ), corsHeaders);
   }
 });

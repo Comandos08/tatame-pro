@@ -10,6 +10,7 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
 import { 
   requireImpersonationIfSuperadmin, 
@@ -295,9 +296,8 @@ serve(async (req) => {
 
   } catch (error) {
     logStep("Unexpected error", { error: String(error) });
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
+    ), corsHeaders);
   }
 });
