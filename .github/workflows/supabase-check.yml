@@ -76,9 +76,9 @@ jobs:
           fi
           echo "✅ config.toml found"
 
-      - name: G1 — No raw console in Edge Functions
+      - name: G1 — No raw console.* in Edge Functions
         run: |
-          echo "🔍 G1: Checking for raw console.* outside backend-logger.ts..."
+          echo "🔍 G1: Checking for raw console.* usage..."
           if grep -rn "console\.\(log\|error\|warn\|info\)" supabase/functions --include="*.ts" \
             | grep -Ev "_tests/|\.test\.ts|_shared/backend-logger\.ts"; then
             echo "❌ FAIL: Raw console.* found outside backend-logger.ts"
