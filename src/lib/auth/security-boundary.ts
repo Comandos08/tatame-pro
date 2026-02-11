@@ -145,7 +145,7 @@ export function resolveSecurityEvent(
       break;
 
     default:
-      securityLogger.warn('Unknown security event', { action: 'resolveSecurityEvent', event } as any);
+      securityLogger.warn('Unknown security event', { action: 'resolveSecurityEvent', event });
       actions.push({ type: 'NOOP' });
   }
 

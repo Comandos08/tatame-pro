@@ -8,7 +8,7 @@ import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
 export interface CsvColumn<T> {
   key: keyof T | string;
   label: string;
-  format?: (value: any, row: T) => string;
+  format?: (value: unknown, row: T) => string;
 }
 
 /**
@@ -42,7 +42,7 @@ function sanitizeCsvValue(value: unknown): string {
  * @param columns - Column definitions with keys and labels
  * @param rows - Array of data objects
  */
-export function exportToCsv<T extends Record<string, any>>(
+export function exportToCsv<T extends Record<string, unknown>>(
   filename: string,
   columns: CsvColumn<T>[],
   rows: T[]
@@ -57,7 +57,7 @@ export function exportToCsv<T extends Record<string, any>>(
         const key = col.key as string;
         // Support nested keys like "athlete.full_name"
         const value = key.includes('.') 
-          ? key.split('.').reduce((obj, k) => obj?.[k], row as any)
+          ? key.split('.').reduce<unknown>((obj, k) => (obj as Record<string, unknown>)?.[k], row)
           : row[key];
         
         // Apply custom formatter if provided

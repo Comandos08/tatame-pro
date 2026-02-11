@@ -123,7 +123,7 @@ export default function AuthCallback() {
         if (abortController.signal.aborted) return;
         
         // Buscar o tenant para obter o ID
-        const tenantResult = await (supabase.from('tenants') as any)
+        const tenantResult = await supabase.from('tenants')
           .select('id')
           .eq('slug', tenantSlug)
           .maybeSingle();
@@ -142,7 +142,7 @@ export default function AuthCallback() {
         if (abortController.signal.aborted) return;
 
         // Buscar athlete vinculado ao usuário neste tenant
-        const athleteResult = await (supabase.from('athletes') as any)
+        const athleteResult = await supabase.from('athletes')
           .select('id')
           .eq('tenant_id', tenantData.id)
           .eq('user_id', currentUser.id)
@@ -158,7 +158,7 @@ export default function AuthCallback() {
           if (abortController.signal.aborted) return;
           
           // Buscar membership mais recente do atleta
-          const membershipResult = await (supabase.from('memberships') as any)
+          const membershipResult = await supabase.from('memberships')
             .select('status')
             .eq('tenant_id', tenantData.id)
             .eq('athlete_id', athleteData.id)
@@ -174,7 +174,7 @@ export default function AuthCallback() {
           if (abortController.signal.aborted) return;
           
           // Buscar por applicant_profile_id (caso seja aplicante ainda não aprovado)
-          const membershipResult = await (supabase.from('memberships') as any)
+          const membershipResult = await supabase.from('memberships')
             .select('status')
             .eq('tenant_id', tenantData.id)
             .eq('applicant_profile_id', currentUser.id)

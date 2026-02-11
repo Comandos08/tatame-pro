@@ -31,8 +31,8 @@ export function EventStatusBadge({ status, size = 'default', className }: EventS
   const config = EVENT_STATUS_CONFIG[status];
   
   // Try to get translated label, fallback to default
-  const label = t(config.labelKey as any) !== config.labelKey 
-    ? t(config.labelKey as any) 
+  const label = t(config.labelKey) !== config.labelKey 
+    ? t(config.labelKey) 
     : config.label;
 
   return (

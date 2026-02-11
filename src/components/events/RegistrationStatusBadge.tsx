@@ -89,7 +89,7 @@ export function RegistrationStatusBadge({
       data-testid="registration-state-badge"
       data-registration-state={status}
     >
-      {t(config.labelKey as any)}
+      {t(config.labelKey)}
     </Badge>
   );
 

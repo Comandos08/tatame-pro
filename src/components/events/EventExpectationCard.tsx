@@ -76,7 +76,7 @@ export function EventExpectationCard({
   const Icon = config.icon;
   
   // P2.3.1: Microcopy de reforço (só mostra se a key existir)
-  const reassuranceText = t(config.reassuranceKey as any);
+  const reassuranceText = t(config.reassuranceKey);
   const hasReassurance = reassuranceText && reassuranceText !== config.reassuranceKey;
 
   return (
@@ -96,10 +96,10 @@ export function EventExpectationCard({
           </div>
           <div className="space-y-1 min-w-0">
             <p className="font-medium text-sm">
-              {t(config.titleKey as any)}
+              {t(config.titleKey)}
             </p>
             <p className="text-sm text-muted-foreground">
-              {t(config.descKey as any)}
+              {t(config.descKey)}
             </p>
             {hasReassurance && (
               <p className="text-xs text-muted-foreground/80 mt-2 italic">

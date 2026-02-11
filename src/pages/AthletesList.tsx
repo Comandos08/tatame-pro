@@ -190,7 +190,7 @@ export default function AthletesList() {
         birth_date: athlete.birth_date,
         current_academy_id: athlete.current_academy_id,
         current_main_coach_id: athlete.current_main_coach_id,
-        academy_name: (athlete.academies as any)?.name || null,
+        academy_name: (athlete.academies as Record<string, unknown> | null)?.name as string || null,
         latest_membership: membershipsByAthlete.has(athlete.id)
           ? {
               id: membershipsByAthlete.get(athlete.id)!.id,

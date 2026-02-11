@@ -61,7 +61,7 @@ export function EventStatusTransition({
 
   const getTransitionLabel = (status: EventStatus) => {
     const config = EVENT_STATUS_CONFIG[status];
-    const translatedLabel = t(config.labelKey as any);
+    const translatedLabel = t(config.labelKey);
     return translatedLabel !== config.labelKey ? translatedLabel : config.label;
   };
 

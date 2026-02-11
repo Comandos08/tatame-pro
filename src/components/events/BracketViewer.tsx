@@ -95,9 +95,10 @@ export function BracketViewer({ bracketId, isAdmin = false }: BracketViewerProps
       const map: Record<string, { id: string; full_name: string }> = {};
       for (const reg of data || []) {
         if (reg.athlete) {
+          const athlete = reg.athlete as unknown as { id: string; full_name: string };
           map[reg.id] = {
-            id: (reg.athlete as any).id,
-            full_name: (reg.athlete as any).full_name,
+            id: athlete.id,
+            full_name: athlete.full_name,
           };
         }
       }

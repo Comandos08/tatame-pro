@@ -202,7 +202,7 @@ export function BillingStatusBanner() {
     >
       <Icon className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
-        {trialEndingSoon ? t('billing.trialEndingSoonTitle') : t(config.titleKey as any)}
+        {trialEndingSoon ? t('billing.trialEndingSoonTitle') : t(config.titleKey)}
         <StatusBadge 
           status={billingStatusMap[billing.status] || 'neutral'} 
           label={billing.plan_name}
