@@ -238,11 +238,10 @@ export function YouthMembershipForm() {
     
     if (!tenant || !athleteData || !guardianData) return;
 
-    // FX-02: Defensive safety — user MUST already be authenticated at this point
-    // (login is enforced at MembershipTypeSelector entry)
+    // FX-02A: Defensive safety — user MUST already be authenticated (no toast, no persistence)
     if (!isAuthenticated || !currentUser) {
-      logger.warn('[FX-02] Unauthenticated user reached checkout — fail-closed redirect');
-      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`, { replace: true });
+      logger.warn('[FX-02A] Unauthenticated user reached checkout — fail-closed redirect');
+      navigate(`/${tenantSlug}/login?redirect=${encodeURIComponent(`/${tenantSlug}/membership/youth`)}`, { replace: true });
       return;
     }
 
