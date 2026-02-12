@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 
-type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error' | 'missing_params';
+type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error' | 'missing_params' | 'pending_confirmation';
 
 /**
  * FX-03A — Normalize raw membership status from backend to local confirmation status.
@@ -113,14 +113,14 @@ export function MembershipSuccess() {
             : t('membershipSuccess.successMessage')
         );
       } else {
-        // FX-05: Do NOT assume payment failed — show pending confirmation
-        setStatus('error');
-        setMessage(data?.message || t('membershipSuccess.confirmError'));
+        // FX-05A: Non-success but payment may exist — pending confirmation, not error
+        setStatus('pending_confirmation');
+        setMessage(data?.message || t('membershipSuccess.confirmPending'));
       }
     } catch (error) {
       logger.error('Error confirming payment:', error);
-      // FX-05: Network/server error — payment may have succeeded via webhook
-      setStatus('error');
+      // FX-05A: Network/server error — payment may have succeeded via webhook
+      setStatus('pending_confirmation');
       setMessage(t('membershipSuccess.processError'));
     }
   }, [membershipId, sessionId, t]);
@@ -140,7 +140,7 @@ export function MembershipSuccess() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membershipId, sessionId]);
 
-  // FX-05: Safe single-shot retry handler (error state only)
+  // FX-05A: Retry only available for pending_confirmation
   const handleRetry = useCallback(async () => {
     if (retrying || !membershipId || !sessionId) return;
     setRetrying(true);
@@ -168,7 +168,8 @@ export function MembershipSuccess() {
   }, [navigate, tenantSlug]);
 
   // Determine icon & title based on status
-  const isErrorLike = status === 'error' || status === 'missing_params';
+  const isHardError = status === 'error' || status === 'missing_params';
+  const isPendingConfirmation = status === 'pending_confirmation';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -206,15 +207,19 @@ export function MembershipSuccess() {
                   <CheckCircle className="h-16 w-16 mx-auto text-emerald-600 dark:text-emerald-500 mb-4" />
                 </motion.div>
               )}
-              {isErrorLike && (
+              {status === 'pending_confirmation' && (
                 <AlertCircle className="h-16 w-16 mx-auto text-warning mb-4" />
+              )}
+              {isHardError && (
+                <AlertCircle className="h-16 w-16 mx-auto text-destructive mb-4" />
               )}
 
               <CardTitle className="text-2xl">
                 {status === 'loading' && t('membershipSuccess.processing')}
                 {status === 'success' && t('membershipSuccess.paymentConfirmed')}
                 {status === 'approved' && t('membershipSuccess.approvedTitle')}
-                {isErrorLike && t('membershipSuccess.oops')}
+                {status === 'pending_confirmation' && t('membershipSuccess.pendingConfirmationTitle')}
+                {isHardError && t('membershipSuccess.oops')}
               </CardTitle>
               <CardDescription className="text-base">
                 {status === 'loading' && t('membershipSuccess.waitingPayment')}
@@ -248,11 +253,10 @@ export function MembershipSuccess() {
                 </Button>
               )}
 
-              {/* FX-05: Error/missing_params — safe retry + status CTA */}
-              {isErrorLike && (
+              {/* FX-05A: Pending confirmation — warning tone, retry + status CTA */}
+              {isPendingConfirmation && (
                 <div className="flex flex-col gap-2">
-                  {/* Retry only if we have valid params */}
-                  {status === 'error' && membershipId && sessionId && (
+                  {membershipId && sessionId && (
                     <Button
                       variant="outline"
                       className="w-full"
@@ -269,6 +273,15 @@ export function MembershipSuccess() {
                 </div>
               )}
 
+              {/* FX-05A: Hard error — destructive tone, try again + back */}
+              {isHardError && (
+                <div className="flex flex-col gap-2">
+                  <Button className="w-full" onClick={goToStatus}>
+                    {t('membershipSuccess.viewStatus')}
+                  </Button>
+                </div>
+              )}
+
               {/* Safe fallback CTA — always visible on success/approved */}
               {(status === 'success' || status === 'approved') && (
                 <Button variant="outline" className="w-full" onClick={goToStatus}>
@@ -279,7 +292,7 @@ export function MembershipSuccess() {
               <div className="flex flex-col gap-2">
                 <Button
                   onClick={goToHome}
-                  variant={isErrorLike ? 'ghost' : 'ghost'}
+                  variant="ghost"
                   className="w-full"
                 >
                   {t('membershipSuccess.backTo', { tenant: tenant?.name || '' })}
