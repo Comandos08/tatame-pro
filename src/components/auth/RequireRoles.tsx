@@ -35,7 +35,7 @@
 
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { useTenant } from '@/contexts/TenantContext';
+import { useTenantOptional } from '@/contexts/TenantContext';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -69,7 +69,9 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
   // STEP 1: Hook Initialization
   // =========================================================================
   // BY DESIGN: All hooks called unconditionally (React rules)
-  const { tenant, isLoading: tenantLoading } = useTenant();
+  const tenantCtx = useTenantOptional();
+  const tenant = tenantCtx?.tenant ?? null;
+  const tenantLoading = tenantCtx?.isLoading ?? false;
   const { roles, isLoading: rolesLoading, isFetched } = useTenantRoles(tenant?.id);
   const { isImpersonating, impersonatedTenantId, isLoading: impersonationLoading } = useImpersonation();
   const { isGlobalSuperadmin } = useCurrentUser();
