@@ -15,6 +15,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { clearImpersonationClientCache } from '@/integrations/supabase/impersonation-client';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from './AuthContext';
 import { toast } from 'sonner';
 import { useI18n } from './I18nContext';
+import { hardResetAuthClientState } from '@/lib/auth/clientReset';
 
 const STORAGE_KEY = 'tatame_impersonation_session';
 const VALIDATION_INTERVAL = 60000; // Validate every minute
@@ -71,6 +73,7 @@ const ImpersonationContext = createContext<ImpersonationContextType | undefined>
 export function ImpersonationProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
   
   const [session, setSession] = useState<ImpersonationSession | null>(null);
@@ -424,10 +427,11 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       logger.error('[IMPERSONATION] End error:', err);
     } finally {
       clearSession();
+      hardResetAuthClientState(queryClient);
       navigate('/admin', { replace: true });
       toast.info(t('impersonation.ended'));
     }
-  }, [session, clearSession, navigate, t]);
+  }, [session, clearSession, queryClient, navigate, t]);
 
   // Check if impersonating a specific tenant
   const isImpersonatingTenant = useCallback((tenantId: string): boolean => {
