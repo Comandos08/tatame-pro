@@ -2277,8 +2277,11 @@ export const es: Record<string, string> = {
 
   // IMPERSONATION-ENTRY-FLOW-FIX
   'impersonation.autoEntryFailed': 'Fallo al Acceder al Tenant',
-  'impersonation.autoEntryFailedDesc': 'No fue posible iniciar automáticamente la sesión de impersonation para este tenant.',
+  'impersonation.autoEntryFailedDesc': 'No fue posible iniciar la sesión de impersonation para este tenant.',
   'impersonation.autoEntryHint': 'Verifique que el tenant exista y esté activo, o vuelva al panel administrativo.',
+  'impersonation.autoEntryRequired': 'Impersonation Requerida',
+  'impersonation.autoEntryRequiredDesc': 'Está accediendo a un tenant como Superadmin. Confirme para iniciar la sesión de impersonation.',
+  'impersonation.startForTenant': 'Iniciar Impersonación',
   'impersonation.retry': 'Reintentar',
 
   // PI C4.3 — Audit as Observability
