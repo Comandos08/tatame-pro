@@ -110,7 +110,9 @@ export function MembershipTypeSelector() {
     // FX-02: Require authentication BEFORE entering membership form
     if (!isAuthenticated) {
       toast.info('Para iniciar sua inscrição, confirme seu acesso.');
-      navigate(`/${tenantSlug}/login?redirect=${encodeURIComponent(path)}`, { replace: false });
+      // FX-02A: Validate redirect is internal, use replace to clean history
+      const safePath = path.startsWith(`/${tenantSlug}/`) ? path : `/${tenantSlug}/membership`;
+      navigate(`/${tenantSlug}/login?redirect=${encodeURIComponent(safePath)}`, { replace: true });
       return;
     }
 
