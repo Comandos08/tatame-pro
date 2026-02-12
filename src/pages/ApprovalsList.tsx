@@ -47,6 +47,11 @@ interface MembershipApplication {
   currency: string;
   applicant_data: ApplicantData | null;
   applicant_profile_id: string | null;
+  profile: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
   academy: {
     id: string;
     name: string;
@@ -83,6 +88,7 @@ export default function ApprovalsList() {
           currency,
           applicant_data,
           applicant_profile_id,
+          profile:profiles!applicant_profile_id(id, name, email),
           academy_id,
           academy:academies(id, name)
         `)
@@ -137,12 +143,12 @@ export default function ApprovalsList() {
     { 
       key: 'applicant', 
       label: t('approval.athleteData'), 
-      format: (_: unknown, row: MembershipApplication) => row.applicant_data?.full_name || '' 
+      format: (_: unknown, row: MembershipApplication) => row.profile?.name || row.applicant_data?.full_name || '' 
     },
     { 
       key: 'email', 
       label: 'E-mail', 
-      format: (_: unknown, row: MembershipApplication) => row.applicant_data?.email || '' 
+      format: (_: unknown, row: MembershipApplication) => row.profile?.email || row.applicant_data?.email || '' 
     },
     { key: 'status', label: 'Status', format: (v: unknown) => MEMBERSHIP_STATUS_LABELS[v as MembershipStatus] || String(v) },
     { key: 'payment_status', label: 'Pagamento', format: (v: unknown) => PAYMENT_STATUS_LABELS[v as PaymentStatus] || String(v) },
@@ -232,7 +238,7 @@ export default function ApprovalsList() {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <h3 className="font-medium flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            {membership.applicant_data?.full_name || 'Nome não disponível'}
+                            {membership.profile?.name || membership.applicant_data?.full_name || 'Nome não disponível'}
                           </h3>
                           <Badge variant="outline" className="text-xs">
                             #{membership.id.substring(0, 8).toUpperCase()}
@@ -240,7 +246,7 @@ export default function ApprovalsList() {
                         </div>
                         
                         <p className="text-sm text-muted-foreground mb-3">
-                          {membership.applicant_data?.email || 'Email não disponível'}
+                          {membership.profile?.email || membership.applicant_data?.email || 'Email não disponível'}
                         </p>
                         
                         <div className="flex flex-wrap gap-2 mb-3">

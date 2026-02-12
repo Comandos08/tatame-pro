@@ -97,6 +97,11 @@ interface MembershipApplication {
   applicant_data: ApplicantData | null;
   applicant_profile_id: string | null;
   documents_uploaded: DocumentUploaded[] | null;
+  profile: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
   academy: {
     id: string;
     name: string;
@@ -190,6 +195,7 @@ export default function ApprovalDetails() {
           applicant_data,
           applicant_profile_id,
           documents_uploaded,
+          profile:profiles!applicant_profile_id(id, name, email),
           academy:academies!academy_id(id, name),
           coach:coaches!preferred_coach_id(id, full_name),
           digital_cards(id, qr_code_image_url, pdf_url)
@@ -506,7 +512,7 @@ export default function ApprovalDetails() {
                       <>
                         <div>
                           <p className="text-sm text-muted-foreground">{t('membership.form.fullName')}</p>
-                          <p className="font-medium">{applicantData.full_name}</p>
+                          <p className="font-medium">{membership?.profile?.name || applicantData.full_name}</p>
                         </div>
                         <Separator />
                         <div className="grid grid-cols-2 gap-4">
@@ -526,7 +532,7 @@ export default function ApprovalDetails() {
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Mail className="h-3 w-3" /> {t('common.email')}
                           </p>
-                          <p className="font-medium">{applicantData.email}</p>
+                          <p className="font-medium">{membership?.profile?.email || applicantData.email}</p>
                         </div>
                         {applicantData.phone && (
                           <div>
