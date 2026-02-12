@@ -41,8 +41,8 @@
  */
 
 import { useRef, useEffect } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
+import { Navigate, useLocation } from "react-router-dom";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
@@ -51,6 +51,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
 import { ImpersonationScopeMismatchCard } from "@/components/impersonation/ImpersonationScopeMismatchCard";
+import { AutoImpersonationResolver } from "@/components/impersonation/AutoImpersonationResolver";
 import { logger } from "@/lib/logger";
 import {
   resolveIdentityState,
@@ -173,7 +174,6 @@ function isPublicPath(pathname: string) {
  */
 export function IdentityGate({ children }: IdentityGateProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const pathname = location.pathname;
 
   // =========================================================================
@@ -385,22 +385,14 @@ export function IdentityGate({ children }: IdentityGateProps) {
             return <>{children}</>;
           }
 
-          // Not impersonating — show standard blocked card
-          // SECURITY BOUNDARY: Superadmin must explicitly impersonate to access tenant data
+          // IMPERSONATION-ENTRY-FLOW-FIX: Auto-start impersonation for direct tenant access
           return (
-            <BlockedStateCard
-              icon={ShieldAlert}
-              iconVariant="warning"
-              titleKey="impersonation.actionRequired"
-              descriptionKey="impersonation.superadminContextRequired"
-              hintKey="impersonation.superadminExplainer"
-              actions={[
-                {
-                  labelKey: 'impersonation.goToAdmin',
-                  onClick: () => navigate("/admin"),
-                },
-              ]}
-            />
+            <AutoImpersonationResolver
+              tenantSlug={tenantSlug}
+              onLogout={() => signOut()}
+            >
+              {children}
+            </AutoImpersonationResolver>
           );
         }
         return <Navigate to={redirectDecision.destination!} replace />;

@@ -2254,6 +2254,12 @@ export const ptBR = {
   'impersonation.startSession': 'Iniciar Sessão',
   'impersonation.backToAdmin': 'Voltar ao Painel',
 
+  // IMPERSONATION-ENTRY-FLOW-FIX
+  'impersonation.autoEntryFailed': 'Falha ao Acessar Tenant',
+  'impersonation.autoEntryFailedDesc': 'Não foi possível iniciar a sessão de impersonation automaticamente para este tenant.',
+  'impersonation.autoEntryHint': 'Verifique se o tenant existe e está ativo, ou volte ao painel administrativo.',
+  'impersonation.retry': 'Tentar Novamente',
+
   // PI C4.3 — Audit as Observability
   'observability.audit.sectionLabel': 'Observabilidade',
   'observability.audit.title': 'Auditoria do Sistema',
