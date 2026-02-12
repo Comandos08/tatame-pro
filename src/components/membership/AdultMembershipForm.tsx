@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, Clock } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -806,6 +806,17 @@ export function AdultMembershipForm() {
                     {captchaError && <TurnstileError message={captchaError} />}
                   </div>
 
+                  {/* R-02: Expectation card */}
+                  <Card className="bg-muted/50 border-border">
+                    <CardContent className="flex items-start gap-3 p-4">
+                      <Clock className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{t('membership.expectation.title')}</p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-line mt-1">{t('membership.expectation.body')}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   <Button
                     onClick={handlePayment}
                     disabled={isLoading || !captchaToken || isManualOverride}
@@ -825,6 +836,10 @@ export function AdultMembershipForm() {
                       </>
                     )}
                   </Button>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    {t('membership.expectation.security')}
+                  </p>
 
                   <p className="text-xs text-muted-foreground text-center">
                     {t('membership.redirectHint')}
