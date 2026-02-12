@@ -3369,7 +3369,15 @@ export type Database = {
     }
     Enums: {
       academy_coach_role: "HEAD_COACH" | "ASSISTANT_COACH" | "INSTRUCTOR"
-      app_role: "SUPERADMIN_GLOBAL" | "ADMIN_TENANT" | "ATLETA"
+      app_role:
+        | "SUPERADMIN_GLOBAL"
+        | "ADMIN_TENANT"
+        | "ATLETA"
+        | "COACH_ASSISTENTE"
+        | "COACH_PRINCIPAL"
+        | "INSTRUTOR"
+        | "STAFF_ORGANIZACAO"
+        | "RECEPCAO"
       billing_status:
         | "ACTIVE"
         | "PAST_DUE"
@@ -3553,7 +3561,16 @@ export const Constants = {
   public: {
     Enums: {
       academy_coach_role: ["HEAD_COACH", "ASSISTANT_COACH", "INSTRUCTOR"],
-      app_role: ["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "ATLETA"],
+      app_role: [
+        "SUPERADMIN_GLOBAL",
+        "ADMIN_TENANT",
+        "ATLETA",
+        "COACH_ASSISTENTE",
+        "COACH_PRINCIPAL",
+        "INSTRUTOR",
+        "STAFF_ORGANIZACAO",
+        "RECEPCAO",
+      ],
       billing_status: [
         "ACTIVE",
         "PAST_DUE",

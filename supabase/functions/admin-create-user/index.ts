@@ -114,7 +114,23 @@ serve(async (req: Request) => {
       }
     }
 
-    console.log("User created successfully:", { userId, email, athleteId });
+    // Audit log for role grant (if ATLETA was assigned)
+    if (athleteId && tenantId) {
+      await supabaseAdmin.from("audit_logs").insert({
+        tenant_id: tenantId,
+        profile_id: caller.id,
+        event_type: "ROLES_GRANTED",
+        metadata: {
+          target_user_id: userId,
+          target_email: email,
+          roles_granted: ["ATLETA"],
+          granted_by: caller.id,
+          source: "admin-create-user",
+        },
+      });
+    }
+
+    console.log("User created successfully:", { userId, email });
 
     return new Response(
       JSON.stringify({

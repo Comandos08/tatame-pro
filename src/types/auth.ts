@@ -3,7 +3,12 @@ import { Session } from "@supabase/supabase-js";
 export type AppRole = 
   | 'SUPERADMIN_GLOBAL'
   | 'ADMIN_TENANT'
-  | 'ATLETA';
+  | 'ATLETA'
+  | 'COACH_ASSISTENTE'
+  | 'COACH_PRINCIPAL'
+  | 'INSTRUTOR'
+  | 'STAFF_ORGANIZACAO'
+  | 'RECEPCAO';
 
 export interface UserRole {
   id: string;
