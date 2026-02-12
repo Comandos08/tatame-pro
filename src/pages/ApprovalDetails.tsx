@@ -152,10 +152,11 @@ export default function ApprovalDetails() {
   // Role selection state - ATLETA is pre-selected by default
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(['ATLETA']);
   
-  // Available roles that can be assigned during approval
+  // Available roles that can be assigned during membership approval.
+  // NOTE: ADMIN_TENANT is NOT assignable here — tenant admin assignment
+  // is managed exclusively via ManageAdminsDialog (create-tenant-admin edge function).
   const ASSIGNABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
     { value: 'ATLETA', label: t('roles.athlete'), description: t('roles.athleteDesc') },
-    { value: 'ADMIN_TENANT', label: t('roles.admin'), description: t('roles.adminDesc') },
   ];
   
   const toggleRole = (role: AppRole) => {

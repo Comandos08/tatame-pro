@@ -117,12 +117,15 @@ Deno.serve(async (req) => {
       isNewUser = true;
       generatedPassword = password || generateRandomPassword();
 
+      // SAFE GOLD: Name normalization — prevent empty string in user_metadata
+      const normalizedName = (name ?? '').trim() || email.split("@")[0];
+
       const { data: authUser, error: createError } = await serviceClient.auth.admin.createUser({
         email: email.toLowerCase(),
         password: generatedPassword,
         email_confirm: true, // Auto-confirm email
         user_metadata: {
-          name: name || email.split("@")[0],
+          name: normalizedName,
         },
       });
 

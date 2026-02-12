@@ -431,12 +431,28 @@ serve(async (req) => {
       validatedRoles.push('ATLETA');
       log.info("No roles provided, defaulting to ATLETA");
     } else {
+      // SAFE GOLD: Explicit rejection of invalid roles (no silent ignore)
       for (const role of requestedRoles) {
-        if (VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
-          validatedRoles.push(role as ApprovalRole);
-        } else {
-          log.warn("Invalid role rejected", { role });
+        if (!VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
+          log.warn("Invalid role for membership approval", { role });
+          await logDecision(supabase, {
+            decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+            severity: 'MEDIUM',
+            operation: 'approve-membership',
+            user_id: user.id,
+            tenant_id: targetTenantId,
+            reason_code: 'INVALID_ROLE_FOR_APPROVAL',
+            metadata: { rejected_role: role },
+          });
+          return errorResponse(400, buildErrorEnvelope(
+            ERROR_CODES.VALIDATION_ERROR,
+            `Invalid role for membership approval: ${role}`,
+            false,
+            undefined,
+            correlationId
+          ), corsHeaders);
         }
+        validatedRoles.push(role as ApprovalRole);
       }
       
       if (validatedRoles.length === 0) {
