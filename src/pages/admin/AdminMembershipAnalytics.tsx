@@ -112,7 +112,7 @@ export default function AdminMembershipAnalytics() {
       : { label: 'Collecting Data', className: 'bg-success/10 text-success border-success/20' };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-8 p-6">
 
       {/* ── 1. Institutional Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -120,12 +120,12 @@ export default function AdminMembershipAnalytics() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 p-2 flex items-center justify-center">
             <TrendingUp className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Membership Funnel</h1>
-            <p className="text-sm text-muted-foreground">Global conversion lifecycle monitoring</p>
+            <p className="text-sm text-muted-foreground mt-1">Global conversion lifecycle monitoring</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -169,21 +169,19 @@ export default function AdminMembershipAnalytics() {
 
       {/* ── 4. Status Banner ── */}
       {(status === 'empty' || status === 'ready') && (
-        <Card className="rounded-xl bg-muted/50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <TrendingUp className={cn('h-8 w-8 shrink-0', isReady ? 'text-success' : 'text-muted-foreground')} />
-            <div>
-              <p className={cn('text-base font-semibold', isReady ? 'text-success' : 'text-foreground')}>
-                {isReady ? 'Conversion Funnel Active' : 'System Ready — Awaiting Membership Activity'}
-              </p>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {isReady
-                  ? `${totalEvents} lifecycle events recorded across membership stages.`
-                  : 'The analytics engine is active. Funnel metrics will populate automatically as users progress through the membership lifecycle.'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-border bg-muted p-5 flex items-center gap-4">
+          <TrendingUp className={cn('h-5 w-5 shrink-0', isReady ? 'text-success' : 'text-muted-foreground')} />
+          <div>
+            <p className={cn('text-sm font-medium', isReady ? 'text-success' : 'text-foreground')}>
+              {isReady ? 'Conversion Funnel Active' : 'System Ready — Awaiting Membership Activity'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isReady
+                ? `${totalEvents} lifecycle events recorded across membership stages.`
+                : 'The analytics engine is active. Funnel metrics will populate automatically as users progress through the membership lifecycle.'}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* ── 5. Executive Summary (always render if not loading/error) ── */}
@@ -197,7 +195,7 @@ export default function AdminMembershipAnalytics() {
               { label: 'APPROVED MEMBERSHIPS', value: String(totalApproved), desc: 'Successfully approved' },
               { label: 'OVERALL CONVERSION', value: `${overallConversion}%`, desc: 'Approved / Started' },
             ].map((m) => (
-              <Card key={m.label} className="rounded-xl">
+              <Card key={m.label} className="rounded-xl hover:bg-muted/40 transition-colors">
                 <CardContent className="p-6 space-y-2">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{m.label}</p>
                   <p className="text-3xl font-semibold text-foreground">{m.value}</p>
@@ -224,9 +222,9 @@ export default function AdminMembershipAnalytics() {
                     <span className="text-xs text-muted-foreground w-32 text-right shrink-0">
                       {STEP_LABELS[step]}
                     </span>
-                    <div className="flex-1 h-8 bg-muted rounded-lg overflow-hidden relative">
+                    <div className="flex-1 h-8 bg-muted rounded-full overflow-hidden relative">
                       <div
-                        className="h-full bg-primary/70 rounded-lg transition-all"
+                        className="h-full bg-primary rounded-full transition-all"
                         style={{ width: `${Math.max(pct, 2)}%` }}
                       />
                       <span className="absolute inset-y-0 left-3 flex items-center text-xs font-medium text-foreground">
@@ -246,31 +244,33 @@ export default function AdminMembershipAnalytics() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-foreground mb-1">Conversion Diagnostics</h2>
           <p className="text-sm text-muted-foreground mb-3">Stage transition performance analysis.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {DROP_OFF_PAIRS.map((pair) => {
-              const fromVal = get(pair.from);
-              const toVal = get(pair.to);
-              const dropPct = fromVal === 0 ? 0 : ((fromVal - toVal) / fromVal) * 100;
-              const dropStr = dropPct.toFixed(1);
-              const severity = dropPct > 70
-                ? 'text-destructive'
-                : dropPct > 50
-                  ? 'text-warning'
-                  : 'text-foreground';
+          <Card className="rounded-xl">
+            <CardContent className="p-6 divide-y divide-border">
+              {DROP_OFF_PAIRS.map((pair) => {
+                const fromVal = get(pair.from);
+                const toVal = get(pair.to);
+                const dropPct = fromVal === 0 ? 0 : ((fromVal - toVal) / fromVal) * 100;
+                const dropStr = dropPct.toFixed(1);
+                const severity = dropPct > 70
+                  ? 'text-destructive'
+                  : dropPct > 50
+                    ? 'text-warning'
+                    : 'text-foreground';
 
-              return (
-                <Card key={pair.label} className="rounded-xl">
-                  <CardContent className="p-6 space-y-2">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{pair.label}</p>
-                    <p className={cn('text-3xl font-semibold', severity)}>{dropStr}%</p>
-                    <p className="text-sm text-muted-foreground">
-                      {fromVal} → {toVal} ({fromVal - toVal} lost)
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                return (
+                  <div key={pair.label} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{pair.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {fromVal} → {toVal} ({fromVal - toVal} lost)
+                      </p>
+                    </div>
+                    <p className={cn('text-2xl font-semibold', severity)}>{dropStr}%</p>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
