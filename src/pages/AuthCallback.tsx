@@ -112,10 +112,15 @@ export default function AuthCallback() {
 
       const tenantSlug = extractTenantSlug(nextRaw);
 
-      // FX-01: If membership resume data exists, redirect to the membership form
+      // FX-01A: If membership resume data exists and no tenantSlug from next param,
+      // redirect to the membership form deterministically
       if (!tenantSlug) {
         const resumeInfo = detectMembershipResume();
         if (resumeInfo) {
+          logger.info('[FX-01A] AuthCallback: membership resume detected, redirecting', {
+            type: resumeInfo.type,
+            tenantSlug: resumeInfo.tenantSlug,
+          });
           const membershipPath = `/${resumeInfo.tenantSlug}/membership/${resumeInfo.type}`;
           navigate(membershipPath, { replace: true });
           return;

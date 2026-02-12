@@ -26,6 +26,8 @@ import {
   restoreMembershipResume,
   clearMembershipResume,
   logMembershipResumeEvent,
+  extractResumeStepFromStorage,
+  cleanupLegacyKey,
 } from '@/lib/membership/membershipSessionPersistence';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
@@ -104,31 +106,28 @@ export function AdultMembershipForm() {
     },
   });
 
-  // ✅ FX-01 — Restore form state from unified persistence on mount
+  // ✅ FX-01A — Restore form state from unified persistence on mount
+  // Legacy keys cleaned AFTER restore attempt (never before)
   useEffect(() => {
     if (!tenantSlug) return;
-    
-    // Migrate legacy storage if present
-    try {
-      const legacyRaw = sessionStorage.getItem('tatame.membership.adult.draft');
-      if (legacyRaw) {
-        sessionStorage.removeItem('tatame.membership.adult.draft');
-      }
-      // Also clear old login-redirect key
-      sessionStorage.removeItem('membershipFormData');
-    } catch { /* ignore */ }
 
+    // 1. Attempt restore FIRST (before any legacy cleanup)
     const result = restoreMembershipResume('adult', tenantSlug);
-    
-    logMembershipResumeEvent(
-      tenantSlug,
-      'adult',
-      result.data?.step ?? 1,
-      result.outcome
-    );
 
-    if (result.outcome === 'expired' || result.outcome === 'tenant_mismatch') {
+    // FX-01A: Log with actual stored step for non-success outcomes
+    const logStep = result.data?.step
+      ?? (result.outcome !== 'not_found' ? extractResumeStepFromStorage('adult') : 0);
+
+    logMembershipResumeEvent(tenantSlug, 'adult', logStep, result.outcome);
+
+    // 2. NOW safe to clean legacy keys (restore already attempted)
+    cleanupLegacyKey('tatame.membership.adult.draft');
+    cleanupLegacyKey('membershipFormData');
+
+    // FX-01A: Fail-closed — redirect to start page on non-recoverable outcomes
+    if (result.outcome === 'expired' || result.outcome === 'tenant_mismatch' || result.outcome === 'invalid') {
       toast.info('Sua sessão expirou. Por favor, reinicie sua inscrição.');
+      navigate(`/${tenantSlug}/membership/adult`, { replace: true });
       return;
     }
 
@@ -262,16 +261,24 @@ export function AdultMembershipForm() {
         });
       }
 
-      // FX-01: Check for existing DRAFT to prevent duplicates
-      const { data: existingDraft } = await supabase
+      // FX-01A: Check for existing DRAFT — strictly scoped to user + tenant + type
+      const { data: existingDrafts } = await supabase
         .from('memberships')
         .select('id')
         .eq('tenant_id', tenant.id)
         .eq('applicant_profile_id', currentUser.id)
         .eq('status', 'DRAFT')
+        .eq('type', 'FIRST_MEMBERSHIP')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
+
+      const existingDraft = existingDrafts?.[0] ?? null;
+      if (existingDrafts && existingDrafts.length > 1) {
+        logger.warn('[FX-01A] Multiple DRAFT memberships found, using most recent', {
+          count: existingDrafts.length,
+          selectedId: existingDrafts[0].id,
+        });
+      }
 
       let membershipId: string;
 
