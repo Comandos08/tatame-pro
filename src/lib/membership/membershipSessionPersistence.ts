@@ -34,12 +34,20 @@ export type ResumeOutcome = 'success' | 'expired' | 'invalid' | 'tenant_mismatch
  * FX-01A: Extract resumeStep from raw storage even when outcome is non-success.
  * Returns 0 if parsing fails entirely.
  */
+const MAX_ALLOWED_STEPS: Record<MembershipResumeType, number> = {
+  adult: 3,
+  youth: 4,
+};
+
 export function extractResumeStepFromStorage(type: MembershipResumeType): number {
   try {
     const raw = sessionStorage.getItem(getStorageKey(type));
     if (!raw) return 0;
     const parsed = JSON.parse(raw);
-    return typeof parsed?.step === 'number' ? parsed.step : 0;
+    const step = typeof parsed?.step === 'number' ? parsed.step : 0;
+    if (!Number.isFinite(step) || step < 1) return 0;
+    const max = MAX_ALLOWED_STEPS[type];
+    return step > max ? max : step;
   } catch {
     return 0;
   }
