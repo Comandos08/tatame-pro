@@ -2256,8 +2256,11 @@ export const ptBR = {
 
   // IMPERSONATION-ENTRY-FLOW-FIX
   'impersonation.autoEntryFailed': 'Falha ao Acessar Tenant',
-  'impersonation.autoEntryFailedDesc': 'Não foi possível iniciar a sessão de impersonation automaticamente para este tenant.',
+  'impersonation.autoEntryFailedDesc': 'Não foi possível iniciar a sessão de impersonation para este tenant.',
   'impersonation.autoEntryHint': 'Verifique se o tenant existe e está ativo, ou volte ao painel administrativo.',
+  'impersonation.autoEntryRequired': 'Impersonation Necessária',
+  'impersonation.autoEntryRequiredDesc': 'Você está acessando um tenant como Superadmin. Confirme para iniciar a sessão de impersonation.',
+  'impersonation.startForTenant': 'Iniciar Impersonação',
   'impersonation.retry': 'Tentar Novamente',
 
   // PI C4.3 — Audit as Observability

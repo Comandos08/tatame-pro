@@ -1,23 +1,23 @@
 /**
  * ============================================================================
- * 🔐 AutoImpersonationResolver — IMPERSONATION-ENTRY-FLOW-FIX (SAFE GOLD)
+ * 🔐 AutoImpersonationResolver — IMPERSONATION STABILITY FIX (SAFE GOLD)
  * ============================================================================
  *
  * PURPOSE:
- * Automatically starts an impersonation session when a SUPERADMIN_GLOBAL
- * navigates directly to a tenant route (/:tenantSlug/app) without an active
- * impersonation session.
+ * When a SUPERADMIN_GLOBAL navigates directly to a tenant route without an
+ * active impersonation session, this component blocks navigation and shows
+ * a confirmation button. Impersonation is NEVER started automatically.
  *
  * FLOW:
- * 1. Resolve tenantSlug from URL → tenantId via DB lookup
- * 2. Call startImpersonation(tenantId)
- * 3. On success → render children (navigation continues)
- * 4. On failure → show blocked card with recovery options
+ * 1. If already impersonating → render children
+ * 2. Otherwise → show confirmation UI with "Start Impersonation" button
+ * 3. User clicks → resolve slug → startImpersonation(tenantId)
+ * 4. On success → render children
+ * 5. On failure → show error with recovery options
  *
  * SECURITY INVARIANTS:
- * - Only executes for SUPERADMIN_GLOBAL (caller must guard)
- * - If tenantSlug is missing or undefined → logs warning, blocks gracefully
- * - Never calls validate-impersonation with undefined slug
+ * - startImpersonation is ONLY triggered by explicit user action (button click)
+ * - No automatic backend calls on mount
  * - Deterministic state machine: IDLE → RESOLVING → RESOLVED | ERROR
  *
  * SAFE GOLD COMPLIANCE:
@@ -28,9 +28,9 @@
  * ============================================================================
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, RefreshCw, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, RefreshCw, ArrowLeft, Play } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { IdentityLoadingScreen } from '@/components/identity/IdentityLoadingScreen';
@@ -54,15 +54,14 @@ export function AutoImpersonationResolver({
   const { startImpersonation, isImpersonating } = useImpersonation();
   const [status, setStatus] = useState<ResolverStatus>('IDLE');
   const [_errorMessage, setErrorMessage] = useState<string | null>(null);
-  const attemptedRef = useRef(false);
 
   // ========================================================================
-  // Guard: tenantSlug must be defined
-  // BY DESIGN: If slug is missing, we block gracefully — never call backend
+  // Handler: Explicit user-triggered impersonation start
+  // BY DESIGN: Never called automatically — only via button click
   // ========================================================================
-  const resolveImpersonation = useCallback(async () => {
+  const handleStartImpersonation = async () => {
     if (!tenantSlug) {
-      logger.warn('[AutoImpersonation] tenantSlug is undefined — blocking navigation');
+      logger.warn('[AutoImpersonation] tenantSlug is undefined — blocking');
       setStatus('ERROR');
       setErrorMessage('MISSING_TENANT_SLUG');
       return;
@@ -99,8 +98,8 @@ export function AutoImpersonationResolver({
         return;
       }
 
-      // Step 2: Start impersonation
-      const success = await startImpersonation(tenant.id, `auto_entry:${tenantSlug}`);
+      // Step 2: Start impersonation (user-initiated)
+      const success = await startImpersonation(tenant.id, `manual_entry:${tenantSlug}`);
 
       if (success) {
         logger.log('[AutoImpersonation] Impersonation started successfully', { tenantSlug });
@@ -115,38 +114,46 @@ export function AutoImpersonationResolver({
       setStatus('ERROR');
       setErrorMessage('UNEXPECTED_ERROR');
     }
-  }, [tenantSlug, startImpersonation]);
-
-  // ========================================================================
-  // Effect: Auto-resolve on mount (once)
-  // BY DESIGN: Uses ref to prevent double-execution in StrictMode
-  // ========================================================================
-  useEffect(() => {
-    if (attemptedRef.current) return;
-    if (isImpersonating) return; // Already impersonating, skip
-
-    attemptedRef.current = true;
-    resolveImpersonation();
-  }, [resolveImpersonation, isImpersonating]);
+  };
 
   // ========================================================================
   // Render: State-based deterministic output
   // ========================================================================
 
-  // Already impersonating (e.g. resolved successfully or restored from storage)
+  // Already impersonating → render children immediately
   if (isImpersonating) {
     return <>{children}</>;
   }
 
   switch (status) {
     case 'IDLE':
+      // Show confirmation UI — user must click to start
+      return (
+        <BlockedStateCard
+          icon={ShieldAlert}
+          iconVariant="warning"
+          titleKey="impersonation.autoEntryRequired"
+          descriptionKey="impersonation.autoEntryRequiredDesc"
+          hintKey="impersonation.autoEntryHint"
+          actions={[
+            {
+              labelKey: 'impersonation.startForTenant',
+              onClick: handleStartImpersonation,
+              icon: Play,
+            },
+            {
+              labelKey: 'impersonation.goToAdmin',
+              onClick: () => navigate('/admin'),
+              icon: ArrowLeft,
+            },
+          ]}
+        />
+      );
+
     case 'RESOLVING':
       return (
         <IdentityLoadingScreen
-          onRetry={() => {
-            attemptedRef.current = false;
-            resolveImpersonation();
-          }}
+          onRetry={handleStartImpersonation}
           onLogout={onLogout}
         />
       );
@@ -155,10 +162,7 @@ export function AutoImpersonationResolver({
       // Impersonation started — children will render on next cycle when isImpersonating becomes true
       return (
         <IdentityLoadingScreen
-          onRetry={() => {
-            attemptedRef.current = false;
-            resolveImpersonation();
-          }}
+          onRetry={handleStartImpersonation}
           onLogout={onLogout}
         />
       );
@@ -175,10 +179,8 @@ export function AutoImpersonationResolver({
             {
               labelKey: 'impersonation.retry',
               onClick: () => {
-                attemptedRef.current = false;
                 setStatus('IDLE');
                 setErrorMessage(null);
-                resolveImpersonation();
               },
               icon: RefreshCw,
             },
