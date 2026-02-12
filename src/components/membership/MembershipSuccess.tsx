@@ -10,6 +10,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
+import { logMembershipEvent } from '@/lib/analytics/membershipAnalytics';
 
 type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error' | 'missing_params' | 'pending_confirmation';
 
@@ -93,6 +94,9 @@ export function MembershipSuccess() {
 
   // FX-03A: Single-shot guard — prevent double invocation (StrictMode)
   const confirmCalledRef = useRef(false);
+  // R-01: Dedup guard for analytics
+  const successViewedRef = useRef(false);
+  const approvedLoggedRef = useRef(false);
 
   const runConfirmation = useCallback(async () => {
     if (!membershipId || !sessionId) return;
@@ -112,6 +116,16 @@ export function MembershipSuccess() {
             ? t('membershipSuccess.approvedSubtitle')
             : t('membershipSuccess.successMessage')
         );
+
+        // R-01: Log success/approved analytics
+        if (tenantSlug && !successViewedRef.current) {
+          successViewedRef.current = true;
+          logMembershipEvent('MEMBERSHIP_SUCCESS_VIEWED', { tenantSlug, timestamp: Date.now() });
+        }
+        if (normalized === 'approved' && tenantSlug && !approvedLoggedRef.current) {
+          approvedLoggedRef.current = true;
+          logMembershipEvent('MEMBERSHIP_APPROVED', { tenantSlug, timestamp: Date.now() });
+        }
       } else {
         // FX-05A: Non-success but payment may exist — pending confirmation, not error
         setStatus('pending_confirmation');

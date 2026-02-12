@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -27,6 +28,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { isValidStatusType, getStatusI18nKey } from "@/lib/statusUtils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { logMembershipEvent } from "@/lib/analytics/membershipAnalytics";
 
 /* ======================================================
    Types
@@ -114,6 +116,14 @@ export default function AthletePortal() {
   const { tenantSlug } = useParams();
   const { currentUser } = useCurrentUser();
   const { t } = useI18n();
+
+  // R-01: Dedup guard for portal access analytics
+  const portalAccessedRef = useRef(false);
+  useEffect(() => {
+    if (portalAccessedRef.current || !tenantSlug) return;
+    portalAccessedRef.current = true;
+    logMembershipEvent('MEMBERSHIP_PORTAL_ACCESSED', { tenantSlug, timestamp: Date.now() });
+  }, [tenantSlug]);
 
   const {
     data: athlete,
