@@ -209,13 +209,3 @@ export function useTenant() {
   }
   return context;
 }
-
-/**
- * Safe variant of useTenant that returns null when outside TenantProvider.
- * Use ONLY in components that may render both inside and outside tenant context
- * (e.g., RequireRoles on global /admin routes).
- */
-export function useTenantOptional(): ReturnType<typeof useTenant> | null {
-  const context = useContext(TenantContext);
-  return context ?? null;
-}
