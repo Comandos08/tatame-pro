@@ -362,19 +362,22 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         return false;
       }
 
-      if (data.error) {
-        logger.error('[IMPERSONATION] Start failed:', data.error);
+      // A07 envelope unwrap — okResponse wraps in { data: { ... } }
+      const payload = data?.data ?? data;
+
+      if (payload.error) {
+        logger.error('[IMPERSONATION] Start failed:', payload.error);
         setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on failure
-        toast.error(data.error);
+        toast.error(payload.error);
         return false;
       }
 
       const newSession: ImpersonationSession = {
-        impersonationId: data.impersonationId,
-        targetTenantId: data.targetTenantId,
-        targetTenantSlug: data.targetTenantSlug,
-        targetTenantName: data.targetTenantName,
-        expiresAt: data.expiresAt,
+        impersonationId: payload.impersonationId,
+        targetTenantId: payload.targetTenantId,
+        targetTenantSlug: payload.targetTenantSlug,
+        targetTenantName: payload.targetTenantName,
+        expiresAt: payload.expiresAt,
         status: 'ACTIVE',
       };
 
@@ -385,7 +388,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       logger.log('[IMPERSONATION] Success, status → RESOLVED');
       setResolutionStatus('RESOLVED');
 
-      toast.success(`${t('impersonation.started')}: ${data.targetTenantName}`);
+      toast.success(`${t('impersonation.started')}: ${payload.targetTenantName}`);
       return true;
     } catch (err) {
       logger.error('[IMPERSONATION] Start error:', err);
