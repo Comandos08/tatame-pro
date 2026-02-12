@@ -121,7 +121,18 @@ function TenantContent() {
   // =========================================================================
   // FAIL-CLOSED: User has no membership in this tenant
   // SUPERADMIN is excluded (IdentityGate handles impersonation scope)
-  if (boundaryViolation) {
+  // =========================================================================
+  // STEP 3.5: Route Classification (used by boundary + billing checks)
+  // =========================================================================
+  const isProtectedRoute = location.pathname.includes('/app') || location.pathname.includes('/portal');
+
+  // =========================================================================
+  // STEP 3.6: Tenant Boundary Violation (A04)
+  // =========================================================================
+  // FAIL-CLOSED: User has no membership in this tenant — ONLY for protected routes
+  // SUPERADMIN is excluded (IdentityGate handles impersonation scope)
+  // BY DESIGN: Public tenant routes (membership, landing, events) remain accessible
+  if (boundaryViolation && isProtectedRoute) {
     return (
       <BlockedStateCard
         icon={ShieldAlert}
@@ -144,8 +155,7 @@ function TenantContent() {
   // =========================================================================
   // SECURITY BOUNDARY: Inactive tenants cannot access /app/* routes
   // BY DESIGN: Public routes (landing, events, verification) are NOT blocked
-  // INTENTIONAL: Only /app/* routes require active billing status
-  const isProtectedRoute = location.pathname.includes('/app');
+  // INTENTIONAL: Only /app/* and /portal/* routes require active billing status
   if (!tenant.isActive && isProtectedRoute) {
     // FAIL-CLOSED: Show blocking screen with recovery options
     return (
