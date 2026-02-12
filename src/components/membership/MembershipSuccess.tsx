@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Circle, Loader2, XCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -12,6 +12,23 @@ import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 
 type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error';
+
+/**
+ * FX-03A — Normalize raw membership status from backend to local confirmation status.
+ * Single source of truth for status mapping. No inline string checks.
+ */
+function normalizeMembershipStatus(rawStatus: string | undefined | null): ConfirmationStatus {
+  switch (rawStatus) {
+    case 'ACTIVE':
+    case 'APPROVED':
+      return 'approved';
+    case 'PENDING_APPROVAL':
+    case 'PENDING_REVIEW':
+    case 'UNDER_REVIEW':
+    default:
+      return 'success';
+  }
+}
 
 /**
  * FX-03 — Process Timeline
@@ -76,14 +93,20 @@ export function MembershipSuccess() {
   const membershipId = searchParams.get('membership_id');
   const sessionId = searchParams.get('session_id');
 
-  useEffect(() => {
-    const confirmPayment = async () => {
-      if (!membershipId || !sessionId) {
-        setStatus('error');
-        setMessage(t('membershipSuccess.invalidParams'));
-        return;
-      }
+  // FX-03A: Single-shot guard — prevent double invocation (StrictMode / i18n change)
+  const confirmCalledRef = useRef(false);
 
+  useEffect(() => {
+    if (confirmCalledRef.current) return;
+    if (!membershipId || !sessionId) {
+      setStatus('error');
+      setMessage(t('membershipSuccess.invalidParams'));
+      return;
+    }
+
+    confirmCalledRef.current = true;
+
+    const confirmPayment = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('confirm-membership-payment', {
           body: { sessionId, membershipId },
@@ -92,14 +115,13 @@ export function MembershipSuccess() {
         if (error) throw error;
 
         if (data?.success) {
-          // Determine if membership is already approved or pending
-          if (data?.membershipStatus === 'ACTIVE' || data?.membershipStatus === 'APPROVED') {
-            setStatus('approved');
-            setMessage(t('membershipSuccess.approvedSubtitle'));
-          } else {
-            setStatus('success');
-            setMessage(t('membershipSuccess.successMessage'));
-          }
+          const normalized = normalizeMembershipStatus(data?.membershipStatus);
+          setStatus(normalized);
+          setMessage(
+            normalized === 'approved'
+              ? t('membershipSuccess.approvedSubtitle')
+              : t('membershipSuccess.successMessage')
+          );
         } else {
           setStatus('error');
           setMessage(data?.message || t('membershipSuccess.confirmError'));
@@ -112,7 +134,8 @@ export function MembershipSuccess() {
     };
 
     confirmPayment();
-  }, [membershipId, sessionId, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membershipId, sessionId]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
