@@ -28,6 +28,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useI18n } from '@/contexts/I18nContext';
+import { safeDisplayName } from '@/lib/auth/safeName';
 
 interface Tenant {
   id: string;
@@ -263,7 +264,7 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
                         </div>
                         <div>
                           <p className="font-medium text-sm">
-                            {admin.profile?.name || 'Sem nome'}
+                            {safeDisplayName(admin.profile?.name, admin.profile?.email)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {admin.profile?.email}

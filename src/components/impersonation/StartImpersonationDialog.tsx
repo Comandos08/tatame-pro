@@ -24,6 +24,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useNavigate } from 'react-router-dom';
+import { hardResetAuthClientState } from '@/lib/auth/clientReset';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface StartImpersonationDialogProps {
   open: boolean;
@@ -42,6 +44,7 @@ export function StartImpersonationDialog({
 }: StartImpersonationDialogProps) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { startImpersonation, isLoading } = useImpersonation();
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,9 +54,9 @@ export function StartImpersonationDialog({
     try {
       const success = await startImpersonation(tenant.id, reason || undefined);
       if (success) {
+        hardResetAuthClientState(queryClient);
         onOpenChange(false);
         setReason('');
-        // Navigate to the tenant's app
         navigate(`/${tenant.slug}/app`, { replace: true });
       }
     } finally {
