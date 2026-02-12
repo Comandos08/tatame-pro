@@ -39,6 +39,8 @@ export interface BlockedStateAction {
   variant?: 'default' | 'outline' | 'ghost';
   /** Optional icon to show before label */
   icon?: LucideIcon;
+  /** Whether the button is disabled */
+  disabled?: boolean;
 }
 
 export interface BlockedStateCardProps {
@@ -150,6 +152,7 @@ export function BlockedStateCard({
                   key={index}
                   onClick={action.onClick}
                   variant={variant}
+                  disabled={action.disabled}
                   className="w-full"
                 >
                   {ActionIcon && <ActionIcon className="h-4 w-4 mr-2" />}

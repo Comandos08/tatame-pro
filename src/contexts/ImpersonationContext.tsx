@@ -82,6 +82,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   
   const validationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const impersonationInFlightRef = useRef(false);
 
   // Load session from sessionStorage on mount
   useEffect(() => {
@@ -346,6 +347,13 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       return false;
     }
 
+    // HARD GUARD: Prevent duplicate edge function calls (429 protection)
+    if (impersonationInFlightRef.current) {
+      logger.warn('[IMPERSONATION] Duplicate call blocked by inFlightRef');
+      return false;
+    }
+    impersonationInFlightRef.current = true;
+
     // ✅ P-IMP-FIX — Set RESOLVING before edge function call
     logger.log('[IMPERSONATION] Starting, status → RESOLVING');
     setResolutionStatus('RESOLVING');
@@ -395,6 +403,8 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset on error
       toast.error(t('impersonation.startFailed'));
       return false;
+    } finally {
+      impersonationInFlightRef.current = false;
     }
   }, [isGlobalSuperadmin, t]);
 
