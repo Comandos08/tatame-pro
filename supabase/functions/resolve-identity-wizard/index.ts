@@ -134,10 +134,14 @@ interface IdentityResponse {
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 Deno.serve(async (req) => {
-  // R-01D.8 — Deterministic Runtime Verification
-  console.log("=== FUNCTION STARTED ===");
-  console.log("FUNCTION VERSION: R-01D.8");
-  console.log("TIMESTAMP:", new Date().toISOString());
+  // R-01D.9 — Hard Override Test
+  return new Response(
+    JSON.stringify({
+      test: "R-01D.9 ACTIVE",
+      timestamp: new Date().toISOString()
+    }),
+    { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+  );
 
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
