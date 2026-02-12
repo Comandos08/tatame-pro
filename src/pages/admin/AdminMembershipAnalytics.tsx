@@ -112,40 +112,45 @@ export default function AdminMembershipAnalytics() {
       : { label: 'Collecting Data', className: 'bg-success/10 text-success border-success/20' };
 
   return (
-    <div className="space-y-8 p-6">
+    <div className="flex flex-col h-full">
 
-      {/* ── 1. Institutional Header ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="h-10 w-10 rounded-xl bg-primary/10 p-2 flex items-center justify-center">
-            <TrendingUp className="h-5 w-5 text-primary" />
+      {/* ── 1. Sticky Institutional Header ── */}
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border px-6 py-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="h-10 w-10 rounded-xl bg-primary/10 p-2 flex items-center justify-center">
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Membership Funnel</h1>
+              <p className="text-sm text-muted-foreground mt-1">Global conversion lifecycle monitoring</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Membership Funnel</h1>
-            <p className="text-sm text-muted-foreground mt-1">Global conversion lifecycle monitoring</p>
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
+              badgeConfig.className,
+            )}>
+              {badgeConfig.label}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing || status === 'loading'}
+            >
+              <RefreshCw className={cn('h-4 w-4 mr-2', (isRefreshing || status === 'loading') && 'animate-spin')} />
+              Refresh
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={cn(
-            'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
-            badgeConfig.className,
-          )}>
-            {badgeConfig.label}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing || status === 'loading'}
-          >
-            <RefreshCw className={cn('h-4 w-4 mr-2', (isRefreshing || status === 'loading') && 'animate-spin')} />
-            Refresh
-          </Button>
         </div>
       </div>
+
+      {/* ── Scrollable Content ── */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-8">
 
       {/* ── 2. Loading indicator ── */}
       {status === 'loading' && (
@@ -273,6 +278,7 @@ export default function AdminMembershipAnalytics() {
           </Card>
         </div>
       )}
+      </div>
     </div>
   );
 }
