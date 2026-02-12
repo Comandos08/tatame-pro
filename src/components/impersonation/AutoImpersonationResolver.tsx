@@ -28,7 +28,7 @@
  * ============================================================================
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, RefreshCw, ArrowLeft, Play } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,12 +54,18 @@ export function AutoImpersonationResolver({
   const { startImpersonation, isImpersonating } = useImpersonation();
   const [status, setStatus] = useState<ResolverStatus>('IDLE');
   const [_errorMessage, setErrorMessage] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
 
   // ========================================================================
   // Handler: Explicit user-triggered impersonation start
   // BY DESIGN: Never called automatically — only via button click
+  // HARD GUARD: Prevents duplicate calls (429) even under React StrictMode
   // ========================================================================
   const handleStartImpersonation = async () => {
+    if (status !== 'IDLE') return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     if (!tenantSlug) {
       logger.warn('[AutoImpersonation] tenantSlug is undefined — blocking');
       setStatus('ERROR');
@@ -113,6 +119,8 @@ export function AutoImpersonationResolver({
       logger.error('[AutoImpersonation] Unexpected error', { tenantSlug, error: err });
       setStatus('ERROR');
       setErrorMessage('UNEXPECTED_ERROR');
+    } finally {
+      inFlightRef.current = false;
     }
   };
 
@@ -140,6 +148,7 @@ export function AutoImpersonationResolver({
               labelKey: 'impersonation.startForTenant',
               onClick: handleStartImpersonation,
               icon: Play,
+              disabled: status !== 'IDLE',
             },
             {
               labelKey: 'impersonation.goToAdmin',
