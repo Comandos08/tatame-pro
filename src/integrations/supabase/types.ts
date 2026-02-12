@@ -2295,6 +2295,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "memberships_applicant_profile_id_fkey"
+            columns: ["applicant_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "memberships_athlete_id_fkey"
             columns: ["athlete_id"]
             isOneToOne: false
