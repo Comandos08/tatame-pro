@@ -2162,6 +2162,33 @@ export type Database = {
           },
         ]
       }
+      membership_analytics: {
+        Row: {
+          created_at: string
+          event_name: string
+          id: string
+          membership_type: string | null
+          step: number | null
+          tenant_slug: string
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          id?: string
+          membership_type?: string | null
+          step?: number | null
+          tenant_slug: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          id?: string
+          membership_type?: string | null
+          step?: number | null
+          tenant_slug?: string
+        }
+        Relationships: []
+      }
       memberships: {
         Row: {
           academy_id: string | null

@@ -7,6 +7,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { supabase } from '@/integrations/supabase/client';
 
 /** Strict union of allowed membership funnel events */
 export type MembershipEventName =
@@ -43,4 +44,17 @@ export function logMembershipEvent(
     event: eventName,
     ...payload,
   });
+
+  // R-01C: Fire-and-forget DB persistence — never blocks, never throws
+  supabase
+    .from('membership_analytics')
+    .insert({
+      tenant_slug: payload.tenantSlug,
+      event_name: eventName,
+      membership_type: payload.membershipType ?? null,
+      step: payload.step ?? null,
+    })
+    .then(null, () => {
+      // fail-silent
+    });
 }
