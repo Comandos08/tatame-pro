@@ -78,7 +78,7 @@ export function YouthMembershipForm() {
     // FX-01A: Fail-closed — redirect to start page on non-recoverable outcomes
     if (result.outcome === 'expired' || result.outcome === 'tenant_mismatch' || result.outcome === 'invalid') {
       toast.info('Sua sessão expirou. Por favor, reinicie sua inscrição.');
-      navigate(`/${tenantSlug}/membership/youth`, { replace: true });
+      navigate(`/${tenantSlug}/membership`, { replace: true });
       return;
     }
 
@@ -301,22 +301,28 @@ export function YouthMembershipForm() {
         });
       }
 
-      // FX-01A: Check for existing DRAFT — strictly scoped to user + tenant + type
-      const { data: existingDrafts } = await supabase
+      // FX-01B: Check for existing DRAFT — strictly scoped to user + tenant + youth flow
+      const { data: allDrafts } = await supabase
         .from('memberships')
-        .select('id')
+        .select('id, applicant_data')
         .eq('tenant_id', tenant.id)
         .eq('applicant_profile_id', currentUser.id)
         .eq('status', 'DRAFT')
         .eq('type', 'FIRST_MEMBERSHIP')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
-      const existingDraft = existingDrafts?.[0] ?? null;
-      if (existingDrafts && existingDrafts.length > 1) {
-        logger.warn('[FX-01A] Multiple DRAFT memberships found for youth, using most recent', {
-          count: existingDrafts.length,
-          selectedId: existingDrafts[0].id,
+      // FX-01B: Only reuse drafts with is_minor === true (youth flow)
+      const youthDrafts = (allDrafts ?? []).filter((d) => {
+        const ad = d.applicant_data as Record<string, unknown> | null;
+        return ad?.is_minor === true;
+      });
+
+      const existingDraft = youthDrafts[0] ?? null;
+      if (youthDrafts.length > 1) {
+        logger.warn('[FX-01B] Multiple youth DRAFT memberships found, using most recent', {
+          count: youthDrafts.length,
+          selectedId: youthDrafts[0].id,
         });
       }
 
