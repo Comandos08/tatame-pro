@@ -97,6 +97,8 @@ export function MembershipSuccess() {
   // R-01: Dedup guard for analytics
   const successViewedRef = useRef(false);
   const approvedLoggedRef = useRef(false);
+  // R-01B: Separate page-loaded event from approval
+  const successPageLoggedRef = useRef(false);
 
   const runConfirmation = useCallback(async () => {
     if (!membershipId || !sessionId) return;
@@ -153,6 +155,13 @@ export function MembershipSuccess() {
     runConfirmation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membershipId, sessionId]);
+
+  // R-01B: Fire SUCCESS_PAGE_LOADED once when leaving loading state
+  useEffect(() => {
+    if (successPageLoggedRef.current || status === 'loading' || !tenantSlug) return;
+    successPageLoggedRef.current = true;
+    logMembershipEvent('MEMBERSHIP_SUCCESS_PAGE_LOADED', { tenantSlug, timestamp: Date.now() });
+  }, [status, tenantSlug]);
 
   // FX-05A: Retry only available for pending_confirmation
   const handleRetry = useCallback(async () => {
