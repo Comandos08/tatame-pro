@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, BarChart3, ArrowDown } from 'lucide-react';
+import { Loader2, AlertTriangle, TrendingUp, ArrowDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
@@ -91,7 +91,7 @@ export default function AdminMembershipAnalytics() {
   // --- Loading ---
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="container mx-auto max-w-6xl px-6 py-8 flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Loading analytics…</p>
@@ -103,7 +103,7 @@ export default function AdminMembershipAnalytics() {
   // --- Error ---
   if (status === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="container mx-auto max-w-6xl px-6 py-8 flex items-center justify-center min-h-[60vh]">
         <Card className="max-w-md w-full">
           <CardHeader className="items-center text-center">
             <AlertTriangle className="h-10 w-10 text-destructive mb-2" />
@@ -120,16 +120,24 @@ export default function AdminMembershipAnalytics() {
   // --- Empty ---
   if (status === 'empty') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="max-w-md w-full">
-          <CardHeader className="items-center text-center">
-            <BarChart3 className="h-10 w-10 text-muted-foreground mb-2" />
-            <CardTitle>No Data Yet</CardTitle>
-            <CardDescription>
-              No membership funnel events have been recorded. Events will appear here as users interact with the membership flow.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="container mx-auto max-w-6xl px-6 py-8 space-y-8">
+        <div className="text-sm text-muted-foreground">
+          Admin / Analytics / Membership Funnel
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Membership Funnel Analytics</h1>
+          <p className="text-muted-foreground mt-2">Monitor the complete membership conversion lifecycle and identify drop-off points.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+          <TrendingUp className="h-12 w-12 text-muted-foreground" />
+          <div>
+            <h2 className="text-xl font-semibold">No Membership Activity Yet</h2>
+            <p className="text-muted-foreground mt-2 max-w-md">
+              Your system is ready to track conversion events.
+              As users interact with the membership flow, metrics will appear automatically.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -154,35 +162,48 @@ export default function AdminMembershipAnalytics() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-10">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Membership Funnel Analytics</h1>
-          <p className="text-muted-foreground mt-1">Aggregate event counts from the membership flow.</p>
-        </div>
+    <div className="container mx-auto max-w-6xl px-6 py-8 space-y-8">
+      {/* Breadcrumb */}
+      <div className="text-sm text-muted-foreground">
+        Admin / Analytics / Membership Funnel
+      </div>
 
-        {/* SECTION 1 — Funnel Overview Cards */}
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Funnel Overview</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Membership Funnel Analytics</h1>
+        <p className="text-muted-foreground mt-2">Monitor the complete membership conversion lifecycle and identify drop-off points.</p>
+      </div>
+
+      {/* SECTION 1 — Funnel Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Funnel Overview</CardTitle>
+          <CardDescription>Aggregate event counts from the membership flow.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 grid-cols-2 md:grid-cols-4">
             {FUNNEL_STEPS.map((step) => (
               <Card key={step}>
                 <CardHeader className="pb-2">
                   <CardDescription className="text-xs">{STEP_LABELS[step]}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-bold text-foreground">{get(step)}</p>
+                  <p className="text-2xl font-bold text-foreground">{get(step)}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
-        </section>
+        </CardContent>
+      </Card>
 
-        {/* SECTION 2 — Conversion Metrics */}
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Conversion Metrics</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* SECTION 2 — Conversion Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Conversion Metrics</CardTitle>
+          <CardDescription>Key performance indicators across the membership lifecycle.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {conversions.map((c) => (
               <Card key={c.label}>
                 <CardHeader className="pb-2">
@@ -190,39 +211,40 @@ export default function AdminMembershipAnalytics() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold text-foreground">{c.value}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">{c.desc}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{c.desc}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
-        </section>
+        </CardContent>
+      </Card>
 
-        {/* SECTION 3 — Visual Funnel */}
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Visual Funnel</h2>
-          <Card>
-            <CardContent className="py-6">
-              <div className="flex flex-col items-center gap-1">
-                {funnelSteps.map((step, i) => (
-                  <div key={step} className="flex flex-col items-center">
-                    <div className="flex items-center gap-3 py-2">
-                      <span className="text-sm font-medium text-foreground w-48 text-right">
-                        {STEP_LABELS[step]}
-                      </span>
-                      <span className="text-lg font-bold text-foreground w-16 text-center">
-                        {get(step)}
-                      </span>
-                    </div>
-                    {i < funnelSteps.length - 1 && (
-                      <ArrowDown className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                ))}
+      {/* SECTION 3 — Visual Funnel */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Visual Funnel</CardTitle>
+          <CardDescription>Sequential progression of membership events.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center gap-1">
+            {funnelSteps.map((step, i) => (
+              <div key={step} className="flex flex-col items-center">
+                <div className="flex items-center gap-3 py-2">
+                  <span className="text-sm font-medium text-foreground w-48 text-right">
+                    {STEP_LABELS[step]}
+                  </span>
+                  <span className="text-2xl font-bold text-foreground w-16 text-center">
+                    {get(step)}
+                  </span>
+                </div>
+                {i < funnelSteps.length - 1 && (
+                  <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </section>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
