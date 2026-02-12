@@ -122,12 +122,31 @@ Deno.serve(async (req) => {
     log.setUser(user.id);
 
     // ========================================================================
-    // STEP 4: Rate Limiting
+    // STEP 4: Rate Limiting (Role-Aware)
     // BY DESIGN: Applied BEFORE permission check to prevent enumeration
+    // SUPERADMIN_GLOBAL gets elevated limit (100/hr) for debugging workflows
     // ========================================================================
-    const rateLimiter = SecureRateLimitPresets.startImpersonation();
+    const { data: callerRole } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .is('tenant_id', null)
+      .eq('role', 'SUPERADMIN_GLOBAL')
+      .maybeSingle();
+
+    const isSuperadmin = !!callerRole;
+    const rateLimiter = isSuperadmin
+      ? SecureRateLimitPresets.startImpersonationElevated()
+      : SecureRateLimitPresets.startImpersonation();
     const rateLimitCtx = buildRateLimitContext(req, user.id, null);
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin);
+
+    log.info("[RateLimit] Role-based preset applied", {
+      userId: user.id,
+      isSuperadmin,
+      limit: rateLimitResult.count,
+      allowed: rateLimitResult.allowed,
+    });
 
     if (!rateLimitResult.allowed) {
       log.warn("Rate limit exceeded");

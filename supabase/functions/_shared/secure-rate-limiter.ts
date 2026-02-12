@@ -294,10 +294,17 @@ export const SecureRateLimitPresets = {
     windowSeconds: 3600,
   }),
 
-  /** Impersonation: 10 per hour per superadmin */
+  /** Impersonation: 10 per hour per superadmin (default) */
   startImpersonation: () => new SecureRateLimiter({
     operation: "start-impersonation",
     limit: 10,
+    windowSeconds: 3600,
+  }),
+
+  /** Impersonation elevated: 100 per hour for SUPERADMIN_GLOBAL */
+  startImpersonationElevated: () => new SecureRateLimiter({
+    operation: "start-impersonation-elevated",
+    limit: 100,
     windowSeconds: 3600,
   }),
 
