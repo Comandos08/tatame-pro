@@ -8,6 +8,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+// FX-02: Auth check at entry point
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +22,7 @@ export function MembershipTypeSelector() {
   const { t } = useI18n();
   const tenantStatus = useTenantStatus();
   const [isOpeningPortal, setIsOpeningPortal] = React.useState(false);
-  const { currentUser } = useCurrentUser();
+  const { currentUser, isAuthenticated } = useCurrentUser();
 
   // Query to detect existing membership (P4B-3 UX Informational - read-only)
   const { data: existingMembership } = useQuery({
@@ -105,6 +106,14 @@ export function MembershipTypeSelector() {
       toast.error(t('membership.blockedByBilling'));
       return;
     }
+
+    // FX-02: Require authentication BEFORE entering membership form
+    if (!isAuthenticated) {
+      toast.info('Para iniciar sua inscrição, confirme seu acesso.');
+      navigate(`/${tenantSlug}/login?redirect=${encodeURIComponent(path)}`, { replace: false });
+      return;
+    }
+
     navigate(path);
   };
 
