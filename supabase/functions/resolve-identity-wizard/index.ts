@@ -134,10 +134,7 @@ interface IdentityResponse {
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 Deno.serve(async (req) => {
-  // R-01D.8 — Deterministic Runtime Verification
-  console.log("=== FUNCTION STARTED ===");
-  console.log("FUNCTION VERSION: R-01D.10-FIX");
-  console.log("TIMESTAMP:", new Date().toISOString());
+  // Runtime entry (structured logging only — no console.log with payloads)
 
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
@@ -168,11 +165,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // R-01D.8 — Env var verification
-    console.log("SUPABASE_URL EXISTS:", !!supabaseUrl);
-    console.log("SUPABASE_ANON_KEY EXISTS:", !!anonKey);
-    console.log("SUPABASE_SERVICE_ROLE_KEY EXISTS:", !!serviceKey);
-    console.log("SERVICE KEY LENGTH:", serviceKey?.length);
+    // Env vars verified at init (no debug logging in production)
 
     // 🔒 Client com JWT do usuário (apenas para validação de auth)
     const supabaseAuth = createClient(supabaseUrl, anonKey, {
@@ -911,10 +904,7 @@ async function handleCreateTenant(
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 5: Atribuir role ADMIN_TENANT ao usuário criador
    * ───────────────────────────────────────────────────────────────────────────── */
-  // R-01D.8 — Before role insert
-  console.log("=== BEFORE ROLE INSERT ===");
-  console.log("CLIENT TYPE: supabaseAdmin");
-  console.log("INSERT PAYLOAD:", JSON.stringify({ user_id: userId, role: "ADMIN_TENANT", tenant_id: newTenant.id }));
+  log.info("Inserting ADMIN_TENANT role", { userId, tenantId: newTenant.id });
 
   const { error: roleError } = await supabase.from("user_roles").insert({
     user_id: userId,
@@ -922,13 +912,11 @@ async function handleCreateTenant(
     tenant_id: newTenant.id,
   });
 
-  // R-01D.8 — After role insert
-  console.log("=== AFTER ROLE INSERT ===");
-  console.log("ROLE INSERT ERROR FULL:", JSON.stringify(roleError, null, 2));
-  console.log("ROLE INSERT ERROR CODE:", roleError?.code);
-  console.log("ROLE INSERT ERROR MESSAGE:", roleError?.message);
-  console.log("ROLE INSERT ERROR DETAILS:", roleError?.details);
-  console.log("ROLE INSERT ERROR HINT:", roleError?.hint);
+  if (roleError) {
+    log.error("ROLE_ASSIGN failed", roleError, { tenantId: newTenant.id, userId });
+  } else {
+    log.info("ADMIN_TENANT role assigned successfully");
+  }
 
   if (roleError) {
     log.error("ROLE_ASSIGN failed", roleError, {

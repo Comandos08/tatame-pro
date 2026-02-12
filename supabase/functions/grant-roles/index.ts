@@ -188,6 +188,38 @@ serve(async (req) => {
     log.info("Permissions verified");
 
     // ========================================================================
+    // ADMIN_TENANT GUARD — Only SUPERADMIN_GLOBAL can grant ADMIN_TENANT
+    // ========================================================================
+    if (validatedRoles.includes('ADMIN_TENANT')) {
+      // Check if caller is SUPERADMIN_GLOBAL
+      const { data: callerSuperadmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("role", "SUPERADMIN_GLOBAL")
+        .is("tenant_id", null)
+        .maybeSingle();
+
+      if (!callerSuperadmin && !impersonationCheck.isSuperadmin) {
+        log.warn("Non-superadmin attempted to grant ADMIN_TENANT", { callerId: user.id });
+
+        await logPermissionDenied(supabase, {
+          operation: 'grant-roles',
+          user_id: user.id,
+          tenant_id: tenantId,
+          required_roles: ["SUPERADMIN_GLOBAL"],
+          reason: 'ADMIN_TENANT_REQUIRES_SUPERADMIN',
+        });
+
+        return errorResponse(403, buildErrorEnvelope(
+          ERROR_CODES.FORBIDDEN,
+          "Only SUPERADMIN_GLOBAL can grant ADMIN_TENANT role",
+          false, undefined, correlationId
+        ), corsHeaders);
+      }
+    }
+
+    // ========================================================================
     // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, tenantId);
