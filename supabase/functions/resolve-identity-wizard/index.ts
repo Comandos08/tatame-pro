@@ -134,14 +134,10 @@ interface IdentityResponse {
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 Deno.serve(async (req) => {
-  // R-01D.9 — Hard Override Test
-  return new Response(
-    JSON.stringify({
-      test: "R-01D.9 ACTIVE",
-      timestamp: new Date().toISOString()
-    }),
-    { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
-  );
+  // R-01D.8 — Deterministic Runtime Verification
+  console.log("=== FUNCTION STARTED ===");
+  console.log("FUNCTION VERSION: R-01D.10-FIX");
+  console.log("TIMESTAMP:", new Date().toISOString());
 
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
@@ -868,6 +864,49 @@ async function handleCreateTenant(
     slug: newTenant.slug,
     status: newTenant.status,
   });
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 4.5: Ensure profile exists before role assignment (FK safety)
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { data: profileForFK } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!profileForFK) {
+    log.info("Profile not found, creating before role assignment", { userId });
+
+    // Fetch user email from auth for profile creation
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+    const userEmail = authUser?.email ?? "unknown";
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: userId,
+        email: userEmail,
+        created_at: new Date().toISOString(),
+      });
+
+    if (profileError) {
+      console.error("PROFILE CREATION FAILED:", JSON.stringify(profileError, null, 2));
+      log.error("PROFILE_CREATION_FAILED", profileError, { userId });
+
+      // Rollback tenant
+      await supabase.from("tenants").delete().eq("id", newTenant.id);
+
+      return {
+        status: "ERROR",
+        error: {
+          code: "PROFILE_CREATION_FAILED",
+          message: "Falha ao criar perfil do usuário.",
+        },
+      };
+    }
+
+    log.info("Profile created successfully", { userId });
+  }
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 5: Atribuir role ADMIN_TENANT ao usuário criador
