@@ -21,6 +21,12 @@ import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
+import {
+  saveMembershipResume,
+  restoreMembershipResume,
+  clearMembershipResume,
+  logMembershipResumeEvent,
+} from '@/lib/membership/membershipSessionPersistence';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
 import { formatCurrency } from '@/lib/i18n/formatters';
@@ -32,48 +38,9 @@ import {
 } from '@/types/membership';
 import type { AdultMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
 
-// ✅ P1/4 — Draft persistence for multi-step form
-const STORAGE_KEY = 'tatame.membership.adult.draft';
-
-interface MembershipDraft {
-  step: number;
-  athleteData: AthleteFormData | null;
-  documentsMeta: {
-    idDocumentName?: string;
-    medicalCertificateName?: string;
-  };
-  tenantSlug: string;
-  savedAt: string;
-}
-
-function saveDraft(draft: MembershipDraft): void {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-  } catch {
-    // Silent fail — storage not available
-  }
-}
-
-function loadDraft(tenantSlug: string): MembershipDraft | null {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as MembershipDraft;
-    // Validate same tenant
-    if (draft.tenantSlug !== tenantSlug) return null;
-    return draft;
-  } catch {
-    return null;
-  }
-}
-
-function clearDraft(): void {
-  try {
-    sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Silent fail
-  }
-}
+// ✅ FX-01 — Draft persistence uses unified membershipSessionPersistence
+// Legacy STORAGE_KEY kept only for one-time migration
+// Legacy keys cleaned up on mount
 
 export function AdultMembershipForm() {
   const navigate = useNavigate();
@@ -137,46 +104,62 @@ export function AdultMembershipForm() {
     },
   });
 
-  // ✅ P1/4 — Restore draft from sessionStorage on mount
+  // ✅ FX-01 — Restore form state from unified persistence on mount
   useEffect(() => {
     if (!tenantSlug) return;
     
-    const draft = loadDraft(tenantSlug);
-    if (!draft) return;
+    // Migrate legacy storage if present
+    try {
+      const legacyRaw = sessionStorage.getItem('tatame.membership.adult.draft');
+      if (legacyRaw) {
+        sessionStorage.removeItem('tatame.membership.adult.draft');
+      }
+      // Also clear old login-redirect key
+      sessionStorage.removeItem('membershipFormData');
+    } catch { /* ignore */ }
+
+    const result = restoreMembershipResume('adult', tenantSlug);
+    
+    logMembershipResumeEvent(
+      tenantSlug,
+      'adult',
+      result.data?.step ?? 1,
+      result.outcome
+    );
+
+    if (result.outcome === 'expired' || result.outcome === 'tenant_mismatch') {
+      toast.info('Sua sessão expirou. Por favor, reinicie sua inscrição.');
+      return;
+    }
+
+    if (result.outcome !== 'success' || !result.data) return;
 
     // Restore step
-    if (draft.step > 1) {
-      setStep(draft.step);
+    if (result.data.step > 1) {
+      setStep(result.data.step);
     }
 
     // Restore athleteData
-    if (draft.athleteData) {
-      setAthleteData(draft.athleteData);
-      // Also populate the form for step 1
-      form.reset(draft.athleteData);
+    const restoredAthleteData = result.data.formData as unknown as AthleteFormData;
+    if (restoredAthleteData?.fullName) {
+      setAthleteData(restoredAthleteData);
+      form.reset(restoredAthleteData);
     }
-
-    // Note: File objects cannot be restored
-    // User will see the correct step but must re-upload documents
   }, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ✅ P1/4 — Persist draft on step/data changes
+  // ✅ FX-01 — Persist form state on step/data changes
   useEffect(() => {
     if (!tenantSlug) return;
-    // Only persist if past step 1
     if (step === 1 && !athleteData) return;
 
-    saveDraft({
+    saveMembershipResume({
+      membershipType: 'adult',
       step,
-      athleteData,
-      documentsMeta: {
-        ...(documents.idDocument?.name ? { idDocumentName: documents.idDocument.name } : {}),
-        ...(documents.medicalCertificate?.name ? { medicalCertificateName: documents.medicalCertificate.name } : {}),
-      },
+      formData: (athleteData ?? {}) as Record<string, unknown>,
       tenantSlug,
-      savedAt: new Date().toISOString(),
+      timestamp: Date.now(),
     });
-  }, [step, athleteData, documents, tenantSlug]);
+  }, [step, athleteData, tenantSlug]);
 
   const handleStepOneSubmit = async (data: z.infer<typeof stepOneSchema>) => {
     // Check if adult (18+)
@@ -218,12 +201,15 @@ export function AdultMembershipForm() {
     
     if (!tenant || !athleteData) return;
 
-    // OBRIGATÓRIO: Exigir login antes de prosseguir
+    // FX-01: Save form state for deterministic login resume
     if (!isAuthenticated || !currentUser) {
-      sessionStorage.setItem('membershipFormData', JSON.stringify({
-        athleteData,
-        step: 2
-      }));
+      saveMembershipResume({
+        membershipType: 'adult',
+        step: 3,
+        formData: athleteData as unknown as Record<string, unknown>,
+        tenantSlug: tenantSlug || '',
+        timestamp: Date.now(),
+      });
       toast.info(t('membership.loginRequired'));
       navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/adult`);
       return;
@@ -276,49 +262,69 @@ export function AdultMembershipForm() {
         });
       }
 
-      // 2. Criar membership COM applicant_data (SEM athlete_id)
-      const membershipPayload: AdultMembershipInsert = {
-        tenant_id: tenant.id,
-        athlete_id: null,
-        applicant_profile_id: currentUser.id,
-        applicant_data: {
-          full_name: athleteData.fullName,
-          birth_date: athleteData.birthDate,
-          national_id: athleteData.nationalId,
-          gender: athleteData.gender,
-          email: athleteData.email,
-          phone: athleteData.phone,
-          address_line1: athleteData.addressLine1,
-          address_line2: athleteData.addressLine2 || null,
-          city: athleteData.city,
-          state: athleteData.state,
-          postal_code: athleteData.postalCode,
-          country: athleteData.country,
-        },
-        documents_uploaded: documentsUploaded,
-        status: 'DRAFT',
-        type: 'FIRST_MEMBERSHIP',
-        price_cents: MEMBERSHIP_PRICE_CENTS,
-        currency: MEMBERSHIP_CURRENCY,
-        payment_status: 'NOT_PAID',
-      };
-
-      const { data: membership, error: membershipError } = await supabase
+      // FX-01: Check for existing DRAFT to prevent duplicates
+      const { data: existingDraft } = await supabase
         .from('memberships')
-        .insert(membershipPayload as unknown as Database['public']['Tables']['memberships']['Insert'])
-        .select()
-        .single();
+        .select('id')
+        .eq('tenant_id', tenant.id)
+        .eq('applicant_profile_id', currentUser.id)
+        .eq('status', 'DRAFT')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (membershipError) throw membershipError;
+      let membershipId: string;
 
-      setMembershipId(membership.id);
+      if (existingDraft?.id) {
+        // Reuse existing DRAFT
+        membershipId = existingDraft.id;
+        logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
+      } else {
+        // 2. Criar membership COM applicant_data (SEM athlete_id)
+        const membershipPayload: AdultMembershipInsert = {
+          tenant_id: tenant.id,
+          athlete_id: null,
+          applicant_profile_id: currentUser.id,
+          applicant_data: {
+            full_name: athleteData.fullName,
+            birth_date: athleteData.birthDate,
+            national_id: athleteData.nationalId,
+            gender: athleteData.gender,
+            email: athleteData.email,
+            phone: athleteData.phone,
+            address_line1: athleteData.addressLine1,
+            address_line2: athleteData.addressLine2 || null,
+            city: athleteData.city,
+            state: athleteData.state,
+            postal_code: athleteData.postalCode,
+            country: athleteData.country,
+          },
+          documents_uploaded: documentsUploaded,
+          status: 'DRAFT',
+          type: 'FIRST_MEMBERSHIP',
+          price_cents: MEMBERSHIP_PRICE_CENTS,
+          currency: MEMBERSHIP_CURRENCY,
+          payment_status: 'NOT_PAID',
+        };
+
+        const { data: membership, error: membershipError } = await supabase
+          .from('memberships')
+          .insert(membershipPayload as unknown as Database['public']['Tables']['memberships']['Insert'])
+          .select()
+          .single();
+
+        if (membershipError) throw membershipError;
+        membershipId = membership.id;
+      }
+
+      setMembershipId(membershipId);
 
       // 3. Criar Stripe checkout session
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(
         'create-membership-checkout',
         {
           body: {
-            membershipId: membership.id,
+            membershipId: membershipId,
             tenantSlug: tenantSlug,
             successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
             cancelUrl: `${window.location.origin}/${tenantSlug}/membership/adult`,
@@ -339,7 +345,7 @@ export function AdultMembershipForm() {
       }
 
       if (checkoutData?.url) {
-        clearDraft(); // ✅ P1/4 — Clear draft before redirect
+        clearMembershipResume('adult'); // ✅ FX-01 — Clear only after checkout success
         window.location.href = checkoutData.url;
       } else {
         throw new Error(t('membership.errorPaymentSession'));

@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { resolveAthletePostLoginRedirect, MembershipStatus } from '@/lib/resolveAthletePostLoginRedirect';
+import { detectMembershipResume } from '@/lib/membership/membershipSessionPersistence';
 import { Loader2 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
@@ -110,6 +111,16 @@ export default function AuthCallback() {
       }
 
       const tenantSlug = extractTenantSlug(nextRaw);
+
+      // FX-01: If membership resume data exists, redirect to the membership form
+      if (!tenantSlug) {
+        const resumeInfo = detectMembershipResume();
+        if (resumeInfo) {
+          const membershipPath = `/${resumeInfo.tenantSlug}/membership/${resumeInfo.type}`;
+          navigate(membershipPath, { replace: true });
+          return;
+        }
+      }
 
       // Se não há tenant slug, usar função pura para decidir
       if (!tenantSlug) {
