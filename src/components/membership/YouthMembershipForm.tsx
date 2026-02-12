@@ -238,19 +238,11 @@ export function YouthMembershipForm() {
     
     if (!tenant || !athleteData || !guardianData) return;
 
-    // ✅ REQUIRED: Require authentication before payment
-    // FX-01: Save form state for deterministic login resume
+    // FX-02: Defensive safety — user MUST already be authenticated at this point
+    // (login is enforced at MembershipTypeSelector entry)
     if (!isAuthenticated || !currentUser) {
-      saveMembershipResume({
-        membershipType: 'youth',
-        step: 4,
-        formData: athleteData as unknown as Record<string, unknown>,
-        guardianData: guardianData as unknown as Record<string, unknown> | null,
-        tenantSlug: tenantSlug || '',
-        timestamp: Date.now(),
-      });
-      toast.info(t('membership.loginRequired'));
-      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`);
+      logger.warn('[FX-02] Unauthenticated user reached checkout — fail-closed redirect');
+      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`, { replace: true });
       return;
     }
 

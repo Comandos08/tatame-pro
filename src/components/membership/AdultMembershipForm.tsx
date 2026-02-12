@@ -200,17 +200,11 @@ export function AdultMembershipForm() {
     
     if (!tenant || !athleteData) return;
 
-    // FX-01: Save form state for deterministic login resume
+    // FX-02: Defensive safety — user MUST already be authenticated at this point
+    // (login is enforced at MembershipTypeSelector entry)
     if (!isAuthenticated || !currentUser) {
-      saveMembershipResume({
-        membershipType: 'adult',
-        step: 3,
-        formData: athleteData as unknown as Record<string, unknown>,
-        tenantSlug: tenantSlug || '',
-        timestamp: Date.now(),
-      });
-      toast.info(t('membership.loginRequired'));
-      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/adult`);
+      logger.warn('[FX-02] Unauthenticated user reached checkout — fail-closed redirect');
+      navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/adult`, { replace: true });
       return;
     }
 
