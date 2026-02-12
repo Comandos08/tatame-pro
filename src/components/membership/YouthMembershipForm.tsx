@@ -20,6 +20,12 @@ import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
+import {
+  saveMembershipResume,
+  restoreMembershipResume,
+  clearMembershipResume,
+  logMembershipResumeEvent,
+} from '@/lib/membership/membershipSessionPersistence';
 import { useBillingOverride } from '@/hooks/useBillingOverride';
 import { ManualOverrideBanner } from '@/components/billing/ManualOverrideBanner';
 import { formatCurrency, formatDate } from '@/lib/i18n/formatters';
@@ -50,21 +56,49 @@ export function YouthMembershipForm() {
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
 
-  // Restore form data from sessionStorage after login redirect
+  // ✅ FX-01 — Deterministic restore from unified persistence
   useEffect(() => {
-    const savedData = sessionStorage.getItem('membershipYouthFormData');
-    if (savedData && isAuthenticated) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.guardianData) setGuardianData(parsed.guardianData);
-        if (parsed.athleteData) setAthleteData(parsed.athleteData);
-        if (parsed.step) setStep(parsed.step);
-        sessionStorage.removeItem('membershipYouthFormData');
-      } catch (e) {
-        logger.error('Failed to restore form data:', e);
-      }
+    if (!tenantSlug) return;
+    
+    // Clean up legacy key
+    try { sessionStorage.removeItem('membershipYouthFormData'); } catch { /* ignore */ }
+
+    const result = restoreMembershipResume('youth', tenantSlug);
+
+    logMembershipResumeEvent(
+      tenantSlug,
+      'youth',
+      result.data?.step ?? 1,
+      result.outcome
+    );
+
+    if (result.outcome === 'expired' || result.outcome === 'tenant_mismatch') {
+      toast.info('Sua sessão expirou. Por favor, reinicie sua inscrição.');
+      return;
     }
-  }, [isAuthenticated]);
+
+    if (result.outcome !== 'success' || !result.data) return;
+
+    if (result.data.step > 1) setStep(result.data.step);
+    const fd = result.data.formData as Record<string, unknown>;
+    if (fd?.fullName) setAthleteData(fd as unknown as AthleteFormData);
+    if (result.data.guardianData) setGuardianData(result.data.guardianData as unknown as GuardianFormData);
+  }, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ✅ FX-01 — Persist on step/data changes
+  useEffect(() => {
+    if (!tenantSlug) return;
+    if (step === 1 && !guardianData) return;
+
+    saveMembershipResume({
+      membershipType: 'youth',
+      step,
+      formData: (athleteData ?? {}) as Record<string, unknown>,
+      guardianData: guardianData as unknown as Record<string, unknown> | null,
+      tenantSlug,
+      timestamp: Date.now(),
+    });
+  }, [step, athleteData, guardianData, tenantSlug]);
 
   const guardianSchema = z.object({
     fullName: z.string().min(3, t('membership.validation.nameMin')),
@@ -200,13 +234,16 @@ export function YouthMembershipForm() {
     if (!tenant || !athleteData || !guardianData) return;
 
     // ✅ REQUIRED: Require authentication before payment
+    // FX-01: Save form state for deterministic login resume
     if (!isAuthenticated || !currentUser) {
-      // Save form data to restore after login
-      sessionStorage.setItem('membershipYouthFormData', JSON.stringify({
-        guardianData,
-        athleteData,
-        step: 4
-      }));
+      saveMembershipResume({
+        membershipType: 'youth',
+        step: 4,
+        formData: athleteData as unknown as Record<string, unknown>,
+        guardianData: guardianData as unknown as Record<string, unknown> | null,
+        tenantSlug: tenantSlug || '',
+        timestamp: Date.now(),
+      });
       toast.info(t('membership.loginRequired'));
       navigate(`/${tenantSlug}/login?redirect=/${tenantSlug}/membership/youth`);
       return;
@@ -259,56 +296,75 @@ export function YouthMembershipForm() {
         });
       }
 
-      // 2. Create membership WITH applicant_data (includes guardian data)
-      // ⚠️ DO NOT create guardian/athlete/guardian_links here - that happens on approval!
-      const membershipPayload: YouthMembershipInsert = {
-        tenant_id: tenant.id,
-        athlete_id: null,
-        applicant_profile_id: currentUser.id,
-        applicant_data: {
-          full_name: athleteData.fullName,
-          birth_date: athleteData.birthDate,
-          national_id: athleteData.nationalId || null,
-          gender: athleteData.gender,
-          email: athleteData.email || guardianData.email,
-          phone: athleteData.phone || guardianData.phone,
-          address_line1: athleteData.addressLine1,
-          address_line2: athleteData.addressLine2 || null,
-          city: athleteData.city,
-          state: athleteData.state,
-          postal_code: athleteData.postalCode,
-          country: athleteData.country,
-          is_minor: true,
-          guardian: {
-            full_name: guardianData.fullName,
-            national_id: guardianData.nationalId,
-            email: guardianData.email,
-            phone: guardianData.phone,
-            relationship: guardianData.relationship,
-          },
-        },
-        documents_uploaded: documentsUploaded,
-        status: 'DRAFT',
-        type: 'FIRST_MEMBERSHIP',
-        price_cents: MEMBERSHIP_PRICE_CENTS,
-        currency: MEMBERSHIP_CURRENCY,
-        payment_status: 'NOT_PAID',
-      };
-
-      const { data: membership, error: membershipError } = await supabase
+      // FX-01: Check for existing DRAFT to prevent duplicates
+      const { data: existingDraft } = await supabase
         .from('memberships')
-        .insert(membershipPayload as unknown as Database['public']['Tables']['memberships']['Insert'])
-        .select()
-        .single();
+        .select('id')
+        .eq('tenant_id', tenant.id)
+        .eq('applicant_profile_id', currentUser.id)
+        .eq('status', 'DRAFT')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (membershipError) throw membershipError;
+      let membershipId: string;
+
+      if (existingDraft?.id) {
+        membershipId = existingDraft.id;
+        logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
+      } else {
+        // 2. Create membership WITH applicant_data (includes guardian data)
+        // ⚠️ DO NOT create guardian/athlete/guardian_links here - that happens on approval!
+        const membershipPayload: YouthMembershipInsert = {
+          tenant_id: tenant.id,
+          athlete_id: null,
+          applicant_profile_id: currentUser.id,
+          applicant_data: {
+            full_name: athleteData.fullName,
+            birth_date: athleteData.birthDate,
+            national_id: athleteData.nationalId || null,
+            gender: athleteData.gender,
+            email: athleteData.email || guardianData.email,
+            phone: athleteData.phone || guardianData.phone,
+            address_line1: athleteData.addressLine1,
+            address_line2: athleteData.addressLine2 || null,
+            city: athleteData.city,
+            state: athleteData.state,
+            postal_code: athleteData.postalCode,
+            country: athleteData.country,
+            is_minor: true,
+            guardian: {
+              full_name: guardianData.fullName,
+              national_id: guardianData.nationalId,
+              email: guardianData.email,
+              phone: guardianData.phone,
+              relationship: guardianData.relationship,
+            },
+          },
+          documents_uploaded: documentsUploaded,
+          status: 'DRAFT',
+          type: 'FIRST_MEMBERSHIP',
+          price_cents: MEMBERSHIP_PRICE_CENTS,
+          currency: MEMBERSHIP_CURRENCY,
+          payment_status: 'NOT_PAID',
+        };
+
+        const { data: membership, error: membershipError } = await supabase
+          .from('memberships')
+          .insert(membershipPayload as unknown as Database['public']['Tables']['memberships']['Insert'])
+          .select()
+          .single();
+
+        if (membershipError) throw membershipError;
+        membershipId = membership.id;
+      }
 
       // 3. Create Stripe checkout session (identical to adult flow)
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(
         'create-membership-checkout',
         {
           body: {
-            membershipId: membership.id,
+            membershipId: membershipId,
             tenantSlug: tenantSlug,
             successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
             cancelUrl: `${window.location.origin}/${tenantSlug}/membership/youth`,
@@ -330,6 +386,7 @@ export function YouthMembershipForm() {
       }
 
       if (checkoutData?.url) {
+        clearMembershipResume('youth'); // ✅ FX-01 — Clear only after checkout success
         window.location.href = checkoutData.url;
       } else {
         throw new Error(t('membership.errorPaymentSession'));
