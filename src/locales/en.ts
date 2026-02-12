@@ -772,17 +772,24 @@ export const en: Record<string, string> = {
   // Membership Success page
   'membershipSuccess.processing': 'Processing...',
   'membershipSuccess.waitingPayment': 'Please wait while we confirm your payment',
-  'membershipSuccess.paymentConfirmed': 'Payment Confirmed!',
+  'membershipSuccess.paymentConfirmed': 'Payment Confirmed',
   'membershipSuccess.oops': 'Oops!',
-  'membershipSuccess.successMessage': 'Your membership has been registered successfully!',
+  'membershipSuccess.successMessage': 'Your application has been registered and is under review.',
   'membershipSuccess.invalidParams': 'Invalid parameters',
   'membershipSuccess.confirmError': 'Error confirming payment',
   'membershipSuccess.processError': 'Error processing payment. Please contact us.',
-  'membershipSuccess.membershipStatus': 'Membership Status',
-  'membershipSuccess.pendingApproval': 'Pending Approval',
-  'membershipSuccess.pendingApprovalDesc': 'Your membership is under review by {tenant}. You will receive a notification when approved.',
+  'membershipSuccess.membershipStatus': 'Application Status',
+  'membershipSuccess.pendingApproval': 'Under Review',
+  'membershipSuccess.pendingApprovalDesc': 'Our team is validating your information. You will receive a notification when your application is approved.',
+  'membershipSuccess.approvedTitle': 'Application Approved',
+  'membershipSuccess.approvedSubtitle': 'Your access is now active.',
+  'membershipSuccess.approvedCta': 'Access Athlete Portal',
   'membershipSuccess.backTo': 'Back to {tenant}',
   'membershipSuccess.tryAgain': 'Try again',
+  'membershipSuccess.viewStatus': 'View application status',
+  'membershipSuccess.timeline.payment': 'Payment completed',
+  'membershipSuccess.timeline.validation': 'Application validation',
+  'membershipSuccess.timeline.card': 'Digital card issuance',
 
   // Pagination
   'pagination.previous': 'Previous',
@@ -1300,11 +1307,11 @@ export const en: Record<string, string> = {
   'auth.magicLink.userNotFound': 'Email not registered. Complete your membership first.',
   'auth.magicLink.backToTenant': 'Back to {tenant}',
   
-  // Membership Success - Magic Link
-  'membershipSuccess.accountCreated': 'Account created successfully!',
-  'membershipSuccess.accessViaEmail': 'To access the portal, use the link sent to your email.',
-  'membershipSuccess.noPasswordNeeded': 'No password required.',
-  'membershipSuccess.requestAccessLink': 'Request access link',
+  // Membership Success - Legacy (deprecated by FX-03)
+  'membershipSuccess.accountCreated': '',
+  'membershipSuccess.accessViaEmail': '',
+  'membershipSuccess.noPasswordNeeded': '',
+  'membershipSuccess.requestAccessLink': '',
   
   // SAFE GOLD — Membership Status
   'membershipStatus.title': 'Membership Status',

@@ -772,17 +772,24 @@ export const es: Record<string, string> = {
   // Membership Success page
   'membershipSuccess.processing': 'Procesando...',
   'membershipSuccess.waitingPayment': 'Espere mientras confirmamos su pago',
-  'membershipSuccess.paymentConfirmed': '¡Pago Confirmado!',
+  'membershipSuccess.paymentConfirmed': 'Pago Confirmado',
   'membershipSuccess.oops': '¡Ups!',
-  'membershipSuccess.successMessage': '¡Su afiliación ha sido registrada con éxito!',
+  'membershipSuccess.successMessage': 'Su inscripción ha sido registrada y está en revisión.',
   'membershipSuccess.invalidParams': 'Parámetros inválidos',
   'membershipSuccess.confirmError': 'Error al confirmar el pago',
   'membershipSuccess.processError': 'Error al procesar el pago. Contáctenos.',
-  'membershipSuccess.membershipStatus': 'Estado de la Afiliación',
-  'membershipSuccess.pendingApproval': 'Pendiente de Aprobación',
-  'membershipSuccess.pendingApprovalDesc': 'Su afiliación está en revisión por {tenant}. Recibirá una notificación cuando sea aprobada.',
+  'membershipSuccess.membershipStatus': 'Estado de la Inscripción',
+  'membershipSuccess.pendingApproval': 'En Revisión',
+  'membershipSuccess.pendingApprovalDesc': 'Nuestro equipo está validando sus datos. Recibirá una notificación cuando su inscripción sea aprobada.',
+  'membershipSuccess.approvedTitle': 'Inscripción Aprobada',
+  'membershipSuccess.approvedSubtitle': 'Su acceso ya está activo.',
+  'membershipSuccess.approvedCta': 'Acceder al Portal del Atleta',
   'membershipSuccess.backTo': 'Volver a {tenant}',
   'membershipSuccess.tryAgain': 'Intentar de nuevo',
+  'membershipSuccess.viewStatus': 'Ver estado de la inscripción',
+  'membershipSuccess.timeline.payment': 'Pago realizado',
+  'membershipSuccess.timeline.validation': 'Validación de la inscripción',
+  'membershipSuccess.timeline.card': 'Emisión de la tarjeta digital',
 
   // Pagination
   'pagination.previous': 'Anterior',
@@ -1300,11 +1307,11 @@ export const es: Record<string, string> = {
   'auth.magicLink.userNotFound': 'Correo no registrado. Complete su afiliación primero.',
   'auth.magicLink.backToTenant': 'Volver a {tenant}',
   
-  // Éxito de Afiliación - Magic Link
-  'membershipSuccess.accountCreated': '¡Cuenta creada con éxito!',
-  'membershipSuccess.accessViaEmail': 'Para acceder al portal, utilice el enlace enviado a su correo.',
-  'membershipSuccess.noPasswordNeeded': 'No es necesario crear contraseña.',
-  'membershipSuccess.requestAccessLink': 'Solicitar enlace de acceso',
+  // Membership Success - Legacy (deprecated by FX-03)
+  'membershipSuccess.accountCreated': '',
+  'membershipSuccess.accessViaEmail': '',
+  'membershipSuccess.noPasswordNeeded': '',
+  'membershipSuccess.requestAccessLink': '',
   
   // SAFE GOLD — Estado de Afiliación
   'membershipStatus.title': 'Estado de Afiliación',
