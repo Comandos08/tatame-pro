@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, Circle, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, Circle, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 
-type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error';
+type ConfirmationStatus = 'loading' | 'success' | 'approved' | 'error' | 'missing_params';
 
 /**
  * FX-03A — Normalize raw membership status from backend to local confirmation status.
- * Single source of truth for status mapping. No inline string checks.
  */
 function normalizeMembershipStatus(rawStatus: string | undefined | null): ConfirmationStatus {
   switch (rawStatus) {
@@ -32,8 +31,6 @@ function normalizeMembershipStatus(rawStatus: string | undefined | null): Confir
 
 /**
  * FX-03 — Process Timeline
- * Static visual showing 3 steps of the membership process.
- * Highlights current step based on confirmation status.
  */
 function ProcessTimeline({ status, t }: { status: ConfirmationStatus; t: (key: string) => string }) {
   const steps = [
@@ -86,56 +83,92 @@ export function MembershipSuccess() {
   const [searchParams] = useSearchParams();
   const { tenant } = useTenant();
   const { t } = useI18n();
-  
+
   const [status, setStatus] = useState<ConfirmationStatus>('loading');
   const [message, setMessage] = useState('');
+  const [retrying, setRetrying] = useState(false);
 
   const membershipId = searchParams.get('membership_id');
   const sessionId = searchParams.get('session_id');
 
-  // FX-03A: Single-shot guard — prevent double invocation (StrictMode / i18n change)
+  // FX-03A: Single-shot guard — prevent double invocation (StrictMode)
   const confirmCalledRef = useRef(false);
+
+  const runConfirmation = useCallback(async () => {
+    if (!membershipId || !sessionId) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('confirm-membership-payment', {
+        body: { sessionId, membershipId },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        const normalized = normalizeMembershipStatus(data?.membershipStatus);
+        setStatus(normalized);
+        setMessage(
+          normalized === 'approved'
+            ? t('membershipSuccess.approvedSubtitle')
+            : t('membershipSuccess.successMessage')
+        );
+      } else {
+        // FX-05: Do NOT assume payment failed — show pending confirmation
+        setStatus('error');
+        setMessage(data?.message || t('membershipSuccess.confirmError'));
+      }
+    } catch (error) {
+      logger.error('Error confirming payment:', error);
+      // FX-05: Network/server error — payment may have succeeded via webhook
+      setStatus('error');
+      setMessage(t('membershipSuccess.processError'));
+    }
+  }, [membershipId, sessionId, t]);
 
   useEffect(() => {
     if (confirmCalledRef.current) return;
+
+    // FX-05: Missing params — user returned to stale URL or Stripe redirect failed
     if (!membershipId || !sessionId) {
-      setStatus('error');
+      setStatus('missing_params');
       setMessage(t('membershipSuccess.invalidParams'));
       return;
     }
 
     confirmCalledRef.current = true;
-
-    const confirmPayment = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('confirm-membership-payment', {
-          body: { sessionId, membershipId },
-        });
-
-        if (error) throw error;
-
-        if (data?.success) {
-          const normalized = normalizeMembershipStatus(data?.membershipStatus);
-          setStatus(normalized);
-          setMessage(
-            normalized === 'approved'
-              ? t('membershipSuccess.approvedSubtitle')
-              : t('membershipSuccess.successMessage')
-          );
-        } else {
-          setStatus('error');
-          setMessage(data?.message || t('membershipSuccess.confirmError'));
-        }
-      } catch (error) {
-        logger.error('Error confirming payment:', error);
-        setStatus('error');
-        setMessage(t('membershipSuccess.processError'));
-      }
-    };
-
-    confirmPayment();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    runConfirmation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membershipId, sessionId]);
+
+  // FX-05: Safe single-shot retry handler (error state only)
+  const handleRetry = useCallback(async () => {
+    if (retrying || !membershipId || !sessionId) return;
+    setRetrying(true);
+    setStatus('loading');
+    setMessage('');
+    await runConfirmation();
+    setRetrying(false);
+  }, [retrying, membershipId, sessionId, runConfirmation]);
+
+  // Navigation handlers — never called during render
+  const goToStatus = useCallback(() => {
+    navigate(`/${tenantSlug}/membership/status`, { replace: true });
+  }, [navigate, tenantSlug]);
+
+  const goToPortal = useCallback(() => {
+    navigate(`/${tenantSlug}/portal`);
+  }, [navigate, tenantSlug]);
+
+  const goToHome = useCallback(() => {
+    navigate(`/${tenantSlug}`);
+  }, [navigate, tenantSlug]);
+
+  const goToNewMembership = useCallback(() => {
+    navigate(`/${tenantSlug}/membership/new`);
+  }, [navigate, tenantSlug]);
+
+  // Determine icon & title based on status
+  const isErrorLike = status === 'error' || status === 'missing_params';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -155,7 +188,7 @@ export function MembershipSuccess() {
               {status === 'loading' && (
                 <Loader2 className="h-16 w-16 mx-auto text-primary animate-spin mb-4" />
               )}
-              {(status === 'success') && (
+              {status === 'success' && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -173,19 +206,19 @@ export function MembershipSuccess() {
                   <CheckCircle className="h-16 w-16 mx-auto text-emerald-600 dark:text-emerald-500 mb-4" />
                 </motion.div>
               )}
-              {status === 'error' && (
-                <XCircle className="h-16 w-16 mx-auto text-destructive mb-4" />
+              {isErrorLike && (
+                <AlertCircle className="h-16 w-16 mx-auto text-warning mb-4" />
               )}
-              
+
               <CardTitle className="text-2xl">
                 {status === 'loading' && t('membershipSuccess.processing')}
                 {status === 'success' && t('membershipSuccess.paymentConfirmed')}
                 {status === 'approved' && t('membershipSuccess.approvedTitle')}
-                {status === 'error' && t('membershipSuccess.oops')}
+                {isErrorLike && t('membershipSuccess.oops')}
               </CardTitle>
               <CardDescription className="text-base">
                 {status === 'loading' && t('membershipSuccess.waitingPayment')}
-                {(status === 'success' || status === 'approved' || status === 'error') && message}
+                {status !== 'loading' && message}
               </CardDescription>
             </CardHeader>
 
@@ -210,40 +243,50 @@ export function MembershipSuccess() {
 
               {/* Approved — direct portal CTA */}
               {status === 'approved' && (
-                <Button
-                  className="w-full"
-                  onClick={() => navigate(`/${tenantSlug}/portal`)}
-                >
+                <Button className="w-full" onClick={goToPortal}>
                   {t('membershipSuccess.approvedCta')}
                 </Button>
               )}
 
+              {/* FX-05: Error/missing_params — safe retry + status CTA */}
+              {isErrorLike && (
+                <div className="flex flex-col gap-2">
+                  {/* Retry only if we have valid params */}
+                  {status === 'error' && membershipId && sessionId && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleRetry}
+                      disabled={retrying}
+                    >
+                      <RefreshCw className={cn('mr-2 h-4 w-4', retrying && 'animate-spin')} />
+                      {t('membershipSuccess.retryConfirmation')}
+                    </Button>
+                  )}
+                  <Button className="w-full" onClick={goToStatus}>
+                    {t('membershipSuccess.viewStatus')}
+                  </Button>
+                </div>
+              )}
+
               {/* Safe fallback CTA — always visible on success/approved */}
               {(status === 'success' || status === 'approved') && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => navigate(`/${tenantSlug}/membership/status`)}
-                >
+                <Button variant="outline" className="w-full" onClick={goToStatus}>
                   {t('membershipSuccess.viewStatus')}
                 </Button>
               )}
 
               <div className="flex flex-col gap-2">
                 <Button
-                  onClick={() => navigate(`/${tenantSlug}`)}
-                  variant={status === 'error' ? 'outline' : 'ghost'}
+                  onClick={goToHome}
+                  variant={isErrorLike ? 'ghost' : 'ghost'}
                   className="w-full"
                 >
                   {t('membershipSuccess.backTo', { tenant: tenant?.name || '' })}
                 </Button>
-                
-                {status === 'error' && (
-                  <Button
-                    onClick={() => navigate(`/${tenantSlug}/membership/new`)}
-                    variant="default"
-                    className="w-full"
-                  >
+
+                {status === 'missing_params' && (
+                  <Button onClick={goToNewMembership} variant="outline" className="w-full">
                     {t('membershipSuccess.tryAgain')}
                   </Button>
                 )}
