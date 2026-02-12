@@ -2275,6 +2275,12 @@ export const en: Record<string, string> = {
   'impersonation.startSession': 'Start Session',
   'impersonation.backToAdmin': 'Back to Dashboard',
 
+  // IMPERSONATION-ENTRY-FLOW-FIX
+  'impersonation.autoEntryFailed': 'Tenant Access Failed',
+  'impersonation.autoEntryFailedDesc': 'Could not automatically start an impersonation session for this tenant.',
+  'impersonation.autoEntryHint': 'Check that the tenant exists and is active, or return to the admin dashboard.',
+  'impersonation.retry': 'Retry',
+
   // PI C4.3 — Audit as Observability
   'observability.audit.sectionLabel': 'Observability',
   'observability.audit.title': 'System Audit',

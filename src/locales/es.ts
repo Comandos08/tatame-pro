@@ -2275,6 +2275,12 @@ export const es: Record<string, string> = {
   'impersonation.startSession': 'Iniciar Sesión',
   'impersonation.backToAdmin': 'Volver al Panel',
 
+  // IMPERSONATION-ENTRY-FLOW-FIX
+  'impersonation.autoEntryFailed': 'Fallo al Acceder al Tenant',
+  'impersonation.autoEntryFailedDesc': 'No fue posible iniciar automáticamente la sesión de impersonation para este tenant.',
+  'impersonation.autoEntryHint': 'Verifique que el tenant exista y esté activo, o vuelva al panel administrativo.',
+  'impersonation.retry': 'Reintentar',
+
   // PI C4.3 — Audit as Observability
   'observability.audit.sectionLabel': 'Observabilidad',
   'observability.audit.title': 'Auditoría del Sistema',
