@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * 📊 R-01D.3 — EXECUTIVE FUNNEL INTELLIGENCE PANEL (SUPERADMIN ONLY)
+ * 📊 R-01D.4 — MEMBERSHIP FUNNEL INTELLIGENCE (SUPERADMIN ONLY)
  * ============================================================================
  *
- * Global intelligence dashboard for membership conversion lifecycle.
+ * Institutional analytics dashboard — visually aligned with SystemHealth.
  * Data source: membership_analytics table.
  * Access: SUPERADMIN_GLOBAL only (enforced by RequireGlobalRoles in App.tsx).
  *
@@ -12,7 +12,8 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Loader2, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, TrendingUp, RefreshCw, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,8 +49,6 @@ function safePct(numerator: number, denominator: number): string {
   return ((numerator / denominator) * 100).toFixed(1);
 }
 
-/* ── Drop-off pairs ── */
-
 const DROP_OFF_PAIRS = [
   { from: 'MEMBERSHIP_TYPE_VIEWED', to: 'MEMBERSHIP_TYPE_SELECTED', label: 'Viewed → Selected' },
   { from: 'MEMBERSHIP_TYPE_SELECTED', to: 'MEMBERSHIP_FORM_STARTED', label: 'Selected → Started' },
@@ -57,178 +56,10 @@ const DROP_OFF_PAIRS = [
   { from: 'MEMBERSHIP_PAYMENT_INITIATED', to: 'MEMBERSHIP_APPROVED', label: 'Payment → Approved' },
 ];
 
-/* ── Sub-components ── */
-
-function InstitutionalHeader({ status, totalEvents, onRefresh, isRefreshing }: {
-  status: Status;
-  totalEvents: number;
-  onRefresh: () => void;
-  isRefreshing: boolean;
-}) {
-  const badgeConfig = status === 'empty'
-    ? { label: 'No Events Recorded', className: 'bg-destructive/10 text-destructive border-destructive/20' }
-    : totalEvents < 10
-      ? { label: 'Low Volume', className: 'bg-warning/10 text-warning border-warning/20' }
-      : { label: 'Collecting Data', className: 'bg-success/10 text-success border-success/20' };
-
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-4">
-        <div className="rounded-lg bg-primary/10 p-2.5">
-          <TrendingUp className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Membership Funnel</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Global conversion lifecycle monitoring</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', badgeConfig.className)}>
-          {badgeConfig.label}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="gap-2"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
-          Refresh
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function StatusBanner({ status, totalEvents }: { status: Status; totalEvents: number }) {
-  if (status === 'empty') {
-    return (
-      <div className="rounded-lg border border-border bg-muted/30 px-5 py-4 flex items-center gap-3">
-        <TrendingUp className="h-5 w-5 text-muted-foreground shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-foreground">System Ready — No Membership Activity Yet</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Tracking is active. Metrics will appear automatically as users progress.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-success/20 bg-success/5 px-5 py-4 flex items-center gap-3">
-      <TrendingUp className="h-5 w-5 text-success shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-success">Conversion Funnel Active</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{totalEvents} total tracked events across lifecycle stages.</p>
-      </div>
-    </div>
-  );
-}
-
-function ExecutiveSummaryRow({ get }: { get: (key: string) => number }) {
-  const totalStarted = get('MEMBERSHIP_FORM_STARTED');
-  const totalApproved = get('MEMBERSHIP_APPROVED');
-  const overallConversion = safePct(totalApproved, totalStarted);
-
-  const metrics = [
-    { label: 'Total Sessions', value: totalStarted, desc: 'Form started events' },
-    { label: 'Payments Initiated', value: get('MEMBERSHIP_PAYMENT_INITIATED'), desc: 'Checkout attempts' },
-    { label: 'Approved Memberships', value: totalApproved, desc: 'Successfully approved' },
-    { label: 'Overall Conversion', value: `${overallConversion}%`, desc: 'Approved / Started' },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-      {metrics.map((m) => (
-        <Card key={m.label}>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs">{m.label}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-foreground">{m.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{m.desc}</p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function FunnelVisualization({ get }: { get: (key: string) => number }) {
-  const maxVal = Math.max(...FUNNEL_STEPS.map((s) => get(s)), 1);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Funnel Progression</CardTitle>
-        <CardDescription>Sequential stage-by-stage membership flow.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {FUNNEL_STEPS.map((step) => {
-          const count = get(step);
-          const pct = Math.round((count / maxVal) * 100);
-          return (
-            <div key={step} className="flex items-center gap-4">
-              <span className="text-xs text-muted-foreground w-28 text-right shrink-0">
-                {STEP_LABELS[step]}
-              </span>
-              <div className="flex-1 h-7 bg-muted/50 rounded overflow-hidden relative">
-                <div
-                  className="h-full bg-primary/20 rounded transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-                <span className="absolute inset-y-0 left-3 flex items-center text-xs font-medium text-foreground">
-                  {count}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
-
-function DropOffDiagnostics({ get }: { get: (key: string) => number }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Conversion Diagnostics</CardTitle>
-        <CardDescription>Stage-to-stage drop-off analysis.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {DROP_OFF_PAIRS.map((pair) => {
-            const fromVal = get(pair.from);
-            const toVal = get(pair.to);
-            const dropPct = fromVal === 0 ? 0 : ((fromVal - toVal) / fromVal) * 100;
-            const dropStr = dropPct.toFixed(1);
-
-            const severity = dropPct > 70
-              ? 'text-destructive'
-              : dropPct > 50
-                ? 'text-warning'
-                : 'text-foreground';
-
-            return (
-              <div key={pair.label} className="rounded-lg border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">{pair.label}</p>
-                <p className={cn('text-2xl font-semibold mt-1', severity)}>{dropStr}%</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {fromVal} → {toVal} ({fromVal - toVal} lost)
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 /* ── Main Component ── */
 
 export default function AdminMembershipAnalytics() {
+  const navigate = useNavigate();
   const [counts, setCounts] = useState<CountsMap>({});
   const [status, setStatus] = useState<Status>('loading');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -269,53 +100,203 @@ export default function AdminMembershipAnalytics() {
   const get = (key: string) => counts[key] || 0;
   const totalEvents = Object.values(counts).reduce((a, b) => a + b, 0);
 
-  /* Loading */
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading analytics…</p>
-        </div>
-      </div>
-    );
-  }
+  // Badge config
+  const badgeConfig = status === 'empty' || status === 'loading' || status === 'error'
+    ? { label: 'No Events Recorded', className: 'bg-destructive/10 text-destructive border-destructive/20' }
+    : totalEvents < 10
+      ? { label: 'Low Volume', className: 'bg-warning/10 text-warning border-warning/20' }
+      : { label: 'Collecting Data', className: 'bg-success/10 text-success border-success/20' };
 
-  /* Error */
-  if (status === 'error') {
-    return (
-      <div className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-center min-h-[60vh]">
-        <Card className="max-w-md w-full">
-          <CardHeader className="items-center text-center">
-            <AlertTriangle className="h-10 w-10 text-destructive mb-2" />
-            <CardTitle>Analytics Unavailable</CardTitle>
-            <CardDescription>Unable to load membership funnel data. Please try again later.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
+  // Conversion helpers (safe even when status !== ready)
+  const totalStarted = get('MEMBERSHIP_FORM_STARTED');
+  const totalApproved = get('MEMBERSHIP_APPROVED');
+  const overallConversion = safePct(totalApproved, totalStarted);
+  const maxFunnelVal = Math.max(...FUNNEL_STEPS.map((s) => get(s)), 1);
 
-  /* Empty */
-  if (status === 'empty') {
-    return (
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        <div className="text-sm text-muted-foreground">Admin / Analytics / Membership Funnel</div>
-        <InstitutionalHeader status={status} totalEvents={0} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
-        <StatusBanner status={status} totalEvents={0} />
-      </div>
-    );
-  }
-
-  /* Ready */
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-      <div className="text-sm text-muted-foreground">Admin / Analytics / Membership Funnel</div>
-      <InstitutionalHeader status={status} totalEvents={totalEvents} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
-      <StatusBanner status={status} totalEvents={totalEvents} />
-      <ExecutiveSummaryRow get={get} />
-      <FunnelVisualization get={get} />
-      <DropOffDiagnostics get={get} />
+    <div className="min-h-screen bg-background">
+      {/* ── Sticky Header (identical pattern to SystemHealth) ── */}
+      <header className="border-b border-border bg-card sticky top-0 z-50">
+        <div className="container mx-auto flex items-center justify-between py-4 px-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-6 w-6 text-primary" />
+              <div>
+                <h1 className="font-display text-lg font-bold">Membership Funnel</h1>
+                <p className="text-xs text-muted-foreground">Monitor conversion lifecycle and growth performance</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
+              badgeConfig.className,
+            )}>
+              {badgeConfig.label}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing || status === 'loading'}
+            >
+              <RefreshCw className={cn('h-4 w-4 mr-2', (isRefreshing || status === 'loading') && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Main Content ── */}
+      <main className="container mx-auto px-4 py-8 space-y-6">
+
+        {/* Loading state */}
+        {status === 'loading' && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading analytics…</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {status === 'error' && (
+          <div className="flex items-center justify-center py-24">
+            <Card className="max-w-md w-full">
+              <CardHeader className="items-center text-center">
+                <AlertTriangle className="h-10 w-10 text-destructive mb-2" />
+                <CardTitle>Analytics Unavailable</CardTitle>
+                <CardDescription>Unable to load membership funnel data. Please try again later.</CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        )}
+
+        {/* Empty state — banner + empty message inside full layout */}
+        {status === 'empty' && (
+          <>
+            <div className="rounded-lg border border-border bg-muted/30 px-6 py-4 flex items-center gap-4">
+              <TrendingUp className="h-8 w-8 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="font-display text-base font-semibold text-foreground">
+                  System Ready — No Membership Activity Yet
+                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Tracking is active. Metrics will appear automatically as users progress through the membership flow.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Ready state — full dashboard */}
+        {status === 'ready' && (
+          <>
+            {/* Status Banner */}
+            <div className="rounded-lg border border-success/20 bg-success/5 px-6 py-4 flex items-center gap-4">
+              <TrendingUp className="h-8 w-8 shrink-0 text-success" />
+              <div>
+                <p className="font-display text-base font-semibold text-success">
+                  Conversion Tracking Active
+                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {totalEvents} total tracked events across lifecycle stages.
+                </p>
+              </div>
+            </div>
+
+            {/* Section: Executive Summary */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                Executive Summary
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'Total Sessions', value: String(totalStarted), desc: 'Form started events' },
+                  { label: 'Payments Initiated', value: String(get('MEMBERSHIP_PAYMENT_INITIATED')), desc: 'Checkout attempts' },
+                  { label: 'Approved Memberships', value: String(totalApproved), desc: 'Successfully approved' },
+                  { label: 'Overall Conversion', value: `${overallConversion}%`, desc: 'Approved / Started' },
+                ].map((m) => (
+                  <Card key={m.label}>
+                    <CardContent className="p-6 space-y-2">
+                      <p className="text-sm text-muted-foreground">{m.label}</p>
+                      <p className="text-2xl font-semibold text-foreground">{m.value}</p>
+                      <p className="text-xs text-muted-foreground">{m.desc}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Section: Funnel Progression */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                Funnel Progression
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-3">
+                  {FUNNEL_STEPS.map((step) => {
+                    const count = get(step);
+                    const pct = Math.round((count / maxFunnelVal) * 100);
+                    return (
+                      <div key={step} className="flex items-center gap-4">
+                        <span className="text-xs text-muted-foreground w-32 text-right shrink-0">
+                          {STEP_LABELS[step]}
+                        </span>
+                        <div className="flex-1 h-8 bg-muted/50 rounded-lg overflow-hidden relative">
+                          <div
+                            className="h-full bg-primary/15 rounded-lg transition-all"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                          <span className="absolute inset-y-0 left-3 flex items-center text-xs font-medium text-foreground">
+                            {count}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Section: Conversion Diagnostics */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                Conversion Diagnostics
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {DROP_OFF_PAIRS.map((pair) => {
+                  const fromVal = get(pair.from);
+                  const toVal = get(pair.to);
+                  const dropPct = fromVal === 0 ? 0 : ((fromVal - toVal) / fromVal) * 100;
+                  const dropStr = dropPct.toFixed(1);
+                  const severity = dropPct > 70
+                    ? 'text-destructive'
+                    : dropPct > 50
+                      ? 'text-warning'
+                      : 'text-foreground';
+
+                  return (
+                    <Card key={pair.label}>
+                      <CardContent className="p-6 space-y-2">
+                        <p className="text-sm text-muted-foreground">{pair.label}</p>
+                        <p className={cn('text-2xl font-semibold', severity)}>{dropStr}%</p>
+                        <p className="text-xs text-muted-foreground">
+                          {fromVal} → {toVal} ({fromVal - toVal} lost)
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }
