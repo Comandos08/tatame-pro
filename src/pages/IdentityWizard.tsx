@@ -12,6 +12,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Building2, UserCheck, CheckCircle2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -33,9 +34,10 @@ type ProfileType = 'admin' | 'athlete' | null;
 
 export default function IdentityWizard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
-  const { identityState, createTenant, joinExistingTenant } = useIdentity();
+  const { identityState, createTenant, joinExistingTenant, refreshIdentity } = useIdentity();
 
   // Wizard state
   const [step, setStep] = useState<WizardStep>(1);
@@ -98,24 +100,48 @@ export default function IdentityWizard() {
       if (joinMode === 'new') {
         const result = await createTenant({ orgName: newOrgName.trim() });
 
-        if (result.success && result.redirectPath) {
+        if (result.success) {
           toast({
             title: 'Organização criada!',
             description: 'Sua organização foi criada com sucesso.',
           });
-          navigate(result.redirectPath, { replace: true });
+
+          // FRONT-FIX-ONBOARDING-REDIRECT: Invalidate caches and redirect deterministically
+          await queryClient.invalidateQueries({ queryKey: ['identity'] });
+          await queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+          await queryClient.invalidateQueries({ queryKey: ['tenant'] });
+          await refreshIdentity();
+
+          // Defensive: only redirect if we got tenant info and role is ADMIN_TENANT
+          const tenantSlug = result.tenant?.slug;
+          const hasAdminRole = result.role === 'ADMIN_TENANT';
+
+          if (tenantSlug && hasAdminRole) {
+            navigate(`/${tenantSlug}/app`, { replace: true });
+          } else if (result.redirectPath) {
+            navigate(result.redirectPath, { replace: true });
+          }
         } else if (result.error) {
           handleWizardError(result.error);
         }
       } else if (joinMode === 'existing') {
         const result = await joinExistingTenant({ tenantCode: inviteCode.trim() });
 
-        if (result.success && result.redirectPath) {
+        if (result.success) {
           toast({
             title: 'Solicitação enviada!',
             description: 'Sua solicitação foi enviada para análise.',
           });
-          navigate(result.redirectPath, { replace: true });
+
+          // FRONT-FIX-ONBOARDING-REDIRECT: Invalidate caches
+          await queryClient.invalidateQueries({ queryKey: ['identity'] });
+          await queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+          await queryClient.invalidateQueries({ queryKey: ['tenant'] });
+          await refreshIdentity();
+
+          if (result.redirectPath) {
+            navigate(result.redirectPath, { replace: true });
+          }
         } else if (result.error) {
           handleWizardError(result.error);
         }

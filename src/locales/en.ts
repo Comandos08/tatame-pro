@@ -1851,7 +1851,25 @@ export const en: Record<string, string> = {
   // P3.1 — Activation
   'onboarding.activateOrganization': 'Activate Organization',
   'onboarding.activatedSuccess': 'Organization activated successfully!',
-  
+
+  // Onboarding Checklist (Tenant Activation)
+  'onboarding.checklist.title': 'Activation Checklist',
+  'onboarding.checklist.subtitle': 'Complete all items to activate your organization',
+  'onboarding.checklist.statusDone': 'Done',
+  'onboarding.checklist.statusPending': 'Pending',
+  'onboarding.checklist.statusLocked': 'Locked',
+  'onboarding.checklist.tenantCreated': 'Organization created',
+  'onboarding.checklist.tenantCreatedDesc': 'Your organization has been registered and is active.',
+  'onboarding.checklist.roleAssigned': 'Role assigned',
+  'onboarding.checklist.roleAssignedDesc': 'Your administrative role has been configured.',
+  'onboarding.checklist.membershipConfigured': 'Membership configured',
+  'onboarding.checklist.membershipConfiguredDesc': 'At least one membership has been created.',
+  'onboarding.checklist.firstMemberApproved': 'First member approved',
+  'onboarding.checklist.firstMemberApprovedDesc': 'At least one member has been approved.',
+  'onboarding.checklist.billingActive': 'Billing active',
+  'onboarding.checklist.billingActiveDesc': 'Billing has been set up and is active.',
+  'onboarding.checklist.securityOk': 'Security OK',
+  'onboarding.checklist.securityOkDesc': 'Security posture is healthy.',
   // Role Management
   'roles.management': 'Role Management',
   'roles.grantRole': 'Grant Role',
