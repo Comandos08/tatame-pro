@@ -27,7 +27,7 @@ import TenantControl from "@/pages/TenantControl";
 import SystemHealth from "@/pages/admin/SystemHealth";
 import AuditLog from "@/pages/admin/AuditLog";
 import SecurityDashboard from "@/pages/admin/SecurityDashboard";
-import { RequireRoles } from "@/components/auth/RequireRoles";
+import { RequireGlobalRoles } from "@/components/auth/RequireGlobalRoles";
 
 
 // Tenant
@@ -75,13 +75,13 @@ export default function App() {
         <Route path="/portal/*" element={<PortalRouter />} />
 
         {/* Admin (Superadmin only - explicit RequireRoles guard) */}
-        <Route path="/admin" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDashboard /></RequireRoles>} />
-        <Route path="/admin/health" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><SystemHealth /></RequireRoles>} />
-        <Route path="/admin/audit" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AuditLog /></RequireRoles>} />
-        <Route path="/admin/security" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><SecurityDashboard /></RequireRoles>} />
-        <Route path="/admin/diagnostics" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDiagnostics /></RequireRoles>} />
-        <Route path="/admin/landing" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><AdminLandingSettings /></RequireRoles>} />
-        <Route path="/admin/tenants/:tenantId/control" element={<RequireRoles allowed={['SUPERADMIN_GLOBAL']}><TenantControl /></RequireRoles>} />
+        <Route path="/admin" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDashboard /></RequireGlobalRoles>} />
+        <Route path="/admin/health" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><SystemHealth /></RequireGlobalRoles>} />
+        <Route path="/admin/audit" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AuditLog /></RequireGlobalRoles>} />
+        <Route path="/admin/security" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><SecurityDashboard /></RequireGlobalRoles>} />
+        <Route path="/admin/diagnostics" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDiagnostics /></RequireGlobalRoles>} />
+        <Route path="/admin/landing" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminLandingSettings /></RequireGlobalRoles>} />
+        <Route path="/admin/tenants/:tenantId/control" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><TenantControl /></RequireGlobalRoles>} />
 
 
         {/* Tenant routes */}
