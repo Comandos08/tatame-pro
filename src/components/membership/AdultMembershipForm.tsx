@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { logMembershipEvent } from '@/lib/analytics/membershipAnalytics';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import {
   saveMembershipResume,
@@ -60,6 +61,22 @@ export function AdultMembershipForm() {
   const [_membershipId, setMembershipId] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
+
+  // R-01: Dedup guards for analytics events
+  const formStartedRef = useRef(false);
+  const lastStepLoggedRef = useRef(0);
+
+  // R-01: MEMBERSHIP_FORM_STARTED on first render
+  useEffect(() => {
+    if (formStartedRef.current || !tenantSlug) return;
+    formStartedRef.current = true;
+    logMembershipEvent('MEMBERSHIP_FORM_STARTED', {
+      tenantSlug,
+      membershipType: 'adult',
+      step: 1,
+      timestamp: Date.now(),
+    });
+  }, [tenantSlug]);
 
   const stepOneSchema = z.object({
     fullName: z.string().min(3, t('membership.validation.nameMin')),
@@ -175,6 +192,11 @@ export function AdultMembershipForm() {
 
     setAthleteData(data as AthleteFormData);
     setStep(2);
+    // R-01: Log step completion
+    if (tenantSlug && lastStepLoggedRef.current < 1) {
+      lastStepLoggedRef.current = 1;
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 1, timestamp: Date.now() });
+    }
   };
 
   const handleDocumentUpload = (type: 'idDocument' | 'medicalCertificate', file: File | null) => {
@@ -189,6 +211,11 @@ export function AdultMembershipForm() {
       return;
     }
     setStep(3);
+    // R-01: Log step completion
+    if (tenantSlug && lastStepLoggedRef.current < 2) {
+      lastStepLoggedRef.current = 2;
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 2, timestamp: Date.now() });
+    }
   };
 
   const handlePayment = async () => {
@@ -324,6 +351,11 @@ export function AdultMembershipForm() {
       }
 
       setMembershipId(membershipId);
+
+      // R-01: Log payment initiation
+      if (tenantSlug) {
+        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'adult', timestamp: Date.now() });
+      }
 
       // 3. Criar Stripe checkout session
       const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke(

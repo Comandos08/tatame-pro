@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { logMembershipEvent } from '@/lib/analytics/membershipAnalytics';
 import { TurnstileWidget, TurnstileError } from '@/components/security/TurnstileWidget';
 import {
   saveMembershipResume,
@@ -57,6 +58,22 @@ export function YouthMembershipForm() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const { isManualOverride, canUseStripe, overrideReason, overrideAt } = useBillingOverride();
+
+  // R-01: Dedup guards for analytics events
+  const formStartedRef = useRef(false);
+  const lastStepLoggedRef = useRef(0);
+
+  // R-01: MEMBERSHIP_FORM_STARTED on first render
+  useEffect(() => {
+    if (formStartedRef.current || !tenantSlug) return;
+    formStartedRef.current = true;
+    logMembershipEvent('MEMBERSHIP_FORM_STARTED', {
+      tenantSlug,
+      membershipType: 'youth',
+      step: 1,
+      timestamp: Date.now(),
+    });
+  }, [tenantSlug]);
 
   // ✅ FX-01A — Deterministic restore from unified persistence
   // Legacy keys cleaned AFTER restore attempt (never before)
@@ -179,6 +196,11 @@ export function YouthMembershipForm() {
   const handleGuardianSubmit = (data: z.infer<typeof guardianSchema>) => {
     setGuardianData(data as GuardianFormData);
     setStep(2);
+    // R-01: Log step completion
+    if (tenantSlug && lastStepLoggedRef.current < 1) {
+      lastStepLoggedRef.current = 1;
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 1, timestamp: Date.now() });
+    }
   };
 
   /**
@@ -213,6 +235,11 @@ export function YouthMembershipForm() {
       email: data.email || guardianData?.email || '',
     } as AthleteFormData);
     setStep(3);
+    // R-01: Log step completion
+    if (tenantSlug && lastStepLoggedRef.current < 2) {
+      lastStepLoggedRef.current = 2;
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 2, timestamp: Date.now() });
+    }
   };
 
   const handleDocumentUpload = (type: 'idDocument' | 'medicalCertificate', file: File | null) => {
@@ -227,6 +254,11 @@ export function YouthMembershipForm() {
       return;
     }
     setStep(4);
+    // R-01: Log step completion
+    if (tenantSlug && lastStepLoggedRef.current < 3) {
+      lastStepLoggedRef.current = 3;
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 3, timestamp: Date.now() });
+    }
   };
 
   const handlePayment = async () => {
@@ -367,6 +399,11 @@ export function YouthMembershipForm() {
 
         if (membershipError) throw membershipError;
         membershipId = membership.id;
+      }
+
+      // R-01: Log payment initiation
+      if (tenantSlug) {
+        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'youth', timestamp: Date.now() });
       }
 
       // 3. Create Stripe checkout session (identical to adult flow)

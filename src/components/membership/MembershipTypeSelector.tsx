@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Users, AlertTriangle, CreditCard, Loader2, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { logMembershipEvent } from '@/lib/analytics/membershipAnalytics';
 
 export function MembershipTypeSelector() {
   const navigate = useNavigate();
@@ -23,6 +24,14 @@ export function MembershipTypeSelector() {
   const tenantStatus = useTenantStatus();
   const [isOpeningPortal, setIsOpeningPortal] = React.useState(false);
   const { currentUser, isAuthenticated } = useCurrentUser();
+
+  // R-01: Dedup guard for MEMBERSHIP_TYPE_VIEWED
+  const viewedRef = useRef(false);
+  useEffect(() => {
+    if (viewedRef.current || !tenantSlug) return;
+    viewedRef.current = true;
+    logMembershipEvent('MEMBERSHIP_TYPE_VIEWED', { tenantSlug, timestamp: Date.now() });
+  }, [tenantSlug]);
 
   // Query to detect existing membership (P4B-3 UX Informational - read-only)
   const { data: existingMembership } = useQuery({
@@ -101,10 +110,19 @@ export function MembershipTypeSelector() {
     },
   ];
 
-  const handleOptionClick = (path: string) => {
+  const handleOptionClick = (path: string, optionId: string) => {
     if (isMembershipBlocked) {
       toast.error(t('membership.blockedByBilling'));
       return;
+    }
+
+    // R-01: Log selection event
+    if (tenantSlug) {
+      logMembershipEvent('MEMBERSHIP_TYPE_SELECTED', {
+        tenantSlug,
+        membershipType: optionId as 'adult' | 'youth',
+        timestamp: Date.now(),
+      });
     }
 
     // FX-02: Require authentication BEFORE entering membership form
@@ -200,7 +218,7 @@ export function MembershipTypeSelector() {
             >
               <Card 
                 className={`h-full card-hover cursor-pointer group ${isMembershipBlocked ? 'opacity-50 pointer-events-none' : ''}`} 
-                onClick={() => handleOptionClick(option.path)}
+                onClick={() => handleOptionClick(option.path, option.id)}
               >
                 <CardHeader>
                   <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
