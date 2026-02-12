@@ -30,6 +30,21 @@ export interface MembershipResumeData {
 
 export type ResumeOutcome = 'success' | 'expired' | 'invalid' | 'tenant_mismatch' | 'not_found';
 
+/**
+ * FX-01A: Extract resumeStep from raw storage even when outcome is non-success.
+ * Returns 0 if parsing fails entirely.
+ */
+export function extractResumeStepFromStorage(type: MembershipResumeType): number {
+  try {
+    const raw = sessionStorage.getItem(getStorageKey(type));
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.step === 'number' ? parsed.step : 0;
+  } catch {
+    return 0;
+  }
+}
+
 interface ResumeResult {
   outcome: ResumeOutcome;
   data: MembershipResumeData | null;
@@ -132,6 +147,7 @@ export function detectMembershipResume(): { type: MembershipResumeType; tenantSl
 
 /**
  * Log structured observability event for membership resume.
+ * FX-01A: For non-success outcomes, log the actual stored step (or 0 if unparseable).
  */
 export function logMembershipResumeEvent(
   tenantSlug: string,
@@ -145,4 +161,16 @@ export function logMembershipResumeEvent(
     resumeStep,
     resumeOutcome,
   });
+}
+
+/**
+ * FX-01A: Clean up a specific legacy sessionStorage key, but ONLY after
+ * a restore attempt has already been made (never before).
+ */
+export function cleanupLegacyKey(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Silent fail
+  }
 }
