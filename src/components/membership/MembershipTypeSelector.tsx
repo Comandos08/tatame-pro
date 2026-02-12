@@ -151,6 +151,9 @@ export function MembershipTypeSelector() {
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
             {t('membership.selectTypeDesc', { orgName: tenant?.name || t('common.organization') })}
           </p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xl mx-auto">
+            {t('membership.selector.reassurance')}
+          </p>
         </motion.div>
 
         {/* Informational card when athlete already has membership (P4B-3 UX-only) */}
