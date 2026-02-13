@@ -125,7 +125,23 @@ export default function IdentityWizard() {
           handleWizardError(result.error);
         }
       } else if (joinMode === 'existing') {
-        const result = await joinExistingTenant({ tenantCode: inviteCode.trim() });
+        const result = await joinExistingTenant({
+          tenantCode: inviteCode.trim(),
+          applicantData: {
+            full_name: currentUser?.name ?? currentUser?.email?.split('@')[0] ?? 'Nome não informado',
+            email: currentUser?.email ?? 'email@desconhecido',
+            birth_date: null,
+            gender: null,
+            national_id: null,
+            phone: null,
+            address_line1: null,
+            address_line2: null,
+            city: null,
+            state: null,
+            postal_code: null,
+            country: null,
+          },
+        });
 
         if (result.success) {
           toast({
