@@ -6,6 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
+type ApplicantData = {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  birth_date?: string;
+};
+
 export default function ApprovalDetails() {
   const { membershipId } = useParams<{ membershipId: string }>();
   const navigate = useNavigate();
@@ -28,13 +35,9 @@ export default function ApprovalDetails() {
           status,
           payment_status,
           created_at,
-          start_date,
-          end_date,
           price_cents,
           currency,
           applicant_data,
-          applicant_profile_id,
-          athlete_id,
           tenant_id
         `,
         )
@@ -73,7 +76,19 @@ export default function ApprovalDetails() {
     );
   }
 
-  const applicant = membership.applicant_data ?? {};
+  // 🔒 Cast seguro para objeto
+  const applicant: ApplicantData =
+    typeof membership.applicant_data === "object" &&
+    membership.applicant_data !== null &&
+    !Array.isArray(membership.applicant_data)
+      ? (membership.applicant_data as ApplicantData)
+      : {};
+
+  const price = typeof membership.price_cents === "number" ? (membership.price_cents / 100).toFixed(2) : "0.00";
+
+  const createdAt = membership.created_at
+    ? new Date(membership.created_at as string).toLocaleString()
+    : "Não informado";
 
   return (
     <div className="p-6 space-y-6">
@@ -94,11 +109,11 @@ export default function ApprovalDetails() {
         </div>
 
         <div>
-          <strong>Valor:</strong> {(membership.price_cents / 100).toFixed(2)} {membership.currency}
+          <strong>Valor:</strong> {price} {membership.currency}
         </div>
 
         <div>
-          <strong>Solicitado em:</strong> {new Date(membership.created_at).toLocaleString()}
+          <strong>Solicitado em:</strong> {createdAt}
         </div>
       </Card>
 
