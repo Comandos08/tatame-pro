@@ -535,7 +535,37 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 5: Inserir membership PENDING_REVIEW (sem role direto!)
+   * STEP 5: Buscar dados do perfil + auth para applicant_data
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("name, email")
+    .eq("id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  // Auth user for email fallback
+  const { data: authData } = await supabase.auth.admin.getUserById(userId);
+  const authUser = authData?.user;
+
+  const applicantData: Record<string, unknown> = {
+    full_name: profileRow?.name ?? authUser?.user_metadata?.full_name ?? authUser?.user_metadata?.name ?? "Nome não informado",
+    email: profileRow?.email ?? authUser?.email ?? "email@desconhecido",
+    birth_date: authUser?.user_metadata?.birth_date ?? null,
+    gender: authUser?.user_metadata?.gender ?? null,
+    national_id: authUser?.user_metadata?.national_id ?? null,
+    phone: authUser?.user_metadata?.phone ?? authUser?.phone ?? null,
+    address_line1: authUser?.user_metadata?.address_line1 ?? null,
+    address_line2: authUser?.user_metadata?.address_line2 ?? null,
+    city: authUser?.user_metadata?.city ?? null,
+    state: authUser?.user_metadata?.state ?? null,
+    postal_code: authUser?.user_metadata?.postal_code ?? null,
+    country: authUser?.user_metadata?.country ?? null,
+    created_via: "identity_wizard",
+  };
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 6: Inserir membership PENDING_REVIEW (sem role direto!)
    * ───────────────────────────────────────────────────────────────────────────── */
   const { error: insertErr } = await supabase
     .from("memberships")
@@ -544,7 +574,7 @@ async function handleJoinExistingTenant(
       applicant_profile_id: userId,
       status: "PENDING_REVIEW",
       type: "FIRST_MEMBERSHIP",
-      applicant_data: { created_via: "identity_wizard" },
+      applicant_data: applicantData,
     });
 
   if (insertErr) {
@@ -566,7 +596,7 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 6: Marcar wizard como completo (NUNCA setar tenant_id aqui!)
+   * STEP 7: Marcar wizard como completo (NUNCA setar tenant_id aqui!)
    * Regra SAFE GOLD: profiles.tenant_id NÃO é setado no JOIN
    * ───────────────────────────────────────────────────────────────────────────── */
   const { error: profileErr } = await supabase
@@ -580,7 +610,7 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 7: Audit log
+   * STEP 8: Audit log
    * ───────────────────────────────────────────────────────────────────────────── */
   await supabase.from("audit_logs").insert({
     tenant_id: tenant.id,
