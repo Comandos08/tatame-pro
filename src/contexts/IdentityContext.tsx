@@ -7,10 +7,15 @@
  * - isMountedRef is ONLY toggled on real mount/unmount (not on dependency cleanup)
  * - Prevents "loading forever" when effects re-run and responses arrive after cleanup
  * - Keeps hard timeout + abort for hung edge function
+ *
+ * STRUCTURAL FIX (ROLE PRIORITY):
+ * - Enforce deterministic priority: SUPERADMIN_GLOBAL > ADMIN_TENANT > ATHLETE
+ * - Normalizes resolved identity result using authoritative user_roles (when readable by RLS)
+ * - Prevents "Contexto: Atleta" when user is ADMIN_TENANT
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
-import { logger } from '@/lib/logger';
+import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { emitInstitutionalEvent } from "@/lib/institutional";
@@ -26,14 +31,14 @@ export interface IdentityError {
     | "IMPERSONATION_INVALID"
     | "SLUG_TAKEN"
     | "VALIDATION_ERROR"
-    | "PROFILE_NOT_FOUND"      // Auth success but no profile row
-    | "NO_ROLES_ASSIGNED"      // Profile exists, wizard done, no roles
-    | "BILLING_BLOCKED"        // Tenant inactive due to billing
-    | "IDENTITY_TIMEOUT"       // Distinct timeout error (12s hard timeout)
-    | "ALREADY_REQUESTED"      // Membership already pending
-    | "ALREADY_MEMBER"         // User already member of tenant
-    | "ONBOARDING_FORBIDDEN"   // Cannot join (rejected/cancelled)
-    | "NOT_IMPLEMENTED"        // Feature not implemented
+    | "PROFILE_NOT_FOUND" // Auth success but no profile row
+    | "NO_ROLES_ASSIGNED" // Profile exists, wizard done, no roles
+    | "BILLING_BLOCKED" // Tenant inactive due to billing
+    | "IDENTITY_TIMEOUT" // Distinct timeout error (12s hard timeout)
+    | "ALREADY_REQUESTED" // Membership already pending
+    | "ALREADY_MEMBER" // User already member of tenant
+    | "ONBOARDING_FORBIDDEN" // Cannot join (rejected/cancelled)
+    | "NOT_IMPLEMENTED" // Feature not implemented
     | "UNKNOWN";
   message: string;
 }
@@ -144,6 +149,15 @@ function hardAbortableFetch(timeoutMs: number) {
   };
 }
 
+/**
+ * Minimal helper: safe slug route fallback.
+ * We DO NOT change routes here; we only keep existing redirectPath if present.
+ */
+function safeAdminRedirect(tenantSlug: string | null) {
+  if (!tenantSlug) return null;
+  return `/${tenantSlug}/app`;
+}
+
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { session, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
@@ -175,9 +189,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   const reset = useCallback(() => {
     if (!isMountedRef.current) return;
 
-    // Set to loading: auth check in IdentityGate runs BEFORE identity check,
-    // so logout flows redirect to /login without showing loader.
-    // Login flows will properly wait for checkIdentity() to resolve.
     setIdentityState("loading");
     setError(null);
     setWizardCompleted(false);
@@ -185,6 +196,76 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     setRole(null);
     setRedirectPath(null);
   }, []);
+
+  /**
+   * ✅ STRUCTURAL FIX:
+   * Normalize RESOLVED payload by enforcing role priority from user_roles when possible.
+   * This prevents ADMIN_TENANT being "downgraded" to ATHLETE context.
+   *
+   * If RLS blocks reading user_roles, we fall back to the Edge Function result (no regression).
+   */
+  const normalizeResolvedResult = useCallback(
+    async (result: any) => {
+      const userId = session?.user?.id;
+      if (!userId) return result;
+
+      if (result?.status !== "RESOLVED") return result;
+
+      try {
+        const { data: rolesData, error: rolesErr } = await supabase
+          .from("user_roles")
+          .select("role, tenant_id")
+          .eq("user_id", userId);
+
+        if (rolesErr) throw rolesErr;
+        if (!rolesData || rolesData.length === 0) return result;
+
+        // Priority: SUPERADMIN_GLOBAL > ADMIN_TENANT > ATHLETE
+        const hasSuper = rolesData.some((r) => r.role === "SUPERADMIN_GLOBAL");
+        if (hasSuper) {
+          return {
+            ...result,
+            role: "SUPERADMIN_GLOBAL",
+            tenant: null,
+            redirectPath: result.redirectPath || null,
+          };
+        }
+
+        const adminRow = rolesData.find((r) => r.role === "ADMIN_TENANT" && !!r.tenant_id);
+        if (adminRow?.tenant_id) {
+          // Ensure tenant info matches admin tenant_id
+          let resolvedTenant: TenantInfo | null = result.tenant || null;
+
+          if (!resolvedTenant || resolvedTenant.id !== adminRow.tenant_id) {
+            const { data: tenantRow, error: tenantErr } = await supabase
+              .from("tenants")
+              .select("id, slug, name")
+              .eq("id", adminRow.tenant_id)
+              .maybeSingle();
+
+            if (!tenantErr && tenantRow) {
+              resolvedTenant = tenantRow as TenantInfo;
+            }
+          }
+
+          return {
+            ...result,
+            role: "ADMIN_TENANT",
+            tenant: resolvedTenant,
+            redirectPath: result.redirectPath || safeAdminRedirect(resolvedTenant?.slug || null),
+          };
+        }
+
+        // No super/admin: keep athlete if Edge decided athlete
+        return result;
+      } catch (e) {
+        // No regression: keep original result if blocked by RLS or any unexpected issue
+        logger.warn("[IdentityContext] normalizeResolvedResult fallback:", e);
+        return result;
+      }
+    },
+    [session?.user?.id],
+  );
 
   const applyResult = useCallback((result: any) => {
     if (!isMountedRef.current) return;
@@ -202,8 +283,8 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 
       // PI U16: Institutional Timeline
       emitInstitutionalEvent({
-        domain: 'IDENTITY',
-        type: 'IDENTITY_RESOLVED',
+        domain: "IDENTITY",
+        type: "IDENTITY_RESOLVED",
         tenantId: result.tenant?.id,
         metadata: { role: result.role, status: result.status },
       });
@@ -238,7 +319,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     }
 
     // ✅ FIX: Usar session.user.id ao invés de currentUser.id
-    // Isso evita race condition onde currentUser ainda não foi carregado
     if (!session?.user?.id || !isAuthenticated) {
       reset();
       return;
@@ -287,7 +367,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return;
       }
 
-      // NOTE: ideally CHECK always returns 200, but keep defensive anyway
       let result: any = null;
       try {
         result = await resp.json();
@@ -305,7 +384,9 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return;
       }
 
-      applyResult(result);
+      // ✅ STRUCTURAL NORMALIZATION (no regression if blocked)
+      const normalized = await normalizeResolvedResult(result);
+      applyResult(normalized);
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
 
@@ -328,14 +409,13 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       clear();
       inFlightAbortRef.current = null;
     }
-  }, [applyResult, session?.user?.id, isAuthenticated, reset]);
+  }, [applyResult, session?.user?.id, isAuthenticated, reset, normalizeResolvedResult]);
 
   // React to auth resolution
   useEffect(() => {
     // Wait auth to finish
     if (authLoading) return;
 
-    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
     // Not authenticated => reset identity safely
     if (!isAuthenticated || !session?.user?.id) {
       reset();
@@ -345,7 +425,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     // Authenticated => resolve identity
     checkIdentity();
 
-    // IMPORTANT: cleanup here should ONLY abort request (NOT toggle isMountedRef)
+    // cleanup here should ONLY abort request (NOT toggle isMountedRef)
     return () => {
       if (inFlightAbortRef.current) {
         inFlightAbortRef.current();
@@ -359,7 +439,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   };
 
   const completeWizard = async (payload: CompleteWizardPayload): Promise<CompleteWizardResult> => {
-    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
     if (!session?.user?.id) {
       return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
     }
@@ -399,22 +478,23 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 
       if (signal.aborted) {
         if (!isMountedRef.current) {
-          return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
+          return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
         }
         setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Timeout ao completar wizard." });
-        return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
+        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." });
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
       }
 
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        applyResult(result);
+        const normalized = await normalizeResolvedResult(result);
+        applyResult(normalized);
         return {
           success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
+          tenant: normalized.tenant,
+          role: normalized.role,
+          redirectPath: normalized.redirectPath,
         };
       }
 
@@ -437,9 +517,9 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       if (err instanceof Error && err.name === "AbortError") {
         if (isMountedRef.current) {
           setIdentityState("error");
-          setError({ code: "UNKNOWN", message: "Timeout ao completar wizard (abort)." });
+          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard (abort)." });
         }
-        return { success: false, error: { code: "UNKNOWN", message: "Timeout ao completar wizard." } };
+        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
       }
 
       logger.error("[IdentityContext] completeWizard error:", err);
@@ -507,12 +587,13 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        applyResult(result);
+        const normalized = await normalizeResolvedResult(result);
+        applyResult(normalized);
         return {
           success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
+          tenant: normalized.tenant,
+          role: normalized.role,
+          redirectPath: normalized.redirectPath,
         };
       }
 
@@ -599,12 +680,13 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        applyResult(result);
+        const normalized = await normalizeResolvedResult(result);
+        applyResult(normalized);
         return {
           success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
+          tenant: normalized.tenant,
+          role: normalized.role,
+          redirectPath: normalized.redirectPath,
         };
       }
 
@@ -613,7 +695,10 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
           setIdentityState("error");
           setError(result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" });
         }
-        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" } };
+        return {
+          success: false,
+          error: result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" },
+        };
       }
 
       if (isMountedRef.current) {
