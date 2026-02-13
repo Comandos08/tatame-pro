@@ -1253,6 +1253,7 @@ export const es: Record<string, string> = {
   'approval.notes': 'Observaciones (opcional)',
   'approval.notesPlaceholder': 'Agregue observaciones sobre el análisis...',
   'approval.approve': 'Aprobar Afiliación',
+  'approval.paymentRequired': 'Pago pendiente. La aprobación solo es posible después de la confirmación del pago.',
   'approval.reject': 'Rechazar',
   'approval.confirmApprove': 'Confirmar Aprobación',
   'approval.confirmApproveMessage': 'Está a punto de aprobar la afiliación de',
