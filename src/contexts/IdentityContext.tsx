@@ -70,8 +70,24 @@ export interface CreateTenantPayload {
   orgName: string;
 }
 
+export interface ApplicantData {
+  full_name: string;
+  email: string;
+  birth_date: string | null;
+  gender: string | null;
+  national_id: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
 export interface JoinExistingTenantPayload {
   tenantCode: string;
+  applicantData: ApplicantData;
 }
 
 export interface CreateTenantResult {

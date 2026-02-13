@@ -95,8 +95,24 @@ interface CreateTenantPayload {
   orgName: string;
 }
 
+interface ApplicantData {
+  full_name: string;
+  email: string;
+  birth_date: string | null;
+  gender: string | null;
+  national_id: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
 interface JoinExistingTenantPayload {
   tenantCode: string;
+  applicantData: ApplicantData;
 }
 
 interface LegacyCompleteWizardPayload {
@@ -535,7 +551,7 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 5: Buscar dados do perfil + auth para applicant_data
+   * STEP 5: Construir applicant_data a partir do payload (sem auth.admin)
    * ───────────────────────────────────────────────────────────────────────────── */
   const { data: profileRow } = await supabase
     .from("profiles")
@@ -544,23 +560,19 @@ async function handleJoinExistingTenant(
     .limit(1)
     .maybeSingle();
 
-  // Auth user for email fallback
-  const { data: authData } = await supabase.auth.admin.getUserById(userId);
-  const authUser = authData?.user;
-
   const applicantData: Record<string, unknown> = {
-    full_name: profileRow?.name ?? authUser?.user_metadata?.full_name ?? authUser?.user_metadata?.name ?? "Nome não informado",
-    email: profileRow?.email ?? authUser?.email ?? "email@desconhecido",
-    birth_date: authUser?.user_metadata?.birth_date ?? null,
-    gender: authUser?.user_metadata?.gender ?? null,
-    national_id: authUser?.user_metadata?.national_id ?? null,
-    phone: authUser?.user_metadata?.phone ?? authUser?.phone ?? null,
-    address_line1: authUser?.user_metadata?.address_line1 ?? null,
-    address_line2: authUser?.user_metadata?.address_line2 ?? null,
-    city: authUser?.user_metadata?.city ?? null,
-    state: authUser?.user_metadata?.state ?? null,
-    postal_code: authUser?.user_metadata?.postal_code ?? null,
-    country: authUser?.user_metadata?.country ?? null,
+    full_name: payload.applicantData?.full_name ?? profileRow?.name ?? "Nome não informado",
+    email: payload.applicantData?.email ?? profileRow?.email ?? "email@desconhecido",
+    birth_date: payload.applicantData?.birth_date ?? null,
+    gender: payload.applicantData?.gender ?? null,
+    national_id: payload.applicantData?.national_id ?? null,
+    phone: payload.applicantData?.phone ?? null,
+    address_line1: payload.applicantData?.address_line1 ?? null,
+    address_line2: payload.applicantData?.address_line2 ?? null,
+    city: payload.applicantData?.city ?? null,
+    state: payload.applicantData?.state ?? null,
+    postal_code: payload.applicantData?.postal_code ?? null,
+    country: payload.applicantData?.country ?? null,
     created_via: "identity_wizard",
   };
 
