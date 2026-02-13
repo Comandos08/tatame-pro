@@ -47,6 +47,12 @@ interface MembershipApplication {
   currency: string;
   applicant_data: ApplicantData | null;
   applicant_profile_id: string | null;
+  athlete_id: string | null;
+  athlete: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  } | null;
   profile: {
     id: string;
     name: string | null;
@@ -56,6 +62,16 @@ interface MembershipApplication {
     id: string;
     name: string;
   } | null;
+}
+
+/** Deterministic display name resolver for membership applications */
+function getDisplayName(m: MembershipApplication): string {
+  return m.athlete?.full_name ?? m.profile?.name ?? m.applicant_data?.full_name ?? 'Nome não disponível';
+}
+
+/** Deterministic display email resolver for membership applications */
+function getDisplayEmail(m: MembershipApplication): string {
+  return m.athlete?.email ?? m.profile?.email ?? m.applicant_data?.email ?? 'Email não disponível';
 }
 
 export default function ApprovalsList() {
@@ -88,6 +104,8 @@ export default function ApprovalsList() {
           currency,
           applicant_data,
           applicant_profile_id,
+          athlete_id,
+          athlete:athletes!athlete_id(id, full_name, email),
           profile:profiles!applicant_profile_id(id, name, email),
           academy_id,
           academy:academies(id, name)
@@ -143,12 +161,12 @@ export default function ApprovalsList() {
     { 
       key: 'applicant', 
       label: t('approval.athleteData'), 
-      format: (_: unknown, row: MembershipApplication) => row.profile?.name || row.applicant_data?.full_name || '' 
+      format: (_: unknown, row: MembershipApplication) => getDisplayName(row) 
     },
     { 
       key: 'email', 
       label: 'E-mail', 
-      format: (_: unknown, row: MembershipApplication) => row.profile?.email || row.applicant_data?.email || '' 
+      format: (_: unknown, row: MembershipApplication) => getDisplayEmail(row) 
     },
     { key: 'status', label: 'Status', format: (v: unknown) => MEMBERSHIP_STATUS_LABELS[v as MembershipStatus] || String(v) },
     { key: 'payment_status', label: 'Pagamento', format: (v: unknown) => PAYMENT_STATUS_LABELS[v as PaymentStatus] || String(v) },
@@ -217,7 +235,10 @@ export default function ApprovalsList() {
           </Card>
         ) : memberships && memberships.length > 0 ? (
           <div className="grid gap-4">
-            {memberships.map((membership, index) => (
+            {memberships.map((membership, index) => {
+              const displayName = getDisplayName(membership);
+              const displayEmail = getDisplayEmail(membership);
+              return (
               <motion.div
                 key={membership.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -238,7 +259,7 @@ export default function ApprovalsList() {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <h3 className="font-medium flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            {membership.profile?.name || membership.applicant_data?.full_name || 'Nome não disponível'}
+                            {displayName}
                           </h3>
                           <Badge variant="outline" className="text-xs">
                             #{membership.id.substring(0, 8).toUpperCase()}
@@ -246,7 +267,7 @@ export default function ApprovalsList() {
                         </div>
                         
                         <p className="text-sm text-muted-foreground mb-3">
-                          {membership.profile?.email || membership.applicant_data?.email || 'Email não disponível'}
+                          {displayEmail}
                         </p>
                         
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -276,7 +297,8 @@ export default function ApprovalsList() {
                   </CardContent>
                 </Card>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <Card>

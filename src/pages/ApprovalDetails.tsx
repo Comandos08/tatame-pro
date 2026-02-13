@@ -57,20 +57,20 @@ import {
 } from '@/types/membership';
 import type { AppRole } from '@/types/auth';
 
-// Type for applicant_data JSONB
+// Type for applicant_data JSONB — all fields optional for fallback tolerance
 interface ApplicantData {
-  full_name: string;
-  birth_date: string;
-  national_id: string;
-  gender: GenderType;
-  email: string;
-  phone: string;
-  address_line1: string;
+  full_name?: string;
+  birth_date?: string;
+  national_id?: string;
+  gender?: GenderType;
+  email?: string;
+  phone?: string;
+  address_line1?: string;
   address_line2?: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  country: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 // Type for documents_uploaded JSONB
@@ -96,6 +96,22 @@ interface MembershipApplication {
   preferred_coach_id: string | null;
   applicant_data: ApplicantData | null;
   applicant_profile_id: string | null;
+  athlete_id: string | null;
+  athlete: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+    birth_date: string | null;
+    gender: string | null;
+    national_id: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    country: string | null;
+  } | null;
   documents_uploaded: DocumentUploaded[] | null;
   profile: {
     id: string;
@@ -195,6 +211,22 @@ export default function ApprovalDetails() {
           preferred_coach_id,
           applicant_data,
           applicant_profile_id,
+          athlete_id,
+          athlete:athletes!athlete_id(
+            id,
+            full_name,
+            email,
+            phone,
+            birth_date,
+            gender,
+            national_id,
+            address_line1,
+            address_line2,
+            city,
+            state,
+            postal_code,
+            country
+          ),
           documents_uploaded,
           profile:profiles!applicant_profile_id(id, name, email),
           academy:academies!academy_id(id, name),
@@ -407,7 +439,32 @@ export default function ApprovalDetails() {
   const isPendingReview = membership?.status === 'PENDING_REVIEW';
   const isPaymentCompleted = membership?.payment_status === 'PAID';
   const canApproveOrReject = isPendingReview && isPaymentCompleted;
-  const applicantData = membership?.applicant_data;
+
+  // Deterministic display derivation: athlete > profile > applicant_data > fallback
+  const displayName = membership?.athlete?.full_name
+    ?? membership?.profile?.name
+    ?? membership?.applicant_data?.full_name
+    ?? 'Nome não disponível';
+
+  const displayEmail = membership?.athlete?.email
+    ?? membership?.profile?.email
+    ?? membership?.applicant_data?.email
+    ?? 'Email não disponível';
+
+  const applicantView = membership ? {
+    full_name: displayName,
+    email: displayEmail,
+    phone: membership.applicant_data?.phone ?? membership.athlete?.phone ?? null,
+    birth_date: membership.applicant_data?.birth_date ?? membership.athlete?.birth_date ?? null,
+    gender: membership.applicant_data?.gender ?? membership.athlete?.gender ?? null,
+    national_id: membership.applicant_data?.national_id ?? membership.athlete?.national_id ?? null,
+    city: membership.applicant_data?.city ?? membership.athlete?.city ?? null,
+    state: membership.applicant_data?.state ?? membership.athlete?.state ?? null,
+    address_line1: membership.applicant_data?.address_line1 ?? membership.athlete?.address_line1 ?? null,
+    address_line2: membership.applicant_data?.address_line2 ?? membership.athlete?.address_line2 ?? null,
+    postal_code: membership.applicant_data?.postal_code ?? membership.athlete?.postal_code ?? null,
+    country: membership.applicant_data?.country ?? membership.athlete?.country ?? null,
+  } : null;
 
   return (
     <AppShell>
@@ -518,63 +575,69 @@ export default function ApprovalDetails() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {applicantData ? (
+                    {applicantView ? (
                       <>
                         <div>
                           <p className="text-sm text-muted-foreground">{t('membership.form.fullName')}</p>
-                          <p className="font-medium">{membership?.profile?.name || applicantData.full_name}</p>
+                          <p className="font-medium">{applicantView.full_name}</p>
                         </div>
                         <Separator />
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground">{t('membership.form.birthDate')}</p>
-                            <p className="font-medium">{formatDate(applicantData.birth_date, locale)}</p>
+                        {(applicantView.birth_date || applicantView.gender) && (
+                          <div className="grid grid-cols-2 gap-4">
+                            {applicantView.birth_date && (
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t('membership.form.birthDate')}</p>
+                                <p className="font-medium">{formatDate(applicantView.birth_date, locale)}</p>
+                              </div>
+                            )}
+                            {applicantView.gender && (
+                              <div>
+                                <p className="text-sm text-muted-foreground">{t('membership.form.gender')}</p>
+                                <p className="font-medium">
+                                  {GENDER_LABELS[applicantView.gender as GenderType] || applicantView.gender}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">{t('membership.form.gender')}</p>
-                            <p className="font-medium">
-                              {GENDER_LABELS[applicantData.gender] || applicantData.gender}
-                            </p>
-                          </div>
-                        </div>
+                        )}
                         <Separator />
                         <div>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Mail className="h-3 w-3" /> {t('common.email')}
                           </p>
-                          <p className="font-medium">{membership?.profile?.email || applicantData.email}</p>
+                          <p className="font-medium">{applicantView.email}</p>
                         </div>
-                        {applicantData.phone && (
+                        {applicantView.phone && (
                           <div>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Phone className="h-3 w-3" /> {t('common.phone')}
                             </p>
-                            <p className="font-medium">{applicantData.phone}</p>
+                            <p className="font-medium">{applicantView.phone}</p>
                           </div>
                         )}
-                        {applicantData.national_id && (
+                        {applicantView.national_id && (
                           <div>
                             <p className="text-sm text-muted-foreground">{t('membership.form.nationalId')}</p>
-                            <p className="font-medium">{applicantData.national_id}</p>
+                            <p className="font-medium">{applicantView.national_id}</p>
                           </div>
                         )}
-                        {(applicantData.city || applicantData.state) && (
+                        {(applicantView.city || applicantView.state) && (
                           <div>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <MapPin className="h-3 w-3" /> {t('common.location')}
                             </p>
                             <p className="font-medium">
-                              {[applicantData.city, applicantData.state].filter(Boolean).join(', ')}
+                              {[applicantView.city, applicantView.state].filter(Boolean).join(', ')}
                             </p>
                           </div>
                         )}
-                        {applicantData.address_line1 && (
+                        {applicantView.address_line1 && (
                           <div>
                             <p className="text-sm text-muted-foreground">{t('membership.form.address')}</p>
                             <p className="font-medium text-sm">
-                              {applicantData.address_line1}
-                              {applicantData.address_line2 && `, ${applicantData.address_line2}`}
-                              {applicantData.postal_code && ` - ${applicantData.postal_code}`}
+                              {applicantView.address_line1}
+                              {applicantView.address_line2 && `, ${applicantView.address_line2}`}
+                              {applicantView.postal_code && ` - ${applicantView.postal_code}`}
                             </p>
                           </div>
                         )}
@@ -792,7 +855,7 @@ export default function ApprovalDetails() {
             <DialogHeader>
               <DialogTitle>{t('approval.confirmApprove')}</DialogTitle>
               <DialogDescription>
-                {t('approval.confirmApproveMessage')} <strong>{applicantData?.full_name}</strong>.
+                {t('approval.confirmApproveMessage')} <strong>{displayName}</strong>.
               </DialogDescription>
             </DialogHeader>
             
@@ -870,7 +933,7 @@ export default function ApprovalDetails() {
             <DialogHeader>
               <DialogTitle>{t('approval.confirmReject')}</DialogTitle>
               <DialogDescription>
-                {t('approval.confirmRejectMessage')} {applicantData?.full_name}.
+                {t('approval.confirmRejectMessage')} {displayName}.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
