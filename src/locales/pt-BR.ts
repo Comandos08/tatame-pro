@@ -1251,6 +1251,7 @@ export const ptBR = {
   'approval.notes': 'Observações (opcional)',
   'approval.notesPlaceholder': 'Adicione observações sobre a análise...',
   'approval.approve': 'Aprovar Filiação',
+  'approval.paymentRequired': 'Pagamento pendente. A aprovação só é possível após a confirmação do pagamento.',
   'approval.reject': 'Rejeitar',
   'approval.confirmApprove': 'Confirmar Aprovação',
   'approval.confirmApproveMessage': 'Você está prestes a aprovar a filiação de',

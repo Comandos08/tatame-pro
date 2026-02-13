@@ -305,11 +305,18 @@ export default function ApprovalDetails() {
         },
       });
 
-      if (error || data?.error) {
-        throw new Error(data?.error || error?.message);
+      if (error) {
+        throw new Error(error?.message || t('approval.errorApprove'));
       }
 
-      return data;
+      // A07 envelope unwrap
+      const payload = data?.data ?? data;
+      if (payload?.error || payload?.ok === false) {
+        const msgKey = payload?.messageKey || payload?.error?.message || payload?.error;
+        throw new Error(typeof msgKey === 'string' ? msgKey : t('approval.errorApprove'));
+      }
+
+      return payload;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-membership'] });
@@ -398,6 +405,8 @@ export default function ApprovalDetails() {
 
   const digitalCard = membership?.digital_cards?.[0];
   const isPendingReview = membership?.status === 'PENDING_REVIEW';
+  const isPaymentCompleted = membership?.payment_status === 'PAID';
+  const canApproveOrReject = isPendingReview && isPaymentCompleted;
   const applicantData = membership?.applicant_data;
 
   return (
@@ -743,10 +752,19 @@ export default function ApprovalDetails() {
                         rows={3}
                       />
                     </div>
+                    {isPendingReview && !isPaymentCompleted && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {t('approval.paymentRequired')}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="flex gap-4 pt-2">
                       <Button 
                         className="flex-1"
                         onClick={() => setIsApproveDialogOpen(true)}
+                        disabled={!canApproveOrReject}
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         {t('approval.approve')}
@@ -755,6 +773,7 @@ export default function ApprovalDetails() {
                         variant="destructive"
                         className="flex-1"
                         onClick={() => setIsRejectDialogOpen(true)}
+                        disabled={!isPendingReview}
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         {t('approval.reject')}

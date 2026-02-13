@@ -1253,6 +1253,7 @@ export const en: Record<string, string> = {
   'approval.notes': 'Notes (optional)',
   'approval.notesPlaceholder': 'Add notes about the review...',
   'approval.approve': 'Approve Membership',
+  'approval.paymentRequired': 'Payment pending. Approval is only possible after payment confirmation.',
   'approval.reject': 'Reject',
   'approval.confirmApprove': 'Confirm Approval',
   'approval.confirmApproveMessage': 'You are about to approve the membership of',
