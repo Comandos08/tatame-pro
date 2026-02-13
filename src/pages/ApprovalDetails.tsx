@@ -7,20 +7,32 @@ import { useI18n } from "@/contexts/I18nContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatDate, formatCurrency } from "@/lib/i18n/formatters";
 import { supabase } from "@/integrations/supabase/client";
-import { MEMBERSHIP_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/types/membership";
+
+import {
+  MEMBERSHIP_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+  type MembershipStatus,
+  type PaymentStatus,
+} from "@/types/membership";
 
 interface MembershipApplication {
   id: string;
-  status: string;
-  payment_status: string;
+  status: MembershipStatus;
+  payment_status: PaymentStatus;
   created_at: string;
   price_cents: number;
   currency: string;
   applicant_data: any;
   applicant_profile_id: string | null;
   athlete_id: string | null;
-  athlete: any | null;
-  profile: any | null;
+  athlete: {
+    full_name: string | null;
+    email: string | null;
+  } | null;
+  profile: {
+    name: string | null;
+    email: string | null;
+  } | null;
 }
 
 export default function ApprovalDetails() {
