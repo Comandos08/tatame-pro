@@ -1,4 +1,4 @@
-import { useState } from "react";
+// (removido useState)
 import { Loader2, AlertCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
