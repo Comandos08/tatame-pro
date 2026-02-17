@@ -116,7 +116,7 @@ export default function AthleteGradingsPage() {
         .select('id')
         .eq('applicant_profile_id', athlete.profile_id)
         .eq('tenant_id', tenant.id)
-        .eq('status', 'ACTIVE')
+        .in('status', ['ACTIVE', 'APPROVED'])
         .maybeSingle();
       
       if (error) return false;

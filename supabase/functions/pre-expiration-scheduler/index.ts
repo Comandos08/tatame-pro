@@ -257,7 +257,7 @@ serve(async (req: Request): Promise<Response> => {
           default_locale
         )
       `)
-      .eq("status", "ACTIVE")
+      .in("status", ["ACTIVE", "APPROVED"])
       .gte("end_date", todayStr)
       .lte("end_date", thirtyDaysStr);
 

@@ -85,7 +85,7 @@ export default function TenantDashboard() {
 
       const [athletes, activeMemberships, pendingMemberships, academies, diplomas, expiring] = await Promise.all([
         supabase.from('athletes').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id),
-        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'ACTIVE'),
+        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).in('status', ['ACTIVE', 'APPROVED']),
         supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'PENDING_REVIEW'),
         supabase.from('academies').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('is_active', true),
         supabase.from('diplomas').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'ISSUED'),
