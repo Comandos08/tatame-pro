@@ -23,7 +23,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           logo_url: string | null
           name: string
           phone: string | null
@@ -42,7 +42,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           logo_url?: string | null
           name: string
           phone?: string | null
@@ -61,7 +61,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           logo_url?: string | null
           name?: string
           phone?: string | null
@@ -102,7 +102,7 @@ export type Database = {
           coach_id: string
           created_at: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           role: Database["public"]["Enums"]["academy_coach_role"]
           tenant_id: string
           updated_at: string | null
@@ -112,7 +112,7 @@ export type Database = {
           coach_id: string
           created_at?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           role?: Database["public"]["Enums"]["academy_coach_role"]
           tenant_id: string
           updated_at?: string | null
@@ -122,7 +122,7 @@ export type Database = {
           coach_id?: string
           created_at?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           role?: Database["public"]["Enums"]["academy_coach_role"]
           tenant_id?: string
           updated_at?: string | null
@@ -3231,6 +3231,19 @@ export type Database = {
       }
     }
     Views: {
+      academy_governance_audit_v1: {
+        Row: {
+          academy_id: string | null
+          details: Json | null
+          detected_at: string | null
+          issue_code: string | null
+          record_id: string | null
+          severity: string | null
+          table_name: string | null
+          tenant_id: string | null
+        }
+        Relationships: []
+      }
       athlete_current_grading: {
         Row: {
           athlete_id: string | null
@@ -3539,6 +3552,19 @@ export type Database = {
       change_tenant_lifecycle_state: {
         Args: { p_new_state: string; p_reason: string; p_tenant_id: string }
         Returns: string
+      }
+      check_academy_governance_v1: {
+        Args: never
+        Returns: {
+          academy_id: string
+          details: Json
+          detected_at: string
+          issue_code: string
+          record_id: string
+          severity: string
+          table_name: string
+          tenant_id: string
+        }[]
       }
       check_membership_governance_v1: {
         Args: never
