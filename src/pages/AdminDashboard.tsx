@@ -121,7 +121,7 @@ export default function AdminDashboard() {
         supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('athletes').select('id', { count: 'exact', head: true }),
-        supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+        supabase.from('memberships').select('id', { count: 'exact', head: true }).in('status', ['ACTIVE', 'APPROVED']),
       ]);
       
       return {

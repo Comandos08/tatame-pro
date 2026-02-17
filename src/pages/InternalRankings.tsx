@@ -90,7 +90,7 @@ export default function InternalRankings() {
             .from('memberships')
             .select('academy_id')
             .eq('tenant_id', tenant!.id)
-            .eq('status', 'ACTIVE')
+            .in('status', ['ACTIVE', 'APPROVED'])
             .not('academy_id', 'is', null);
 
           // Get all issued diplomas for counting

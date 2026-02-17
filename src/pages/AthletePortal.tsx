@@ -233,7 +233,7 @@ export default function AthletePortal() {
   const daysUntilExpiry = calculateDaysUntilExpiry(membership?.end_date);
 
   const showRenewalReminder =
-    membershipStatus === "ACTIVE" && daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 30;
+    (membershipStatus === "ACTIVE" || membershipStatus === "APPROVED") && daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 30;
 
   const isLoading = athleteLoading || membershipLoading;
 

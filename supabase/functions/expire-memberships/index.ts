@@ -127,7 +127,7 @@ serve(async (req) => {
         athlete:athletes(id, full_name, email),
         tenant:tenants(id, slug, name, default_locale)
       `)
-      .eq("status", "ACTIVE")
+      .in("status", ["ACTIVE", "APPROVED"])
       .lt("end_date", today);
 
     if (fetchError) {
@@ -176,7 +176,7 @@ serve(async (req) => {
             updated_at: new Date().toISOString()
           })
           .eq("id", membership.id)
-          .eq("status", "ACTIVE") // 🔒 Race condition protection
+          .in("status", ["ACTIVE", "APPROVED"]) // 🔒 Race condition protection
           .select("id")
           .maybeSingle();
 
