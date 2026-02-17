@@ -1,157 +1,269 @@
 
-# A04.S1 — Critical Financial & Admin Hardening
 
-## Overview
+# PI-INSTITUTIONAL-APPROVAL-001: Reconstrucao do ApprovalDetails.tsx (SAFE GOLD HARDENED)
 
-Three surgical changes: (1) invoice handlers enter the A03 billing state machine, (2) admin-billing-control validates all transitions, (3) admin routes get explicit RequireRoles guards.
+## Resumo
 
-## What Does NOT Change
-
-- No database migrations, no RLS changes, no route structure changes
-- No Stripe contract changes (webhook always returns 200)
-- No changes to billing-state-machine.ts, A02, A03, or A07 envelope
-- No `console.*` additions
+Reescrita completa de `src/pages/ApprovalDetails.tsx`. Arquivo unico modificado. Todos os ajustes P0/P1 do review anterior + 2 ajustes SAFE GOLD incorporados.
 
 ---
 
-## Part 1 -- Invoice Handlers (stripe-webhook/index.ts)
+## Verificacoes Realizadas (Ajustes do Review Anterior)
 
-### 1A. handleInvoicePaymentSucceeded (lines 900-958)
+### P0 -- Payload da Edge Function: CONFIRMADO
 
-**Line 921:** Expand `.select("id, tenant_id")` to `.select("id, tenant_id, status")`
-
-**Lines 932-941:** Replace the direct updates with state machine validation:
+O `approve-membership` aceita:
 
 ```text
-1. Extract previousStatus = billing.status
-2. If previousStatus is known (isKnownBillingStatus) and !== "ACTIVE":
-   - try assertValidBillingTransition(previousStatus, "ACTIVE")
-   - on throw: log.error + createAuditLog(BILLING_TRANSITION_BLOCKED) + return (skip writes)
-3. If previousStatus is unknown string: log.error, allow (data corruption scenario)
-4. const isActive = deriveTenantActive("ACTIVE" as BillingStatus)
-5. Update tenant_billing.status = "ACTIVE"
-6. Update tenants.is_active = isActive (replaces hardcoded true)
+{ membershipId, academyId?, coachId?, reviewNotes?, roles?, impersonationId? }
 ```
 
-### 1B. handleInvoicePaymentFailed (lines 960-1021)
+Roles whitelist no backend: `ATLETA`, `COACH_ASSISTENTE`, `COACH_PRINCIPAL`, `INSTRUTOR`, `STAFF_ORGANIZACAO`. Default quando vazio: `ATLETA`.
 
-**Line 980:** Expand `.select("id, tenant_id")` to `.select("id, tenant_id, status")`
-
-**Lines 991-995:** Replace direct update with state machine validation:
+O `reject-membership` aceita:
 
 ```text
-1. Extract previousStatus = billing.status
-2. If previousStatus is known and !== "PAST_DUE":
-   - try assertValidBillingTransition(previousStatus, "PAST_DUE")
-   - on throw: log.error + createAuditLog(BILLING_TRANSITION_BLOCKED) + return
-3. If previousStatus unknown: log.error, allow
-4. const isActive = deriveTenantActive("PAST_DUE" as BillingStatus)
-5. Update tenant_billing.status = "PAST_DUE"
-6. ADD: Update tenants.is_active = isActive (CRITICAL FIX -- today this is missing)
+{ membershipId, reason?, rejectionReason?, impersonationId? }
 ```
 
-The missing `tenants.is_active` update on payment failure is a real bug: PAST_DUE tenants remain operationally active until a subscription-level event fires.
+### P0 -- Filtro tenant_id: SEGURO
+
+Rota dentro de `/:tenantSlug/app/...`. `useTenant()` garantido neste contexto.
+
+### P1 -- digital_cards: CONFIRMADO
+
+FK `membership_id` existe. Secao opcional na UI.
+
+### P1 -- reject-membership: EXISTE
+
+Confirmado em `supabase/functions/reject-membership/index.ts`.
 
 ---
 
-## Part 2 -- admin-billing-control/index.ts
+## AJUSTES SAFE GOLD (P0-1 e P0-2)
 
-### 2A. Add imports (after line 20)
+### P0-1 -- Determinismo de Query Key e Refetch
 
-```typescript
-import { AUDIT_EVENTS } from "../_shared/audit-logger.ts";
-import {
-  type BillingStatus,
-  isKnownBillingStatus,
-  assertValidBillingTransition,
-  deriveTenantActive,
-  assertBillingConsistency,
-} from "../_shared/billing-state-machine.ts";
-import { createBackendLogger } from "../_shared/backend-logger.ts";
-import { extractCorrelationId } from "../_shared/correlation.ts";
-```
-
-### 2B. Main handler (line 509): Create logger instance
-
-```typescript
-const correlationId = extractCorrelationId(req);
-const log = createBackendLogger("admin-billing-control", correlationId);
-```
-
-### 2C. extendTrial (lines 148-212)
-
-After fetching `before.billing` (line 160), before update (line 173):
+A queryKey sera definida explicitamente como:
 
 ```text
-1. const previousStatus = before.billing.status
-2. If known and !== "TRIALING":
-   - try assertValidBillingTransition(previousStatus, "TRIALING")
-   - catch: return { success: false, error: `Invalid transition: ${previousStatus} -> TRIALING` }
-3. After billing update (line 180), ADD:
-   - const isActive = deriveTenantActive("TRIALING" as BillingStatus)
-   - await serviceClient.from("tenants").update({ is_active: isActive }).eq("id", tenantId)
-4. Post-write: try { assertBillingConsistency("TRIALING", isActive) } catch { log.error(...) }
+const QUERY_KEY = ['membership-approval-detail', approvalId] as const;
 ```
 
-### 2D. markAsPaid (lines 214-277)
+Uso no `useQuery`:
 
-Same pattern: validate previousStatus -> "ACTIVE", add `tenants.is_active` update with `deriveTenantActive("ACTIVE")`, post-write consistency check.
+```text
+useQuery({
+  queryKey: QUERY_KEY,
+  queryFn: async () => { ... },
+  enabled: !!approvalId && !!tenant?.id,
+})
+```
 
-### 2E. blockTenant (lines 279-335)
+Apos sucesso de approve ou reject:
 
-Validate previousStatus -> "PAST_DUE". ADD `tenants.is_active` update with `deriveTenantActive("PAST_DUE")` (returns false). Post-write consistency.
+```text
+await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+```
 
-### 2F. unblockTenant (lines 337-389)
+Garantias:
+- A mesma referencia `QUERY_KEY` e usada em ambos os pontos
+- Nao existe chave parcial, string solta ou chave diferente
+- O `invalidateQueries` dispara refetch automatico via react-query
+- A UI nunca exibe estado stale apos acao bem-sucedida
+- O toast de sucesso so aparece apos o `invalidateQueries` resolver
 
-Validate previousStatus -> "ACTIVE". ADD `tenants.is_active` update with `deriveTenantActive("ACTIVE")`. Post-write consistency.
+### P0-2 -- Imutabilidade da Role Padrao
 
-### 2G. resetToStripe (lines 391-506)
+Constante declarada no topo do arquivo, fora do componente:
 
-After resolving `stripeStatus` (line 431/461):
-- If `isKnownBillingStatus(stripeStatus)` and previous is known and different: validate transition
-- After billing update: ADD `tenants.is_active` update with `deriveTenantActive` (guarded by isKnownBillingStatus)
-- Post-write consistency
+```text
+const DEFAULT_APPROVAL_ROLES = ['ATLETA'] as const;
+```
 
-### 2H. Replace console.error (lines 435, 466, 652)
-
-Replace 3 instances of `console.error` with `log.error`.
-
----
-
-## Part 3 -- Admin Routes (src/App.tsx)
-
-**Add import:** `import { RequireRoles } from "@/components/auth/RequireRoles";`
-
-**Wrap all 7 admin routes** with `<RequireRoles allowed={['SUPERADMIN_GLOBAL']}>`:
-
-| Route | Lines |
-|---|---|
-| `/admin` | ~80 |
-| `/admin/health` | ~81 |
-| `/admin/audit` | ~82 |
-| `/admin/security` | ~83 |
-| `/admin/diagnostics` | ~84 |
-| `/admin/landing` | ~85 |
-| `/admin/tenants/:tenantId/control` | ~86 |
+Garantias:
+- O payload de aprovacao usa exclusivamente `DEFAULT_APPROVAL_ROLES`
+- Nenhum `useState` controla ou altera roles
+- Nenhum campo de UI (dropdown, checkbox, input) expoe roles
+- Roles nao e derivavel de input do usuario
+- A constante e `as const` (readonly tuple), imutavel em tempo de compilacao
+- O payload enviado sera: `roles: [...DEFAULT_APPROVAL_ROLES]`
 
 ---
 
-## Files Changed
+## Implementacao
 
-| File | Change |
-|---|---|
-| `supabase/functions/stripe-webhook/index.ts` | Invoice handlers: state machine validation + is_active fix |
-| `supabase/functions/admin-billing-control/index.ts` | All 5 actions: transition validation + is_active updates + replace console.error |
-| `src/App.tsx` | 7 admin routes wrapped with RequireRoles |
+### Arquivo Unico: `src/pages/ApprovalDetails.tsx` (reescrita completa)
 
-## Mental Tests
+### 1. Constantes Imutaveis (topo do arquivo, fora do componente)
 
-| Scenario | Expected |
-|---|---|
-| CANCELED -> ACTIVE via invoice | BLOCKED + audit |
-| ACTIVE -> ACTIVE via invoice (no-op) | Allowed (skip validation) |
-| CANCELED -> TRIALING via extendTrial | BLOCKED |
-| ACTIVE -> PAST_DUE via blockTenant | Allowed |
-| ADMIN_TENANT navigates /admin | Blocked by RequireRoles |
-| invoice.payment_failed fires | tenants.is_active set to false |
-| Webhook never returns 500 | Guaranteed (return after audit) |
+```text
+const DEFAULT_APPROVAL_ROLES = ['ATLETA'] as const;
+const QUERY_KEY_PREFIX = 'membership-approval-detail';
+```
+
+### 2. Correcao do Param
+
+```text
+const { approvalId } = useParams<{ approvalId: string }>();
+```
+
+### 3. Tipagem Local
+
+```text
+ApplicantData -- todos campos opcionais (tolerante a JSONB parcial)
+AthleteJoin -- id, full_name, email, phone, birth_date, gender, national_id, endereco
+MembershipDetail -- campos da membership + joins tipados
+```
+
+### 4. Query Deterministica
+
+```text
+const QUERY_KEY = [QUERY_KEY_PREFIX, approvalId] as const;
+
+useQuery({
+  queryKey: QUERY_KEY,
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("memberships")
+      .select(`
+        id, status, payment_status, type, created_at,
+        start_date, end_date, price_cents, currency,
+        review_notes, reviewed_at, applicant_data,
+        applicant_profile_id, athlete_id, academy_id,
+        preferred_coach_id, documents_uploaded,
+        athlete:athletes!athlete_id(
+          id, full_name, email, phone, birth_date,
+          gender, national_id, address_line1, address_line2,
+          city, state, postal_code, country
+        ),
+        profile:profiles!applicant_profile_id(id, name, email),
+        academy:academies!academy_id(id, name),
+        coach:coaches!preferred_coach_id(id, full_name),
+        digital_cards(id, qr_code_image_url, pdf_url)
+      `)
+      .eq("id", approvalId)
+      .eq("tenant_id", tenant.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!approvalId && !!tenant?.id,
+})
+```
+
+### 5. applicantView Derivado (fallback deterministico)
+
+| Campo | Prioridade 1 | Prioridade 2 | Prioridade 3 | Fallback |
+|-------|-------------|-------------|-------------|----------|
+| name | athlete.full_name | profile.name | applicant_data.full_name | "Nome nao informado" |
+| email | athlete.email | profile.email | applicant_data.email | "Email nao informado" |
+| phone | athlete.phone | -- | applicant_data.phone | null |
+| birth_date | athlete.birth_date | -- | applicant_data.birth_date | null |
+| gender | athlete.gender | -- | applicant_data.gender | null |
+| national_id | athlete.national_id | -- | applicant_data.national_id | null |
+| endereco | athlete.address_* | -- | applicant_data.address_* | null |
+
+### 6. State Machine Local
+
+```text
+const isPendingReview = membership.status === 'PENDING_REVIEW'
+const isPaymentCompleted = membership.payment_status === 'PAID'
+const canApproveOrReject = isPendingReview && isPaymentCompleted
+```
+
+### 7. Acoes -- Payloads Exatos
+
+**Aprovar**:
+
+```text
+const handleApprove = async () => {
+  setIsSubmitting(true);
+  const body: Record<string, unknown> = {
+    membershipId: approvalId,
+    roles: [...DEFAULT_APPROVAL_ROLES],
+  };
+  if (reviewNotes.trim()) body.reviewNotes = reviewNotes.trim();
+
+  const { error } = await supabase.functions.invoke('approve-membership', { body });
+  if (error) { toast.error(...); setIsSubmitting(false); return; }
+
+  await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  toast.success(...);
+  setIsSubmitting(false);
+};
+```
+
+**Rejeitar**:
+
+```text
+const handleReject = async () => {
+  setIsSubmitting(true);
+  const { error } = await supabase.functions.invoke('reject-membership', {
+    body: {
+      membershipId: approvalId,
+      rejectionReason: rejectionReason.trim(),
+    }
+  });
+  if (error) { toast.error(...); setIsSubmitting(false); return; }
+
+  await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  toast.success(...);
+  setIsSubmitting(false);
+};
+```
+
+### 8. Estrutura da UI
+
+1. **Header**: Botao Voltar + titulo + Badge de status
+2. **Card Dados da Solicitacao**: Status, pagamento, valor, tipo, datas
+3. **Card Dados do Atleta**: applicantView completo
+4. **Card Documentos**: Lista de documentos (se existirem)
+5. **Card Carteira Digital**: Exibido somente se `digital_cards` retornar dados
+6. **Card Decisao**: Notas do revisor + botoes Aprovar/Rejeitar
+7. **Alerta de pagamento**: Exibido se `payment_status !== 'PAID'`, desabilitando acoes
+
+**Roles NAO aparecem na UI. Nenhum dropdown, checkbox ou input de roles existe.**
+
+### 9. Estados Explicitos
+
+| Estado | Condicao | UI |
+|--------|---------|-----|
+| Loading | isLoading | Spinner institucional |
+| Error | isError | Card com mensagem + botao voltar |
+| Not Found | !membership | Card "Nao encontrado" + botao voltar |
+| Processing | isSubmitting | Botoes desabilitados + spinner inline |
+| Success | apos acao | Toast via sonner + refetch via invalidateQueries(QUERY_KEY) |
+
+### 10. Protecoes
+
+- **Duplo clique**: `useState<boolean>` de `isSubmitting` desabilita botoes
+- **Rejeicao vazia**: Botao confirmar desabilitado se `rejectionReason.trim() === ''`
+- **Confirmacao**: AlertDialog antes de aprovar e antes de rejeitar
+
+---
+
+## O que NAO sera tocado
+
+- Rotas (AppRouter.tsx)
+- RLS policies
+- Edge Functions (approve-membership, reject-membership)
+- ApprovalsList.tsx
+- Enums, guards, estado global
+- Schema do banco
+
+---
+
+## Checklist SAFE GOLD
+
+| Item | Status |
+|------|--------|
+| queryKey explicita e unica | `[QUERY_KEY_PREFIX, approvalId] as const` |
+| invalidateQueries usa mesma queryKey | Sim, referencia `QUERY_KEY` |
+| Refetch deterministico pos-acao | `await invalidateQueries` antes do toast |
+| DEFAULT_APPROVAL_ROLES imutavel | `as const`, fora do componente |
+| Roles nao editavel por UI | Nenhum campo de input expoe roles |
+| Roles nao derivavel de input | Payload usa spread da constante |
+| Nenhum estado controla roles | Zero useState para roles |
+
