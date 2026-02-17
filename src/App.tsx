@@ -28,6 +28,7 @@ import SystemHealth from "@/pages/admin/SystemHealth";
 import AuditLog from "@/pages/admin/AuditLog";
 import SecurityDashboard from "@/pages/admin/SecurityDashboard";
 import AdminMembershipAnalytics from "@/pages/admin/AdminMembershipAnalytics";
+import MembershipObservability from "@/pages/admin/MembershipObservability";
 import { RequireGlobalRoles } from "@/components/auth/RequireGlobalRoles";
 
 
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/admin/landing" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminLandingSettings /></RequireGlobalRoles>} />
         <Route path="/admin/tenants/:tenantId/control" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><TenantControl /></RequireGlobalRoles>} />
         <Route path="/admin/analytics/membership" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminMembershipAnalytics /></RequireGlobalRoles>} />
+        <Route path="/admin/observability/membership" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><MembershipObservability /></RequireGlobalRoles>} />
 
 
         {/* Tenant routes */}
