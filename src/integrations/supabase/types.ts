@@ -3136,6 +3136,18 @@ export type Database = {
         }
         Relationships: []
       }
+      role_governance_audit_v1: {
+        Row: {
+          details: Json | null
+          detected_at: string | null
+          issue_code: string | null
+          profile_id: string | null
+          severity: string | null
+          tenant_id: string | null
+          user_roles_id: string | null
+        }
+        Relationships: []
+      }
       security_timeline: {
         Row: {
           created_at: string | null
@@ -3210,6 +3222,18 @@ export type Database = {
       can_view_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
+      }
+      check_role_governance_v1: {
+        Args: never
+        Returns: {
+          details: Json
+          detected_at: string
+          issue_code: string
+          profile_id: string
+          severity: string
+          tenant_id: string
+          user_roles_id: string
+        }[]
       }
       coach_has_issued_diploma: {
         Args: { _coach_id: string }
