@@ -328,7 +328,7 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
       .from("memberships")
       .select("id, tenant_id, status")
       .eq("applicant_profile_id", userId)
-      .eq("status", "PENDING_REVIEW")
+      .in("status", ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW"])
       .limit(1);
 
     if (pendingMemberships?.[0]) {
@@ -435,7 +435,7 @@ function isReservedSlug(slug: string): boolean {
  *   1. Valida tenantCode (slug) — formato e existência
  *   2. Valida tenant.status === 'ACTIVE'
  *   3. Verifica idempotência via mesma tabela (memberships)
- *   4. Cria membership com status = 'PENDING_REVIEW'
+ *   4. Cria membership com status = 'DRAFT'
  *   5. Marca wizard_completed = true (SEM SETAR tenant_id no profile!)
  *   6. Registra audit log
  *   7. Retorna redirect para /{slug}/membership/status
@@ -529,7 +529,7 @@ async function handleJoinExistingTenant(
   if (existing) {
     const st = String(existing.status).toUpperCase();
 
-    if (st === "PENDING_REVIEW") {
+    if (st === "DRAFT" || st === "PENDING_PAYMENT" || st === "PENDING_REVIEW") {
       return {
         status: "ERROR",
         error: { code: "ALREADY_REQUESTED", message: "Sua solicitação já está em análise." },
@@ -577,14 +577,16 @@ async function handleJoinExistingTenant(
   };
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 6: Inserir membership PENDING_REVIEW (sem role direto!)
+   * STEP 6: Inserir membership DRAFT (sem role direto!)
+   * PI-MEMBERSHIP-FLOW-CANONICAL-ALIGN-001: Status inicial = DRAFT
+   * Fluxo canônico: DRAFT -> PENDING_PAYMENT -> PENDING_REVIEW -> APPROVED
    * ───────────────────────────────────────────────────────────────────────────── */
   const { error: insertErr } = await supabase
     .from("memberships")
     .insert({
       tenant_id: tenant.id,
       applicant_profile_id: userId,
-      status: "PENDING_REVIEW",
+      status: "DRAFT",
       type: "FIRST_MEMBERSHIP",
       applicant_data: applicantData,
     });
@@ -631,7 +633,7 @@ async function handleJoinExistingTenant(
     metadata: { tenant_slug: tenant.slug },
   });
 
-  log.info("Success - membership PENDING_REVIEW created", {
+  log.info("Success - membership DRAFT created", {
     userId,
     tenantId: tenant.id,
     tenantSlug: tenant.slug,
