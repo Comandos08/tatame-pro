@@ -104,13 +104,10 @@ serve(async (req: Request) => {
 
       // Add ATLETA role
       if (tenantId) {
-        await supabaseAdmin
-          .from("user_roles")
-          .insert({
-            user_id: userId,
-            role: "ATLETA",
-            tenant_id: tenantId,
-          });
+        await supabaseAdmin.rpc(
+          'grant_user_role',
+          { p_user_id: userId, p_tenant_id: tenantId, p_role: 'ATLETA' }
+        );
       }
     }
 

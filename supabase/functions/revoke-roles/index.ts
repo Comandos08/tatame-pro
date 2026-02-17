@@ -242,11 +242,11 @@ serve(async (req) => {
         continue;
       }
 
-      // Delete the role
-      const { error: deleteError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("id", roleRecord.id);
+      // Delete the role via gatekeeper RPC
+      const { error: deleteError } = await supabase.rpc(
+        'revoke_user_role',
+        { p_user_id: targetProfileId, p_tenant_id: tenantId, p_role: role }
+      ).then(res => ({ error: res.error }));
 
       if (deleteError) {
         log.error("Role delete failed", deleteError, { role });

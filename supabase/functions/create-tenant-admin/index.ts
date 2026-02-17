@@ -181,13 +181,10 @@ Deno.serve(async (req) => {
     }
 
     // Add ADMIN_TENANT role
-    const { error: roleError } = await serviceClient
-      .from("user_roles")
-      .insert({
-        user_id: userId,
-        role: "ADMIN_TENANT",
-        tenant_id: tenantId,
-      });
+    const { error: roleError } = await serviceClient.rpc(
+      'grant_admin_tenant_role',
+      { p_user_id: userId, p_tenant_id: tenantId, p_bypass_membership_check: true }
+    );
 
     if (roleError) {
       return new Response(
