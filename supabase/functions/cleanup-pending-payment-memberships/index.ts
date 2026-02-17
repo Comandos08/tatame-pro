@@ -152,23 +152,26 @@ serve(async (req) => {
 
         // Update status to CANCELLED with race protection
         // The status check ensures idempotency and race protection
-        const { data: updateData, error: updateError } = await supabase
-          .from("memberships")
-          .update({ 
-            status: "CANCELLED",
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", membership.id)
-          .eq("status", "PENDING_PAYMENT") // Race protection
-          .select("id");
+        // GOV-001B: Transition status via gatekeeper RPC
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("change_membership_state", {
+          p_membership_id: membership.id,
+          p_new_status: "CANCELLED",
+          p_reason: "payment_timeout",
+          p_actor_profile_id: null,
+          p_notes: `Cleanup job ${jobRunId} - age ${ageHours}h`,
+        });
 
-        if (updateError) {
-          throw new Error(updateError.message);
+        if (rpcError) {
+          if (rpcError.message?.includes("Invalid transition")) {
+            logStep("Membership skipped (status changed)", { membershipId: membership.id });
+            results.push({ membershipId: membership.id, success: true, error: "skipped_status_changed" });
+            continue;
+          }
+          throw new Error(rpcError.message);
         }
 
-        // Check if update actually affected a row (race protection check)
-        if (!updateData || updateData.length === 0) {
-          logStep("Membership skipped (status changed)", { membershipId: membership.id });
+        if (rpcResult?.status === "no_change") {
+          logStep("Membership skipped (already cancelled)", { membershipId: membership.id });
           results.push({ membershipId: membership.id, success: true, error: "skipped_status_changed" });
           continue;
         }

@@ -418,41 +418,35 @@ serve(async (req) => {
     // ========================================================================
     // 9️⃣ UPDATE MEMBERSHIP TO CANCELLED (Race-safe)
     // ========================================================================
-    const { data: updateData, error: updateError } = await supabase
-      .from("memberships")
-      .update({
-        status: "CANCELLED",
-        cancelled_at: new Date().toISOString(),
-        cancelled_by_profile_id: adminProfileId,
-        cancellation_reason: reason,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", membershipId)
-      .in("status", ELIGIBLE_STATUSES) // Race protection
-      .neq("payment_status", "PAID") // Double protection
-      .select("id, status");
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { data: rpcResult, error: rpcError } = await supabase.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "CANCELLED",
+      p_reason: reason,
+      p_actor_profile_id: adminProfileId,
+      p_notes: null,
+    });
 
-    if (updateError) {
-      logStep("Failed to update membership", { error: updateError.message });
+    if (rpcError) {
+      logStep("Gatekeeper RPC failed", { error: rpcError.message });
+      // Check if it's a transition error (race condition)
+      if (rpcError.message?.includes("Invalid transition")) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "STATUS_CHANGED",
+            details: "Membership status changed during operation",
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
       return new Response(
         JSON.stringify({ ok: false, error: "Operation failed" }),
         {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (!updateData?.length) {
-      logStep("Status change race condition detected", { membershipId });
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "STATUS_CHANGED",
-          details: "Membership status changed during operation",
-        }),
-        {
-          status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
