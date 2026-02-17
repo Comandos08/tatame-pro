@@ -312,21 +312,17 @@ serve(async (req) => {
     // ========================================================================
     const finalRejectionReason = rejectionReason.trim() || membership.rejection_reason || "Motivo não informado";
     
-    const { error: updateError } = await supabase
-      .from("memberships")
-      .update({
-        status: "REJECTED",
-        rejected_at: new Date().toISOString(),
-        rejection_reason: finalRejectionReason,
-        rejected_by_profile_id: adminProfileId,
-        review_notes: finalRejectionReason,
-        reviewed_by_profile_id: adminProfileId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", membershipId);
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { error: rpcError } = await supabase.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "REJECTED",
+      p_reason: finalRejectionReason,
+      p_actor_profile_id: adminProfileId,
+      p_notes: finalRejectionReason,
+    });
 
-    if (updateError) {
-      log.error("Failed to update membership", updateError);
+    if (rpcError) {
+      log.error("Gatekeeper RPC failed", rpcError);
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
       ), corsHeaders);

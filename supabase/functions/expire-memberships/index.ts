@@ -169,24 +169,37 @@ serve(async (req) => {
         // ====================================================================
         // 2️⃣ CONDITIONAL UPDATE TO EXPIRED (RACE PROTECTION)
         // ====================================================================
-        const { data: updatedMembership, error: updateError } = await supabase
-          .from("memberships")
-          .update({ 
-            status: "EXPIRED",
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", membership.id)
-          .in("status", ["ACTIVE", "APPROVED"]) // 🔒 Race condition protection
-          .select("id")
-          .maybeSingle();
+        // GOV-001B: Transition status via gatekeeper RPC
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("change_membership_state", {
+          p_membership_id: membership.id,
+          p_new_status: "EXPIRED",
+          p_reason: "end_date_passed",
+          p_actor_profile_id: null,
+          p_notes: `Expired by cron job ${jobRunId}`,
+        });
 
-        if (updateError) {
-          throw new Error(updateError.message);
+        if (rpcError) {
+          // If idempotent (already expired) or invalid transition, skip
+          if (rpcError.message?.includes("Invalid transition") || rpcError.message?.includes("not found")) {
+            logStep("Skip - RPC rejected (likely already processed)", { 
+              jobRunId, 
+              membershipId: membership.id,
+              error: rpcError.message,
+            });
+            results.push({
+              membershipId: membership.id,
+              success: true,
+              skipped: true,
+              email: { ...emailResult, skippedReason: "already_processed" },
+            });
+            continue;
+          }
+          throw new Error(rpcError.message);
         }
 
-        // If no row was updated, another job already processed this
-        if (!updatedMembership) {
-          logStep("Skip - already processed by another job", { 
+        // Check if no_change (idempotent)
+        if (rpcResult?.status === "no_change") {
+          logStep("Skip - already expired (idempotent)", { 
             jobRunId, 
             membershipId: membership.id,
           });

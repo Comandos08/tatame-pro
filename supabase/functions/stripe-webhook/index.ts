@@ -340,12 +340,10 @@ async function handleCheckoutCompleted(
   const endDate = new Date();
   endDate.setFullYear(endDate.getFullYear() + 1);
 
-  // Update membership
-  const { error: updateError } = await supabase
+  // GOV-001B: Update non-lifecycle columns directly
+  const { error: updateNonLifecycleError } = await supabase
     .from("memberships")
     .update({
-      payment_status: "PAID",
-      status: "PENDING_REVIEW",
       stripe_payment_intent_id: session.payment_intent as string,
       start_date: startDate.toISOString().split("T")[0],
       end_date: endDate.toISOString().split("T")[0],
@@ -353,8 +351,32 @@ async function handleCheckoutCompleted(
     } as Record<string, unknown>)
     .eq("id", membershipId);
 
-  if (updateError) {
-    throw new Error(`Failed to update membership: ${updateError.message}`);
+  if (updateNonLifecycleError) {
+    throw new Error(`Failed to update non-lifecycle fields: ${updateNonLifecycleError.message}`);
+  }
+
+  // GOV-001B: Set payment status via gatekeeper RPC
+  const { error: paymentRpcError } = await supabase.rpc("set_membership_payment_status", {
+    p_membership_id: membershipId,
+    p_payment_status: "PAID",
+    p_reason: "stripe_webhook_checkout_completed",
+  });
+
+  if (paymentRpcError) {
+    throw new Error(`Payment RPC failed: ${paymentRpcError.message}`);
+  }
+
+  // GOV-001B: Transition status via gatekeeper RPC
+  const { error: statusRpcError } = await supabase.rpc("change_membership_state", {
+    p_membership_id: membershipId,
+    p_new_status: "PENDING_REVIEW",
+    p_reason: "webhook_checkout_completed",
+    p_actor_profile_id: null,
+    p_notes: null,
+  });
+
+  if (statusRpcError) {
+    throw new Error(`Status RPC failed: ${statusRpcError.message}`);
   }
 
   log.info("Membership updated successfully", { membershipId });
@@ -464,10 +486,16 @@ async function handlePaymentSucceeded(
     return;
   }
 
-  await supabase
-    .from("memberships")
-    .update({ payment_status: "PAID" } as Record<string, unknown>)
-    .eq("id", m.id as string);
+  // GOV-001B: Set payment status via gatekeeper RPC
+  const { error: rpcError } = await supabase.rpc("set_membership_payment_status", {
+    p_membership_id: m.id as string,
+    p_payment_status: "PAID",
+    p_reason: "stripe_payment_intent_succeeded",
+  });
+
+  if (rpcError) {
+    log.warn("Payment RPC failed", { error: rpcError.message, membershipId: m.id });
+  }
 
   log.info("Updated membership payment status to PAID", { membershipId: m.id });
 }
@@ -486,10 +514,16 @@ async function handlePaymentFailed(
     return;
   }
 
-  await supabase
-    .from("memberships")
-    .update({ payment_status: "FAILED" } as Record<string, unknown>)
-    .eq("id", membershipId);
+  // GOV-001B: Set payment status via gatekeeper RPC
+  const { error: rpcError } = await supabase.rpc("set_membership_payment_status", {
+    p_membership_id: membershipId,
+    p_payment_status: "FAILED",
+    p_reason: "stripe_payment_intent_failed",
+  });
+
+  if (rpcError) {
+    log.warn("Payment RPC failed", { error: rpcError.message, membershipId });
+  }
 
   log.info("Updated membership payment status to FAILED", { membershipId });
 }

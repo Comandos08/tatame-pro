@@ -124,27 +124,62 @@ serve(async (req) => {
     // STEP 7: Update Membership Record
     // BY DESIGN: Session ID must match for security
     // ========================================================================
-    const { data: updatedMembership, error: updateError } = await supabase
+    // GOV-001B: Update non-lifecycle columns via direct UPDATE
+    const { data: membershipCheck, error: membershipCheckError } = await supabase
+      .from("memberships")
+      .select("id")
+      .eq("id", membershipId)
+      .eq("stripe_checkout_session_id", sessionId)
+      .maybeSingle();
+
+    if (membershipCheckError || !membershipCheck) {
+      throw new Error("Membership not found or session mismatch");
+    }
+
+    // Update non-lifecycle columns directly
+    const { error: updateNonLifecycleError } = await supabase
       .from("memberships")
       .update({
-        payment_status: "PAID",
-        status: "PENDING_REVIEW",
         stripe_payment_intent_id: stripeSession.payment_intent as string,
         start_date: startDate.toISOString().split("T")[0],
         end_date: endDate.toISOString().split("T")[0],
       })
-      .eq("id", membershipId)
-      .eq("stripe_checkout_session_id", sessionId)
+      .eq("id", membershipId);
+
+    if (updateNonLifecycleError) {
+      throw new Error(`Failed to update non-lifecycle fields: ${updateNonLifecycleError.message}`);
+    }
+
+    // GOV-001B: Set payment status via gatekeeper RPC
+    const { error: paymentRpcError } = await supabase.rpc("set_membership_payment_status", {
+      p_membership_id: membershipId,
+      p_payment_status: "PAID",
+      p_reason: "stripe_confirm",
+    });
+
+    if (paymentRpcError) {
+      throw new Error(`Payment status RPC failed: ${paymentRpcError.message}`);
+    }
+
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { error: statusRpcError } = await supabase.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "PENDING_REVIEW",
+      p_reason: "payment_confirmed",
+      p_actor_profile_id: null,
+      p_notes: null,
+    });
+
+    if (statusRpcError) {
+      throw new Error(`Status RPC failed: ${statusRpcError.message}`);
+    }
+
+    // Fetch updated membership for response
+    const { data: updatedMembership } = await supabase
+      .from("memberships")
       .select()
+      .eq("id", membershipId)
       .maybeSingle();
-
-    if (updateError) {
-      throw new Error(`Failed to update membership: ${updateError.message}`);
-    }
-
-    if (!updatedMembership) {
-      throw new Error("Membership not found or session mismatch");
-    }
 
     // ========================================================================
     // STEP 8: Trigger Digital Card Generation

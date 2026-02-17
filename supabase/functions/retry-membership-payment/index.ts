@@ -452,23 +452,23 @@ serve(async (req) => {
     // === AJUSTE #4: Store Previous Session ID ===
     const previousStripeSessionId = membership.stripe_checkout_session_id;
 
-    // === Race-safe Update: status → PENDING_PAYMENT ===
-    const { data: updateData, error: updateError } = await supabaseAdmin
-      .from("memberships")
-      .update({
-        status: "PENDING_PAYMENT",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", membershipId)
-      .eq("status", "CANCELLED") // Race protection
-      .select("id");
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "PENDING_PAYMENT",
+      p_reason: "payment_retry",
+      p_actor_profile_id: currentUserId,
+      p_notes: null,
+    });
 
-    if (updateError || !updateData?.length) {
-      logStep("Status update failed - race condition", { updateError });
+    if (rpcError) {
+      logStep("Gatekeeper RPC failed", { error: rpcError.message });
       return new Response(
         JSON.stringify({
           error: "STATUS_CHANGED_CONCURRENT_RETRY",
-          details: "Membership status changed during retry attempt",
+          details: rpcError.message?.includes("Invalid transition") 
+            ? "Membership status changed during retry attempt"
+            : rpcError.message,
         }),
         {
           status: 409,
@@ -493,14 +493,14 @@ serve(async (req) => {
     }
 
     if (!customerEmail) {
-      // ROLLBACK: Revert status to CANCELLED
-      await supabaseAdmin
-        .from("memberships")
-        .update({
-          status: "CANCELLED",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", membershipId);
+      // ROLLBACK: Revert status to CANCELLED via RPC
+      await supabaseAdmin.rpc("change_membership_state", {
+        p_membership_id: membershipId,
+        p_new_status: "CANCELLED",
+        p_reason: "rollback_no_email",
+        p_actor_profile_id: null,
+        p_notes: null,
+      });
 
       throw new Error("Customer email not found");
     }
@@ -541,14 +541,14 @@ serve(async (req) => {
         error: String(stripeError),
       });
 
-      await supabaseAdmin
-        .from("memberships")
-        .update({
-          status: "CANCELLED",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", membershipId)
-        .eq("status", "PENDING_PAYMENT");
+      // ROLLBACK: Revert status to CANCELLED via RPC
+      await supabaseAdmin.rpc("change_membership_state", {
+        p_membership_id: membershipId,
+        p_new_status: "CANCELLED",
+        p_reason: "rollback_stripe_failed",
+        p_actor_profile_id: null,
+        p_notes: stripeError instanceof Error ? stripeError.message : String(stripeError),
+      });
 
       // Log failure
       await createAuditLog(supabaseAdmin, {

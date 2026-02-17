@@ -691,29 +691,44 @@ serve(async (req) => {
     const startDate = now.toISOString().split("T")[0];
     const endDate = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split("T")[0];
 
-    const { error: updateError } = await supabase
+    // GOV-001B: Update non-lifecycle columns via direct UPDATE
+    const { error: updateNonLifecycleError } = await supabase
       .from("memberships")
       .update({
         athlete_id: athlete.id,
-        status: "APPROVED",
         start_date: startDate,
         end_date: endDate,
         academy_id: academyId || null,
         preferred_coach_id: coachId || null,
-        review_notes: reviewNotes || null,
-        reviewed_by_profile_id: adminProfileId,
-        reviewed_at: new Date().toISOString(),
         applicant_data: null,
         documents_uploaded: movedDocuments.length > 0 ? movedDocuments : null,
       })
       .eq("id", membershipId);
 
-    if (updateError) {
-      log.error("Failed to update membership", updateError);
+    if (updateNonLifecycleError) {
+      log.error("Failed to update non-lifecycle fields", updateNonLifecycleError);
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
       ), corsHeaders);
     }
+
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { data: rpcResult, error: rpcError } = await supabase.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "APPROVED",
+      p_reason: "admin_approval",
+      p_actor_profile_id: adminProfileId,
+      p_notes: reviewNotes || null,
+    });
+
+    if (rpcError) {
+      log.error("Gatekeeper RPC failed", rpcError);
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
+      ), corsHeaders);
+    }
+
+    log.info("Gatekeeper RPC result", { rpcResult });
 
     approved = true;
     newStatus = "APPROVED";

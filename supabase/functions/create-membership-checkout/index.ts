@@ -394,17 +394,27 @@ serve(async (req) => {
       },
     });
 
-    // Update membership with checkout session id and status
-    const { error: updateError } = await supabaseAdmin
+    // GOV-001B: Update non-lifecycle column directly
+    const { error: sessionUpdateError } = await supabaseAdmin
       .from("memberships")
-      .update({
-        stripe_checkout_session_id: session.id,
-        status: "PENDING_PAYMENT",
-      })
+      .update({ stripe_checkout_session_id: session.id })
       .eq("id", membershipId);
 
-    if (updateError) {
-      logStep("Failed to update membership", { error: updateError.message });
+    if (sessionUpdateError) {
+      logStep("Failed to update stripe_checkout_session_id", { error: sessionUpdateError.message });
+    }
+
+    // GOV-001B: Transition status via gatekeeper RPC
+    const { error: rpcError } = await supabaseAdmin.rpc("change_membership_state", {
+      p_membership_id: membershipId,
+      p_new_status: "PENDING_PAYMENT",
+      p_reason: "checkout_created",
+      p_actor_profile_id: null,
+      p_notes: null,
+    });
+
+    if (rpcError) {
+      logStep("Gatekeeper RPC failed", { error: rpcError.message });
     }
 
     logStep("Checkout session created", { sessionId: session.id });
