@@ -84,6 +84,13 @@ export type Database = {
             foreignKeyName: "academies_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "academies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -140,6 +147,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "academy_coaches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -213,6 +227,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athlete_badges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -321,6 +342,13 @@ export type Database = {
             foreignKeyName: "athlete_gradings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -423,6 +451,13 @@ export type Database = {
             foreignKeyName: "athletes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -475,6 +510,13 @@ export type Database = {
             foreignKeyName: "audit_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "audit_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -520,6 +562,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "badges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -605,6 +654,13 @@ export type Database = {
             foreignKeyName: "coaches_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "coaches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -666,6 +722,13 @@ export type Database = {
             columns: ["target_tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "council_decisions_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -787,6 +850,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "decision_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -925,6 +995,13 @@ export type Database = {
             foreignKeyName: "digital_cards_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "digital_cards_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1041,6 +1118,13 @@ export type Database = {
             foreignKeyName: "diplomas_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "diplomas_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1077,6 +1161,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "document_public_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -1148,6 +1239,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -1261,6 +1359,13 @@ export type Database = {
             foreignKeyName: "event_bracket_matches_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_bracket_matches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1349,6 +1454,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_brackets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -1457,6 +1569,13 @@ export type Database = {
             foreignKeyName: "event_categories_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1549,6 +1668,13 @@ export type Database = {
             foreignKeyName: "event_registrations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_registrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1635,6 +1761,13 @@ export type Database = {
             foreignKeyName: "event_results_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "event_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1705,6 +1838,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -1816,6 +1956,13 @@ export type Database = {
             foreignKeyName: "federation_tenants_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "federation_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1913,6 +2060,13 @@ export type Database = {
             foreignKeyName: "grading_levels_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "grading_levels_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1955,6 +2109,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "grading_schemes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -2027,6 +2188,13 @@ export type Database = {
             foreignKeyName: "guardian_links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "guardian_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2079,6 +2247,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "guardians_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -2151,6 +2326,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "institutional_feature_flags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -2340,6 +2522,13 @@ export type Database = {
             foreignKeyName: "memberships_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "memberships_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2501,6 +2690,13 @@ export type Database = {
             foreignKeyName: "profiles_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2555,6 +2751,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "security_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -2675,6 +2878,13 @@ export type Database = {
             foreignKeyName: "superadmin_impersonations_target_tenant_id_fkey"
             columns: ["target_tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "superadmin_impersonations_target_tenant_id_fkey"
+            columns: ["target_tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2768,6 +2978,13 @@ export type Database = {
             foreignKeyName: "tenant_billing_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "tenant_billing_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2828,6 +3045,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -2953,6 +3177,13 @@ export type Database = {
             foreignKeyName: "user_roles_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "user_roles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -3045,6 +3276,13 @@ export type Database = {
             foreignKeyName: "athlete_gradings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athlete_gradings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -3072,6 +3310,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "athletes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
             referencedColumns: ["tenant_id"]
           },
           {
@@ -3165,6 +3410,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_lifecycle_governance_audit_v1: {
+        Row: {
+          detected_at: string | null
+          issue_code: string | null
+          lifecycle_status: string | null
+          severity: string | null
+          status_text: string | null
+          tenant_id: string | null
+          tenant_name: string | null
+        }
+        Insert: {
+          detected_at?: never
+          issue_code?: never
+          lifecycle_status?: never
+          severity?: never
+          status_text?: string | null
+          tenant_id?: string | null
+          tenant_name?: string | null
+        }
+        Update: {
+          detected_at?: never
+          issue_code?: never
+          lifecycle_status?: never
+          severity?: never
+          status_text?: string | null
+          tenant_id?: string | null
+          tenant_name?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       athlete_has_active_membership: {
@@ -3223,6 +3498,10 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      change_tenant_lifecycle_state: {
+        Args: { p_new_state: string; p_reason: string; p_tenant_id: string }
+        Returns: string
+      }
       check_role_governance_v1: {
         Args: never
         Returns: {
@@ -3233,6 +3512,18 @@ export type Database = {
           severity: string
           tenant_id: string
           user_roles_id: string
+        }[]
+      }
+      check_tenant_lifecycle_governance_v1: {
+        Args: never
+        Returns: {
+          detected_at: string
+          issue_code: string
+          lifecycle_status: string
+          severity: string
+          status_text: string
+          tenant_id: string
+          tenant_name: string
         }[]
       }
       coach_has_issued_diploma: {
@@ -3472,7 +3763,12 @@ export type Database = {
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
       payment_status: "NOT_PAID" | "PAID" | "FAILED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
-      tenant_lifecycle_status: "SETUP" | "ACTIVE" | "BLOCKED"
+      tenant_lifecycle_status:
+        | "SETUP"
+        | "ACTIVE"
+        | "BLOCKED"
+        | "SUSPENDED"
+        | "TERMINATED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3671,7 +3967,13 @@ export const Constants = {
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
       payment_status: ["NOT_PAID", "PAID", "FAILED"],
       security_severity: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-      tenant_lifecycle_status: ["SETUP", "ACTIVE", "BLOCKED"],
+      tenant_lifecycle_status: [
+        "SETUP",
+        "ACTIVE",
+        "BLOCKED",
+        "SUSPENDED",
+        "TERMINATED",
+      ],
     },
   },
 } as const
