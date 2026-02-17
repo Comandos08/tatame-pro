@@ -1,7 +1,7 @@
 /**
  * @contract complete-tenant-onboarding
  * 
- * SAFE GOLD — PI-D6.2.2: Tenant Activation (SETUP → ACTIVE)
+ * SAFE GOLD — PI-D6.2.2 + PI-GOV-001: Tenant Activation (SETUP → ACTIVE)
  * 
  * INPUT:
  *   - tenantId: UUID (required)
@@ -17,53 +17,19 @@
  *   - if superadmin, valid impersonation required
  * 
  * POSTCONDITIONS:
- *   - tenant.status = 'ACTIVE'
- *   - tenant.onboarding_completed = true
+ *   - tenant.lifecycle_status = 'ACTIVE' (via gatekeeper RPC)
+ *   - tenant.status = 'ACTIVE' (via gatekeeper RPC)
+ *   - tenant.onboarding_completed = true (via gatekeeper RPC)
  *   - tenant_billing row created with status = 'TRIALING'
  *   - audit events: TENANT_ONBOARDING_COMPLETED, TENANT_TRIAL_STARTED
+ *   - gatekeeper creates: TENANT_LIFECYCLE_STATE_CHANGED
  * 
- * ERRORS:
- *   - 400: Missing tenantId
- *   - 401: Missing or invalid token
- *   - 403: Insufficient permissions or invalid impersonation
- *   - 404: Tenant not found
- *   - 422: Invalid status or missing requirements
- *   - 429: Rate limit exceeded
- *   - 500: Internal error (with rollback)
- * 
- * INVARIANTS:
- *   - I4: Transition SETUP→ACTIVE is atomic with billing bootstrap
- *   - I3: All transitions are audited
- * 
- * SECURITY:
- *   - Requires ADMIN_TENANT or STAFF_ORGANIZACAO role
- *   - If superadmin, requires valid impersonation
- *   - Rate limited: 5 per hour per tenant
+ * GOVERNANCE (PI-GOV-001):
+ *   - Lifecycle mutation ONLY via change_tenant_lifecycle_state() RPC
+ *   - ZERO direct .update() on lifecycle_status, status, or onboarding_* columns
+ *   - Billing record created BEFORE activation (reversed order for safe rollback)
  */
 
-/**
- * 🔐 complete-tenant-onboarding — Tenant Activation Contract (SETUP → ACTIVE)
- * 
- * P3.1 — SINGLE POINT OF TENANT ACTIVATION
- * 
- * SECURITY:
- * - Requires ADMIN_TENANT or STAFF_ORGANIZACAO role
- * - If superadmin, requires valid impersonation
- * - Validates ALL activation prerequisites before transition
- * - Rate limited: 5 per hour per tenant
- * 
- * ACTIVATION CONTRACT:
- * - Tenant MUST be in status = 'SETUP'
- * - Tenant MUST have onboarding_completed = false
- * - Tenant MUST have at least 1 sport_type configured
- * - Tenant MUST have at least 1 academy
- * - Tenant MUST have at least 1 grading_scheme
- * 
- * RESULT:
- * - status = 'ACTIVE'
- * - onboarding_completed = true
- * - Audit log created
- */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
@@ -97,14 +63,11 @@ interface CompleteOnboardingRequest {
 }
 
 interface ActivationStatus {
-  // Current state
   currentStatus: string;
   onboardingCompleted: boolean;
-  // Prerequisites
   hasSportTypes: boolean;
   hasAcademy: boolean;
   hasGradingScheme: boolean;
-  // Counts for transparency
   sportTypesCount: number;
   academyCount: number;
   gradingSchemeCount: number;
@@ -229,7 +192,7 @@ serve(async (req) => {
     // ========================================================================
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
-      .select("id, status, onboarding_completed, sport_types, name")
+      .select("id, status, lifecycle_status, onboarding_completed, sport_types, name")
       .eq("id", tenantId)
       .single();
 
@@ -251,7 +214,7 @@ serve(async (req) => {
 
     const sportTypesArray = tenant.sport_types || [];
     const activationStatus: ActivationStatus = {
-      currentStatus: tenant.status,
+      currentStatus: tenant.lifecycle_status || tenant.status,
       onboardingCompleted: tenant.onboarding_completed,
       hasSportTypes: sportTypesArray.length > 0,
       hasAcademy: (academyResult.count ?? 0) >= 1,
@@ -266,12 +229,13 @@ serve(async (req) => {
     // ========================================================================
     // VALIDATE ACTIVATION CONTRACT (HARD STOPS)
     // ========================================================================
+    const currentState = tenant.lifecycle_status || tenant.status;
 
     // 1. Status must be SETUP
-    if (tenant.status !== "SETUP") {
+    if (currentState !== "SETUP") {
       // Idempotent: if already ACTIVE, return success
-      if (tenant.status === "ACTIVE" && tenant.onboarding_completed) {
-        logStep("Already activated (idempotent)", { status: tenant.status });
+      if (currentState === "ACTIVE" && tenant.onboarding_completed) {
+        logStep("Already activated (idempotent)", { status: currentState });
         return new Response(
           JSON.stringify({ 
             ok: true, 
@@ -288,7 +252,7 @@ serve(async (req) => {
           ok: false, 
           error: "Tenant must be in SETUP status to complete onboarding",
           code: "INVALID_STATUS",
-          currentStatus: tenant.status,
+          currentStatus: currentState,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -326,36 +290,7 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // EXECUTE ATOMIC ACTIVATION (SETUP → ACTIVE)
-    // ========================================================================
-    const { error: updateError } = await supabase
-      .from("tenants")
-      .update({
-        status: "ACTIVE",
-        onboarding_completed: true,
-        onboarding_completed_at: new Date().toISOString(),
-        onboarding_completed_by: user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", tenantId)
-      .eq("status", "SETUP"); // Extra safety: only update if still SETUP
-
-    if (updateError) {
-      logStep("Activation update failed", { error: updateError.message });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Failed to activate tenant", code: "INTERNAL_ERROR" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    logStep("Tenant activated", { 
-      tenant_id: tenantId,
-      previous_status: "SETUP",
-      new_status: "ACTIVE",
-    });
-
-    // ========================================================================
-    // P3.2.2 — BILLING BOOTSTRAP (ATOMIC WITH ACTIVATION)
+    // P3.2.2 — BILLING BOOTSTRAP (BEFORE ACTIVATION per PI-GOV-001)
     // ========================================================================
     const TRIAL_PERIOD_DAYS = 7;
     const now = new Date();
@@ -373,20 +308,8 @@ serve(async (req) => {
       });
 
     if (billingError) {
-      // ROLLBACK: Revert tenant to SETUP if billing fails
-      await supabase
-        .from("tenants")
-        .update({
-          status: "SETUP",
-          onboarding_completed: false,
-        })
-        .eq("id", tenantId);
+      logStep("Billing bootstrap failed", { error: billingError.message });
 
-      logStep("Billing bootstrap failed, rolled back activation", {
-        error: billingError.message,
-      });
-
-      // P3.2.P1 FIX 4: Audit log for billing init failure (observability)
       await supabase.from("audit_logs").insert({
         event_type: "TENANT_TRIAL_INIT_FAILED",
         tenant_id: tenantId,
@@ -394,7 +317,6 @@ serve(async (req) => {
         metadata: {
           error: billingError.message,
           source: "complete-tenant-onboarding",
-          rolled_back: true,
           attempted_status: "TRIALING",
         },
       });
@@ -416,7 +338,51 @@ serve(async (req) => {
     });
 
     // ========================================================================
-    // AUDIT LOG (STRUCTURED)
+    // PI-GOV-001: ACTIVATE VIA GATEKEEPER RPC (SETUP → ACTIVE)
+    // The gatekeeper handles:
+    //   - lifecycle_status = 'ACTIVE'
+    //   - status = 'ACTIVE'
+    //   - onboarding_completed = true
+    //   - onboarding_completed_at = now()
+    //   - onboarding_completed_by = auth.uid()
+    //   - Mandatory audit log (TENANT_LIFECYCLE_STATE_CHANGED)
+    //   - Cross-validation (ADMIN_TENANT + billing)
+    // ========================================================================
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc("change_tenant_lifecycle_state", {
+        p_tenant_id: tenantId,
+        p_new_state: "ACTIVE",
+        p_reason: "onboarding_completed",
+      });
+
+    if (rpcError) {
+      logStep("Gatekeeper RPC failed, rolling back billing", { error: rpcError.message });
+
+      // ROLLBACK: Delete billing record if activation fails
+      await supabase
+        .from("tenant_billing")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("status", "TRIALING");
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: `Failed to activate tenant: ${rpcError.message}`,
+          code: "ACTIVATION_FAILED",
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    logStep("Tenant activated via gatekeeper", { 
+      tenant_id: tenantId,
+      previous_status: "SETUP",
+      new_status: rpcResult,
+    });
+
+    // ========================================================================
+    // ADDITIONAL AUDIT LOGS (domain-specific, separate from governance audit)
     // ========================================================================
     await supabase.from("audit_logs").insert([
       {
