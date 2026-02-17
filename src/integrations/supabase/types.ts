@@ -3343,6 +3343,20 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_governance_audit_v1: {
+        Row: {
+          athlete_id: string | null
+          details: Json | null
+          detected_at: string | null
+          issue_code: string | null
+          membership_id: string | null
+          payment_status: string | null
+          severity: string | null
+          status: string | null
+          tenant_id: string | null
+        }
+        Relationships: []
+      }
       membership_verification: {
         Row: {
           athlete_name: string | null
@@ -3512,9 +3526,33 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      change_membership_state: {
+        Args: {
+          p_actor_profile_id?: string
+          p_membership_id: string
+          p_new_status: string
+          p_notes?: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       change_tenant_lifecycle_state: {
         Args: { p_new_state: string; p_reason: string; p_tenant_id: string }
         Returns: string
+      }
+      check_membership_governance_v1: {
+        Args: never
+        Returns: {
+          athlete_id: string
+          details: Json
+          detected_at: string
+          issue_code: string
+          membership_id: string
+          payment_status: string
+          severity: string
+          status: string
+          tenant_id: string
+        }[]
       }
       check_role_governance_v1: {
         Args: never
@@ -3706,6 +3744,14 @@ export type Database = {
         Args: { p_role: string; p_tenant_id: string; p_user_id: string }
         Returns: boolean
       }
+      set_membership_payment_status: {
+        Args: {
+          p_membership_id: string
+          p_payment_status: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       soft_delete_event: { Args: { p_event_id: string }; Returns: boolean }
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
@@ -3788,6 +3834,7 @@ export type Database = {
         | "ACTIVE"
         | "EXPIRED"
         | "CANCELLED"
+        | "REJECTED"
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
       payment_status: "NOT_PAID" | "PAID" | "FAILED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
@@ -3991,6 +4038,7 @@ export const Constants = {
         "ACTIVE",
         "EXPIRED",
         "CANCELLED",
+        "REJECTED",
       ],
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
       payment_status: ["NOT_PAID", "PAID", "FAILED"],
