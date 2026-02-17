@@ -3383,6 +3383,27 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_operational_metrics_v1: {
+        Row: {
+          approved_count: number | null
+          avg_seconds_to_first_transition: number | null
+          avg_seconds_to_review: number | null
+          cancelled_count: number | null
+          draft_count: number | null
+          draft_over_24h: number | null
+          expired_count: number | null
+          p0_long_pending_review: number | null
+          p1_long_draft: number | null
+          p1_payment_stuck: number | null
+          pending_payment_count: number | null
+          pending_payment_over_24h: number | null
+          pending_review_count: number | null
+          pending_review_over_48h: number | null
+          rejected_count: number | null
+          total_count: number | null
+        }
+        Relationships: []
+      }
       membership_verification: {
         Row: {
           athlete_name: string | null
@@ -3613,6 +3634,27 @@ export type Database = {
           severity: string
           status: string
           tenant_id: string
+        }[]
+      }
+      check_membership_operational_metrics_v1: {
+        Args: never
+        Returns: {
+          approved_count: number
+          avg_seconds_to_first_transition: number
+          avg_seconds_to_review: number
+          cancelled_count: number
+          draft_count: number
+          draft_over_24h: number
+          expired_count: number
+          p0_long_pending_review: number
+          p1_long_draft: number
+          p1_payment_stuck: number
+          pending_payment_count: number
+          pending_payment_over_24h: number
+          pending_review_count: number
+          pending_review_over_48h: number
+          rejected_count: number
+          total_count: number
         }[]
       }
       check_role_governance_v1: {
