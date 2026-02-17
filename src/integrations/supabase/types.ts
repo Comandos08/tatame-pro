@@ -3539,6 +3539,15 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      change_academy_state: {
+        Args: {
+          p_academy_id: string
+          p_actor_profile_id?: string
+          p_new_is_active: boolean
+          p_reason: string
+        }
+        Returns: Json
+      }
       change_membership_state: {
         Args: {
           p_actor_profile_id?: string
@@ -3748,6 +3757,16 @@ export type Database = {
       list_allowed_features: {
         Args: { p_tenant_id: string }
         Returns: string[]
+      }
+      manage_academy_coach_binding: {
+        Args: {
+          p_academy_id: string
+          p_actor_profile_id?: string
+          p_coach_id: string
+          p_is_active: boolean
+          p_role: string
+        }
+        Returns: Json
       }
       membership_has_digital_card: {
         Args: { _membership_id: string }
