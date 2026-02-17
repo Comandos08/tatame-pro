@@ -948,11 +948,10 @@ async function handleCreateTenant(
    * ───────────────────────────────────────────────────────────────────────────── */
   log.info("Inserting ADMIN_TENANT role", { userId, tenantId: newTenant.id });
 
-  const { error: roleError } = await supabase.from("user_roles").insert({
-    user_id: userId,
-    role: "ADMIN_TENANT",
-    tenant_id: newTenant.id,
-  });
+  const { error: roleError } = await supabase.rpc(
+    'grant_admin_tenant_role',
+    { p_user_id: userId, p_tenant_id: newTenant.id, p_bypass_membership_check: true }
+  );
 
   if (roleError) {
     log.error("ROLE_ASSIGN failed", roleError, { tenantId: newTenant.id, userId });

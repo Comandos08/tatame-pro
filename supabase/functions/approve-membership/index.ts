@@ -598,13 +598,10 @@ serve(async (req) => {
         .maybeSingle();
       
       if (!existingRole) {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: membership.applicant_profile_id,
-            tenant_id: targetTenantId,
-            role: role,
-          });
+        const { error: roleError } = await supabase.rpc(
+          'grant_user_role',
+          { p_user_id: membership.applicant_profile_id, p_tenant_id: targetTenantId, p_role: role }
+        );
 
         if (roleError) {
           log.warn("Role creation warning", { role, error: roleError.message });

@@ -275,14 +275,21 @@ serve(async (req) => {
         continue;
       }
 
-      // Insert new role
-      const { error: insertError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: targetProfileId,
-          tenant_id: tenantId,
-          role: role,
-        });
+      // Insert new role via gatekeeper RPC
+      let insertError = null;
+      if (role === 'ADMIN_TENANT') {
+        const { error } = await supabase.rpc(
+          'grant_admin_tenant_role',
+          { p_user_id: targetProfileId, p_tenant_id: tenantId, p_bypass_membership_check: true }
+        );
+        insertError = error;
+      } else {
+        const { error } = await supabase.rpc(
+          'grant_user_role',
+          { p_user_id: targetProfileId, p_tenant_id: tenantId, p_role: role }
+        );
+        insertError = error;
+      }
 
       if (insertError) {
         log.error("Role insert failed", insertError, { role });

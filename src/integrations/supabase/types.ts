@@ -3288,6 +3288,18 @@ export type Database = {
         Returns: Json
       }
       get_user_tenant_id: { Args: never; Returns: string }
+      grant_admin_tenant_role: {
+        Args: {
+          p_bypass_membership_check?: boolean
+          p_tenant_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      grant_user_role: {
+        Args: { p_role: string; p_tenant_id: string; p_user_id: string }
+        Returns: string
+      }
       has_federation_role: {
         Args: {
           _federation_id: string
@@ -3347,6 +3359,10 @@ export type Database = {
         Returns: Json
       }
       revoke_document_token: { Args: { p_token: string }; Returns: boolean }
+      revoke_user_role: {
+        Args: { p_role: string; p_tenant_id: string; p_user_id: string }
+        Returns: boolean
+      }
       soft_delete_event: { Args: { p_event_id: string }; Returns: boolean }
       tenant_has_active_billing: {
         Args: { _tenant_id: string }
