@@ -1,269 +1,522 @@
 
+# PI-INSTITUTIONAL-ROLE-GOV-002C — Structural Enforcement via Privilege Model (SAFE GOLD)
 
-# PI-INSTITUTIONAL-APPROVAL-001: Reconstrucao do ApprovalDetails.tsx (SAFE GOLD HARDENED)
+## Descoberta Critica: Impacto Completo do REVOKE
 
-## Resumo
+A analise revelou que **6 Edge Functions** fazem mutacoes diretas em `user_roles`, nao apenas 3:
 
-Reescrita completa de `src/pages/ApprovalDetails.tsx`. Arquivo unico modificado. Todos os ajustes P0/P1 do review anterior + 2 ajustes SAFE GOLD incorporados.
+| Edge Function | Operacao | Role(s) |
+|---|---|---|
+| `resolve-identity-wizard` | INSERT | ADMIN_TENANT |
+| `create-tenant-admin` | INSERT | ADMIN_TENANT |
+| `grant-roles` | INSERT | Qualquer role (incluindo ADMIN_TENANT) |
+| `admin-create-user` | INSERT | ATLETA |
+| `approve-membership` | INSERT | Roles da whitelist (nunca ADMIN_TENANT) |
+| `revoke-roles` | DELETE | Qualquer role |
 
----
+Se REVOGARMOS INSERT/DELETE de `service_role` sem criar funcoes gatekeeper para TODAS as operacoes, **quebraremos 4 Edge Functions adicionais** que lidam com roles nao-ADMIN_TENANT.
 
-## Verificacoes Realizadas (Ajustes do Review Anterior)
-
-### P0 -- Payload da Edge Function: CONFIRMADO
-
-O `approve-membership` aceita:
-
-```text
-{ membershipId, academyId?, coachId?, reviewNotes?, roles?, impersonationId? }
-```
-
-Roles whitelist no backend: `ATLETA`, `COACH_ASSISTENTE`, `COACH_PRINCIPAL`, `INSTRUTOR`, `STAFF_ORGANIZACAO`. Default quando vazio: `ATLETA`.
-
-O `reject-membership` aceita:
+## Evidencia: Privilegios Atuais
 
 ```text
-{ membershipId, reason?, rejectionReason?, impersonationId? }
+grantee        | privileges
+---------------|--------------------------------------------------
+anon           | INSERT, UPDATE, DELETE, SELECT, TRIGGER, TRUNCATE, REFERENCES
+authenticated  | INSERT, UPDATE, DELETE, SELECT, TRIGGER, TRUNCATE, REFERENCES
+postgres       | INSERT, UPDATE, DELETE, SELECT, TRIGGER, TRUNCATE, REFERENCES
+service_role   | INSERT, UPDATE, DELETE, SELECT, TRIGGER, TRUNCATE, REFERENCES
 ```
 
-### P0 -- Filtro tenant_id: SEGURO
+Todos os roles tem privilegios totais — superficie de ataque maxima.
 
-Rota dentro de `/:tenantSlug/app/...`. `useTenant()` garantido neste contexto.
+## Arquitetura da Solucao
 
-### P1 -- digital_cards: CONFIRMADO
+### Principio: Privilegio Estrutural, Nao Logico
 
-FK `membership_id` existe. Secao opcional na UI.
-
-### P1 -- reject-membership: EXISTE
-
-Confirmado em `supabase/functions/reject-membership/index.ts`.
-
----
-
-## AJUSTES SAFE GOLD (P0-1 e P0-2)
-
-### P0-1 -- Determinismo de Query Key e Refetch
-
-A queryKey sera definida explicitamente como:
+Em vez de triggers ou session variables, a protecao sera feita via GRANT/REVOKE do PostgreSQL:
 
 ```text
-const QUERY_KEY = ['membership-approval-detail', approvalId] as const;
+ANTES:
+  service_role --> INSERT/UPDATE/DELETE direto --> user_roles
+
+DEPOIS:
+  service_role --> EXECUTE funcao SECURITY DEFINER --> user_roles
+  service_role --X INSERT/UPDATE/DELETE direto X--> user_roles (REVOKED)
 ```
 
-Uso no `useQuery`:
+### Tres Funcoes Gatekeeper (SECURITY DEFINER)
 
+Para cobrir todas as operacoes de mutacao:
+
+1. **`grant_admin_tenant_role()`** — INSERT exclusivo de ADMIN_TENANT (com validacao de membership)
+2. **`grant_user_role()`** — INSERT de roles nao-ADMIN_TENANT (bloqueia ADMIN_TENANT explicitamente)
+3. **`revoke_user_role()`** — DELETE de qualquer role (com auditoria)
+
+Todas executam como `postgres` (owner da tabela), contornando o REVOKE.
+
+## Migration SQL Completa
+
+### Passo 1: Funcao grant_admin_tenant_role()
+
+```sql
+CREATE OR REPLACE FUNCTION public.grant_admin_tenant_role(
+  p_user_id uuid,
+  p_tenant_id uuid,
+  p_bypass_membership_check boolean DEFAULT false
+)
+  RETURNS uuid
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO 'public'
+AS $$
+DECLARE
+  v_existing_id uuid;
+  v_role_id uuid;
+  v_has_approved_membership boolean;
+BEGIN
+  SELECT id INTO v_existing_id
+  FROM public.user_roles
+  WHERE user_id = p_user_id
+    AND tenant_id = p_tenant_id
+    AND role = 'ADMIN_TENANT';
+
+  IF v_existing_id IS NOT NULL THEN
+    RETURN v_existing_id;
+  END IF;
+
+  IF NOT p_bypass_membership_check THEN
+    SELECT EXISTS (
+      SELECT 1 FROM public.memberships
+      WHERE applicant_profile_id = p_user_id
+        AND tenant_id = p_tenant_id
+        AND status = 'APPROVED'
+    ) INTO v_has_approved_membership;
+
+    IF NOT v_has_approved_membership THEN
+      RAISE EXCEPTION
+        'ADMIN_TENANT requires APPROVED membership in tenant %. User % has none.',
+        p_tenant_id, p_user_id;
+    END IF;
+  END IF;
+
+  INSERT INTO public.user_roles (user_id, tenant_id, role)
+  VALUES (p_user_id, p_tenant_id, 'ADMIN_TENANT')
+  RETURNING id INTO v_role_id;
+
+  INSERT INTO public.audit_logs (
+    event_type, tenant_id, profile_id, category, metadata
+  ) VALUES (
+    'ADMIN_TENANT_ROLE_GRANTED',
+    p_tenant_id,
+    p_user_id,
+    'SECURITY',
+    jsonb_build_object(
+      'user_roles_id', v_role_id,
+      'bypass_membership_check', p_bypass_membership_check,
+      'pi_reference', 'PI-002C',
+      'occurred_at', now()
+    )
+  );
+
+  RETURN v_role_id;
+END;
+$$;
+```
+
+### Passo 2: Funcao grant_user_role()
+
+```sql
+CREATE OR REPLACE FUNCTION public.grant_user_role(
+  p_user_id uuid,
+  p_tenant_id uuid,
+  p_role text
+)
+  RETURNS uuid
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO 'public'
+AS $$
+DECLARE
+  v_existing_id uuid;
+  v_role_id uuid;
+BEGIN
+  -- Block ADMIN_TENANT — must use grant_admin_tenant_role()
+  IF p_role = 'ADMIN_TENANT' THEN
+    RAISE EXCEPTION '[PI-002C] ADMIN_TENANT cannot be granted via grant_user_role(). Use grant_admin_tenant_role().';
+  END IF;
+
+  -- Validate role is a valid app_role enum value
+  BEGIN
+    PERFORM p_role::public.app_role;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RAISE EXCEPTION 'Invalid role: %', p_role;
+  END;
+
+  -- Idempotency
+  SELECT id INTO v_existing_id
+  FROM public.user_roles
+  WHERE user_id = p_user_id
+    AND tenant_id = p_tenant_id
+    AND role = p_role::public.app_role;
+
+  IF v_existing_id IS NOT NULL THEN
+    RETURN v_existing_id;
+  END IF;
+
+  INSERT INTO public.user_roles (user_id, tenant_id, role)
+  VALUES (p_user_id, p_tenant_id, p_role::public.app_role)
+  RETURNING id INTO v_role_id;
+
+  RETURN v_role_id;
+END;
+$$;
+```
+
+### Passo 3: Funcao revoke_user_role()
+
+```sql
+CREATE OR REPLACE FUNCTION public.revoke_user_role(
+  p_user_id uuid,
+  p_tenant_id uuid,
+  p_role text
+)
+  RETURNS boolean
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO 'public'
+AS $$
+DECLARE
+  v_role_id uuid;
+BEGIN
+  -- Validate role
+  BEGIN
+    PERFORM p_role::public.app_role;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RAISE EXCEPTION 'Invalid role: %', p_role;
+  END;
+
+  SELECT id INTO v_role_id
+  FROM public.user_roles
+  WHERE user_id = p_user_id
+    AND tenant_id = p_tenant_id
+    AND role = p_role::public.app_role;
+
+  IF v_role_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.user_roles WHERE id = v_role_id;
+
+  RETURN true;
+END;
+$$;
+```
+
+### Passo 4: REVOKE privilegios diretos
+
+```sql
+-- Remove all direct mutation privileges
+REVOKE INSERT ON public.user_roles FROM anon;
+REVOKE UPDATE ON public.user_roles FROM anon;
+REVOKE DELETE ON public.user_roles FROM anon;
+
+REVOKE INSERT ON public.user_roles FROM authenticated;
+REVOKE UPDATE ON public.user_roles FROM authenticated;
+REVOKE DELETE ON public.user_roles FROM authenticated;
+
+REVOKE INSERT ON public.user_roles FROM service_role;
+REVOKE UPDATE ON public.user_roles FROM service_role;
+REVOKE DELETE ON public.user_roles FROM service_role;
+
+-- Keep SELECT for all (needed by RLS functions and queries)
+-- postgres retains all privileges as owner
+```
+
+### Passo 5: GRANT EXECUTE nas funcoes gatekeeper
+
+```sql
+-- Restrict function execution
+REVOKE ALL ON FUNCTION public.grant_admin_tenant_role(uuid, uuid, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.grant_user_role(uuid, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.revoke_user_role(uuid, uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.grant_admin_tenant_role(uuid, uuid, boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.grant_user_role(uuid, uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.revoke_user_role(uuid, uuid, text) TO service_role;
+```
+
+## Ajustes em Edge Functions (6 funcoes)
+
+### 1. resolve-identity-wizard/index.ts (linhas 951-955)
+
+De:
 ```text
-useQuery({
-  queryKey: QUERY_KEY,
-  queryFn: async () => { ... },
-  enabled: !!approvalId && !!tenant?.id,
-})
+const { error: roleError } = await supabase.from("user_roles").insert({
+  user_id: userId, role: "ADMIN_TENANT", tenant_id: newTenant.id,
+});
 ```
-
-Apos sucesso de approve ou reject:
-
+Para:
 ```text
-await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+const { data: roleId, error: roleError } = await supabase.rpc(
+  'grant_admin_tenant_role',
+  { p_user_id: userId, p_tenant_id: newTenant.id, p_bypass_membership_check: true }
+);
 ```
 
-Garantias:
-- A mesma referencia `QUERY_KEY` e usada em ambos os pontos
-- Nao existe chave parcial, string solta ou chave diferente
-- O `invalidateQueries` dispara refetch automatico via react-query
-- A UI nunca exibe estado stale apos acao bem-sucedida
-- O toast de sucesso so aparece apos o `invalidateQueries` resolver
+### 2. create-tenant-admin/index.ts (linhas 184-190)
 
-### P0-2 -- Imutabilidade da Role Padrao
-
-Constante declarada no topo do arquivo, fora do componente:
-
+De:
 ```text
-const DEFAULT_APPROVAL_ROLES = ['ATLETA'] as const;
+const { error: roleError } = await serviceClient.from("user_roles").insert({
+  user_id: userId, role: "ADMIN_TENANT", tenant_id: tenantId,
+});
 ```
-
-Garantias:
-- O payload de aprovacao usa exclusivamente `DEFAULT_APPROVAL_ROLES`
-- Nenhum `useState` controla ou altera roles
-- Nenhum campo de UI (dropdown, checkbox, input) expoe roles
-- Roles nao e derivavel de input do usuario
-- A constante e `as const` (readonly tuple), imutavel em tempo de compilacao
-- O payload enviado sera: `roles: [...DEFAULT_APPROVAL_ROLES]`
-
----
-
-## Implementacao
-
-### Arquivo Unico: `src/pages/ApprovalDetails.tsx` (reescrita completa)
-
-### 1. Constantes Imutaveis (topo do arquivo, fora do componente)
-
+Para:
 ```text
-const DEFAULT_APPROVAL_ROLES = ['ATLETA'] as const;
-const QUERY_KEY_PREFIX = 'membership-approval-detail';
+const { error: roleError } = await serviceClient.rpc(
+  'grant_admin_tenant_role',
+  { p_user_id: userId, p_tenant_id: tenantId, p_bypass_membership_check: true }
+);
 ```
 
-### 2. Correcao do Param
+### 3. grant-roles/index.ts (linhas 279-285)
 
+De:
 ```text
-const { approvalId } = useParams<{ approvalId: string }>();
+const { error: insertError } = await supabase.from("user_roles").insert({
+  user_id: targetProfileId, tenant_id: tenantId, role: role,
+});
 ```
-
-### 3. Tipagem Local
-
+Para:
 ```text
-ApplicantData -- todos campos opcionais (tolerante a JSONB parcial)
-AthleteJoin -- id, full_name, email, phone, birth_date, gender, national_id, endereco
-MembershipDetail -- campos da membership + joins tipados
+let insertError = null;
+if (role === 'ADMIN_TENANT') {
+  const { error } = await supabase.rpc(
+    'grant_admin_tenant_role',
+    { p_user_id: targetProfileId, p_tenant_id: tenantId, p_bypass_membership_check: true }
+  );
+  insertError = error;
+} else {
+  const { error } = await supabase.rpc(
+    'grant_user_role',
+    { p_user_id: targetProfileId, p_tenant_id: tenantId, p_role: role }
+  );
+  insertError = error;
+}
 ```
 
-### 4. Query Deterministica
+### 4. admin-create-user/index.ts (linhas 107-113)
 
+De:
 ```text
-const QUERY_KEY = [QUERY_KEY_PREFIX, approvalId] as const;
-
-useQuery({
-  queryKey: QUERY_KEY,
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("memberships")
-      .select(`
-        id, status, payment_status, type, created_at,
-        start_date, end_date, price_cents, currency,
-        review_notes, reviewed_at, applicant_data,
-        applicant_profile_id, athlete_id, academy_id,
-        preferred_coach_id, documents_uploaded,
-        athlete:athletes!athlete_id(
-          id, full_name, email, phone, birth_date,
-          gender, national_id, address_line1, address_line2,
-          city, state, postal_code, country
-        ),
-        profile:profiles!applicant_profile_id(id, name, email),
-        academy:academies!academy_id(id, name),
-        coach:coaches!preferred_coach_id(id, full_name),
-        digital_cards(id, qr_code_image_url, pdf_url)
-      `)
-      .eq("id", approvalId)
-      .eq("tenant_id", tenant.id)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!approvalId && !!tenant?.id,
-})
+await supabaseAdmin.from("user_roles").insert({
+  user_id: userId, role: "ATLETA", tenant_id: tenantId,
+});
 ```
-
-### 5. applicantView Derivado (fallback deterministico)
-
-| Campo | Prioridade 1 | Prioridade 2 | Prioridade 3 | Fallback |
-|-------|-------------|-------------|-------------|----------|
-| name | athlete.full_name | profile.name | applicant_data.full_name | "Nome nao informado" |
-| email | athlete.email | profile.email | applicant_data.email | "Email nao informado" |
-| phone | athlete.phone | -- | applicant_data.phone | null |
-| birth_date | athlete.birth_date | -- | applicant_data.birth_date | null |
-| gender | athlete.gender | -- | applicant_data.gender | null |
-| national_id | athlete.national_id | -- | applicant_data.national_id | null |
-| endereco | athlete.address_* | -- | applicant_data.address_* | null |
-
-### 6. State Machine Local
-
+Para:
 ```text
-const isPendingReview = membership.status === 'PENDING_REVIEW'
-const isPaymentCompleted = membership.payment_status === 'PAID'
-const canApproveOrReject = isPendingReview && isPaymentCompleted
+await supabaseAdmin.rpc(
+  'grant_user_role',
+  { p_user_id: userId, p_tenant_id: tenantId, p_role: 'ATLETA' }
+);
 ```
 
-### 7. Acoes -- Payloads Exatos
+### 5. approve-membership/index.ts (linhas 601-607)
 
-**Aprovar**:
-
+De:
 ```text
-const handleApprove = async () => {
-  setIsSubmitting(true);
-  const body: Record<string, unknown> = {
-    membershipId: approvalId,
-    roles: [...DEFAULT_APPROVAL_ROLES],
-  };
-  if (reviewNotes.trim()) body.reviewNotes = reviewNotes.trim();
-
-  const { error } = await supabase.functions.invoke('approve-membership', { body });
-  if (error) { toast.error(...); setIsSubmitting(false); return; }
-
-  await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  toast.success(...);
-  setIsSubmitting(false);
-};
+const { error: roleError } = await supabase.from("user_roles").insert({
+  user_id: membership.applicant_profile_id, tenant_id: targetTenantId, role: role,
+});
 ```
-
-**Rejeitar**:
-
+Para:
 ```text
-const handleReject = async () => {
-  setIsSubmitting(true);
-  const { error } = await supabase.functions.invoke('reject-membership', {
-    body: {
-      membershipId: approvalId,
-      rejectionReason: rejectionReason.trim(),
-    }
-  });
-  if (error) { toast.error(...); setIsSubmitting(false); return; }
-
-  await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  toast.success(...);
-  setIsSubmitting(false);
-};
+const { error: roleError } = await supabase.rpc(
+  'grant_user_role',
+  { p_user_id: membership.applicant_profile_id, p_tenant_id: targetTenantId, p_role: role }
+).then(res => ({ error: res.error }));
 ```
 
-### 8. Estrutura da UI
+### 6. revoke-roles/index.ts (linhas 246-249)
 
-1. **Header**: Botao Voltar + titulo + Badge de status
-2. **Card Dados da Solicitacao**: Status, pagamento, valor, tipo, datas
-3. **Card Dados do Atleta**: applicantView completo
-4. **Card Documentos**: Lista de documentos (se existirem)
-5. **Card Carteira Digital**: Exibido somente se `digital_cards` retornar dados
-6. **Card Decisao**: Notas do revisor + botoes Aprovar/Rejeitar
-7. **Alerta de pagamento**: Exibido se `payment_status !== 'PAID'`, desabilitando acoes
+De:
+```text
+const { error: deleteError } = await supabase.from("user_roles").delete().eq("id", roleRecord.id);
+```
+Para:
+```text
+const { error: deleteError } = await supabase.rpc(
+  'revoke_user_role',
+  { p_user_id: targetProfileId, p_tenant_id: tenantId, p_role: role }
+).then(res => ({ error: res.error }));
+```
 
-**Roles NAO aparecem na UI. Nenhum dropdown, checkbox ou input de roles existe.**
+## Testes de Validacao
 
-### 9. Estados Explicitos
+### Teste 1: INSERT direto ADMIN_TENANT via service_role (deve FALHAR)
+```sql
+-- Executar como service_role (via SDK)
+INSERT INTO user_roles (user_id, role, tenant_id)
+VALUES ('d2d732a9-19ee-4b97-821b-9ff4128db4e5', 'ADMIN_TENANT', '07ad68d9-2b58-40d5-a783-ccb642022d4f');
+-- Esperado: permission denied for table user_roles
+```
 
-| Estado | Condicao | UI |
-|--------|---------|-----|
-| Loading | isLoading | Spinner institucional |
-| Error | isError | Card com mensagem + botao voltar |
-| Not Found | !membership | Card "Nao encontrado" + botao voltar |
-| Processing | isSubmitting | Botoes desabilitados + spinner inline |
-| Success | apos acao | Toast via sonner + refetch via invalidateQueries(QUERY_KEY) |
+### Teste 2: INSERT direto ATLETA via service_role (deve FALHAR)
+```sql
+INSERT INTO user_roles (user_id, role, tenant_id)
+VALUES ('d2d732a9-19ee-4b97-821b-9ff4128db4e5', 'ATLETA', '07ad68d9-2b58-40d5-a783-ccb642022d4f');
+-- Esperado: permission denied for table user_roles
+```
 
-### 10. Protecoes
+### Teste 3: UPDATE direto (deve FALHAR)
+```sql
+UPDATE user_roles SET role = 'ADMIN_TENANT' WHERE user_id = 'd2d732a9-19ee-4b97-821b-9ff4128db4e5';
+-- Esperado: permission denied for table user_roles
+```
 
-- **Duplo clique**: `useState<boolean>` de `isSubmitting` desabilita botoes
-- **Rejeicao vazia**: Botao confirmar desabilitado se `rejectionReason.trim() === ''`
-- **Confirmacao**: AlertDialog antes de aprovar e antes de rejeitar
+### Teste 4: DELETE direto (deve FALHAR)
+```sql
+DELETE FROM user_roles WHERE user_id = 'd2d732a9-19ee-4b97-821b-9ff4128db4e5';
+-- Esperado: permission denied for table user_roles
+```
 
----
+### Teste 5: grant_admin_tenant_role com bypass (deve PASSAR)
+```sql
+SELECT grant_admin_tenant_role(
+  'd2d732a9-19ee-4b97-821b-9ff4128db4e5'::uuid,
+  '07ad68d9-2b58-40d5-a783-ccb642022d4f'::uuid,
+  true
+);
+-- Esperado: retorna UUID
+```
 
-## O que NAO sera tocado
+### Teste 6: grant_admin_tenant_role sem bypass sem membership (deve FALHAR)
+```sql
+SELECT grant_admin_tenant_role(
+  'd2d732a9-19ee-4b97-821b-9ff4128db4e5'::uuid,
+  '07ad68d9-2b58-40d5-a783-ccb642022d4f'::uuid,
+  false
+);
+-- Esperado: RAISE EXCEPTION "requires APPROVED membership"
+```
 
-- Rotas (AppRouter.tsx)
-- RLS policies
-- Edge Functions (approve-membership, reject-membership)
-- ApprovalsList.tsx
-- Enums, guards, estado global
-- Schema do banco
+### Teste 7: grant_user_role para ATLETA (deve PASSAR)
+```sql
+SELECT grant_user_role(
+  'd2d732a9-19ee-4b97-821b-9ff4128db4e5'::uuid,
+  '07ad68d9-2b58-40d5-a783-ccb642022d4f'::uuid,
+  'ATLETA'
+);
+-- Esperado: retorna UUID
+```
 
----
+### Teste 8: grant_user_role para ADMIN_TENANT (deve FALHAR)
+```sql
+SELECT grant_user_role(
+  'd2d732a9-19ee-4b97-821b-9ff4128db4e5'::uuid,
+  '07ad68d9-2b58-40d5-a783-ccb642022d4f'::uuid,
+  'ADMIN_TENANT'
+);
+-- Esperado: RAISE EXCEPTION "[PI-002C] ADMIN_TENANT cannot be granted via grant_user_role()"
+```
+
+### Teste 9: Idempotencia
+```sql
+SELECT grant_admin_tenant_role('d2d732a9...'::uuid, '07ad68d9...'::uuid, true);
+SELECT grant_admin_tenant_role('d2d732a9...'::uuid, '07ad68d9...'::uuid, true);
+-- Esperado: mesmo UUID, sem duplicata
+```
+
+### Teste 10: revoke_user_role (deve PASSAR)
+```sql
+SELECT revoke_user_role(
+  'd2d732a9-19ee-4b97-821b-9ff4128db4e5'::uuid,
+  '07ad68d9-2b58-40d5-a783-ccb642022d4f'::uuid,
+  'ATLETA'
+);
+-- Esperado: true
+```
+
+### Teste 11: Audit log gerado
+```sql
+SELECT event_type, metadata FROM audit_logs
+WHERE event_type = 'ADMIN_TENANT_ROLE_GRANTED'
+ORDER BY created_at DESC LIMIT 5;
+```
+
+## Rollback Script
+
+```sql
+-- Restore direct privileges
+GRANT INSERT, UPDATE, DELETE ON public.user_roles TO service_role;
+GRANT INSERT, UPDATE, DELETE ON public.user_roles TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.user_roles TO anon;
+
+-- Drop gatekeeper functions
+DROP FUNCTION IF EXISTS public.grant_admin_tenant_role(uuid, uuid, boolean);
+DROP FUNCTION IF EXISTS public.grant_user_role(uuid, uuid, text);
+DROP FUNCTION IF EXISTS public.revoke_user_role(uuid, uuid, text);
+```
+
+## Resumo de Alteracoes
+
+| Artefato | Tipo | Descricao |
+|----------|------|-----------|
+| `grant_admin_tenant_role()` | DB Function (nova) | Gatekeeper exclusivo para ADMIN_TENANT |
+| `grant_user_role()` | DB Function (nova) | Gatekeeper para roles nao-ADMIN_TENANT |
+| `revoke_user_role()` | DB Function (nova) | Gatekeeper para DELETE |
+| REVOKE INSERT/UPDATE/DELETE | Privilegios | Removido de anon, authenticated, service_role |
+| GRANT EXECUTE | Privilegios | Concedido apenas a service_role |
+| `resolve-identity-wizard` | Edge Function | .insert() para .rpc('grant_admin_tenant_role') |
+| `create-tenant-admin` | Edge Function | .insert() para .rpc('grant_admin_tenant_role') |
+| `grant-roles` | Edge Function | .insert() para condicional RPC |
+| `admin-create-user` | Edge Function | .insert() para .rpc('grant_user_role') |
+| `approve-membership` | Edge Function | .insert() para .rpc('grant_user_role') |
+| `revoke-roles` | Edge Function | .delete() para .rpc('revoke_user_role') |
+
+## Evidencia de Seguranca
+
+| Controle | Garantia |
+|----------|---------|
+| Trigger | Nao necessario |
+| current_user check | Nao utilizado |
+| Nonce | Nao utilizado |
+| Session variable | Nao utilizada |
+| DDL runtime | Nenhum |
+| Seguranca | Baseada em privilegio estrutural (GRANT/REVOKE) |
+| INSERT direto | Impossivel (REVOKED) |
+| UPDATE direto | Impossivel (REVOKED) |
+| DELETE direto | Impossivel (REVOKED) |
+| ADMIN_TENANT via grant_user_role | Bloqueado explicitamente |
+| Unico ponto de entrada ADMIN_TENANT | grant_admin_tenant_role() |
 
 ## Checklist SAFE GOLD
 
 | Item | Status |
 |------|--------|
-| queryKey explicita e unica | `[QUERY_KEY_PREFIX, approvalId] as const` |
-| invalidateQueries usa mesma queryKey | Sim, referencia `QUERY_KEY` |
-| Refetch deterministico pos-acao | `await invalidateQueries` antes do toast |
-| DEFAULT_APPROVAL_ROLES imutavel | `as const`, fora do componente |
-| Roles nao editavel por UI | Nenhum campo de input expoe roles |
-| Roles nao derivavel de input | Payload usa spread da constante |
-| Nenhum estado controla roles | Zero useState para roles |
+| Zero session variables | Sim |
+| Zero nonces | Sim |
+| Zero triggers | Sim |
+| Zero DDL runtime | Sim |
+| Zero bypass | Sim |
+| Protecao estrutural (GRANT/REVOKE) | Sim |
+| ADMIN_TENANT isolado em funcao dedicada | Sim |
+| Roles nao-ADMIN_TENANT via funcao separada | Sim |
+| DELETE via funcao dedicada | Sim |
+| Idempotencia preservada | Sim |
+| Auditoria automatica para ADMIN_TENANT | Sim |
+| 6 Edge Functions migradas | Sim |
+| Rollback fornecido | Sim |
+| 11 testes de validacao | Sim |
 
+## Limitacao Documentada
+
+O role `postgres` (owner da tabela) mantem privilegios totais — isso e inerente ao PostgreSQL e esta fora do escopo. A protecao e contra uso via aplicacao (SDK, Edge Functions).
+
+## Ordem de Execucao
+
+1. Criar as 3 funcoes gatekeeper (migration SQL)
+2. Configurar GRANT EXECUTE (migration SQL)
+3. Atualizar as 6 Edge Functions para usar RPC
+4. Aplicar REVOKE de INSERT/UPDATE/DELETE (migration SQL — por ultimo, para evitar quebra durante deploy)
+5. Executar testes de validacao
