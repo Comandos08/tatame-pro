@@ -3559,7 +3559,7 @@ export type Database = {
         Returns: Json
       }
       change_tenant_lifecycle_state: {
-        Args: { p_new_state: string; p_reason: string; p_tenant_id: string }
+        Args: { p_new_state: string; p_reason?: string; p_tenant_id: string }
         Returns: string
       }
       check_academy_governance_v1: {
