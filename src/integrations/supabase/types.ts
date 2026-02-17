@@ -3440,6 +3440,20 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_lifecycle_governance_audit_v2: {
+        Row: {
+          details: Json | null
+          detected_at: string | null
+          is_active: boolean | null
+          issue_code: string | null
+          lifecycle_status: string | null
+          severity: string | null
+          status_text: string | null
+          tenant_id: string | null
+          tenant_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       athlete_has_active_membership: {
@@ -3518,6 +3532,20 @@ export type Database = {
         Args: never
         Returns: {
           detected_at: string
+          issue_code: string
+          lifecycle_status: string
+          severity: string
+          status_text: string
+          tenant_id: string
+          tenant_name: string
+        }[]
+      }
+      check_tenant_lifecycle_governance_v2: {
+        Args: never
+        Returns: {
+          details: Json
+          detected_at: string
+          is_active: boolean
           issue_code: string
           lifecycle_status: string
           severity: string
