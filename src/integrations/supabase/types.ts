@@ -3341,6 +3341,19 @@ export type Database = {
           },
         ]
       }
+      institutional_integrity_audit_v1: {
+        Row: {
+          details: Json | null
+          detected_at: string | null
+          domain: string | null
+          entity_type: string | null
+          issue_code: string | null
+          record_id: string | null
+          severity: string | null
+          tenant_id: string | null
+        }
+        Relationships: []
+      }
       job_execution_summary: {
         Row: {
           failures_24h: number | null
@@ -3572,6 +3585,19 @@ export type Database = {
           record_id: string
           severity: string
           table_name: string
+          tenant_id: string
+        }[]
+      }
+      check_institutional_integrity_v1: {
+        Args: never
+        Returns: {
+          details: Json
+          detected_at: string
+          domain: string
+          entity_type: string
+          issue_code: string
+          record_id: string
+          severity: string
           tenant_id: string
         }[]
       }
