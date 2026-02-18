@@ -1,0 +1,3 @@
+
+-- FASE A: Add ADMIN_ACTIVE to enum
+ALTER TYPE membership_status ADD VALUE IF NOT EXISTS 'ADMIN_ACTIVE';

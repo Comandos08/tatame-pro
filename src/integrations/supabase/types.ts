@@ -3948,6 +3948,7 @@ export type Database = {
         | "EXPIRED"
         | "CANCELLED"
         | "REJECTED"
+        | "ADMIN_ACTIVE"
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
       payment_status: "NOT_PAID" | "PAID" | "FAILED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
@@ -4152,6 +4153,7 @@ export const Constants = {
         "EXPIRED",
         "CANCELLED",
         "REJECTED",
+        "ADMIN_ACTIVE",
       ],
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
       payment_status: ["NOT_PAID", "PAID", "FAILED"],
