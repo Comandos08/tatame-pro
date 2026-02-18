@@ -17,6 +17,7 @@ const statusVariants = cva(
         EXPIRED: "bg-destructive/20 text-destructive border-destructive/30",
         CANCELLED: "bg-destructive/20 text-destructive border-destructive/30",
         REJECTED: "bg-destructive/20 text-destructive border-destructive/30",
+        ADMIN_ACTIVE: "bg-info/20 text-info border-info/30",
         
         // Billing statuses
         TRIALING: "bg-info/20 text-info border-info/30",
@@ -99,6 +100,7 @@ export const STATUS_COLORS: Record<StatusType, string> = {
   EXPIRED: "hsl(var(--destructive))",
   CANCELLED: "hsl(var(--destructive))",
   REJECTED: "hsl(var(--destructive))",
+  ADMIN_ACTIVE: "hsl(var(--info))",
   TRIALING: "hsl(var(--info))",
   PAST_DUE: "hsl(var(--warning))",
   INCOMPLETE: "hsl(var(--muted-foreground))",

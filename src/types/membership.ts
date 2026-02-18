@@ -1,6 +1,6 @@
 export type GenderType = 'MALE' | 'FEMALE' | 'OTHER';
 export type GuardianRelationship = 'PARENT' | 'GUARDIAN' | 'OTHER';
-export type MembershipStatus = 'DRAFT' | 'PENDING_PAYMENT' | 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+export type MembershipStatus = 'DRAFT' | 'PENDING_PAYMENT' | 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'ADMIN_ACTIVE';
 export type MembershipType = 'FIRST_MEMBERSHIP' | 'RENEWAL';
 export type PaymentStatus = 'NOT_PAID' | 'PAID' | 'FAILED';
 export type DocumentType = 'ID_DOCUMENT' | 'MEDICAL_CERTIFICATE' | 'ADDRESS_PROOF' | 'OTHER';
@@ -56,6 +56,7 @@ export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
   ACTIVE: 'Ativa',
   EXPIRED: 'Expirada',
   CANCELLED: 'Cancelada',
+  ADMIN_ACTIVE: 'Administrativo',
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
