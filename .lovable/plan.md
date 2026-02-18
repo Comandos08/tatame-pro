@@ -1,167 +1,171 @@
 
 
-# PI-MEMBERSHIP-LIFECYCLE-FIX-001
-## Contract Clarification + Deterministic Resolution (PLAN ONLY)
+# PI-MEMBERSHIP-MODEL-HARDENING-001 (Refined)
+## Semantic Separation: Athletic vs Administrative Memberships
 
 ---
 
-## SECTION 1 -- RECOMMENDATION
+## Summary
 
-### Decision: OPTION A -- APPROVED is the final operational state
+Add `ADMIN_ACTIVE` to the `membership_status` enum as a terminal, immutable state for institutional memberships. Apply 3 SAFE GOLD refinements requested by the user.
 
-**Justification:**
-
-1. The system already treats APPROVED as operational in 7 out of 10 reference points (verify-digital-card, resolveAthletePostLoginRedirect, AthleteArea, MembershipTypeSelector, check-membership-renewal, TenantDashboard expiring count, MembershipStatus page).
-2. No code path creates the APPROVED-to-ACTIVE transition. ACTIVE has never been set by any function in the membership domain.
-3. Option B would require creating a new transition mechanism (RPC, cron, or auto-trigger), adding complexity with zero functional benefit since APPROVED already means "administratively approved + paid + athlete created + roles assigned."
-4. Option A requires only alignment corrections (changing 4-5 queries that filter exclusively on ACTIVE to include APPROVED), which is strictly additive and non-breaking.
-
-**Risk Classification: LOW**
+**Risk: LOW** -- additive changes only.
 
 ---
 
-## SECTION 2 -- COMPLETE IMPACT ANALYSIS
+## FASE A -- ENUM HARDENING
 
-### 2.1 Edge Functions
+### A1: Add enum value (migration)
 
-| File | Line | Uses ACTIVE? | Uses APPROVED? | Classification | Impact Option A | Impact Option B |
-|---|---|---|---|---|---|---|
-| `approve-membership/index.ts` | 698 | No | YES (sets it) | Operational | None -- correct as-is | Must add APPROVED-to-ACTIVE transition after |
-| `expire-memberships/index.ts` | 130, 179 | YES (only) | No | Cron | CHANGE: add APPROVED to filter | None -- ACTIVE would be set by then |
-| `verify-digital-card/index.ts` | 260 | YES | YES (both) | External verification | None -- already correct | None -- already correct |
-| `check-membership-renewal/index.ts` | 90 | YES | YES (both) | Cron | None -- already correct | None -- ACTIVE would be set by then |
-| `pre-expiration-scheduler/index.ts` | 260 | YES (only) | No | Cron | CHANGE: add APPROVED to filter | None -- ACTIVE would be set by then |
-
-### 2.2 Frontend Pages
-
-| File | Line | Uses ACTIVE? | Uses APPROVED? | Classification | Impact Option A | Impact Option B |
-|---|---|---|---|---|---|---|
-| `TenantDashboard.tsx` | 88 | YES (only) | No | KPI (active count) | CHANGE: add APPROVED to filter | None |
-| `TenantDashboard.tsx` | 94 | YES | YES (both) | KPI (expiring) | None -- already correct | None |
-| `AdminDashboard.tsx` | 124 | YES (only) | No | KPI (superadmin) | CHANGE: add APPROVED to filter | None |
-| `PublicRankings.tsx` | 64 | YES (only) | No | Visual (rankings) | CHANGE: add APPROVED to filter | None |
-| `InternalRankings.tsx` | 93 | YES (only) | No | Visual (rankings) | CHANGE: add APPROVED to filter | None |
-| `AthleteGradingsPage.tsx` | 119 | YES (only) | No | Operational (grading check) | CHANGE: add APPROVED to filter | None |
-| `AthletePortal.tsx` | 236 | YES (only) | No | Visual (renewal reminder) | CHANGE: add APPROVED to condition | None |
-| `AthleteArea.tsx` | 304 | YES | YES (both) | Operational (find active) | None -- already correct | None |
-| `MembershipStatus.tsx` | 31 | YES | YES (both) | Visual (status page) | None -- already correct | None |
-| `MembershipRenew.tsx` | 121 | YES | YES (via redirect fn) | Operational (renewal gate) | None -- already correct | None |
-| `VerifyMembership.tsx` | 141 | YES | YES (both) | External verification | None -- already correct | None |
-
-### 2.3 Components
-
-| File | Line | Uses ACTIVE? | Uses APPROVED? | Classification | Impact Option A | Impact Option B |
-|---|---|---|---|---|---|---|
-| `DigitalMembershipCard.tsx` | 19 | YES | YES (type def) | Visual | None -- already correct | None |
-| `DigitalCardSection.tsx` | 85 | YES (hardcoded) | No | Visual | Consider: should be dynamic | Same |
-| `MembershipTypeSelector.tsx` | 55 | YES | YES (both) | Operational | None -- already correct | None |
-
-### 2.4 Libraries and Types
-
-| File | Line | Uses ACTIVE? | Uses APPROVED? | Classification | Impact Option A | Impact Option B |
-|---|---|---|---|---|---|---|
-| `resolveAthletePostLoginRedirect.ts` | 26-28 | YES | YES (both -> portal) | Routing | None -- already correct | None |
-| `resolveMembershipNotification.ts` | 363, 443 | YES | YES (both) | Notification engine | None -- already correct | None |
-| `types/membership.ts` | 3 | YES | YES (enum) | Type definition | Document ACTIVE as legacy | None |
-| `statusUtils.ts` | 8 | YES | YES (both) | UI utilities | None -- already correct | None |
-| `formatAuditEvent.ts` | 119 | No | YES (audit label) | Audit display | None | None |
-
----
-
-## SECTION 3 -- CONSOLIDATED CHANGES REQUIRED (Option A)
-
-### Files requiring modification (7 files, 8 changes):
-
-1. **`supabase/functions/expire-memberships/index.ts`** (lines 130, 179)
-   - Change `.eq("status", "ACTIVE")` to `.in("status", ["ACTIVE", "APPROVED"])`
-   - Both the query and the race-condition guard
-
-2. **`supabase/functions/pre-expiration-scheduler/index.ts`** (line 260)
-   - Change `.eq("status", "ACTIVE")` to `.in("status", ["ACTIVE", "APPROVED"])`
-
-3. **`src/pages/TenantDashboard.tsx`** (line 88)
-   - Change `.eq('status', 'ACTIVE')` to `.in('status', ['ACTIVE', 'APPROVED'])`
-
-4. **`src/pages/AdminDashboard.tsx`** (line 124)
-   - Change `.eq('status', 'ACTIVE')` to `.in('status', ['ACTIVE', 'APPROVED'])`
-
-5. **`src/pages/PublicRankings.tsx`** (line 64)
-   - Change `.eq('status', 'ACTIVE')` to `.in('status', ['ACTIVE', 'APPROVED'])`
-
-6. **`src/pages/InternalRankings.tsx`** (line 93)
-   - Change `.eq('status', 'ACTIVE')` to `.in('status', ['ACTIVE', 'APPROVED'])`
-
-7. **`src/pages/AthleteGradingsPage.tsx`** (line 119)
-   - Change `.eq('status', 'ACTIVE')` to `.in('status', ['ACTIVE', 'APPROVED'])`
-
-8. **`src/pages/AthletePortal.tsx`** (line 236)
-   - Change `membershipStatus === "ACTIVE"` to `(membershipStatus === "ACTIVE" || membershipStatus === "APPROVED")`
-
-### Files already correct (no changes needed): 13 files
-
-These already handle both APPROVED and ACTIVE: verify-digital-card, check-membership-renewal, AthleteArea, MembershipStatus, VerifyMembership, MembershipTypeSelector, resolveAthletePostLoginRedirect, resolveMembershipNotification, DigitalMembershipCard, TenantDashboard (expiring count).
-
----
-
-## SECTION 4 -- CONSISTENCY VERIFICATION MATRIX
-
-After Option A is applied, all references will use the same operational definition:
-
-| Criterion | Current State | After Fix |
-|---|---|---|
-| Dashboard "Active Memberships" count | ACTIVE only (misses APPROVED) | ACTIVE + APPROVED |
-| Expiration cron | ACTIVE only (misses APPROVED) | ACTIVE + APPROVED |
-| Pre-expiration scheduler | ACTIVE only (misses APPROVED) | ACTIVE + APPROVED |
-| Digital card verification | ACTIVE + APPROVED | ACTIVE + APPROVED (unchanged) |
-| Renewal reminders | ACTIVE + APPROVED | ACTIVE + APPROVED (unchanged) |
-| Athlete portal access | ACTIVE + APPROVED | ACTIVE + APPROVED (unchanged) |
-| Rankings | ACTIVE only (misses APPROVED) | ACTIVE + APPROVED |
-| Post-login redirect | ACTIVE + APPROVED | ACTIVE + APPROVED (unchanged) |
-
----
-
-## SECTION 5 -- CANONICAL CONTRACT (Post-Fix)
-
-```text
-DRAFT
-  -> PENDING_PAYMENT
-    -> PENDING_REVIEW (payment confirmed)
-      -> APPROVED (admin approval -- final operational state)
-        -> EXPIRED (cron or manual)
-        -> CANCELLED (admin action)
-      -> REJECTED (admin rejection)
+```sql
+ALTER TYPE membership_status ADD VALUE IF NOT EXISTS 'ADMIN_ACTIVE';
 ```
 
-- **APPROVED** = fully operational membership (paid, reviewed, athlete created, roles assigned)
-- **ACTIVE** = legacy alias, treated identically to APPROVED in all queries
-- The enum value ACTIVE remains in the database but is never written by any current code path
-- Future PI may formally deprecate ACTIVE from the enum (breaking change, deferred)
+No reordering, no removals.
+
+### A2: Frontend type update
+
+**File: `src/types/membership.ts`**
+
+- Add `'ADMIN_ACTIVE'` to `MembershipStatus` union type
+- Add label: `ADMIN_ACTIVE: 'Administrativo'`
 
 ---
 
-## SECTION 6 -- EXECUTION PLAN FOR NEXT PI
+## FASE B -- INTEGRITY VIEW
 
-**PI-MEMBERSHIP-LIFECYCLE-ALIGN-001** (execution PI, pending approval):
-
-1. Modify 2 Edge Functions (expire-memberships, pre-expiration-scheduler)
-2. Modify 5 frontend files (TenantDashboard, AdminDashboard, PublicRankings, InternalRankings, AthleteGradingsPage, AthletePortal)
-3. Add code comment documenting APPROVED as canonical operational state
-4. Create drift detection view for membership status consistency (optional, separate PI)
-5. Zero migrations, zero enum changes, zero RLS changes
-
-**Risk: LOW** -- All changes are additive (expanding filters), no deletions, no state transitions altered.
+No changes needed. The existing `membership_governance_audit_v1` filters on `status = 'APPROVED'`. Once the admin membership is migrated to `ADMIN_ACTIVE`, it naturally disappears from audit findings.
 
 ---
 
-## SECTION 7 -- PROHIBITIONS COMPLIANCE
+## FASE C -- GATEKEEPER HARDENING (Ajuste 1 applied)
 
-| Prohibition | Status |
+**File: migration SQL for `change_membership_state`**
+
+Replace the current `ELSE ARRAY[]::text[]` catch-all (line 164) with an explicit `ADMIN_ACTIVE` case that raises an exception:
+
+```sql
+v_allowed := CASE v_previous_status
+  WHEN 'DRAFT'           THEN ARRAY['PENDING_PAYMENT', 'CANCELLED']
+  WHEN 'PENDING_PAYMENT' THEN ARRAY['PENDING_REVIEW', 'CANCELLED']
+  WHEN 'PENDING_REVIEW'  THEN ARRAY['APPROVED', 'REJECTED', 'CANCELLED', 'PENDING_PAYMENT']
+  WHEN 'APPROVED'        THEN ARRAY['EXPIRED', 'CANCELLED']
+  WHEN 'CANCELLED'       THEN ARRAY['DRAFT', 'PENDING_PAYMENT']
+  WHEN 'REJECTED'        THEN ARRAY['DRAFT', 'PENDING_PAYMENT']
+  WHEN 'ADMIN_ACTIVE'    THEN NULL  -- sentinel for terminal check below
+  ELSE ARRAY[]::text[]
+END;
+
+IF v_allowed IS NULL THEN
+  RAISE EXCEPTION 'ADMIN_ACTIVE is terminal and immutable. No transitions allowed for membership %.', p_membership_id;
+END IF;
+```
+
+This is fail-fast, explicit, and semantically clear. `ADMIN_ACTIVE` is never listed as a valid target in any other state's array, so it cannot be transitioned TO via the gatekeeper either.
+
+---
+
+## FASE D -- VALIDATION TRIGGER (Ajuste 2 applied)
+
+Create a trigger that only fires when a record is **entering** `APPROVED` status, not on every update to an already-APPROVED record:
+
+```sql
+CREATE OR REPLACE FUNCTION validate_approved_membership()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.status = 'APPROVED' AND
+     (TG_OP = 'INSERT' OR OLD.status <> 'APPROVED') THEN
+
+    IF NEW.athlete_id IS NULL THEN
+      RAISE EXCEPTION 'APPROVED membership requires athlete_id';
+    END IF;
+
+    IF NEW.reviewed_by_profile_id IS NULL THEN
+      RAISE EXCEPTION 'APPROVED membership requires reviewed_by_profile_id';
+    END IF;
+
+    IF NEW.reviewed_at IS NULL THEN
+      RAISE EXCEPTION 'APPROVED membership requires reviewed_at';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_approved_invariants
+BEFORE INSERT OR UPDATE ON memberships
+FOR EACH ROW
+EXECUTE FUNCTION validate_approved_membership();
+```
+
+This ensures:
+- Only validates when transitioning INTO APPROVED
+- Does not block legitimate updates to already-APPROVED records (e.g. `updated_at` changes)
+
+---
+
+## FASE E -- DATA MIGRATION
+
+```sql
+UPDATE memberships
+SET status = 'ADMIN_ACTIVE', updated_at = now()
+WHERE id = '226b6b54-5789-43ba-a6ab-ead69a16c8db'
+  AND status = 'APPROVED';
+```
+
+Safety: scoped to exact record, idempotent with status guard.
+
+---
+
+## FASE F -- FRONTEND: PORTAL ACCESS (Ajuste 3 applied)
+
+### Explicit rule
+
+```text
+ADMIN_ACTIVE does NOT grant athlete portal access.
+ADMIN_ACTIVE users access the system via admin dashboard (TenantDashboard).
+The athlete portal is exclusively for APPROVED or ACTIVE memberships.
+```
+
+### Files analysis
+
+| File | Change | Rationale |
+|---|---|---|
+| `src/types/membership.ts` | Add type + label | Type safety |
+| `src/lib/resolveAthletePostLoginRedirect.ts` | No change | ADMIN_ACTIVE users have ADMIN_TENANT role, which routes to admin dashboard via `AuthCallback.tsx` role resolution, never through athlete redirect |
+| `PortalAccessGate.tsx` | No change | Only athlete-facing; ADMIN_ACTIVE membership holders access admin panel via role-based routing |
+| `AthleteArea.tsx` | No change | Admin users do not enter athlete routes |
+| `PublicRankings.tsx` | No change | Filters APPROVED/ACTIVE only |
+| `InternalRankings.tsx` | No change | Filters APPROVED/ACTIVE only |
+| `DigitalCardSection.tsx` | No change | ADMIN_ACTIVE has no digital card |
+| `MembershipStatusCard.tsx` | No change | `statusUtils.ts` already handles unknown statuses gracefully |
+
+The only frontend change is adding the type and label to `membership.ts`. No portal access logic needs modification because ADMIN_ACTIVE users are routed by their `user_roles.role = 'ADMIN_TENANT'`, not by membership status.
+
+---
+
+## Execution Sequence
+
+1. Migration: `ALTER TYPE membership_status ADD VALUE IF NOT EXISTS 'ADMIN_ACTIVE'`
+2. Migration: `CREATE OR REPLACE FUNCTION change_membership_state(...)` with fail-fast ADMIN_ACTIVE terminal handling
+3. Migration: `CREATE OR REPLACE FUNCTION validate_approved_membership()` + trigger (conditional, Ajuste 2)
+4. Migration: `UPDATE memberships SET status = 'ADMIN_ACTIVE' WHERE id = '226b6b54-...'`
+5. Frontend: Update `MembershipStatus` type and `MEMBERSHIP_STATUS_LABELS` in `src/types/membership.ts`
+6. Validation: `SELECT * FROM check_institutional_integrity_v1()` -- expect zero P0/P1
+
+---
+
+## SAFE GOLD Compliance
+
+| Criterion | Status |
 |---|---|
-| No migration created | Confirmed |
-| No enum altered | Confirmed |
-| No gatekeeper created | Confirmed |
-| No cron altered | Confirmed (plan only) |
-| No Edge Functions altered | Confirmed (plan only) |
-| No RLS altered | Confirmed |
-| No privileges altered | Confirmed |
+| Zero RLS changes | Confirmed |
+| Zero privilege changes | Confirmed |
+| Zero enum removals | Confirmed |
+| Zero retroactive modifications | Confirmed |
+| Gatekeeper fail-fast (not silent array) | Confirmed (Ajuste 1) |
+| Trigger conditional (not blanket) | Confirmed (Ajuste 2) |
+| Portal access explicit (no inference) | Confirmed (Ajuste 3) |
+| No existing APPROVED records affected | Confirmed |
 
