@@ -51,6 +51,7 @@ const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgCo
   ACTIVE: { icon: CheckCircle, bgColor: 'bg-success/10' },
   EXPIRED: { icon: AlertCircle, bgColor: 'bg-muted' },
   CANCELLED: { icon: XCircle, bgColor: 'bg-destructive/10' },
+  ADMIN_ACTIVE: { icon: CheckCircle, bgColor: 'bg-info/10' },
 };
 
 export default function MembershipList() {

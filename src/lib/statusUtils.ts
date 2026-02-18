@@ -6,7 +6,7 @@ import type { StatusType } from '@/components/ui/status-badge';
 // Valid status values for type checking
 const VALID_STATUSES: StatusType[] = [
   'DRAFT', 'PENDING_PAYMENT', 'PENDING_REVIEW', 'APPROVED', 'ACTIVE', 
-  'EXPIRED', 'CANCELLED', 'REJECTED', 'TRIALING', 'PAST_DUE', 
+  'EXPIRED', 'CANCELLED', 'REJECTED', 'ADMIN_ACTIVE', 'TRIALING', 'PAST_DUE', 
   'INCOMPLETE', 'UNPAID', 'ISSUED', 'REVOKED', 'PAID', 'NOT_PAID', 
   'FAILED', 'success', 'warning', 'error', 'info', 'neutral'
 ];
