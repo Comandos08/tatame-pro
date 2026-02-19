@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar } from 'lucide-react';
+import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar, FileText, CreditCard } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
@@ -14,6 +14,7 @@ import { formatDateTime } from '@/lib/i18n/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
 import { formatDateForCsv, formatCurrencyForCsv } from '@/lib/exportCsv';
 import { supabase } from '@/integrations/supabase/client';
@@ -74,6 +75,15 @@ function getDisplayEmail(m: MembershipApplication): string {
   return m.athlete?.email ?? m.profile?.email ?? m.applicant_data?.email ?? 'Email não disponível';
 }
 
+// PI-ONB-ENDTOEND-HARDEN-001: Tab definitions for full funnel visibility
+type ApprovalTab = 'PENDING_REVIEW' | 'PENDING_PAYMENT' | 'DRAFT';
+
+const TAB_CONFIG: { value: ApprovalTab; label: string; icon: typeof Clock; statuses: MembershipStatus[] }[] = [
+  { value: 'PENDING_REVIEW', label: 'Em revisão', icon: Clock, statuses: ['PENDING_REVIEW'] },
+  { value: 'PENDING_PAYMENT', label: 'Aguardando pagamento', icon: CreditCard, statuses: ['PENDING_PAYMENT'] },
+  { value: 'DRAFT', label: 'Rascunhos', icon: FileText, statuses: ['DRAFT'] },
+];
+
 export default function ApprovalsList() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
@@ -81,16 +91,19 @@ export default function ApprovalsList() {
   const { tenantSlug } = useParams();
   const { t, locale } = useI18n();
   const { can: canFeature } = usePermissions();
+  const [activeTab, setActiveTab] = useState<ApprovalTab>('PENDING_REVIEW');
 
   // Check if user has approval permissions (backend contract)
   const canApprove = canFeature('TENANT_APPROVALS');
 
-  const { data: memberships, isLoading, error } = useQuery({
+  // PI-ONB-001: Query all relevant statuses at once
+  const { data: allMemberships, isLoading, error } = useQuery({
     queryKey: ['pending-approvals', tenant?.id, currentUser?.id],
     queryFn: async () => {
       if (!tenant || !currentUser) return [];
 
-      // Query memberships with PENDING_REVIEW status using applicant_data
+      const allStatuses: MembershipStatus[] = ['PENDING_REVIEW', 'PENDING_PAYMENT', 'DRAFT'];
+
       let query = supabase
         .from('memberships')
         .select(`
@@ -111,12 +124,11 @@ export default function ApprovalsList() {
           academy:academies(id, name)
         `)
         .eq('tenant_id', tenant.id)
-        .eq('status', 'PENDING_REVIEW')
+        .in('status', allStatuses)
         .order('created_at', { ascending: true });
 
       // If user is a HEAD_COACH, filter by their academies
       if (!isGlobalSuperadmin && !hasRole('ADMIN_TENANT', tenant.id)) {
-        // Get coach's academies where they are HEAD_COACH
         const { data: coachData } = await supabase
           .from('coaches')
           .select('id')
@@ -136,7 +148,6 @@ export default function ApprovalsList() {
             const academyIds = academyLinks.map(l => l.academy_id);
             query = query.in('academy_id', academyIds);
           } else {
-            // No academies to approve for
             return [];
           }
         } else {
@@ -151,6 +162,24 @@ export default function ApprovalsList() {
     },
     enabled: !!tenant && !!currentUser && canApprove,
   });
+
+  // Filter by active tab
+  const memberships = useMemo(() => {
+    if (!allMemberships) return [];
+    const tabConfig = TAB_CONFIG.find(t => t.value === activeTab);
+    if (!tabConfig) return [];
+    return allMemberships.filter(m => tabConfig.statuses.includes(m.status));
+  }, [allMemberships, activeTab]);
+
+  // Count per tab
+  const counts = useMemo(() => {
+    if (!allMemberships) return { PENDING_REVIEW: 0, PENDING_PAYMENT: 0, DRAFT: 0 };
+    return {
+      PENDING_REVIEW: allMemberships.filter(m => m.status === 'PENDING_REVIEW').length,
+      PENDING_PAYMENT: allMemberships.filter(m => m.status === 'PENDING_PAYMENT').length,
+      DRAFT: allMemberships.filter(m => m.status === 'DRAFT').length,
+    };
+  }, [allMemberships]);
 
   const formatDisplayDate = (dateString: string) => {
     return formatDateTime(dateString, locale);
@@ -192,6 +221,8 @@ export default function ApprovalsList() {
     );
   }
 
+  const totalCount = (counts.PENDING_REVIEW + counts.PENDING_PAYMENT + counts.DRAFT);
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -217,102 +248,138 @@ export default function ApprovalsList() {
             />
             <Badge variant="outline" className="w-fit">
               <Clock className="h-3 w-3 mr-1" />
-              {memberships?.length || 0} {t('approval.pending')}
+              {totalCount} total
             </Badge>
           </div>
         </motion.div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">{t('common.error')}</p>
-            </CardContent>
-          </Card>
-        ) : memberships && memberships.length > 0 ? (
-          <div className="grid gap-4">
-            {memberships.map((membership, index) => {
-              const displayName = getDisplayName(membership);
-              const displayEmail = getDisplayEmail(membership);
-              return (
-              <motion.div
-                key={membership.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Card 
-                  className="card-hover cursor-pointer group"
-                  onClick={() => navigate(`/${tenantSlug}/app/approvals/${membership.id}`)}
-                >
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
-                        <Clock className="h-6 w-6 text-warning" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="font-medium flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            {displayName}
-                          </h3>
-                          <Badge variant="outline" className="text-xs">
-                            #{membership.id.substring(0, 8).toUpperCase()}
-                          </Badge>
-                        </div>
-                        
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {displayEmail}
-                        </p>
-                        
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          <StatusBadge 
-                            status={membership.status} 
-                            label={MEMBERSHIP_STATUS_LABELS[membership.status]}
-                          />
-                          <StatusBadge 
-                            status={membership.payment_status} 
-                            label={PAYMENT_STATUS_LABELS[membership.payment_status]}
-                          />
-                          {membership.academy && (
-                            <Badge variant="outline">
-                              {membership.academy.name}
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {t('approval.requestedAt')} {formatDisplayDate(membership.created_at)}
-                        </div>
-                      </div>
+        {/* PI-ONB-001: Status tabs for full funnel visibility */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ApprovalTab)}>
+          <TabsList>
+            {TAB_CONFIG.map(tab => (
+              <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+                {counts[tab.value] > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-xs">
+                    {counts[tab.value]}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-                    </div>
+          {TAB_CONFIG.map(tab => (
+            <TabsContent key={tab.value} value={tab.value}>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : error ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                    <p className="text-muted-foreground">{t('common.error')}</p>
                   </CardContent>
                 </Card>
-              </motion.div>
-              );
-            })}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <EmptyStateCard
-                icon={ClipboardCheck}
-                titleKey="empty.approvals.admin.title"
-                descriptionKey="empty.approvals.admin.desc"
-                hintKey="empty.approvals.admin.hint"
-                variant="inline"
-              />
-            </CardContent>
-          </Card>
-        )}
+              ) : memberships && memberships.length > 0 ? (
+                <div className="grid gap-4">
+                  {memberships.map((membership, index) => {
+                    const displayName = getDisplayName(membership);
+                    const displayEmail = getDisplayEmail(membership);
+                    return (
+                      <motion.div
+                        key={membership.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <Card 
+                          className="card-hover cursor-pointer group"
+                          onClick={() => navigate(`/${tenantSlug}/app/approvals/${membership.id}`)}
+                        >
+                          <CardContent className="p-4 sm:p-6">
+                            <div className="flex items-start gap-4">
+                              <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
+                                membership.status === 'DRAFT' ? 'bg-muted' : 'bg-warning/10'
+                              }`}>
+                                {membership.status === 'DRAFT' ? (
+                                  <FileText className="h-6 w-6 text-muted-foreground" />
+                                ) : (
+                                  <Clock className="h-6 w-6 text-warning" />
+                                )}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <h3 className="font-medium flex items-center gap-2">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    {displayName}
+                                  </h3>
+                                  <Badge variant="outline" className="text-xs">
+                                    #{membership.id.substring(0, 8).toUpperCase()}
+                                  </Badge>
+                                </div>
+                                
+                                <p className="text-sm text-muted-foreground mb-3">
+                                  {displayEmail}
+                                </p>
+                                
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  <StatusBadge 
+                                    status={membership.status} 
+                                    label={MEMBERSHIP_STATUS_LABELS[membership.status]}
+                                  />
+                                  <StatusBadge 
+                                    status={membership.payment_status} 
+                                    label={PAYMENT_STATUS_LABELS[membership.payment_status]}
+                                  />
+                                  {membership.academy && (
+                                    <Badge variant="outline">
+                                      {membership.academy.name}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {membership.status === 'DRAFT' && (
+                                  <p className="text-xs text-muted-foreground italic mb-2">
+                                    Solicitação iniciada — aguardando completar etapas
+                                  </p>
+                                )}
+                                
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {t('approval.requestedAt')} {formatDisplayDate(membership.created_at)}
+                                </div>
+                              </div>
+
+                              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <EmptyStateCard
+                      icon={tab.value === 'PENDING_REVIEW' ? ClipboardCheck : tab.icon}
+                      titleKey={tab.value === 'PENDING_REVIEW' ? "empty.approvals.admin.title" : "empty.approvals.admin.title"}
+                      descriptionKey={tab.value === 'DRAFT' 
+                        ? "empty.approvals.admin.desc" 
+                        : "empty.approvals.admin.desc"
+                      }
+                      hintKey="empty.approvals.admin.hint"
+                      variant="inline"
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </AppShell>
   );
