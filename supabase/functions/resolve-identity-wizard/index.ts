@@ -260,6 +260,57 @@ function json(payload: IdentityResponse) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
+ * ROLE PRIORITY — DETERMINISTIC RESOLUTION (PURE)
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * Explicit priority map for multi-role users.
+ * Lower number = higher priority.
+ * Unknown roles default to lowest priority.
+ * Tie-break: created_at DESC, then id DESC.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+const ROLE_PRIORITY: Record<string, number> = {
+  ADMIN_TENANT: 1,
+  STAFF_ORGANIZACAO: 2,
+  INSTRUTOR: 3,
+  COACH_PRINCIPAL: 4,
+  COACH_ASSISTENTE: 5,
+  RECEPCAO: 6,
+  ATLETA: 7,
+};
+const DEFAULT_ROLE_PRIORITY = 99;
+
+interface RoleCandidate {
+  id: string;
+  tenant_id: string;
+  role: string;
+  created_at: string | null;
+}
+
+/**
+ * Pure function — picks the highest-priority role from candidates.
+ * Strategy: ROLE_PRIORITY_V1
+ *   1. Lowest priority number wins
+ *   2. Tie-break by created_at DESC (newest first)
+ *   3. Final tie-break by id DESC (deterministic)
+ */
+function pickBestRole(candidates: RoleCandidate[]): RoleCandidate {
+  return candidates.sort((a, b) => {
+    const pa = ROLE_PRIORITY[a.role] ?? DEFAULT_ROLE_PRIORITY;
+    const pb = ROLE_PRIORITY[b.role] ?? DEFAULT_ROLE_PRIORITY;
+    if (pa !== pb) return pa - pb;
+
+    // Tie-break: created_at DESC
+    if (a.created_at && b.created_at) {
+      const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (diff !== 0) return diff;
+    }
+
+    // Final tie-break: id DESC (lexicographic, deterministic)
+    return b.id.localeCompare(a.id);
+  })[0];
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
  * CHECK — IDENTITY RESOLUTION (READ-ONLY)
  * ═══════════════════════════════════════════════════════════════════════════════
  * Resolve o estado de identidade do usuário de forma determinística.
@@ -269,6 +320,7 @@ function json(payload: IdentityResponse) {
  *   1. SUPERADMIN_GLOBAL → RESOLVED + /admin
  *   2. wizard_completed = false → WIZARD_REQUIRED
  *   3. Tem role + tenant ativo → RESOLVED + redirect path
+ *      (multi-role: pickBestRole with ROLE_PRIORITY_V1)
  *   4. Fallback → ERROR
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -310,25 +362,31 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 3: RESOLVER ROLE + TENANT
+   * STEP 3: RESOLVER ROLE + TENANT (DETERMINISTIC — ROLE_PRIORITY_V1)
+   * 🔒 Fetches ALL candidate roles, then picks best via pure function.
    * 🔒 NÃO usar maybeSingle() — padrão de segurança
    * ───────────────────────────────────────────────────────────────────────────── */
   const { data: userRoles } = await supabase
     .from("user_roles")
-    .select("tenant_id, role")
+    .select("id, tenant_id, role, created_at")
     .eq("user_id", userId)
-    .not("tenant_id", "is", null)
-    .limit(1);
+    .not("tenant_id", "is", null);
 
-  const roleRecord = userRoles?.[0];
+  const roleCandidates = (userRoles ?? []) as RoleCandidate[];
 
-  if (!roleRecord?.tenant_id) {
+  log.info("Role candidates fetched", {
+    role_candidates_count: roleCandidates.length,
+    strategy: "ROLE_PRIORITY_V1",
+  });
+
+  if (roleCandidates.length === 0) {
     // Usuário com wizard_completed mas sem role: checar se tem membership PENDING
     const { data: pendingMemberships } = await supabase
       .from("memberships")
       .select("id, tenant_id, status")
       .eq("applicant_profile_id", userId)
       .in("status", ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW"])
+      .order("created_at", { ascending: false })
       .limit(1);
 
     if (pendingMemberships?.[0]) {
@@ -341,6 +399,11 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
 
       const tenant = tenantData?.[0];
       if (tenant) {
+        log.info("Resolved via pending membership", {
+          membership_id: pendingMemberships[0].id,
+          membership_status: pendingMemberships[0].status,
+          selected_tenant_id: tenant.id,
+        });
         return {
           status: "RESOLVED",
           role: "ATHLETE",
@@ -362,6 +425,16 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
       },
     };
   }
+
+  // Deterministic selection from candidates
+  const roleRecord = pickBestRole(roleCandidates);
+
+  log.info("Role selected", {
+    selected_role: roleRecord.role,
+    selected_tenant_id: roleRecord.tenant_id,
+    role_candidates_count: roleCandidates.length,
+    strategy: "ROLE_PRIORITY_V1",
+  });
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 4: BUSCAR DADOS DO TENANT
