@@ -1,9 +1,8 @@
 /**
- * C1 SAFE GOLD — UX Persona Resolution
+ * C1 SAFE GOLD — UX Persona Resolution (SSoT: IdentityContext.role)
  * 
- * Resolves the current UX persona based on route pathname.
- * This is purely a UX concern — it does NOT affect authorization,
- * RLS, gates, or any security decision.
+ * PI-ACTIVE-CONTEXT-SSOT-001: Persona is derived exclusively from the
+ * resolved identity role — never from pathname or route.
  * 
  * Persona determines:
  * - Copy/titles shown
@@ -19,15 +18,18 @@
 export type UXPersona = 'ADMIN' | 'ATHLETE';
 
 /**
- * Resolve persona from pathname.
+ * Resolve persona from identity role (SSoT).
  * 
  * Rules (CANONICAL):
- * - /admin/* → ADMIN (global superadmin / system governance)
- * - Everything else → ATHLETE (journey context, safe default)
+ * - SUPERADMIN_GLOBAL → ADMIN
+ * - ADMIN_TENANT      → ADMIN
+ * - ATHLETE           → ATHLETE
+ * - null (loading/unknown) → ATHLETE (safe default)
  * 
- * Persona does NOT depend on role, badge, feature access, or impersonation.
+ * STAFF_ORGANIZACAO is NOT listed because the Identity Engine
+ * normalizes it to ADMIN_TENANT before it reaches the frontend.
  */
-export function resolveUXPersona(pathname: string): UXPersona {
-  if (pathname.startsWith('/admin')) return 'ADMIN';
+export function resolveUXPersona(role: string | null): UXPersona {
+  if (role === 'SUPERADMIN_GLOBAL' || role === 'ADMIN_TENANT') return 'ADMIN';
   return 'ATHLETE';
 }
