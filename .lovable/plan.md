@@ -1,76 +1,67 @@
 
 
-# HARD FIX SUPERADMIN + SECURITY AUDIT
+# PI-ACTIVE-CONTEXT-SSOT-001 — UX Persona from Role SSoT
 
-## Pre-Execution Validation (All Passed)
+## Diagnosis
 
-| Check | Result |
-|---|---|
-| `is_superadmin()` is SECURITY DEFINER | YES |
-| `is_superadmin()` validates `auth.uid()` internally | YES (`WHERE user_id = auth.uid()`) |
-| `is_superadmin()` has explicit `SET search_path = public` | YES |
-| `is_member_of_tenant()` exists | YES |
-| `is_member_of_tenant()` is SECURITY DEFINER with `auth.uid()` | YES |
-| No USING(true) in proposed policies | CONFIRMED |
+**Single root cause**: `resolveUXPersona(pathname)` in `src/lib/ux/resolveUXPersona.ts` derives persona from URL path. Only `/admin/*` returns `ADMIN`; everything else (including `/{slug}/app/*`) returns `ATHLETE`. This is consumed in `AppShell.tsx` line 148.
 
-**Important finding**: The user's fallback subquery references `m.user_id` on the `memberships` table, but that column does not exist. Since `is_member_of_tenant()` exists and is properly secured, we use the function-based version as originally proposed.
+**SSoT available**: `IdentityContext` exposes `role: "ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null` -- already resolved by ROLE_PRIORITY_V1.
 
-## Migration: Single SQL Migration with 3 Policy Changes
+**Only 2 files need changes**: `resolveUXPersona.ts` and `AppShell.tsx`.
 
-### 1. INSERT policy on `tenants` for SUPERADMIN
+---
 
-```sql
-CREATE POLICY "Superadmin can insert tenants"
-ON public.tenants
-FOR INSERT
-TO authenticated
-WITH CHECK (public.is_superadmin());
+## Changes
+
+### File 1: `src/lib/ux/resolveUXPersona.ts`
+
+Rewrite the function to accept only `role` (the SSoT from IdentityContext):
+
+```text
+Input:  role: "ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null
+Output: "ADMIN" | "ATHLETE"
+
+Rules:
+  - SUPERADMIN_GLOBAL --> ADMIN
+  - ADMIN_TENANT      --> ADMIN
+  - ATHLETE            --> ATHLETE
+  - null (loading/unknown) --> ATHLETE (safe default)
 ```
 
-### 2. SELECT policy on `tenants` for SUPERADMIN (global visibility)
+- Remove `pathname` parameter entirely
+- No route-based inference remains
+- `STAFF_ORGANIZACAO` is NOT listed because the Identity Engine already normalizes it to `ADMIN_TENANT` before it reaches the frontend (per ROLE_PRIORITY_V1)
+- Type signature: `resolveUXPersona(role: string | null): UXPersona`
 
-```sql
-CREATE POLICY "Superadmin can view all tenants"
-ON public.tenants
-FOR SELECT
-TO authenticated
-USING (public.is_superadmin());
-```
+### File 2: `src/layouts/AppShell.tsx`
 
-Coexists with existing "Public can view active tenants" policy (no removal).
+- Import `useIdentity` from `@/contexts/IdentityContext`
+- Get `role` from `useIdentity()`
+- Change line 148 from `resolveUXPersona(pathname)` to `resolveUXPersona(role)`
+- Update `useMemo` dependency from `[pathname]` to `[role]`
 
-### 3. Hardened INSERT policy on `membership_analytics`
+No other files consume `resolveUXPersona` (confirmed by search -- only `AppShell.tsx` and the build cache reference it).
 
-```sql
-DROP POLICY IF EXISTS "Authenticated users can insert analytics"
-ON public.membership_analytics;
+---
 
-CREATE POLICY "Users can insert own tenant analytics"
-ON public.membership_analytics
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  public.is_superadmin()
-  OR public.is_tenant_admin(tenant_id)
-  OR public.is_member_of_tenant(tenant_id)
-);
-```
+## What does NOT change
 
-## What Will NOT Be Changed
+- No RLS changes
+- No schema changes
+- No edge function changes
+- No routing logic changes
+- IdentityContext untouched
+- `data-ux-persona` attribute stays (now reflects correct value)
+- Header label rendering logic stays identical (just reads correct persona now)
 
-- No enums, columns, routes, UI, contracts, function signatures
-- No Stripe, Membership Flow, Digital Cards, BillingGate, IdentityGate
-- No folder structure changes
-- No existing policies removed (except the insecure `membership_analytics` one being replaced)
-- No new functions created
-- No new abstractions
+---
 
-## Post-Implementation Validation
+## Acceptance Criteria
 
-After the migration, the following will be confirmed via SQL queries:
-1. SUPERADMIN can INSERT into tenants
-2. SUPERADMIN can SELECT all tenants (including inactive)
-3. SUPERADMIN can UPDATE tenants (existing policy already works)
-4. No `USING(true)` or `WITH CHECK(true)` policies remain for `authenticated` role on sensitive tables
-5. `membership_analytics` is now tenant-scoped
+1. ADMIN_TENANT on `/{slug}/app/*` -- header shows "Contexto: Administracao"
+2. SUPERADMIN_GLOBAL on `/admin` -- header shows "Contexto: Administracao"
+3. ATLETA-only user on `/{slug}/portal` -- header shows "Contexto: Atleta"
+4. During identity loading (role=null) -- shows "Contexto: Atleta" (safe default)
+5. `data-ux-persona` attribute matches the resolved persona
 
