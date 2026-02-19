@@ -35,6 +35,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 import { useAccessContract } from '@/hooks/useAccessContract';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -85,6 +86,7 @@ export function AppShell({ children }: AppShellProps) {
   const { t } = useI18n();
   const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
   const { can } = useAccessContract(tenant?.id);
+  const { role: identityRole } = useIdentity();
   const { billingStatus } = useTenantStatus();
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,7 +147,7 @@ export function AppShell({ children }: AppShellProps) {
   const adminMode = pathname.includes('/admin') ? 'ON' : 'OFF';
 
   // C1 SAFE GOLD: Derive UX persona from route (purely declarative, no access logic)
-  const uxPersona = useMemo(() => resolveUXPersona(pathname), [pathname]);
+  const uxPersona = useMemo(() => resolveUXPersona(identityRole), [identityRole]);
 
   // ADMIN SAFE GOLD A1.0: derive deterministic view state (no business logic)
   const adminViewState =
