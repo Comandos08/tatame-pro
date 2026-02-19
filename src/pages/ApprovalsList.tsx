@@ -1,15 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar, FileText, CreditCard } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
-import { usePermissions } from '@/hooks/usePermissions';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { useAccessContract } from '@/hooks/useAccessContract';
 import { useI18n } from '@/contexts/I18nContext';
-import { LoadingState } from '@/components/ux/LoadingState';
+
+import { AccessDenied } from '@/components/auth/AccessDenied';
 import { formatDateTime } from '@/lib/i18n/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +18,9 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
 import { formatDateForCsv, formatCurrencyForCsv } from '@/lib/exportCsv';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/observability/logger';
 import {
   MembershipStatus,
   PaymentStatus,
@@ -25,7 +28,10 @@ import {
   PAYMENT_STATUS_LABELS,
 } from '@/types/membership';
 
-// Type for applicant_data JSONB
+const log = createLogger('ApprovalsList');
+
+// --- Types ---
+
 interface ApplicantData {
   full_name: string;
   email: string;
@@ -65,17 +71,18 @@ interface MembershipApplication {
   } | null;
 }
 
-/** Deterministic display name resolver for membership applications */
+// --- Helpers ---
+
 function getDisplayName(m: MembershipApplication): string {
   return m.athlete?.full_name ?? m.profile?.name ?? m.applicant_data?.full_name ?? 'Nome não disponível';
 }
 
-/** Deterministic display email resolver for membership applications */
 function getDisplayEmail(m: MembershipApplication): string {
   return m.athlete?.email ?? m.profile?.email ?? m.applicant_data?.email ?? 'Email não disponível';
 }
 
-// PI-ONB-ENDTOEND-HARDEN-001: Tab definitions for full funnel visibility
+// --- Tab config ---
+
 type ApprovalTab = 'PENDING_REVIEW' | 'PENDING_PAYMENT' | 'DRAFT';
 
 const TAB_CONFIG: { value: ApprovalTab; label: string; icon: typeof Clock; statuses: MembershipStatus[] }[] = [
@@ -84,25 +91,74 @@ const TAB_CONFIG: { value: ApprovalTab; label: string; icon: typeof Clock; statu
   { value: 'DRAFT', label: 'Rascunhos', icon: FileText, statuses: ['DRAFT'] },
 ];
 
+// --- Component ---
+
 export default function ApprovalsList() {
-  const { tenant } = useTenant();
+  const { tenant, isLoading: tenantLoading } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { t, locale } = useI18n();
-  const { can: canFeature } = usePermissions();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ApprovalTab>('PENDING_REVIEW');
 
-  // Check if user has approval permissions (backend contract)
-  const canApprove = canFeature('TENANT_APPROVALS');
+  // Access contract — explicit loading/error/ready flags
+  const {
+    can: canFeature,
+    isLoading: accessLoading,
+    isError: accessError,
+  } = useAccessContract(tenant?.id);
 
-  // PI-ONB-001: Query all relevant statuses at once
-  const { data: allMemberships, isLoading, error } = useQuery({
+  const canApprove = canFeature('TENANT_APPROVALS');
+  const tenantResolved = !!tenant?.id;
+  const userResolved = !!currentUser?.id;
+  const accessReady = !accessLoading && !accessError;
+
+  // Observability: mount + gating snapshot
+  useEffect(() => {
+    log.info('[APPROVALS_MOUNT]', {
+      component: 'ApprovalsList',
+      metadata: { tenantSlug, tenantId: tenant?.id, userId: currentUser?.id },
+    });
+  }, [tenantSlug, tenant?.id, currentUser?.id]);
+
+  useEffect(() => {
+    log.info('[APPROVALS_GATE]', {
+      component: 'ApprovalsList',
+      metadata: {
+        tenantResolved,
+        accessReady,
+        accessLoading,
+        accessError,
+        canApprove,
+        queryEnabled: tenantResolved && userResolved && accessReady && canApprove,
+      },
+    });
+  }, [tenantResolved, accessReady, accessLoading, accessError, canApprove, userResolved]);
+
+  // Force refetch when gating becomes ready (prevent stale empty cache)
+  useEffect(() => {
+    if (accessReady && canApprove && tenant?.id && currentUser?.id) {
+      queryClient.invalidateQueries({
+        queryKey: ['pending-approvals', tenant.id, currentUser.id],
+      });
+    }
+  }, [accessReady, canApprove, tenant?.id, currentUser?.id, queryClient]);
+
+  // Query — enabled only when all gates resolved
+  const queryEnabled = tenantResolved && userResolved && accessReady && canApprove;
+
+  const { data: allMemberships, isLoading: queryLoading, error: queryError } = useQuery({
     queryKey: ['pending-approvals', tenant?.id, currentUser?.id],
     queryFn: async () => {
       if (!tenant || !currentUser) return [];
 
       const allStatuses: MembershipStatus[] = ['PENDING_REVIEW', 'PENDING_PAYMENT', 'DRAFT'];
+
+      log.info('[APPROVALS_QUERY_EXEC]', {
+        component: 'ApprovalsList',
+        metadata: { tenantId: tenant.id, statuses: allStatuses },
+      });
 
       let query = supabase
         .from('memberships')
@@ -127,7 +183,7 @@ export default function ApprovalsList() {
         .in('status', allStatuses)
         .order('created_at', { ascending: true });
 
-      // If user is a HEAD_COACH, filter by their academies
+      // HEAD_COACH: filter by their academies
       if (!isGlobalSuperadmin && !hasRole('ADMIN_TENANT', tenant.id)) {
         const { data: coachData } = await supabase
           .from('coaches')
@@ -158,9 +214,22 @@ export default function ApprovalsList() {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as unknown as MembershipApplication[];
+
+      const results = data as unknown as MembershipApplication[];
+
+      log.info('[APPROVALS_QUERY_SUCCESS]', {
+        component: 'ApprovalsList',
+        metadata: {
+          total: results.length,
+          draft: results.filter(m => m.status === 'DRAFT').length,
+          pending_review: results.filter(m => m.status === 'PENDING_REVIEW').length,
+          pending_payment: results.filter(m => m.status === 'PENDING_PAYMENT').length,
+        },
+      });
+
+      return results;
     },
-    enabled: !!tenant && !!currentUser && canApprove,
+    enabled: queryEnabled,
   });
 
   // Filter by active tab
@@ -171,9 +240,9 @@ export default function ApprovalsList() {
     return allMemberships.filter(m => tabConfig.statuses.includes(m.status));
   }, [allMemberships, activeTab]);
 
-  // Count per tab
+  // Counts — null when not yet loaded (shows placeholders)
   const counts = useMemo(() => {
-    if (!allMemberships) return { PENDING_REVIEW: 0, PENDING_PAYMENT: 0, DRAFT: 0 };
+    if (!allMemberships) return null;
     return {
       PENDING_REVIEW: allMemberships.filter(m => m.status === 'PENDING_REVIEW').length,
       PENDING_PAYMENT: allMemberships.filter(m => m.status === 'PENDING_PAYMENT').length,
@@ -206,22 +275,54 @@ export default function ApprovalsList() {
     { key: 'price_cents', label: 'Valor', format: (_: unknown, row: MembershipApplication) => formatCurrencyForCsv(row.price_cents, row.currency) },
   ], [t]);
 
-  if (!tenant) return <LoadingState titleKey="common.loading" />;
+  // ═══════════════════════════════════════
+  //  DETERMINISTIC STATE MACHINE
+  // ═══════════════════════════════════════
 
-  if (!canApprove) {
+  // STATE A: Tenant not yet resolved
+  if (tenantLoading || !tenantResolved) {
     return (
       <AppShell>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <p className="text-muted-foreground">{t('common.accessDenied')}</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          <Skeleton className="h-10 w-full max-w-md" />
+          <div className="space-y-4">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </div>
       </AppShell>
     );
   }
 
-  const totalCount = (counts.PENDING_REVIEW + counts.PENDING_PAYMENT + counts.DRAFT);
+  // STATE B: Access contract loading
+  if (accessLoading) {
+    return (
+      <AppShell>
+        <div className="min-h-[300px] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">{t('common.verifyingPermissions')}</p>
+        </div>
+      </AppShell>
+    );
+  }
+
+  // STATE C: Access error or denied
+  if (accessError || !canApprove) {
+    return (
+      <AppShell>
+        <AccessDenied />
+      </AppShell>
+    );
+  }
+
+  // STATE D/E: Query loading or data ready (access granted)
+  const totalCount = counts
+    ? (counts.PENDING_REVIEW + counts.PENDING_PAYMENT + counts.DRAFT)
+    : null;
 
   return (
     <AppShell>
@@ -244,26 +345,29 @@ export default function ApprovalsList() {
               filename={`filiacoes_pendentes_${tenant?.slug || 'export'}`}
               columns={csvColumns}
               data={memberships || []}
-              isLoading={isLoading}
+              isLoading={queryLoading}
             />
             <Badge variant="outline" className="w-fit">
               <Clock className="h-3 w-3 mr-1" />
-              {totalCount} total
+              {totalCount !== null ? `${totalCount} total` : '— total'}
             </Badge>
           </div>
         </motion.div>
 
-        {/* PI-ONB-001: Status tabs for full funnel visibility */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ApprovalTab)}>
           <TabsList>
             {TAB_CONFIG.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
                 <tab.icon className="h-4 w-4" />
                 {tab.label}
-                {counts[tab.value] > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-xs">
-                    {counts[tab.value]}
-                  </Badge>
+                {counts ? (
+                  counts[tab.value] > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-xs">
+                      {counts[tab.value]}
+                    </Badge>
+                  )
+                ) : (
+                  <Skeleton className="ml-1 h-5 w-5 rounded-full" />
                 )}
               </TabsTrigger>
             ))}
@@ -271,11 +375,28 @@ export default function ApprovalsList() {
 
           {TAB_CONFIG.map(tab => (
             <TabsContent key={tab.value} value={tab.value}>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              {queryLoading ? (
+                <div className="grid gap-4">
+                  {[1, 2, 3].map(i => (
+                    <Card key={i}>
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="flex items-start gap-4">
+                          <Skeleton className="h-12 w-12 rounded-xl shrink-0" />
+                          <div className="flex-1 space-y-3">
+                            <Skeleton className="h-5 w-48" />
+                            <Skeleton className="h-4 w-32" />
+                            <div className="flex gap-2">
+                              <Skeleton className="h-6 w-24" />
+                              <Skeleton className="h-6 w-24" />
+                            </div>
+                            <Skeleton className="h-3 w-40" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              ) : error ? (
+              ) : queryError ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -366,11 +487,8 @@ export default function ApprovalsList() {
                   <CardContent className="p-0">
                     <EmptyStateCard
                       icon={tab.value === 'PENDING_REVIEW' ? ClipboardCheck : tab.icon}
-                      titleKey={tab.value === 'PENDING_REVIEW' ? "empty.approvals.admin.title" : "empty.approvals.admin.title"}
-                      descriptionKey={tab.value === 'DRAFT' 
-                        ? "empty.approvals.admin.desc" 
-                        : "empty.approvals.admin.desc"
-                      }
+                      titleKey="empty.approvals.admin.title"
+                      descriptionKey="empty.approvals.admin.desc"
                       hintKey="empty.approvals.admin.hint"
                       variant="inline"
                     />
