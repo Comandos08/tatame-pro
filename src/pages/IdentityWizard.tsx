@@ -27,6 +27,7 @@ import { logger } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { getOnboardingIntent, clearOnboardingIntent } from '@/lib/onboarding-storage';
 
 type WizardStep = 1 | 2 | 3;
 type JoinMode = 'existing' | 'new' | null;
@@ -48,6 +49,21 @@ export default function IdentityWizard() {
   // Form fields - NO open search, only exact invite code
   const [inviteCode, setInviteCode] = useState('');
   const [newOrgName, setNewOrgName] = useState('');
+
+  // PI-ONB-ENDTOEND-HARDEN-001: Read localStorage onboarding intent on mount
+  useEffect(() => {
+    const intent = getOnboardingIntent();
+    if (intent.mode === 'join' && intent.tenantCode) {
+      setJoinMode('existing');
+      setInviteCode(intent.tenantCode);
+      setProfileType('athlete');
+      logger.info('[IdentityWizard] Prefilled from onboarding intent', { mode: intent.mode, tenantCode: intent.tenantCode });
+    } else if (intent.mode === 'create') {
+      setJoinMode('new');
+      setProfileType('admin');
+      logger.info('[IdentityWizard] Prefilled from onboarding intent', { mode: intent.mode });
+    }
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -101,6 +117,7 @@ export default function IdentityWizard() {
         const result = await createTenant({ orgName: newOrgName.trim() });
 
         if (result.success) {
+          clearOnboardingIntent();
           toast({
             title: 'Organização criada!',
             description: 'Sua organização foi criada com sucesso.',
@@ -144,6 +161,7 @@ export default function IdentityWizard() {
         });
 
         if (result.success) {
+          clearOnboardingIntent();
           toast({
             title: 'Solicitação enviada!',
             description: 'Sua solicitação foi enviada para análise.',

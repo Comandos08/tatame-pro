@@ -1,7 +1,8 @@
 // src/pages/SignUp.tsx
+// PI-ONB-ENDTOEND-HARDEN-001: Hardened signup with mode gate
 
 import React, { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2, User } from "lucide-react";
 import iconLogo from "@/assets/iconLogo.png";
@@ -14,10 +15,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { setOnboardingIntent, type OnboardingMode } from "@/lib/onboarding-storage";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const VALID_MODES = new Set<OnboardingMode>(["join", "create"]);
 
 export default function SignUp() {
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get("mode") as OnboardingMode | null;
+  const tenantCode = searchParams.get("tenantCode");
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +41,18 @@ export default function SignUp() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useI18n();
+
+  // PI-ONB-001: Gate — redirect to /join if no valid mode
+  useEffect(() => {
+    if (!mode || !VALID_MODES.has(mode)) {
+      navigate("/join", { replace: true });
+      return;
+    }
+    if (mode === "join" && !tenantCode?.trim()) {
+      navigate("/join", { replace: true });
+      return;
+    }
+  }, [mode, tenantCode, navigate]);
 
   // Redirect when authenticated
   useEffect(() => {
@@ -94,6 +113,12 @@ export default function SignUp() {
     setIsSubmitting(true);
 
     try {
+      // PI-ONB-001: Persist onboarding intent BEFORE signup
+      if (mode && VALID_MODES.has(mode)) {
+        const correlationId = setOnboardingIntent(mode, tenantCode || undefined);
+        logger.info('[SignUp] Onboarding intent persisted', { mode, tenantCode, correlationId });
+      }
+
       await signUp(email, password, name);
       toast({
         title: t("auth.accountCreated"),
@@ -111,6 +136,14 @@ export default function SignUp() {
       setIsSubmitting(false);
     }
   };
+
+  // If mode is invalid, don't render (will redirect)
+  if (!mode || !VALID_MODES.has(mode)) return null;
+  if (mode === "join" && !tenantCode?.trim()) return null;
+
+  const contextLabel = mode === "join" 
+    ? `Entrar em: ${tenantCode}` 
+    : "Criar organização";
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -130,6 +163,10 @@ export default function SignUp() {
               {t("auth.signUpTitle")}
             </h1>
             <p className="text-muted-foreground">{t("auth.signUpDesc")}</p>
+            {/* PI-ONB-001: Show onboarding context */}
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">
+              {contextLabel}
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

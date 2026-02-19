@@ -125,6 +125,7 @@ function isPublicPath(pathname: string) {
   const rootPublic = new Set([
     "/",
     "/about",
+    "/join",
     "/login",
     "/signup",
     "/forgot-password",

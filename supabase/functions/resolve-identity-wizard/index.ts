@@ -350,11 +350,15 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
       }
     }
 
+    // PI-ONB-ENDTOEND-HARDEN-001: Orphan detection
+    // wizard_completed=true but no role and no pending membership = orphan user
+    // Force back to wizard instead of error
+    log.warn("Orphan user detected: wizard_completed but no role/membership", { userId });
     return {
-      status: "ERROR",
+      status: "WIZARD_REQUIRED",
       error: {
-        code: "NO_TENANT",
-        message: "Wizard completed but no tenant found",
+        code: "ONBOARDING_INCOMPLETE",
+        message: "Onboarding incomplete — please complete wizard again",
       },
     };
   }

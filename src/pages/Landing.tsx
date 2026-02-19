@@ -124,7 +124,7 @@ export default function Landing() {
             
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="text-lg h-12 px-8" asChild>
-                <Link to="/login">
+                <Link to="/join">
                   {t('landing.accessPlatform')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
@@ -236,7 +236,7 @@ export default function Landing() {
             </motion.div>
             <motion.div variants={fadeInUp}>
               <Button size="lg" className="text-lg h-12 px-8" asChild>
-                <Link to="/login">
+                <Link to="/join">
                   {t('landing.createFreeAccount')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
