@@ -1,6 +1,10 @@
 /**
  * 🔐 approve-membership — Hardened Membership Approval
  *
+ * PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
+ * - supabaseAuth  → ANON KEY + Authorization header (JWT validation only)
+ * - supabaseAdmin → SERVICE_ROLE (all DB/RPC/storage/function operations)
+ *
  * SECURITY (C6 Hardening):
  * - Requires ADMIN_TENANT or SUPERADMIN_GLOBAL role
  * - If superadmin, requires valid impersonation session
@@ -156,9 +160,25 @@ serve(async (req) => {
   };
 
   try {
+    // ========================================================================
+    // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
+    // ========================================================================
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const supabaseAuth = createClient(
+      supabaseUrl,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: {
+            Authorization: req.headers.get("authorization") ?? "",
+          },
+        },
+      },
+    );
 
     // ========================================================================
     // 1️⃣ AUTH VALIDATION
@@ -166,7 +186,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       log.warn("Auth failed - missing header");
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: "approve-membership",
         reason: "MISSING_AUTH",
       });
@@ -180,10 +200,10 @@ serve(async (req) => {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    } = await supabaseAuth.auth.getUser();
     if (userError || !user) {
       log.warn("Auth failed - invalid token");
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: "approve-membership",
         reason: "INVALID_TOKEN",
       });
@@ -204,11 +224,11 @@ serve(async (req) => {
     const rateLimiter = approveMembershipRateLimiter();
     const rateLimitCtx = buildRateLimitContext(req, user.id, null);
     // deno-lint-ignore no-explicit-any
-    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin as any);
     if (!rateLimitResult.allowed) {
       log.warn("Rate limit exceeded", { count: rateLimitResult.count });
 
-      await logRateLimitBlock(supabase, {
+      await logRateLimitBlock(supabaseAdmin, {
         operation: "approve-membership",
         user_id: user.id,
         ip_address: extractRequestContext(req).ip_address,
@@ -227,7 +247,7 @@ serve(async (req) => {
       body = await req.json();
     } catch {
       log.warn("Validation failed - invalid JSON");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -242,7 +262,7 @@ serve(async (req) => {
 
     if (!membershipId) {
       log.warn("Validation failed - missing membershipId");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -255,7 +275,7 @@ serve(async (req) => {
     // ========================================================================
     // 4️⃣ FETCH MEMBERSHIP (before auth check - need tenant_id)
     // ========================================================================
-    const { data: membership, error: membershipError } = await supabase
+    const { data: membership, error: membershipError } = await supabaseAdmin
       .from("memberships")
       .select(
         `
@@ -279,7 +299,7 @@ serve(async (req) => {
     if (membershipError || !membership) {
       log.warn("Membership not found or error", { membershipId });
       // Anti-enumeration: don't reveal if it exists
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -302,7 +322,7 @@ serve(async (req) => {
     const targetTenantIdNormalized = String(targetTenantId);
 
     // 5.1 Fetch roles for current user
-    const { data: roles } = await supabase.from("user_roles").select("role, tenant_id").eq("user_id", adminProfileId);
+    const { data: roles } = await supabaseAdmin.from("user_roles").select("role, tenant_id").eq("user_id", adminProfileId);
 
     // Normalize roles
     const normalizedRoles = (roles ?? []).map((r) => ({
@@ -328,7 +348,7 @@ serve(async (req) => {
     if (!isSuperadmin && !isTenantAdmin) {
       log.warn("Permission denied - no valid role match");
 
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: "approve-membership",
         user_id: user.id,
         tenant_id: targetTenantIdNormalized,
@@ -346,7 +366,7 @@ serve(async (req) => {
 
       // deno-lint-ignore no-explicit-any
       const impersonationCheck = await requireImpersonationIfSuperadmin(
-        supabase as any,
+        supabaseAdmin as any,
         user.id,
         targetTenantIdNormalized,
         impersonationId,
@@ -357,7 +377,7 @@ serve(async (req) => {
           error: impersonationCheck.error,
         });
 
-        await logImpersonationBlock(supabase, {
+        await logImpersonationBlock(supabaseAdmin, {
           operation: "approve-membership",
           user_id: user.id,
           tenant_id: targetTenantIdNormalized,
@@ -381,14 +401,14 @@ serve(async (req) => {
     // ========================================================================
     // 5️⃣.5️⃣ BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
-    const billingCheck = await requireBillingStatus(supabase, targetTenantId);
+    const billingCheck = await requireBillingStatus(supabaseAdmin, targetTenantId);
     if (!billingCheck.allowed) {
       log.warn("Billing status blocked operation", {
         status: billingCheck.status,
         code: billingCheck.code,
       });
 
-      await logBillingRestricted(supabase, {
+      await logBillingRestricted(supabaseAdmin, {
         operation: "approve-membership",
         user_id: user.id,
         tenant_id: targetTenantId,
@@ -405,7 +425,7 @@ serve(async (req) => {
     // ========================================================================
     if (previousStatus !== "PENDING_REVIEW") {
       log.warn("Invalid status for approval", { status: previousStatus });
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -419,7 +439,7 @@ serve(async (req) => {
 
     if (membership.payment_status !== "PAID") {
       log.warn("Payment not completed", { payment_status: membership.payment_status });
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -433,7 +453,7 @@ serve(async (req) => {
     const applicantData = membership.applicant_data as ApplicantData | null;
     if (!applicantData) {
       log.warn("Missing applicant data");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
         operation: "approve-membership",
@@ -457,7 +477,7 @@ serve(async (req) => {
       for (const role of requestedRoles) {
         if (!VALID_APPROVAL_ROLES.includes(role as ApprovalRole)) {
           log.warn("Invalid role for membership approval", { role });
-          await logDecision(supabase, {
+          await logDecision(supabaseAdmin, {
             decision_type: DECISION_TYPES.VALIDATION_FAILURE,
             severity: "MEDIUM",
             operation: "approve-membership",
@@ -483,7 +503,7 @@ serve(async (req) => {
 
       if (validatedRoles.length === 0) {
         log.warn("No valid roles provided");
-        await logDecision(supabase, {
+        await logDecision(supabaseAdmin, {
           decision_type: DECISION_TYPES.VALIDATION_FAILURE,
           severity: "LOW",
           operation: "approve-membership",
@@ -500,7 +520,7 @@ serve(async (req) => {
     // ========================================================================
     // 8️⃣ FETCH TENANT DATA
     // ========================================================================
-    const { data: tenant, error: tenantError } = await supabase
+    const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
       .select("id, slug, name, default_locale")
       .eq("id", targetTenantId)
@@ -508,7 +528,7 @@ serve(async (req) => {
 
     if (tenantError || !tenant) {
       log.warn("Tenant not found");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "MEDIUM",
         operation: "approve-membership",
@@ -529,7 +549,7 @@ serve(async (req) => {
     if (applicantData.is_minor && applicantData.guardian) {
       log.info("Creating guardian for minor athlete");
 
-      const { data: guardian, error: guardianError } = await supabase
+      const { data: guardian, error: guardianError } = await supabaseAdmin
         .from("guardians")
         .insert({
           tenant_id: targetTenantId,
@@ -557,7 +577,7 @@ serve(async (req) => {
     // ========================================================================
     // 9️⃣ CREATE ATHLETE
     // ========================================================================
-    const { data: athlete, error: athleteError } = await supabase
+    const { data: athlete, error: athleteError } = await supabaseAdmin
       .from("athletes")
       .insert({
         tenant_id: targetTenantId,
@@ -595,7 +615,7 @@ serve(async (req) => {
     // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
     // ========================================================================
     if (guardianId && applicantData.is_minor && applicantData.guardian) {
-      const { error: linkError } = await supabase.from("guardian_links").insert({
+      const { error: linkError } = await supabaseAdmin.from("guardian_links").insert({
         tenant_id: targetTenantId,
         guardian_id: guardianId,
         athlete_id: athlete.id,
@@ -617,7 +637,7 @@ serve(async (req) => {
     const createdRoles: string[] = [];
 
     for (const role of validatedRoles) {
-      const { data: existingRole } = await supabase
+      const { data: existingRole } = await supabaseAdmin
         .from("user_roles")
         .select("id")
         .eq("user_id", membership.applicant_profile_id)
@@ -626,7 +646,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!existingRole) {
-        const { error: roleError } = await supabase.rpc("grant_user_role", {
+        const { error: roleError } = await supabaseAdmin.rpc("grant_user_role", {
           p_user_id: membership.applicant_profile_id,
           p_tenant_id: targetTenantId,
           p_role: role,
@@ -646,7 +666,7 @@ serve(async (req) => {
 
     // Audit log for role grants
     if (createdRoles.length > 0) {
-      await supabase.from("audit_logs").insert({
+      await supabaseAdmin.from("audit_logs").insert({
         event_type: "ROLES_GRANTED",
         tenant_id: targetTenantId,
         profile_id: adminProfileId,
@@ -676,19 +696,19 @@ serve(async (req) => {
         const newPath = `${targetTenantId}/${athlete.id}/${fileName}`;
 
         try {
-          const { error: copyError } = await supabase.storage.from("documents").copy(oldPath, newPath);
+          const { error: copyError } = await supabaseAdmin.storage.from("documents").copy(oldPath, newPath);
 
           if (copyError) {
             log.warn("Copy warning", { oldPath, newPath, error: copyError.message });
           }
 
-          const { error: deleteError } = await supabase.storage.from("documents").remove([oldPath]);
+          const { error: deleteError } = await supabaseAdmin.storage.from("documents").remove([oldPath]);
 
           if (deleteError) {
             log.warn("Delete warning", { oldPath, error: deleteError.message });
           }
 
-          const { error: docInsertError } = await supabase.from("documents").insert({
+          const { error: docInsertError } = await supabaseAdmin.from("documents").insert({
             tenant_id: targetTenantId,
             athlete_id: athlete.id,
             type: doc.type,
@@ -716,7 +736,7 @@ serve(async (req) => {
     const endDate = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split("T")[0];
 
     // GOV-001B: Update non-lifecycle columns via direct UPDATE
-    const { error: updateNonLifecycleError } = await supabase
+    const { error: updateNonLifecycleError } = await supabaseAdmin
       .from("memberships")
       .update({
         athlete_id: athlete.id,
@@ -739,7 +759,7 @@ serve(async (req) => {
     }
 
     // GOV-001B: Transition status via gatekeeper RPC
-    const { data: rpcResult, error: rpcError } = await supabase.rpc("change_membership_state", {
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc("change_membership_state", {
       p_membership_id: membershipId,
       p_new_status: "APPROVED",
       p_reason: "admin_approval",
@@ -767,7 +787,7 @@ serve(async (req) => {
     // ========================================================================
     let cardGenerated = false;
     try {
-      const cardResponse = await supabase.functions.invoke("generate-digital-card", {
+      const cardResponse = await supabaseAdmin.functions.invoke("generate-digital-card", {
         body: { membershipId },
       });
 
@@ -858,7 +878,7 @@ serve(async (req) => {
             templateId: notificationDecision.templateId,
           });
 
-          await supabase.from("audit_logs").insert({
+          await supabaseAdmin.from("audit_logs").insert({
             event_type: "EMAIL_SENT",
             tenant_id: targetTenantId,
             profile_id: adminProfileId,
@@ -872,14 +892,14 @@ serve(async (req) => {
             },
           });
 
-          await supabase.from("memberships").update({ email_sent_for_status: "APPROVED" }).eq("id", membershipId);
+          await supabaseAdmin.from("memberships").update({ email_sent_for_status: "APPROVED" }).eq("id", membershipId);
 
           log.info("Idempotency flag set", { email_sent_for_status: "APPROVED" });
         } catch (emailErr) {
           const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
           log.error("Email failed", emailErr);
 
-          await supabase.from("audit_logs").insert({
+          await supabaseAdmin.from("audit_logs").insert({
             event_type: "EMAIL_FAILED",
             tenant_id: targetTenantId,
             profile_id: adminProfileId,
@@ -905,7 +925,7 @@ serve(async (req) => {
     const actorRole = isSuperadmin ? "SUPERADMIN_GLOBAL" : "ADMIN_TENANT";
     const impersonationIdForLog = isSuperadmin ? extractImpersonationId(req, body) : null;
 
-    await logMembershipApproved(supabase, {
+    await logMembershipApproved(supabaseAdmin, {
       user_id: adminProfileId,
       tenant_id: targetTenantId,
       membership_id: membershipId,
@@ -917,7 +937,7 @@ serve(async (req) => {
     // ========================================================================
     // 1️⃣7️⃣ AUDIT LOG — Membership Approved
     // ========================================================================
-    await supabase.from("audit_logs").insert({
+    await supabaseAdmin.from("audit_logs").insert({
       event_type: "MEMBERSHIP_APPROVED",
       tenant_id: targetTenantId,
       profile_id: adminProfileId,
