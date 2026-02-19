@@ -129,14 +129,37 @@ function approveMembershipRateLimiter() {
 }
 
 /**
- * Generic error response (anti-enumeration)
+ * PI-SAFE-GOLD-GATE-TRACE-001: Typed deny gates for deterministic 403 tracing.
+ * In PROD (GATE_TRACE unset): identical to previous forbiddenResp — no gate info exposed.
+ * In DEV  (GATE_TRACE=1):     details: [gate] + x-deny-gate header for blind-403 debugging.
  */
-function forbiddenResp(correlationId?: string): Response {
-  return errorResponse(
-    403,
-    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false, undefined, correlationId),
-    corsHeaders,
+type DenyGate =
+  | "AUTH"
+  | "RATE_LIMIT"
+  | "PAYLOAD"
+  | "MEMBERSHIP_FETCH"
+  | "ROLE"
+  | "IMPERSONATION"
+  | "BILLING"
+  | "STATUS"
+  | "PAYMENT"
+  | "APPLICANT_DATA"
+  | "TENANT_FETCH";
+
+function deny(gate: DenyGate, correlationId?: string): Response {
+  const tracing = Deno.env.get("GATE_TRACE") === "1";
+  const envelope = buildErrorEnvelope(
+    ERROR_CODES.FORBIDDEN,
+    "auth.operation_not_permitted",
+    false,
+    tracing ? [gate] : undefined,
+    correlationId,
   );
+  const headers: Record<string, string> = { ...corsHeaders };
+  if (tracing) {
+    headers["x-deny-gate"] = gate;
+  }
+  return errorResponse(403, envelope, headers);
 }
 
 serve(async (req) => {
@@ -161,16 +184,44 @@ serve(async (req) => {
 
   try {
     // ========================================================================
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    // No client instantiation before this block passes.
+    // ========================================================================
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    const hasUrl = typeof supabaseUrl === "string" && supabaseUrl.trim().length > 0;
+    const hasServiceKey = typeof supabaseServiceKey === "string" && supabaseServiceKey.trim().length > 0;
+    const hasAnonKey = typeof supabaseAnonKey === "string" && supabaseAnonKey.trim().length > 0;
+
+    if (!hasUrl || !hasServiceKey || !hasAnonKey) {
+      log.error("Fail-fast: missing required env vars", undefined, {
+        hasUrl,
+        hasServiceKey,
+        hasAnonKey,
+      });
+      return errorResponse(
+        500,
+        buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR,
+          "system.misconfigured",
+          false,
+          undefined,
+          correlationId,
+        ),
+        corsHeaders,
+      );
+    }
+
+    // ========================================================================
     // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
     // ========================================================================
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const supabaseAuth = createClient(
       supabaseUrl,
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      supabaseAnonKey,
       {
         global: {
           headers: {
@@ -254,7 +305,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "INVALID_PAYLOAD",
       });
-      return forbiddenResp(correlationId);
+      return deny("PAYLOAD", correlationId);
     }
 
     membershipId = body.membershipId;
@@ -269,7 +320,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MISSING_MEMBERSHIP_ID",
       });
-      return forbiddenResp(correlationId);
+      return deny("PAYLOAD", correlationId);
     }
 
     // ========================================================================
@@ -306,7 +357,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MEMBERSHIP_NOT_FOUND",
       });
-      return forbiddenResp(correlationId);
+      return deny("MEMBERSHIP_FETCH", correlationId);
     }
 
     const targetTenantId = membership.tenant_id;
@@ -357,7 +408,7 @@ serve(async (req) => {
         reason: "INSUFFICIENT_PERMISSIONS",
       });
 
-      return forbiddenResp(correlationId);
+      return deny("ROLE", correlationId);
     }
 
     // 5.2 If superadmin → REQUIRE impersonation
@@ -385,7 +436,7 @@ serve(async (req) => {
           reason: impersonationCheck.error || "INVALID_IMPERSONATION",
         });
 
-        return forbiddenResp(correlationId);
+        return deny("IMPERSONATION", correlationId);
       }
 
       log.info("Superadmin with valid impersonation", {
@@ -415,7 +466,11 @@ serve(async (req) => {
         billing_status: billingCheck.status,
       });
 
-      return billingRestrictedResponse(billingCheck.status);
+      const billingResp = billingRestrictedResponse(billingCheck.status);
+      if (Deno.env.get("GATE_TRACE") === "1") {
+        billingResp.headers.set("x-deny-gate", "BILLING");
+      }
+      return billingResp;
     }
 
     log.info("Billing status OK", { status: billingCheck.status });
@@ -434,7 +489,7 @@ serve(async (req) => {
         reason_code: "INVALID_STATUS",
         metadata: { current_status: previousStatus },
       });
-      return forbiddenResp(correlationId);
+      return deny("STATUS", correlationId);
     }
 
     if (membership.payment_status !== "PAID") {
@@ -447,7 +502,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "PAYMENT_INCOMPLETE",
       });
-      return forbiddenResp(correlationId);
+      return deny("PAYMENT", correlationId);
     }
 
     const applicantData = membership.applicant_data as ApplicantData | null;
@@ -461,7 +516,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "MISSING_APPLICANT_DATA",
       });
-      return forbiddenResp(correlationId);
+      return deny("APPLICANT_DATA", correlationId);
     }
 
     // ========================================================================
@@ -511,7 +566,7 @@ serve(async (req) => {
           tenant_id: targetTenantId,
           reason_code: "NO_VALID_ROLES",
         });
-        return forbiddenResp(correlationId);
+        return deny("PAYLOAD", correlationId);
       }
     }
 
@@ -536,7 +591,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "TENANT_NOT_FOUND",
       });
-      return forbiddenResp(correlationId);
+      return deny("TENANT_FETCH", correlationId);
     }
 
     log.info("Tenant data fetched", { slug: tenant.slug });
