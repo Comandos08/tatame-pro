@@ -349,17 +349,109 @@ export function YouthMembershipForm() {
         });
       }
 
+      // ================================================================
+      // C4: Upsert athlete as ASPIRANTE + guardian + guardian_link
+      // ================================================================
+      let athleteId: string | null = null;
+      try {
+        const { data: existingAthletes } = await supabase
+          .from('athletes')
+          .select('id')
+          .eq('tenant_id', tenant.id)
+          .eq('profile_id', currentUser.id)
+          .limit(1);
+
+        if (existingAthletes?.[0]) {
+          athleteId = existingAthletes[0].id;
+          logger.info('[C4] Existing athlete found', { athleteId });
+        } else {
+          const { data: newAthlete, error: athleteError } = await supabase
+            .from('athletes')
+            .insert({
+              tenant_id: tenant.id,
+              profile_id: currentUser.id,
+              full_name: athleteData.fullName,
+              birth_date: athleteData.birthDate,
+              national_id: athleteData.nationalId || null,
+              gender: athleteData.gender,
+              email: athleteData.email || guardianData.email,
+              phone: athleteData.phone || guardianData.phone,
+              address_line1: athleteData.addressLine1,
+              address_line2: athleteData.addressLine2 || null,
+              city: athleteData.city,
+              state: athleteData.state,
+              postal_code: athleteData.postalCode,
+              country: athleteData.country,
+              status: 'ASPIRANTE' as any,
+            } as any)
+            .select('id')
+            .single();
+
+          if (athleteError) {
+            logger.error('[C4] Failed to create athlete (non-fatal)', athleteError);
+          } else {
+            athleteId = newAthlete.id;
+            logger.info('[C4] Athlete created as ASPIRANTE', { athleteId });
+          }
+        }
+
+        // C4: Upsert guardian by (tenant_id, email)
+        if (athleteId && guardianData) {
+          try {
+            const { data: guardianResult } = await supabase
+              .from('guardians')
+              .upsert({
+                tenant_id: tenant.id,
+                full_name: guardianData.fullName,
+                national_id: guardianData.nationalId,
+                email: guardianData.email,
+                phone: guardianData.phone,
+              } as any, { onConflict: 'tenant_id,email' })
+              .select('id')
+              .single();
+
+            if (guardianResult?.id) {
+              logger.info('[C4] Guardian upserted', { guardianId: guardianResult.id });
+
+              // C4: Insert guardian_link ON CONFLICT DO NOTHING
+              const { error: linkError } = await supabase
+                .from('guardian_links')
+                .upsert({
+                  tenant_id: tenant.id,
+                  guardian_id: guardianResult.id,
+                  athlete_id: athleteId,
+                  relationship: guardianData.relationship,
+                  is_primary: true,
+                } as any, { onConflict: 'guardian_id,athlete_id', ignoreDuplicates: true });
+
+              if (linkError) {
+                logger.warn('[C4] Guardian link warning (non-fatal)', linkError);
+              } else {
+                logger.info('[C4] Guardian link created/exists');
+              }
+            }
+          } catch (guardianErr) {
+            logger.error('[C4] Guardian upsert error (non-fatal)', guardianErr);
+          }
+        }
+      } catch (err) {
+        logger.error('[C4] Athlete upsert error (non-fatal)', err);
+      }
+
       let membershipId: string;
 
       if (existingDraft?.id) {
         membershipId = existingDraft.id;
         logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
+        // C4: Update draft with athlete_id if available
+        if (athleteId) {
+          await supabase.from('memberships').update({ athlete_id: athleteId } as any).eq('id', membershipId);
+        }
       } else {
-        // 2. Create membership WITH applicant_data (includes guardian data)
-        // ⚠️ DO NOT create guardian/athlete/guardian_links here - that happens on approval!
+        // 2. Create membership WITH applicant_data + athlete_id
         const membershipPayload: YouthMembershipInsert = {
           tenant_id: tenant.id,
-          athlete_id: null,
+          athlete_id: athleteId,
           applicant_profile_id: currentUser.id,
           applicant_data: {
             full_name: athleteData.fullName,

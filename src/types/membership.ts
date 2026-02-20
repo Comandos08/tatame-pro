@@ -2,8 +2,9 @@ export type GenderType = 'MALE' | 'FEMALE' | 'OTHER';
 export type GuardianRelationship = 'PARENT' | 'GUARDIAN' | 'OTHER';
 export type MembershipStatus = 'DRAFT' | 'PENDING_PAYMENT' | 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'ADMIN_ACTIVE';
 export type MembershipType = 'FIRST_MEMBERSHIP' | 'RENEWAL';
-export type PaymentStatus = 'NOT_PAID' | 'PAID' | 'FAILED';
+export type PaymentStatus = 'NOT_PAID' | 'PAID' | 'FAILED' | 'WAIVED';
 export type DocumentType = 'ID_DOCUMENT' | 'MEDICAL_CERTIFICATE' | 'ADDRESS_PROOF' | 'OTHER';
+export type AthleteStatus = 'ASPIRANTE' | 'ATIVO' | 'SUSPENSO' | 'INATIVO';
 
 export interface AthleteFormData {
   fullName: string;
@@ -63,6 +64,14 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   NOT_PAID: 'Não Pago',
   PAID: 'Pago',
   FAILED: 'Falhou',
+  WAIVED: 'Isento',
+};
+
+export const ATHLETE_STATUS_LABELS: Record<AthleteStatus, string> = {
+  ASPIRANTE: 'Aspirante',
+  ATIVO: 'Ativo',
+  SUSPENSO: 'Suspenso',
+  INATIVO: 'Inativo',
 };
 
 export const GUARDIAN_RELATIONSHIP_LABELS: Record<GuardianRelationship, string> = {
