@@ -203,13 +203,7 @@ serve(async (req) => {
       });
       return errorResponse(
         500,
-        buildErrorEnvelope(
-          ERROR_CODES.INTERNAL_ERROR,
-          "system.misconfigured",
-          false,
-          undefined,
-          correlationId,
-        ),
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
         corsHeaders,
       );
     }
@@ -219,13 +213,7 @@ serve(async (req) => {
       log.error("Fail-fast: SERVICE_ROLE key equals ANON key (misconfigured)");
       return errorResponse(
         500,
-        buildErrorEnvelope(
-          ERROR_CODES.INTERNAL_ERROR,
-          "system.misconfigured",
-          false,
-          undefined,
-          correlationId,
-        ),
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
         corsHeaders,
       );
     }
@@ -247,29 +235,19 @@ serve(async (req) => {
         }
         return errorResponse(
           500,
-          buildErrorEnvelope(
-            ERROR_CODES.INTERNAL_ERROR,
-            "system.misconfigured",
-            false,
-            undefined,
-            correlationId,
-          ),
+          buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
           corsHeaders,
         );
       }
     }
 
-    const supabaseAuth = createClient(
-      supabaseUrl!,
-      supabaseAnonKey!,
-      {
-        global: {
-          headers: {
-            Authorization: req.headers.get("authorization") ?? "",
-          },
+    const supabaseAuth = createClient(supabaseUrl!, supabaseAnonKey!, {
+      global: {
+        headers: {
+          Authorization: req.headers.get("authorization") ?? "",
         },
       },
-    );
+    });
 
     // ========================================================================
     // 1️⃣ AUTH VALIDATION
@@ -364,50 +342,60 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // 4️⃣ FETCH MEMBERSHIP (before auth check - need tenant_id)
+    // 4️⃣ FETCH MEMBERSHIP (Deterministic & Strict)
     // ========================================================================
+
+    // Defensive UUID validation (prevents silent mismatch)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (!uuidRegex.test(membershipId)) {
+      log.warn("Invalid membershipId format", { membershipId });
+
+      await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: "LOW",
+        operation: "approve-membership",
+        user_id: user.id,
+        reason_code: "INVALID_MEMBERSHIP_ID_FORMAT",
+      });
+
+      return deny("PAYLOAD", correlationId);
+    }
+
+    // STRICT fetch (must exist and be unique)
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from("memberships")
       .select(
         `
-        id,
-        status,
-        payment_status,
-        tenant_id,
-        applicant_profile_id,
-        applicant_data,
-        documents_uploaded,
-        price_cents,
-        currency,
-        end_date,
-        rejection_reason,
-        email_sent_for_status
-      `,
+    id,
+    status,
+    payment_status,
+    tenant_id,
+    applicant_profile_id,
+    applicant_data,
+    documents_uploaded,
+    price_cents,
+    currency,
+    end_date,
+    rejection_reason,
+    email_sent_for_status
+  `,
       )
-      .eq("id", membershipId)
-      .maybeSingle();
+      .eq("id", membershipId.trim())
+      .single();
 
-    if (membershipError || !membership) {
-      // PI-SAFE-GOLD-ADMIN-KEY-PROBE-001 (C): Enhanced trace observability
-      if (membershipError) {
-        if (GATE_TRACE === "1") {
-          log.warn("Membership fetch error (trace)", {
-            membershipId,
-            message: membershipError.message,
-            code: (membershipError as Record<string, unknown>).code as string | undefined,
-            details: (membershipError as Record<string, unknown>).details as string | undefined,
-          });
-        } else {
-          log.warn("Membership not found or error", { membershipId });
-        }
+    if (membershipError) {
+      if (Deno.env.get("GATE_TRACE") === "1") {
+        log.warn("Membership fetch error (strict)", {
+          membershipId,
+          message: membershipError.message,
+          code: (membershipError as any).code,
+          details: (membershipError as any).details,
+        });
       } else {
-        if (GATE_TRACE === "1") {
-          log.warn("Membership fetch returned null (trace)", { membershipId });
-        } else {
-          log.warn("Membership not found or error", { membershipId });
-        }
+        log.warn("Membership fetch failed", { membershipId });
       }
-      // Anti-enumeration: don't reveal if it exists
+
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -415,14 +403,24 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MEMBERSHIP_NOT_FOUND",
       });
+
+      // Anti-enumeration
       return deny("MEMBERSHIP_FETCH", correlationId);
     }
 
-    const targetTenantId = membership.tenant_id;
-    previousStatus = membership.status as MembershipStatus;
-    log.setTenant(targetTenantId);
-    log.info("Fetched membership", { status: previousStatus, payment: membership.payment_status });
+    if (!membership) {
+      log.warn("Membership null after strict fetch", { membershipId });
 
+      await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.VALIDATION_FAILURE,
+        severity: "LOW",
+        operation: "approve-membership",
+        user_id: user.id,
+        reason_code: "MEMBERSHIP_NULL",
+      });
+
+      return deny("MEMBERSHIP_FETCH", correlationId);
+    }
     // ========================================================================
     // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
     // ========================================================================
@@ -431,7 +429,10 @@ serve(async (req) => {
     const targetTenantIdNormalized = String(targetTenantId);
 
     // 5.1 Fetch roles for current user
-    const { data: roles } = await supabaseAdmin.from("user_roles").select("role, tenant_id").eq("user_id", adminProfileId);
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role, tenant_id")
+      .eq("user_id", adminProfileId);
 
     // Normalize roles
     const normalizedRoles = (roles ?? []).map((r) => ({
