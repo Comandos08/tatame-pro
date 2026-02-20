@@ -373,6 +373,7 @@ export type Database = {
           postal_code: string | null
           profile_id: string | null
           state: string | null
+          status: Database["public"]["Enums"]["athlete_status"]
           tenant_id: string
           updated_at: string | null
         }
@@ -394,6 +395,7 @@ export type Database = {
           postal_code?: string | null
           profile_id?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["athlete_status"]
           tenant_id: string
           updated_at?: string | null
         }
@@ -415,6 +417,7 @@ export type Database = {
           postal_code?: string | null
           profile_id?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["athlete_status"]
           tenant_id?: string
           updated_at?: string | null
         }
@@ -2402,6 +2405,8 @@ export type Database = {
           tenant_id: string
           type: Database["public"]["Enums"]["membership_type"]
           updated_at: string | null
+          waived_by_profile_id: string | null
+          waived_reason: string | null
           webhook_processed_at: string | null
         }
         Insert: {
@@ -2434,6 +2439,8 @@ export type Database = {
           tenant_id: string
           type?: Database["public"]["Enums"]["membership_type"]
           updated_at?: string | null
+          waived_by_profile_id?: string | null
+          waived_reason?: string | null
           webhook_processed_at?: string | null
         }
         Update: {
@@ -2466,6 +2473,8 @@ export type Database = {
           tenant_id?: string
           type?: Database["public"]["Enums"]["membership_type"]
           updated_at?: string | null
+          waived_by_profile_id?: string | null
+          waived_reason?: string | null
           webhook_processed_at?: string | null
         }
         Relationships: [
@@ -2530,6 +2539,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_waived_by_profile_id_fkey"
+            columns: ["waived_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3861,7 +3877,7 @@ export type Database = {
         Args: {
           p_membership_id: string
           p_payment_status: string
-          p_reason: string
+          p_reason?: string
         }
         Returns: Json
       }
@@ -3896,6 +3912,7 @@ export type Database = {
         | "INSTRUTOR"
         | "STAFF_ORGANIZACAO"
         | "RECEPCAO"
+      athlete_status: "ASPIRANTE" | "ATIVO" | "SUSPENSO" | "INATIVO"
       billing_status:
         | "ACTIVE"
         | "PAST_DUE"
@@ -3950,7 +3967,7 @@ export type Database = {
         | "REJECTED"
         | "ADMIN_ACTIVE"
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
-      payment_status: "NOT_PAID" | "PAID" | "FAILED"
+      payment_status: "NOT_PAID" | "PAID" | "FAILED" | "WAIVED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
       tenant_lifecycle_status:
         | "SETUP"
@@ -4096,6 +4113,7 @@ export const Constants = {
         "STAFF_ORGANIZACAO",
         "RECEPCAO",
       ],
+      athlete_status: ["ASPIRANTE", "ATIVO", "SUSPENSO", "INATIVO"],
       billing_status: [
         "ACTIVE",
         "PAST_DUE",
@@ -4156,7 +4174,7 @@ export const Constants = {
         "ADMIN_ACTIVE",
       ],
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
-      payment_status: ["NOT_PAID", "PAID", "FAILED"],
+      payment_status: ["NOT_PAID", "PAID", "FAILED", "WAIVED"],
       security_severity: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
       tenant_lifecycle_status: [
         "SETUP",
