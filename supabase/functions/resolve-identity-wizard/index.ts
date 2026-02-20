@@ -584,14 +584,20 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 4: Checar duplicidade no MESMO objeto que será escrito (memberships)
-   * Regra SAFE GOLD: Idempotência usando a mesma tabela
+   * STEP 4: Re-entry rule — block only if an ACTIVE pipeline membership exists
+   * 
+   * Blocking statuses: DRAFT, PENDING_PAYMENT, PENDING_REVIEW, APPROVED
+   * Non-blocking (re-entry allowed): CANCELLED, REJECTED, EXPIRED, etc.
+   * 
+   * A user may have unlimited historical memberships.
    * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: existingMemberships, error: memErr } = await supabase
+  const BLOCKING_STATUSES = ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW", "APPROVED"];
+
+  const { data: activeMembership, error: memErr } = await supabase
     .from("memberships")
     .select("id, status")
-    .eq("tenant_id", tenant.id)
     .eq("applicant_profile_id", userId)
+    .in("status", BLOCKING_STATUSES)
     .limit(1);
 
   if (memErr) {
@@ -602,28 +608,22 @@ async function handleJoinExistingTenant(
     };
   }
 
-  const existing = existingMemberships?.[0];
-  if (existing) {
+  if (activeMembership && activeMembership.length > 0) {
+    const existing = activeMembership[0];
     const st = String(existing.status).toUpperCase();
+    log.info("Membership re-entry blocked", { existing_id: existing.id, status: st });
 
-    if (st === "DRAFT" || st === "PENDING_PAYMENT" || st === "PENDING_REVIEW") {
-      return {
-        status: "ERROR",
-        error: { code: "ALREADY_REQUESTED", message: "Sua solicitação já está em análise." },
-      };
-    }
-
-    if (st === "ACTIVE" || st === "APPROVED") {
+    if (st === "APPROVED") {
       return {
         status: "ERROR",
         error: { code: "ALREADY_MEMBER", message: "Você já faz parte desta organização." },
       };
     }
 
-    // REVOKED/REJECTED/CANCELLED/EXPIRED: bloquear e pedir suporte
+    // DRAFT, PENDING_PAYMENT, PENDING_REVIEW
     return {
       status: "ERROR",
-      error: { code: "ONBOARDING_FORBIDDEN", message: "Não foi possível solicitar entrada. Contate a administração." },
+      error: { code: "ALREADY_REQUESTED", message: "Sua solicitação já está em análise." },
     };
   }
 
