@@ -306,17 +306,70 @@ export function AdultMembershipForm() {
         });
       }
 
+      // ================================================================
+      // C3: Upsert athlete as ASPIRANTE before membership
+      // ================================================================
+      let athleteId: string | null = null;
+      try {
+        const { data: existingAthletes } = await supabase
+          .from('athletes')
+          .select('id')
+          .eq('tenant_id', tenant.id)
+          .eq('profile_id', currentUser.id)
+          .limit(1);
+
+        if (existingAthletes?.[0]) {
+          athleteId = existingAthletes[0].id;
+          logger.info('[C3] Existing athlete found', { athleteId });
+        } else {
+          const { data: newAthlete, error: athleteError } = await supabase
+            .from('athletes')
+            .insert({
+              tenant_id: tenant.id,
+              profile_id: currentUser.id,
+              full_name: athleteData.fullName,
+              birth_date: athleteData.birthDate,
+              national_id: athleteData.nationalId,
+              gender: athleteData.gender,
+              email: athleteData.email,
+              phone: athleteData.phone,
+              address_line1: athleteData.addressLine1,
+              address_line2: athleteData.addressLine2 || null,
+              city: athleteData.city,
+              state: athleteData.state,
+              postal_code: athleteData.postalCode,
+              country: athleteData.country,
+              status: 'ASPIRANTE' as any,
+            } as any)
+            .select('id')
+            .single();
+
+          if (athleteError) {
+            logger.error('[C3] Failed to create athlete (non-fatal)', athleteError);
+          } else {
+            athleteId = newAthlete.id;
+            logger.info('[C3] Athlete created as ASPIRANTE', { athleteId });
+          }
+        }
+      } catch (err) {
+        logger.error('[C3] Athlete upsert error (non-fatal)', err);
+      }
+
       let membershipId: string;
 
       if (existingDraft?.id) {
         // Reuse existing DRAFT
         membershipId = existingDraft.id;
         logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
+        // C3: Update draft with athlete_id if available
+        if (athleteId) {
+          await supabase.from('memberships').update({ athlete_id: athleteId } as any).eq('id', membershipId);
+        }
       } else {
-        // 2. Criar membership COM applicant_data (SEM athlete_id)
+        // 2. Criar membership COM applicant_data + athlete_id
         const membershipPayload: AdultMembershipInsert = {
           tenant_id: tenant.id,
-          athlete_id: null,
+          athlete_id: athleteId,
           applicant_profile_id: currentUser.id,
           applicant_data: {
             full_name: athleteData.fullName,

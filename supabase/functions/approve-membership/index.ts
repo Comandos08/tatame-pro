@@ -378,7 +378,8 @@ serve(async (req) => {
     currency,
     end_date,
     rejection_reason,
-    email_sent_for_status
+    email_sent_for_status,
+    athlete_id
   `,
       )
       .eq("id", membershipId.trim())
@@ -551,7 +552,7 @@ serve(async (req) => {
       return deny("STATUS", correlationId);
     }
 
-    if (membership.payment_status !== "PAID") {
+    if (membership.payment_status !== "PAID" && membership.payment_status !== "WAIVED") {
       log.warn("Payment not completed", { payment_status: membership.payment_status });
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -656,27 +657,23 @@ serve(async (req) => {
     log.info("Tenant data fetched", { slug: tenant.slug });
 
     // ========================================================================
-    // 8️⃣.5️⃣ CREATE GUARDIAN (if minor)
+    // C7: IDEMPOTENCY GUARD — Skip creation if athlete already exists
     // ========================================================================
+    let resolvedAthleteId: string;
     let guardianId: string | null = null;
 
-    if (applicantData.is_minor && applicantData.guardian) {
-      log.info("Creating guardian for minor athlete");
+    if (membership.athlete_id) {
+      // NEW FLOW: Athlete already created by form (C3/C4/C5)
+      log.info("C7: Athlete already exists (created by form)", { athleteId: membership.athlete_id });
 
-      const { data: guardian, error: guardianError } = await supabaseAdmin
-        .from("guardians")
-        .insert({
-          tenant_id: targetTenantId,
-          full_name: applicantData.guardian.full_name,
-          national_id: applicantData.guardian.national_id,
-          email: applicantData.guardian.email,
-          phone: applicantData.guardian.phone,
-        })
-        .select()
+      const { data: existingAthlete, error: fetchErr } = await supabaseAdmin
+        .from("athletes")
+        .select("id")
+        .eq("id", membership.athlete_id)
         .single();
 
-      if (guardianError) {
-        log.error("Failed to create guardian", guardianError);
+      if (fetchErr || !existingAthlete) {
+        log.error("C7: Referenced athlete not found", fetchErr);
         return errorResponse(
           500,
           buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
@@ -684,64 +681,91 @@ serve(async (req) => {
         );
       }
 
-      guardianId = guardian.id;
-      log.info("Guardian created", { guardianId });
-    }
+      resolvedAthleteId = existingAthlete.id;
+      log.info("C7: Using pre-existing athlete", { resolvedAthleteId });
+    } else {
+      // LEGACY FLOW: Create guardian + athlete + link from applicant_data
 
-    // ========================================================================
-    // 9️⃣ CREATE ATHLETE
-    // ========================================================================
-    const { data: athlete, error: athleteError } = await supabaseAdmin
-      .from("athletes")
-      .insert({
-        tenant_id: targetTenantId,
-        profile_id: membership.applicant_profile_id,
-        full_name: applicantData.full_name,
-        birth_date: applicantData.birth_date,
-        national_id: applicantData.national_id,
-        gender: applicantData.gender,
-        email: applicantData.email,
-        phone: applicantData.phone,
-        address_line1: applicantData.address_line1,
-        address_line2: applicantData.address_line2 || null,
-        city: applicantData.city,
-        state: applicantData.state,
-        postal_code: applicantData.postal_code,
-        country: applicantData.country,
-        current_academy_id: academyId || null,
-        current_main_coach_id: coachId || null,
-      })
-      .select()
-      .single();
+      // 8️⃣.5️⃣ CREATE GUARDIAN (if minor)
+      if (applicantData.is_minor && applicantData.guardian) {
+        log.info("Creating guardian for minor athlete");
 
-    if (athleteError) {
-      log.error("Failed to create athlete", athleteError);
-      return errorResponse(
-        500,
-        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-        corsHeaders,
-      );
-    }
+        const { data: guardian, error: guardianError } = await supabaseAdmin
+          .from("guardians")
+          .insert({
+            tenant_id: targetTenantId,
+            full_name: applicantData.guardian.full_name,
+            national_id: applicantData.guardian.national_id,
+            email: applicantData.guardian.email,
+            phone: applicantData.guardian.phone,
+          })
+          .select()
+          .single();
 
-    log.info("Athlete created", { athleteId: athlete.id });
+        if (guardianError) {
+          log.error("Failed to create guardian", guardianError);
+          return errorResponse(
+            500,
+            buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+            corsHeaders,
+          );
+        }
 
-    // ========================================================================
-    // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
-    // ========================================================================
-    if (guardianId && applicantData.is_minor && applicantData.guardian) {
-      const { error: linkError } = await supabaseAdmin.from("guardian_links").insert({
-        tenant_id: targetTenantId,
-        guardian_id: guardianId,
-        athlete_id: athlete.id,
-        relationship: applicantData.guardian.relationship,
-        is_primary: true,
-      });
+        guardianId = guardian.id;
+        log.info("Guardian created", { guardianId });
+      }
 
-      if (linkError) {
-        log.warn("Guardian link warning", { error: linkError.message });
-        // Non-fatal: continue with approval
-      } else {
-        log.info("Guardian link created", { guardianId, athleteId: athlete.id });
+      // 9️⃣ CREATE ATHLETE
+      const { data: athlete, error: athleteError } = await supabaseAdmin
+        .from("athletes")
+        .insert({
+          tenant_id: targetTenantId,
+          profile_id: membership.applicant_profile_id,
+          full_name: applicantData.full_name,
+          birth_date: applicantData.birth_date,
+          national_id: applicantData.national_id,
+          gender: applicantData.gender,
+          email: applicantData.email,
+          phone: applicantData.phone,
+          address_line1: applicantData.address_line1,
+          address_line2: applicantData.address_line2 || null,
+          city: applicantData.city,
+          state: applicantData.state,
+          postal_code: applicantData.postal_code,
+          country: applicantData.country,
+          current_academy_id: academyId || null,
+          current_main_coach_id: coachId || null,
+        })
+        .select()
+        .single();
+
+      if (athleteError) {
+        log.error("Failed to create athlete", athleteError);
+        return errorResponse(
+          500,
+          buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+          corsHeaders,
+        );
+      }
+
+      log.info("Athlete created", { athleteId: athlete.id });
+      resolvedAthleteId = athlete.id;
+
+      // 9️⃣.5️⃣ CREATE GUARDIAN LINK (if minor)
+      if (guardianId && applicantData.is_minor && applicantData.guardian) {
+        const { error: linkError } = await supabaseAdmin.from("guardian_links").insert({
+          tenant_id: targetTenantId,
+          guardian_id: guardianId,
+          athlete_id: resolvedAthleteId,
+          relationship: applicantData.guardian.relationship,
+          is_primary: true,
+        });
+
+        if (linkError) {
+          log.warn("Guardian link warning", { error: linkError.message });
+        } else {
+          log.info("Guardian link created", { guardianId, athleteId: resolvedAthleteId });
+        }
       }
     }
 

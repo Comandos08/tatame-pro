@@ -33,6 +33,7 @@ const statusVariants = cva(
         PAID: "bg-success/20 text-success border-success/30",
         NOT_PAID: "bg-muted text-muted-foreground",
         FAILED: "bg-destructive/20 text-destructive border-destructive/30",
+        WAIVED: "bg-info/20 text-info border-info/30",
         
         // Generic statuses
         success: "bg-success/20 text-success border-success/30",
@@ -110,6 +111,7 @@ export const STATUS_COLORS: Record<StatusType, string> = {
   PAID: "hsl(var(--success))",
   NOT_PAID: "hsl(var(--muted-foreground))",
   FAILED: "hsl(var(--destructive))",
+  WAIVED: "hsl(var(--info))",
   success: "hsl(var(--success))",
   warning: "hsl(var(--warning))",
   error: "hsl(var(--destructive))",

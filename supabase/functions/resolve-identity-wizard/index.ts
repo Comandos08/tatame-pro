@@ -654,6 +654,65 @@ async function handleJoinExistingTenant(
   };
 
   /* ─────────────────────────────────────────────────────────────────────────────
+   * C5: Upsert athlete as ASPIRANTE before membership (if sufficient data)
+   * ───────────────────────────────────────────────────────────────────────────── */
+  let athleteId: string | null = null;
+  const hasSufficientData = applicantData.birth_date && applicantData.gender;
+
+  if (hasSufficientData) {
+    try {
+      // Check if athlete already exists for this user in this tenant
+      const { data: existingAthletes } = await supabase
+        .from("athletes")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .eq("profile_id", userId)
+        .limit(1);
+
+      if (existingAthletes?.[0]) {
+        athleteId = existingAthletes[0].id;
+        log.info("C5: Existing athlete found", { athleteId });
+      } else {
+        const { data: newAthlete, error: athleteErr } = await supabase
+          .from("athletes")
+          .insert({
+            tenant_id: tenant.id,
+            profile_id: userId,
+            full_name: applicantData.full_name as string,
+            birth_date: applicantData.birth_date as string,
+            gender: applicantData.gender as string,
+            email: applicantData.email as string,
+            national_id: (applicantData.national_id as string) || null,
+            phone: (applicantData.phone as string) || null,
+            address_line1: (applicantData.address_line1 as string) || null,
+            address_line2: (applicantData.address_line2 as string) || null,
+            city: (applicantData.city as string) || null,
+            state: (applicantData.state as string) || null,
+            postal_code: (applicantData.postal_code as string) || null,
+            country: (applicantData.country as string) || null,
+            status: "ASPIRANTE",
+          })
+          .select("id")
+          .single();
+
+        if (athleteErr) {
+          log.warn("C5: Failed to create athlete (non-fatal)", { error: athleteErr.message });
+        } else if (newAthlete) {
+          athleteId = newAthlete.id;
+          log.info("C5: Athlete created as ASPIRANTE", { athleteId });
+        }
+      }
+    } catch (err) {
+      log.warn("C5: Athlete upsert error (non-fatal)", err);
+    }
+  } else {
+    log.info("C5: Insufficient data for athlete creation, skipping", {
+      hasBirthDate: !!applicantData.birth_date,
+      hasGender: !!applicantData.gender,
+    });
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 6: Inserir membership DRAFT (sem role direto!)
    * PI-MEMBERSHIP-FLOW-CANONICAL-ALIGN-001: Status inicial = DRAFT
    * Fluxo canônico: DRAFT -> PENDING_PAYMENT -> PENDING_REVIEW -> APPROVED
@@ -663,6 +722,7 @@ async function handleJoinExistingTenant(
     .insert({
       tenant_id: tenant.id,
       applicant_profile_id: userId,
+      athlete_id: athleteId,
       status: "DRAFT",
       type: "FIRST_MEMBERSHIP",
       applicant_data: applicantData,

@@ -47,7 +47,7 @@ export interface DocumentUploaded {
  */
 export interface AdultMembershipInsert {
   tenant_id: string;
-  athlete_id: null;
+  athlete_id: string | null;
   applicant_profile_id: string;
   applicant_data: AdultApplicantData;
   documents_uploaded: DocumentUploaded[];
@@ -63,7 +63,7 @@ export interface AdultMembershipInsert {
  */
 export interface YouthMembershipInsert {
   tenant_id: string;
-  athlete_id: null;
+  athlete_id: string | null;
   applicant_profile_id: string;
   applicant_data: YouthApplicantData;
   documents_uploaded: DocumentUploaded[];
