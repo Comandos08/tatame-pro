@@ -214,14 +214,54 @@ serve(async (req) => {
       );
     }
 
+    // PI-SAFE-GOLD-ADMIN-KEY-PROBE-001 (A): Detect key mismatch
+    if (supabaseServiceKey!.trim() === supabaseAnonKey!.trim()) {
+      log.error("Fail-fast: SERVICE_ROLE key equals ANON key (misconfigured)");
+      return errorResponse(
+        500,
+        buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR,
+          "system.misconfigured",
+          false,
+          undefined,
+          correlationId,
+        ),
+        corsHeaders,
+      );
+    }
+
     // ========================================================================
     // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
     // ========================================================================
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceKey!);
+
+    // PI-SAFE-GOLD-ADMIN-KEY-PROBE-001 (B): Deterministic SERVICE_ROLE privilege probe
+    const GATE_TRACE = Deno.env.get("GATE_TRACE");
+    {
+      const probe = await supabaseAdmin.from("tenants").select("id").limit(1);
+      if (probe.error) {
+        if (GATE_TRACE === "1") {
+          log.error("Service-role probe failed", probe.error, { message: probe.error.message });
+        } else {
+          log.error("Service-role probe failed");
+        }
+        return errorResponse(
+          500,
+          buildErrorEnvelope(
+            ERROR_CODES.INTERNAL_ERROR,
+            "system.misconfigured",
+            false,
+            undefined,
+            correlationId,
+          ),
+          corsHeaders,
+        );
+      }
+    }
 
     const supabaseAuth = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
+      supabaseUrl!,
+      supabaseAnonKey!,
       {
         global: {
           headers: {
@@ -348,7 +388,25 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      log.warn("Membership not found or error", { membershipId });
+      // PI-SAFE-GOLD-ADMIN-KEY-PROBE-001 (C): Enhanced trace observability
+      if (membershipError) {
+        if (GATE_TRACE === "1") {
+          log.warn("Membership fetch error (trace)", {
+            membershipId,
+            message: membershipError.message,
+            code: (membershipError as Record<string, unknown>).code as string | undefined,
+            details: (membershipError as Record<string, unknown>).details as string | undefined,
+          });
+        } else {
+          log.warn("Membership not found or error", { membershipId });
+        }
+      } else {
+        if (GATE_TRACE === "1") {
+          log.warn("Membership fetch returned null (trace)", { membershipId });
+        } else {
+          log.warn("Membership not found or error", { membershipId });
+        }
+      }
       // Anti-enumeration: don't reveal if it exists
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
