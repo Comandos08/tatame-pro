@@ -769,6 +769,12 @@ serve(async (req) => {
       }
     }
 
+    // Defensive validation: resolvedAthleteId must be set
+    if (!resolvedAthleteId) {
+      log.error("ATHLETE_RESOLUTION_FAILED: resolvedAthleteId is falsy after resolution block");
+      return deny("APPLICANT_DATA", correlationId);
+    }
+
     // ========================================================================
     // 🔟 CREATE USER ROLES
     // ========================================================================
@@ -811,7 +817,7 @@ serve(async (req) => {
         metadata: {
           target_profile_id: membership.applicant_profile_id,
           membership_id: membershipId,
-          athlete_id: athlete.id,
+          athlete_id: resolvedAthleteId,
           roles_granted: createdRoles,
           granted_by: adminProfileId,
           granted_at: new Date().toISOString(),
@@ -831,7 +837,7 @@ serve(async (req) => {
         const oldPath = doc.storage_path;
         const fileName =
           oldPath.split("/").pop() || `${doc.type.toLowerCase()}.${doc.file_type?.split("/")[1] || "pdf"}`;
-        const newPath = `${targetTenantId}/${athlete.id}/${fileName}`;
+        const newPath = `${targetTenantId}/${resolvedAthleteId}/${fileName}`;
 
         try {
           const { error: copyError } = await supabaseAdmin.storage.from("documents").copy(oldPath, newPath);
@@ -848,7 +854,7 @@ serve(async (req) => {
 
           const { error: docInsertError } = await supabaseAdmin.from("documents").insert({
             tenant_id: targetTenantId,
-            athlete_id: athlete.id,
+            athlete_id: resolvedAthleteId,
             type: doc.type,
             file_url: newPath,
             file_type: doc.file_type,
@@ -877,7 +883,7 @@ serve(async (req) => {
     const { error: updateNonLifecycleError } = await supabaseAdmin
       .from("memberships")
       .update({
-        athlete_id: athlete.id,
+        athlete_id: resolvedAthleteId,
         start_date: startDate,
         end_date: endDate,
         academy_id: academyId || null,
@@ -1069,7 +1075,7 @@ serve(async (req) => {
       membership_id: membershipId,
       impersonation_id: impersonationIdForLog,
       actor_role: actorRole,
-      athlete_id: athlete.id,
+      athlete_id: resolvedAthleteId,
     });
 
     // ========================================================================
@@ -1081,7 +1087,7 @@ serve(async (req) => {
       profile_id: adminProfileId,
       metadata: {
         membership_id: membershipId,
-        athlete_id: athlete.id,
+        athlete_id: resolvedAthleteId,
         guardian_id: guardianId,
         is_minor: applicantData.is_minor || false,
         athlete_name: applicantData.full_name,
@@ -1109,7 +1115,7 @@ serve(async (req) => {
         membershipId,
         previousStatus,
         newStatus,
-        athleteId: athlete.id,
+        athleteId: resolvedAthleteId,
         rolesAssigned: createdRoles,
         cardGenerated,
         email: emailResult,
