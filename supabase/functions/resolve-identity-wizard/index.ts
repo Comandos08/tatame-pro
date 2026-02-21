@@ -10,7 +10,7 @@
  * ✅ O QUE ESTA FUNÇÃO FAZ:
  *    1. CHECK: Resolve estado de identidade do usuário autenticado
  *    2. CREATE_TENANT: Cria tenant em status=SETUP + atribui ADMIN_TENANT
- *    3. JOIN_EXISTING_TENANT: Valida slug + cria membership PENDING_REVIEW
+ *    *    3. JOIN_EXISTING_TENANT: Valida slug + redireciona para formulário de filiação
  *    4. ACCEPT_INVITE: Stub para convites futuros
  *    5. COMPLETE_WIZARD: Compatibilidade temporária (roteia para CREATE ou JOIN)
  *
@@ -54,10 +54,9 @@
  *      1. Valida tenantCode (slug)
  *      2. Busca tenant por slug (case-insensitive)
  *      3. Valida tenant status = ACTIVE
- *      4. Verifica se já existe membership
- *      5. Cria membership PENDING_REVIEW
- *      6. Marca wizard_completed = true (sem setar tenant_id no profile!)
- *      7. Retorna RESOLVED + /{slug}/membership/status
+ *      4. Verifica se já existe membership ativa (re-entry rule)
+ *      5. Marca wizard_completed = true (sem setar tenant_id no profile!)
+ *      6. Retorna RESOLVED + /{slug}/membership/adult (redirect para form)
  *
  * ═══════════════════════════════════════════════════════════════════════════════
  */
@@ -95,24 +94,8 @@ interface CreateTenantPayload {
   orgName: string;
 }
 
-interface ApplicantData {
-  full_name: string;
-  email: string;
-  birth_date: string | null;
-  gender: string | null;
-  national_id: string | null;
-  phone: string | null;
-  address_line1: string | null;
-  address_line2: string | null;
-  city: string | null;
-  state: string | null;
-  postal_code: string | null;
-  country: string | null;
-}
-
 interface JoinExistingTenantPayload {
   tenantCode: string;
-  applicantData: ApplicantData;
 }
 
 interface LegacyCompleteWizardPayload {
@@ -511,11 +494,10 @@ function isReservedSlug(slug: string): boolean {
  * CONTRATO SAFE GOLD:
  *   1. Valida tenantCode (slug) — formato e existência
  *   2. Valida tenant.status === 'ACTIVE'
- *   3. Verifica idempotência via mesma tabela (memberships)
- *   4. Cria membership com status = 'DRAFT'
- *   5. Marca wizard_completed = true (SEM SETAR tenant_id no profile!)
- *   6. Registra audit log
- *   7. Retorna redirect para /{slug}/membership/status
+ *   3. Verifica re-entry rule (bloqueia se membership ativa existe)
+ *   4. Marca wizard_completed = true (SEM SETAR tenant_id no profile!)
+ *   5. Registra audit log
+ *   6. Retorna redirect para /{slug}/membership/adult (form cria membership)
  *
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -597,6 +579,7 @@ async function handleJoinExistingTenant(
     .from("memberships")
     .select("id, status")
     .eq("applicant_profile_id", userId)
+    .eq("tenant_id", tenant.id)
     .in("status", BLOCKING_STATUSES)
     .limit(1);
 
@@ -628,127 +611,8 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 5: Construir applicant_data a partir do payload (sem auth.admin)
-   * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("name, email")
-    .eq("id", userId)
-    .limit(1)
-    .maybeSingle();
-
-  const applicantData: Record<string, unknown> = {
-    full_name: payload.applicantData?.full_name ?? profileRow?.name ?? "Nome não informado",
-    email: payload.applicantData?.email ?? profileRow?.email ?? "email@desconhecido",
-    birth_date: payload.applicantData?.birth_date ?? null,
-    gender: payload.applicantData?.gender ?? null,
-    national_id: payload.applicantData?.national_id ?? null,
-    phone: payload.applicantData?.phone ?? null,
-    address_line1: payload.applicantData?.address_line1 ?? null,
-    address_line2: payload.applicantData?.address_line2 ?? null,
-    city: payload.applicantData?.city ?? null,
-    state: payload.applicantData?.state ?? null,
-    postal_code: payload.applicantData?.postal_code ?? null,
-    country: payload.applicantData?.country ?? null,
-    created_via: "identity_wizard",
-  };
-
-  /* ─────────────────────────────────────────────────────────────────────────────
-   * C5: Upsert athlete as ASPIRANTE before membership (if sufficient data)
-   * ───────────────────────────────────────────────────────────────────────────── */
-  let athleteId: string | null = null;
-  const hasSufficientData = applicantData.birth_date && applicantData.gender;
-
-  if (hasSufficientData) {
-    try {
-      // Check if athlete already exists for this user in this tenant
-      const { data: existingAthletes } = await supabase
-        .from("athletes")
-        .select("id")
-        .eq("tenant_id", tenant.id)
-        .eq("profile_id", userId)
-        .limit(1);
-
-      if (existingAthletes?.[0]) {
-        athleteId = existingAthletes[0].id;
-        log.info("C5: Existing athlete found", { athleteId });
-      } else {
-        const { data: newAthlete, error: athleteErr } = await supabase
-          .from("athletes")
-          .insert({
-            tenant_id: tenant.id,
-            profile_id: userId,
-            full_name: applicantData.full_name as string,
-            birth_date: applicantData.birth_date as string,
-            gender: applicantData.gender as string,
-            email: applicantData.email as string,
-            national_id: (applicantData.national_id as string) || null,
-            phone: (applicantData.phone as string) || null,
-            address_line1: (applicantData.address_line1 as string) || null,
-            address_line2: (applicantData.address_line2 as string) || null,
-            city: (applicantData.city as string) || null,
-            state: (applicantData.state as string) || null,
-            postal_code: (applicantData.postal_code as string) || null,
-            country: (applicantData.country as string) || null,
-            status: "ASPIRANTE",
-          })
-          .select("id")
-          .single();
-
-        if (athleteErr) {
-          log.warn("C5: Failed to create athlete (non-fatal)", { error: athleteErr.message });
-        } else if (newAthlete) {
-          athleteId = newAthlete.id;
-          log.info("C5: Athlete created as ASPIRANTE", { athleteId });
-        }
-      }
-    } catch (err) {
-      log.warn("C5: Athlete upsert error (non-fatal)", err);
-    }
-  } else {
-    log.info("C5: Insufficient data for athlete creation, skipping", {
-      hasBirthDate: !!applicantData.birth_date,
-      hasGender: !!applicantData.gender,
-    });
-  }
-
-  /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 6: Inserir membership DRAFT (sem role direto!)
-   * PI-MEMBERSHIP-FLOW-CANONICAL-ALIGN-001: Status inicial = DRAFT
-   * Fluxo canônico: DRAFT -> PENDING_PAYMENT -> PENDING_REVIEW -> APPROVED
-   * ───────────────────────────────────────────────────────────────────────────── */
-  const { error: insertErr } = await supabase
-    .from("memberships")
-    .insert({
-      tenant_id: tenant.id,
-      applicant_profile_id: userId,
-      athlete_id: athleteId,
-      status: "DRAFT",
-      type: "FIRST_MEMBERSHIP",
-      applicant_data: applicantData,
-    });
-
-  if (insertErr) {
-    log.error("Membership insert error", insertErr);
-    
-    // Idempotência por unique index: se duplicou por race condition
-    const msg = (insertErr.message ?? "").toLowerCase();
-    if (msg.includes("duplicate") || msg.includes("unique")) {
-      return {
-        status: "ERROR",
-        error: { code: "ALREADY_REQUESTED", message: "Sua solicitação já está em análise." },
-      };
-    }
-
-    return {
-      status: "ERROR",
-      error: { code: "UNKNOWN", message: "Erro ao criar solicitação." },
-    };
-  }
-
-  /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 7: Marcar wizard como completo (NUNCA setar tenant_id aqui!)
-   * Regra SAFE GOLD: profiles.tenant_id NÃO é setado no JOIN
+   * STEP 5: Marcar wizard como completo (NUNCA setar tenant_id aqui!)
+   * Membership + athlete creation delegated to AdultMembershipForm / YouthMembershipForm
    * ───────────────────────────────────────────────────────────────────────────── */
   const { error: profileErr } = await supabase
     .from("profiles")
@@ -761,29 +625,30 @@ async function handleJoinExistingTenant(
   }
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 8: Audit log
+   * STEP 6: Audit log
    * ───────────────────────────────────────────────────────────────────────────── */
   await supabase.from("audit_logs").insert({
     tenant_id: tenant.id,
     profile_id: userId,
-    event_type: "ATHLETE_JOIN_REQUEST_VIA_WIZARD",
+    event_type: "WIZARD_JOIN_COMPLETED",
     metadata: { tenant_slug: tenant.slug },
   });
 
-  log.info("Success - membership DRAFT created", {
+  log.info("Success - wizard completed, redirecting to membership form", {
     userId,
     tenantId: tenant.id,
     tenantSlug: tenant.slug,
   });
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * RETORNO: RESOLVED com redirect para status page
+   * RETORNO: RESOLVED com redirect para membership form
+   * Membership creation happens in AdultMembershipForm / YouthMembershipForm
    * ───────────────────────────────────────────────────────────────────────────── */
   return {
     status: "RESOLVED",
     role: "ATHLETE",
     tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
-    redirectPath: `/${tenant.slug}/membership/status`,
+    redirectPath: `/${tenant.slug}/membership/adult`,
   };
 }
 
