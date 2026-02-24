@@ -1,26 +1,26 @@
 /**
  * @contract generate-digital-card
- * 
+ *
  * SAFE GOLD — PI-D6.1.2: Digital Card Generation
- * 
+ *
  * INPUT:
  *   - membershipId: UUID (required)
- * 
+ *
  * PRECONDITIONS:
  *   - tenant.lifecycle_status === 'ACTIVE' (I4)
  *   - billing.status ∈ ['ACTIVE', 'TRIALING'] (I7 - checked via membership)
  *   - membership.payment_status === 'PAID'
  *   - membership.status ∈ ['PENDING_REVIEW', 'APPROVED', 'ACTIVE']
- * 
+ *
  * POSTCONDITIONS:
  *   - digital_cards row created
  *   - document_public_tokens row created
  *   - audit event DOCUMENT_ISSUED logged
- * 
+ *
  * ERRORS:
  *   - All errors return HTTP 200 with { success: false } (I6)
  *   - No stack traces exposed
- * 
+ *
  * INVARIANTS:
  *   - I1: Golden Rule applied (tenant ACTIVE + billing OK + doc ACTIVE)
  *   - I4: Tenant lifecycle validated
@@ -46,7 +46,7 @@ interface GenerateCardRequest {
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
-  const qrDataUrl = await qrcode(data, { size: 300 }) as unknown as string;
+  const qrDataUrl = (await qrcode(data, { size: 300 })) as unknown as string;
   return qrDataUrl;
 }
 
@@ -76,10 +76,10 @@ serve(async (req) => {
       body = await req.json();
     } catch {
       // Neutral error - no stack trace
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid request" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Invalid request" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     const { membershipId } = body;
@@ -87,20 +87,22 @@ serve(async (req) => {
     // PI-D5.B: Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!membershipId || typeof membershipId !== "string" || !uuidRegex.test(membershipId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid membership ID" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Invalid membership ID" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     // Fetch membership with athlete and tenant data
     const { data: membership, error: membershipError } = await supabase
       .from("memberships")
-      .select(`
+      .select(
+        `
         *,
         athlete:athletes(*),
         tenant:tenants(*)
-      `)
+      `,
+      )
       .eq("id", membershipId)
       .maybeSingle();
 
@@ -135,10 +137,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingCard) {
-      return new Response(
-        JSON.stringify({ success: true, message: "Card already exists", cardId: existingCard.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
+      return new Response(JSON.stringify({ success: true, message: "Card already exists", cardId: existingCard.id }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     const athlete = membership.athlete;
@@ -181,13 +183,15 @@ serve(async (req) => {
     let currentGrading: { levelName: string; levelCode: string; schemeName: string; sportType: string } | null = null;
     const { data: latestGrading } = await supabase
       .from("athlete_gradings")
-      .select(`
+      .select(
+        `
         grading_level:grading_levels(
           display_name,
           code,
           grading_scheme:grading_schemes(name, sport_type)
         )
-      `)
+      `,
+      )
       .eq("athlete_id", athlete.id)
       .eq("tenant_id", tenant.id)
       .order("promotion_date", { ascending: false })
@@ -206,7 +210,7 @@ serve(async (req) => {
 
     // Pre-generate card ID for QR code URL
     const cardId = crypto.randomUUID();
-    const createdAtDate = new Date().toISOString().split('T')[0];
+    const createdAtDate = new Date().toISOString().split("T")[0];
 
     // Helper to mask name for LGPD compliance
     const maskName = (name: string): string => {
@@ -227,12 +231,14 @@ serve(async (req) => {
         nome_exibicao: maskName(athlete.full_name),
       },
       // Grading data (current level if available)
-      graduacao: currentGrading ? {
-        nivel: currentGrading.levelName,
-        codigo: currentGrading.levelCode,
-        sistema: currentGrading.schemeName,
-        modalidade: currentGrading.sportType,
-      } : null,
+      graduacao: currentGrading
+        ? {
+            nivel: currentGrading.levelName,
+            codigo: currentGrading.levelCode,
+            sistema: currentGrading.schemeName,
+            modalidade: currentGrading.sportType,
+          }
+        : null,
       // Date information
       data: {
         emissao: createdAtDate,
@@ -246,16 +252,20 @@ serve(async (req) => {
         modalidade: currentGrading?.sportType || defaultSportType,
       },
       // Academy information
-      academia: academyName ? {
-        id: academyId,
-        nome: academyName,
-      } : null,
+      academia: academyName
+        ? {
+            id: academyId,
+            nome: academyName,
+          }
+        : null,
       // Responsible person (coach)
-      responsavel: coachName ? { 
-        id: coachId,
-        nome: coachName,
-        nome_exibicao: maskName(coachName),
-      } : null,
+      responsavel: coachName
+        ? {
+            id: coachId,
+            nome: coachName,
+            nome_exibicao: maskName(coachName),
+          }
+        : null,
       // Document metadata
       documento: {
         tipo: "CARTEIRINHA",
@@ -280,11 +290,13 @@ serve(async (req) => {
     const primaryColor = tenant.primary_color || "#dc2626";
     const hexToRgb = (hex: string) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      } : { r: 220, g: 38, b: 38 };
+      return result
+        ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16),
+          }
+        : { r: 220, g: 38, b: 38 };
     };
     const rgb = hexToRgb(primaryColor);
     // sportType already defined above in canonicalPayload
@@ -307,7 +319,7 @@ serve(async (req) => {
             reader.onloadend = () => resolve(reader.result as string);
             reader.readAsDataURL(templateBlob);
           });
-          const base64Data = templateBase64.split(',')[1];
+          const base64Data = templateBase64.split(",")[1];
           doc.addImage(base64Data, "PNG", 0, 0, 85.6, 140, undefined, "FAST");
         }
       } catch (e) {
@@ -367,9 +379,7 @@ serve(async (req) => {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    const endDate = membership.end_date 
-      ? new Date(membership.end_date).toLocaleDateString("pt-BR")
-      : "-";
+    const endDate = membership.end_date ? new Date(membership.end_date).toLocaleDateString("pt-BR") : "-";
     doc.text(endDate, 42.8, 106, { align: "center" });
 
     // Membership ID
@@ -394,7 +404,7 @@ serve(async (req) => {
     // Upload QR code image
     const qrFileName = `${tenant.id}/${membership.id}/qr_code.png`;
     const qrBlob = await (await fetch(qrCodeDataUrl)).blob();
-    
+
     const { error: qrUploadError } = await supabase.storage
       .from("cards")
       .upload(qrFileName, qrBlob, { contentType: "image/png", upsert: true });
@@ -407,7 +417,7 @@ serve(async (req) => {
 
     // Upload PDF
     const pdfFileName = `${tenant.id}/${membership.id}/card.pdf`;
-    
+
     const { error: pdfUploadError } = await supabase.storage
       .from("cards")
       .upload(pdfFileName, pdfBlob, { contentType: "application/pdf", upsert: true });
@@ -439,42 +449,37 @@ serve(async (req) => {
       throw new Error(`Failed to create digital card: ${cardError.message}`);
     }
 
-    // PI-D3-DOCS1.0: Generate public verification token for the card (FATAL — fail-closed)
+    // PI-D3-DOCS1.0: Generate public verification token for the card (FAIL-CLOSED)
     let publicToken: string | null = null;
-    const { data: tokenResult, error: tokenError } = await supabase.rpc(
-      "generate_document_token",
-      {
-        p_document_type: "digital_card",
-        p_document_id: digitalCard.id,
-        p_tenant_id: tenant.id,
-      }
-    );
 
-    if (tokenError || tokenResult == null) {
+    const { data: tokenResult, error: tokenError } = await supabase.rpc("generate_document_token", {
+      p_document_type: "digital_card",
+      p_document_id: digitalCard.id,
+      p_tenant_id: tenant.id,
+    });
+
+    if (tokenError || !tokenResult) {
       console.error("[GENERATE-DIGITAL-CARD] FATAL: token generation failed", tokenError);
-      // Rollback: delete the orphaned digital_card row
+
+      // Rollback digital card creation
       if (digitalCard?.id) {
         await supabase.from("digital_cards").delete().eq("id", digitalCard.id);
       }
-      return new Response(
-        JSON.stringify({ success: false, error: "Token generation failed" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+
+      return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     publicToken = tokenResult;
-    console.log("Generated public token for card:", digitalCard.id);
 
-    // Defensive assertion: publicToken must be valid before proceeding
+    // Defensive assertion
     if (!publicToken) {
-      console.error("[GENERATE-DIGITAL-CARD] FATAL: publicToken is falsy after assignment");
-      if (digitalCard?.id) {
-        await supabase.from("digital_cards").delete().eq("id", digitalCard.id);
-      }
-      return new Response(
-        JSON.stringify({ success: false, error: "Token generation failed" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     // PI-D4-AUDIT1.0: Log DOCUMENT_ISSUED event
@@ -483,7 +488,7 @@ serve(async (req) => {
       tenant_id: tenant.id,
       profile_id: null, // System-generated
       metadata: {
-        document_type: 'digital_card',
+        document_type: "digital_card",
         athlete_id: athlete.id,
         membership_id: membership.id,
         automatic: false,
@@ -501,14 +506,14 @@ serve(async (req) => {
           publicToken: publicToken,
         },
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (error: unknown) {
     // PI-D5.B: Neutral error - no stack trace, no semantic info
     console.error("Error generating digital card:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: "Card generation failed" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
+    return new Response(JSON.stringify({ success: false, error: "Card generation failed" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
   }
 });
