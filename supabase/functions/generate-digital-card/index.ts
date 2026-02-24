@@ -439,27 +439,42 @@ serve(async (req) => {
       throw new Error(`Failed to create digital card: ${cardError.message}`);
     }
 
-    // PI-D3-DOCS1.0: Generate public verification token for the card
+    // PI-D3-DOCS1.0: Generate public verification token for the card (FATAL — fail-closed)
     let publicToken: string | null = null;
-    try {
-      const { data: tokenResult, error: tokenError } = await supabase.rpc(
-        "generate_document_token",
-        {
-          p_document_type: "digital_card",
-          p_document_id: digitalCard.id,
-          p_tenant_id: tenant.id,
-        }
-      );
-      
-      if (tokenError) {
-        console.error("Failed to generate public token:", tokenError);
-      } else {
-        publicToken = tokenResult;
-        console.log("Generated public token for card:", digitalCard.id);
+    const { data: tokenResult, error: tokenError } = await supabase.rpc(
+      "generate_document_token",
+      {
+        p_document_type: "digital_card",
+        p_document_id: digitalCard.id,
+        p_tenant_id: tenant.id,
       }
-    } catch (tokenGenError) {
-      // Non-fatal: token generation failure shouldn't fail card creation
-      console.error("Token generation error (non-fatal):", tokenGenError);
+    );
+
+    if (tokenError || tokenResult == null) {
+      console.error("[GENERATE-DIGITAL-CARD] FATAL: token generation failed", tokenError);
+      // Rollback: delete the orphaned digital_card row
+      if (digitalCard?.id) {
+        await supabase.from("digital_cards").delete().eq("id", digitalCard.id);
+      }
+      return new Response(
+        JSON.stringify({ success: false, error: "Token generation failed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    publicToken = tokenResult;
+    console.log("Generated public token for card:", digitalCard.id);
+
+    // Defensive assertion: publicToken must be valid before proceeding
+    if (!publicToken) {
+      console.error("[GENERATE-DIGITAL-CARD] FATAL: publicToken is falsy after assignment");
+      if (digitalCard?.id) {
+        await supabase.from("digital_cards").delete().eq("id", digitalCard.id);
+      }
+      return new Response(
+        JSON.stringify({ success: false, error: "Token generation failed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // PI-D4-AUDIT1.0: Log DOCUMENT_ISSUED event
