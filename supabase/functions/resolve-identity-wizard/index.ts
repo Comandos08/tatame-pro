@@ -122,7 +122,7 @@ type IdentityStatus = "RESOLVED" | "WIZARD_REQUIRED" | "ERROR";
 
 interface IdentityResponse {
   status: IdentityStatus;
-  role?: "SUPERADMIN_GLOBAL" | "ADMIN_TENANT" | "ATHLETE";
+  role?: "SUPERADMIN_GLOBAL" | "ADMIN_TENANT" | "ATLETA";
   tenant?: { id: string; slug: string; name: string };
   redirectPath?: string;
   error?: { code: string; message: string };
@@ -389,7 +389,7 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
         });
         return {
           status: "RESOLVED",
-          role: "ATHLETE",
+          role: "ATLETA",
           tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
           redirectPath: `/${tenant.slug}/membership/status`,
         };
@@ -448,7 +448,7 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
 
   return {
     status: "RESOLVED",
-    role: isAdmin ? "ADMIN_TENANT" : "ATHLETE",
+    role: isAdmin ? "ADMIN_TENANT" : "ATLETA",
     tenant: {
       id: tenant.id,
       slug: tenant.slug,
@@ -646,7 +646,7 @@ async function handleJoinExistingTenant(
    * ───────────────────────────────────────────────────────────────────────────── */
   return {
     status: "RESOLVED",
-    role: "ATHLETE",
+    role: "ATLETA",
     tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
     redirectPath: `/${tenant.slug}/membership/adult`,
   };

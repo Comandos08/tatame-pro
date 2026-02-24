@@ -65,7 +65,7 @@ export interface CompleteWizardPayload {
 export interface CompleteWizardResult {
   success: boolean;
   tenant?: TenantInfo;
-  role?: "ADMIN_TENANT" | "ATHLETE";
+  role?: "ADMIN_TENANT" | "ATLETA";
   redirectPath?: string;
   error?: IdentityError;
 }
@@ -106,7 +106,7 @@ export interface CreateTenantResult {
 export interface JoinExistingTenantResult {
   success: boolean;
   tenant?: TenantInfo;
-  role?: "ATHLETE";
+  role?: "ATLETA";
   redirectPath?: string;
   error?: IdentityError;
 }
@@ -118,7 +118,7 @@ interface IdentityContextType {
   tenantId: string | null;
   tenantSlug: string | null;
   tenant: TenantInfo | null;
-  role: "ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null;
+  role: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
   /** @deprecated Use createTenant or joinExistingTenant instead */
@@ -165,7 +165,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
-  const [role, setRole] = useState<"ADMIN_TENANT" | "ATHLETE" | "SUPERADMIN_GLOBAL" | null>(null);
+  const [role, setRole] = useState<"ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null>(null);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   // ✅ isMountedRef MUST be only for real mount/unmount
