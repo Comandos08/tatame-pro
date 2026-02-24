@@ -43,6 +43,12 @@ interface JoinFederationRequest {
 }
 
 serve(async (req) => {
+  // P0-1: KILL-SWITCH — disabled pending frontend route implementation
+  return new Response('disabled', {
+    status: 503,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
