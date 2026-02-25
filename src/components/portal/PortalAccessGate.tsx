@@ -71,7 +71,7 @@ export function PortalAccessGate({
     if (isEffectivelyExpired) return 'expired';
     if (status === 'CANCELLED') return 'cancelled';
     if (status === 'REJECTED') return 'rejected';
-    if (status === 'APPROVED' || status === 'ACTIVE') return 'allowed';
+    if (status === 'APPROVED' || status === 'ACTIVE' || status === 'ADMIN_ACTIVE') return 'allowed';
     
     // Unknown status - show neutral message
     return 'unknown';
