@@ -144,10 +144,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
           setTenant(tenantData);
 
           // A04 — Boundary violation cross-check
-          // If user is authenticated, NOT superadmin, and has no roles for this tenant → violation
+          // GUARD: Only check when profile/roles are fully loaded (currentUser not null).
+          // currentUser is null during async profile fetch — checking before it loads
+          // causes false-positive boundary violation flash on login.
           if (isAuthenticated && currentUser && !isGlobalSuperadmin) {
             const hasAccess = currentRolesByTenant.has(tenantData.id);
             setBoundaryViolation(!hasAccess);
+          } else if (isAuthenticated && !currentUser) {
+            // Profile still loading — do not set boundary violation yet
+            // TenantContext effect will re-run when currentUser arrives
+            setBoundaryViolation(false);
           } else {
             // SUPERADMIN handled by IdentityGate, unauthenticated handled by RLS
             setBoundaryViolation(false);
