@@ -758,17 +758,25 @@ async function handleCreateTenant(
     // ✅ Idempotente: Wizard já completado, retornar tenant existente
     const { data: existingTenantData } = await supabase
       .from("tenants")
-      .select("id, slug, name")
+      .select("id, slug, name, status")
       .eq("id", existingProfile[0].tenant_id)
       .limit(1);
 
     if (existingTenantData?.[0]) {
-      log.info("IDEMPOTENT: Wizard already completed, returning existing tenant");
+      const existingTenant = existingTenantData[0];
+      // P1-001: If tenant is still in SETUP, redirect to onboarding (not /app)
+      const isSetup = existingTenant.status === "SETUP";
+      log.info("IDEMPOTENT: Wizard already completed, returning existing tenant", {
+        tenantStatus: existingTenant.status,
+        isSetup,
+      });
       return {
         status: "RESOLVED",
         role: "ADMIN_TENANT",
-        tenant: existingTenantData[0],
-        redirectPath: `/${existingTenantData[0].slug}/app`,
+        tenant: { id: existingTenant.id, slug: existingTenant.slug, name: existingTenant.name },
+        redirectPath: isSetup
+          ? `/${existingTenant.slug}/app/onboarding`
+          : `/${existingTenant.slug}/app`,
       };
     }
   }
