@@ -9,9 +9,8 @@
  * - Keeps hard timeout + abort for hung edge function
  *
  * STRUCTURAL FIX (ROLE PRIORITY):
- * - Enforce deterministic priority: SUPERADMIN_GLOBAL > ADMIN_TENANT > ATHLETE
- * - Normalizes resolved identity result using authoritative user_roles (when readable by RLS)
- * - Prevents "Contexto: Atleta" when user is ADMIN_TENANT
+ * - Edge Function is the single source of truth for role resolution
+ * - Client no longer queries user_roles directly (contract compliance)
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
@@ -149,14 +148,6 @@ function hardAbortableFetch(timeoutMs: number) {
   };
 }
 
-/**
- * Minimal helper: safe slug route fallback.
- * We DO NOT change routes here; we only keep existing redirectPath if present.
- */
-function safeAdminRedirect(tenantSlug: string | null) {
-  if (!tenantSlug) return null;
-  return `/${tenantSlug}/app`;
-}
 
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const { session, isAuthenticated, isLoading: authLoading } = useCurrentUser();
@@ -197,75 +188,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     setRedirectPath(null);
   }, []);
 
-  /**
-   * ✅ STRUCTURAL FIX:
-   * Normalize RESOLVED payload by enforcing role priority from user_roles when possible.
-   * This prevents ADMIN_TENANT being "downgraded" to ATHLETE context.
-   *
-   * If RLS blocks reading user_roles, we fall back to the Edge Function result (no regression).
-   */
-  const normalizeResolvedResult = useCallback(
-    async (result: any) => {
-      const userId = session?.user?.id;
-      if (!userId) return result;
-
-      if (result?.status !== "RESOLVED") return result;
-
-      try {
-        const { data: rolesData, error: rolesErr } = await supabase
-          .from("user_roles")
-          .select("role, tenant_id")
-          .eq("user_id", userId);
-
-        if (rolesErr) throw rolesErr;
-        if (!rolesData || rolesData.length === 0) return result;
-
-        // Priority: SUPERADMIN_GLOBAL > ADMIN_TENANT > ATHLETE
-        const hasSuper = rolesData.some((r) => r.role === "SUPERADMIN_GLOBAL");
-        if (hasSuper) {
-          return {
-            ...result,
-            role: "SUPERADMIN_GLOBAL",
-            tenant: null,
-            redirectPath: result.redirectPath || null,
-          };
-        }
-
-        const adminRow = rolesData.find((r) => r.role === "ADMIN_TENANT" && !!r.tenant_id);
-        if (adminRow?.tenant_id) {
-          // Ensure tenant info matches admin tenant_id
-          let resolvedTenant: TenantInfo | null = result.tenant || null;
-
-          if (!resolvedTenant || resolvedTenant.id !== adminRow.tenant_id) {
-            const { data: tenantRow, error: tenantErr } = await supabase
-              .from("tenants")
-              .select("id, slug, name")
-              .eq("id", adminRow.tenant_id)
-              .maybeSingle();
-
-            if (!tenantErr && tenantRow) {
-              resolvedTenant = tenantRow as TenantInfo;
-            }
-          }
-
-          return {
-            ...result,
-            role: "ADMIN_TENANT",
-            tenant: resolvedTenant,
-            redirectPath: result.redirectPath || safeAdminRedirect(resolvedTenant?.slug || null),
-          };
-        }
-
-        // No super/admin: keep athlete if Edge decided athlete
-        return result;
-      } catch (e) {
-        // No regression: keep original result if blocked by RLS or any unexpected issue
-        logger.warn("[IdentityContext] normalizeResolvedResult fallback:", e);
-        return result;
-      }
-    },
-    [session?.user?.id],
-  );
 
   const applyResult = useCallback((result: any) => {
     if (!isMountedRef.current) return;
@@ -384,9 +306,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         return;
       }
 
-      // ✅ STRUCTURAL NORMALIZATION (no regression if blocked)
-      const normalized = await normalizeResolvedResult(result);
-      applyResult(normalized);
+      applyResult(result);
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
 
@@ -409,7 +329,7 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       clear();
       inFlightAbortRef.current = null;
     }
-  }, [applyResult, session?.user?.id, isAuthenticated, reset, normalizeResolvedResult]);
+  }, [applyResult, session?.user?.id, isAuthenticated, reset]);
 
   // React to auth resolution
   useEffect(() => {
@@ -488,13 +408,12 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        const normalized = await normalizeResolvedResult(result);
-        applyResult(normalized);
+        applyResult(result);
         return {
           success: true,
-          tenant: normalized.tenant,
-          role: normalized.role,
-          redirectPath: normalized.redirectPath,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
         };
       }
 
@@ -587,13 +506,12 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        const normalized = await normalizeResolvedResult(result);
-        applyResult(normalized);
+        applyResult(result);
         return {
           success: true,
-          tenant: normalized.tenant,
-          role: normalized.role,
-          redirectPath: normalized.redirectPath,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
         };
       }
 
@@ -680,13 +598,12 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
       const result = await resp.json();
 
       if (result?.status === "RESOLVED") {
-        const normalized = await normalizeResolvedResult(result);
-        applyResult(normalized);
+        applyResult(result);
         return {
           success: true,
-          tenant: normalized.tenant,
-          role: normalized.role,
-          redirectPath: normalized.redirectPath,
+          tenant: result.tenant,
+          role: result.role,
+          redirectPath: result.redirectPath,
         };
       }
 
