@@ -1,18 +1,5 @@
 // src/contexts/IdentityContext.tsx
 
-/**
- * 🔐 IDENTITY CONTEXT — Consume-Only State Machine (HARDENED)
- *
- * FIX P0 (REAL):
- * - isMountedRef is ONLY toggled on real mount/unmount (not on dependency cleanup)
- * - Prevents "loading forever" when effects re-run and responses arrive after cleanup
- * - Keeps hard timeout + abort for hung edge function
- *
- * STRUCTURAL FIX (ROLE PRIORITY):
- * - Edge Function is the single source of truth for role resolution
- * - Client no longer queries user_roles directly (contract compliance)
- */
-
 import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,14 +17,14 @@ export interface IdentityError {
     | "IMPERSONATION_INVALID"
     | "SLUG_TAKEN"
     | "VALIDATION_ERROR"
-    | "PROFILE_NOT_FOUND" // Auth success but no profile row
-    | "NO_ROLES_ASSIGNED" // Profile exists, wizard done, no roles
-    | "BILLING_BLOCKED" // Tenant inactive due to billing
-    | "IDENTITY_TIMEOUT" // Distinct timeout error (12s hard timeout)
-    | "ALREADY_REQUESTED" // Membership already pending
-    | "ALREADY_MEMBER" // User already member of tenant
-    | "ONBOARDING_FORBIDDEN" // Cannot join (rejected/cancelled)
-    | "NOT_IMPLEMENTED" // Feature not implemented
+    | "PROFILE_NOT_FOUND"
+    | "NO_ROLES_ASSIGNED"
+    | "BILLING_BLOCKED"
+    | "IDENTITY_TIMEOUT"
+    | "ALREADY_REQUESTED"
+    | "ALREADY_MEMBER"
+    | "ONBOARDING_FORBIDDEN"
+    | "NOT_IMPLEMENTED"
     | "UNKNOWN";
   message: string;
 }
@@ -46,68 +33,6 @@ export interface TenantInfo {
   id: string;
   slug: string;
   name: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PAYLOADS & RESULTS — PI-ONB-001
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** @deprecated Use createTenant or joinExistingTenant instead */
-export interface CompleteWizardPayload {
-  joinMode: "existing" | "new";
-  inviteCode?: string;
-  newOrgName?: string;
-  profileType: "admin" | "athlete";
-}
-
-/** @deprecated Use CreateTenantResult or JoinExistingTenantResult instead */
-export interface CompleteWizardResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ADMIN_TENANT" | "ATLETA";
-  redirectPath?: string;
-  error?: IdentityError;
-}
-
-// New explicit payloads (PI-ONB-001)
-export interface CreateTenantPayload {
-  orgName: string;
-}
-
-export interface ApplicantData {
-  full_name: string;
-  email: string;
-  birth_date: string | null;
-  gender: string | null;
-  national_id: string | null;
-  phone: string | null;
-  address_line1: string | null;
-  address_line2: string | null;
-  city: string | null;
-  state: string | null;
-  postal_code: string | null;
-  country: string | null;
-}
-
-export interface JoinExistingTenantPayload {
-  tenantCode: string;
-  applicantData: ApplicantData;
-}
-
-export interface CreateTenantResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ADMIN_TENANT";
-  redirectPath?: string;
-  error?: IdentityError;
-}
-
-export interface JoinExistingTenantResult {
-  success: boolean;
-  tenant?: TenantInfo;
-  role?: "ATLETA";
-  redirectPath?: string;
-  error?: IdentityError;
 }
 
 interface IdentityContextType {
@@ -120,22 +45,15 @@ interface IdentityContextType {
   role: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
-  /** @deprecated Use createTenant or joinExistingTenant instead */
-  completeWizard: (payload: CompleteWizardPayload) => Promise<CompleteWizardResult>;
-  // New explicit methods (PI-ONB-001)
-  createTenant: (payload: CreateTenantPayload) => Promise<CreateTenantResult>;
-  joinExistingTenant: (payload: JoinExistingTenantPayload) => Promise<JoinExistingTenantResult>;
+  completeWizard: (payload: any) => Promise<any>;
+  createTenant: (payload: any) => Promise<any>;
+  joinExistingTenant: (payload: any) => Promise<any>;
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
 }
 
 const IdentityContext = createContext<IdentityContextType | undefined>(undefined);
 
-interface IdentityProviderProps {
-  children: ReactNode;
-}
-
-// ✅ HARD timeout (ms) – evita loader infinito se Edge Function travar
 const IDENTITY_TIMEOUT_MS = 12_000;
 
 function hardAbortableFetch(timeoutMs: number) {
@@ -148,8 +66,7 @@ function hardAbortableFetch(timeoutMs: number) {
   };
 }
 
-
-export function IdentityProvider({ children }: IdentityProviderProps) {
+export function IdentityProvider({ children }: { children: ReactNode }) {
   const { session, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
   const [identityState, setIdentityState] = useState<IdentityState>("loading");
@@ -159,13 +76,9 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
   const [role, setRole] = useState<"ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null>(null);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
-  // ✅ isMountedRef MUST be only for real mount/unmount
   const isMountedRef = useRef(true);
-
-  // Abort current in-flight request (if any)
   const inFlightAbortRef = useRef<null | (() => void)>(null);
 
-  // ✅ Mount/Unmount ONLY
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -179,7 +92,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 
   const reset = useCallback(() => {
     if (!isMountedRef.current) return;
-
     setIdentityState("loading");
     setError(null);
     setWizardCompleted(false);
@@ -187,7 +99,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     setRole(null);
     setRedirectPath(null);
   }, []);
-
 
   const applyResult = useCallback((result: any) => {
     if (!isMountedRef.current) return;
@@ -203,7 +114,6 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
 
       setError(null);
 
-      // PI U16: Institutional Timeline
       emitInstitutionalEvent({
         domain: "IDENTITY",
         type: "IDENTITY_RESOLVED",
@@ -228,25 +138,21 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     setError(
       result?.error || {
         code: "UNKNOWN",
-        message: "Falha ao verificar identidade (resposta inesperada).",
+        message: "Falha ao verificar identidade.",
       },
     );
   }, []);
 
   const checkIdentity = useCallback(async () => {
-    // Abort previous request
     if (inFlightAbortRef.current) {
       inFlightAbortRef.current();
       inFlightAbortRef.current = null;
     }
 
-    // ✅ FIX: Usar session.user.id ao invés de currentUser.id
     if (!session?.user?.id || !isAuthenticated) {
       reset();
       return;
     }
-
-    if (!isMountedRef.current) return;
 
     setIdentityState("loading");
     setError(null);
@@ -255,20 +161,11 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     inFlightAbortRef.current = abort;
 
     try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr) throw sessionErr;
-
+      const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) {
-        if (!isMountedRef.current) return;
-        setIdentityState("error");
-        setError({ code: "PERMISSION_DENIED", message: "Sessão inválida (sem token)." });
-        return;
-      }
+      if (!accessToken) throw new Error("No token");
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`;
-
-      const resp = await fetch(url, {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -278,74 +175,51 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
         signal,
       });
 
-      // Timeout/abort — use distinct IDENTITY_TIMEOUT code
       if (signal.aborted) {
-        if (!isMountedRef.current) return;
         setIdentityState("error");
-        setError({
-          code: "IDENTITY_TIMEOUT",
-          message: "Identity service timeout (Edge Function não respondeu).",
-        });
+        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout identity." });
         return;
       }
 
-      let result: any = null;
-      try {
-        result = await resp.json();
-      } catch {
-        result = null;
-      }
+      const result = await resp.json();
 
       if (!resp.ok) {
-        if (!isMountedRef.current) return;
         setIdentityState("error");
         setError({
           code: "UNKNOWN",
-          message: result?.error?.message || `Falha ao verificar identidade (HTTP ${resp.status}).`,
+          message: result?.error?.message || "Erro identidade.",
         });
         return;
       }
 
+      // 🔥 AGORA CONSUME DIRETAMENTE
       applyResult(result);
-    } catch (err: unknown) {
-      if (!isMountedRef.current) return;
-
+    } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         setIdentityState("error");
-        setError({
-          code: "IDENTITY_TIMEOUT",
-          message: "Identity service timeout (request abortada).",
-        });
+        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout identity." });
         return;
       }
 
       logger.error("[IdentityContext] checkIdentity error:", err);
       setIdentityState("error");
-      setError({
-        code: "UNKNOWN",
-        message: "Falha ao conectar ao serviço de identidade.",
-      });
+      setError({ code: "UNKNOWN", message: "Falha ao conectar ao serviço." });
     } finally {
       clear();
       inFlightAbortRef.current = null;
     }
   }, [applyResult, session?.user?.id, isAuthenticated, reset]);
 
-  // React to auth resolution
   useEffect(() => {
-    // Wait auth to finish
     if (authLoading) return;
 
-    // Not authenticated => reset identity safely
     if (!isAuthenticated || !session?.user?.id) {
       reset();
       return;
     }
 
-    // Authenticated => resolve identity
     checkIdentity();
 
-    // cleanup here should ONLY abort request (NOT toggle isMountedRef)
     return () => {
       if (inFlightAbortRef.current) {
         inFlightAbortRef.current();
@@ -358,300 +232,96 @@ export function IdentityProvider({ children }: IdentityProviderProps) {
     await checkIdentity();
   };
 
-  const completeWizard = async (payload: CompleteWizardPayload): Promise<CompleteWizardResult> => {
-    if (!session?.user?.id) {
-      return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
+  const completeWizard = async (payload: any) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action: "COMPLETE_WIZARD", payload }),
+    });
+
+    const result = await resp.json();
+
+    if (result?.status === "RESOLVED") {
+      applyResult(result);
+      return {
+        success: true,
+        tenant: result.tenant,
+        role: result.role,
+        redirectPath: result.redirectPath,
+      };
     }
 
-    if (inFlightAbortRef.current) {
-      inFlightAbortRef.current();
-      inFlightAbortRef.current = null;
-    }
-
-    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
-    inFlightAbortRef.current = abort;
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      if (!accessToken) {
-        return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
-      }
-
-      if (!isMountedRef.current) {
-        return { success: false, error: { code: "UNKNOWN", message: "Component unmounted" } };
-      }
-
-      setIdentityState("loading");
-      setError(null);
-
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: "COMPLETE_WIZARD", payload }),
-        signal,
-      });
-
-      if (signal.aborted) {
-        if (!isMountedRef.current) {
-          return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
-        }
-        setIdentityState("error");
-        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." });
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
-      }
-
-      const result = await resp.json();
-
-      if (result?.status === "RESOLVED") {
-        applyResult(result);
-        return {
-          success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
-        };
-      }
-
-      if (result?.status === "ERROR") {
-        if (!isMountedRef.current) {
-          return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao completar wizard" } };
-        }
-        setIdentityState("error");
-        setError(result.error || { code: "UNKNOWN", message: "Falha ao completar wizard" });
-        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao completar wizard" } };
-      }
-
-      if (!isMountedRef.current) {
-        return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." } };
-      }
-      setIdentityState("error");
-      setError({ code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." });
-      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao completar wizard." } };
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard (abort)." });
-        }
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao completar wizard." } };
-      }
-
-      logger.error("[IdentityContext] completeWizard error:", err);
-      if (isMountedRef.current) {
-        setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Falha ao completar wizard." });
-      }
-      return { success: false, error: { code: "UNKNOWN", message: "Falha ao completar wizard." } };
-    } finally {
-      clear();
-      inFlightAbortRef.current = null;
-    }
+    return { success: false, error: result?.error };
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // NEW EXPLICIT METHODS — PI-ONB-001
-  // ═══════════════════════════════════════════════════════════════════════════════
+  const createTenant = async (payload: any) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
 
-  const createTenant = async (payload: CreateTenantPayload): Promise<CreateTenantResult> => {
-    if (!session?.user?.id) {
-      return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action: "CREATE_TENANT", payload }),
+    });
+
+    const result = await resp.json();
+
+    if (result?.status === "RESOLVED") {
+      applyResult(result);
+      return {
+        success: true,
+        tenant: result.tenant,
+        role: result.role,
+        redirectPath: result.redirectPath,
+      };
     }
 
-    if (inFlightAbortRef.current) {
-      inFlightAbortRef.current();
-      inFlightAbortRef.current = null;
-    }
-
-    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
-    inFlightAbortRef.current = abort;
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      if (!accessToken) {
-        return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
-      }
-
-      if (!isMountedRef.current) {
-        return { success: false, error: { code: "UNKNOWN", message: "Component unmounted" } };
-      }
-
-      setIdentityState("loading");
-      setError(null);
-
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: "CREATE_TENANT", payload }),
-        signal,
-      });
-
-      if (signal.aborted) {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." });
-        }
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." } };
-      }
-
-      const result = await resp.json();
-
-      if (result?.status === "RESOLVED") {
-        applyResult(result);
-        return {
-          success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
-        };
-      }
-
-      if (result?.status === "ERROR") {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError(result.error || { code: "UNKNOWN", message: "Falha ao criar organização" });
-        }
-        return { success: false, error: result.error || { code: "UNKNOWN", message: "Falha ao criar organização" } };
-      }
-
-      if (isMountedRef.current) {
-        setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Resposta inesperada ao criar organização." });
-      }
-      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao criar organização." } };
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." });
-        }
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao criar organização." } };
-      }
-
-      logger.error("[IdentityContext] createTenant error:", err);
-      if (isMountedRef.current) {
-        setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Falha ao criar organização." });
-      }
-      return { success: false, error: { code: "UNKNOWN", message: "Falha ao criar organização." } };
-    } finally {
-      clear();
-      inFlightAbortRef.current = null;
-    }
+    return { success: false, error: result?.error };
   };
 
-  const joinExistingTenant = async (payload: JoinExistingTenantPayload): Promise<JoinExistingTenantResult> => {
-    if (!session?.user?.id) {
-      return { success: false, error: { code: "PERMISSION_DENIED", message: "Not authenticated" } };
+  const joinExistingTenant = async (payload: any) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action: "JOIN_EXISTING_TENANT", payload }),
+    });
+
+    const result = await resp.json();
+
+    if (result?.status === "RESOLVED") {
+      applyResult(result);
+      return {
+        success: true,
+        tenant: result.tenant,
+        role: result.role,
+        redirectPath: result.redirectPath,
+      };
     }
 
-    if (inFlightAbortRef.current) {
-      inFlightAbortRef.current();
-      inFlightAbortRef.current = null;
-    }
-
-    const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
-    inFlightAbortRef.current = abort;
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      if (!accessToken) {
-        return { success: false, error: { code: "PERMISSION_DENIED", message: "No session" } };
-      }
-
-      if (!isMountedRef.current) {
-        return { success: false, error: { code: "UNKNOWN", message: "Component unmounted" } };
-      }
-
-      setIdentityState("loading");
-      setError(null);
-
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: "JOIN_EXISTING_TENANT", payload }),
-        signal,
-      });
-
-      if (signal.aborted) {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." });
-        }
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." } };
-      }
-
-      const result = await resp.json();
-
-      if (result?.status === "RESOLVED") {
-        applyResult(result);
-        return {
-          success: true,
-          tenant: result.tenant,
-          role: result.role,
-          redirectPath: result.redirectPath,
-        };
-      }
-
-      if (result?.status === "ERROR") {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError(result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" });
-        }
-        return {
-          success: false,
-          error: result.error || { code: "UNKNOWN", message: "Falha ao entrar na organização" },
-        };
-      }
-
-      if (isMountedRef.current) {
-        setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." });
-      }
-      return { success: false, error: { code: "UNKNOWN", message: "Resposta inesperada ao entrar na organização." } };
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        if (isMountedRef.current) {
-          setIdentityState("error");
-          setError({ code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." });
-        }
-        return { success: false, error: { code: "IDENTITY_TIMEOUT", message: "Timeout ao entrar na organização." } };
-      }
-
-      logger.error("[IdentityContext] joinExistingTenant error:", err);
-      if (isMountedRef.current) {
-        setIdentityState("error");
-        setError({ code: "UNKNOWN", message: "Falha ao entrar na organização." });
-      }
-      return { success: false, error: { code: "UNKNOWN", message: "Falha ao entrar na organização." } };
-    } finally {
-      clear();
-      inFlightAbortRef.current = null;
-    }
+    return { success: false, error: result?.error };
   };
 
   const setIdentityError = (newError: IdentityError) => {
-    if (!isMountedRef.current) return;
     setError(newError);
     setIdentityState("error");
   };
 
   const clearError = () => {
-    if (!isMountedRef.current) return;
     setError(null);
     checkIdentity();
   };
