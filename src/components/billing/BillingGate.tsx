@@ -51,7 +51,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
   // Navigate via useEffect, never during render
   useEffect(() => {
     if (!shouldBlock) return;
-    navigate('/app/billing', { replace: true });
+    navigate(`/${tenant?.slug}/app/billing`, { replace: true });
   }, [shouldBlock, navigate]);
 
   // Ignore billing for non-ACTIVE tenants (still in SETUP)
@@ -80,7 +80,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
         actions={[
           {
             labelKey: 'billing.gate.blocked.action',
-            onClick: () => navigate('/app/billing'),
+            onClick: () => navigate(`/${tenant?.slug}/app/billing`),
             variant: 'default',
           },
           {
@@ -105,7 +105,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
           actions={[
             {
               labelKey: 'billing.gate.readonly.action',
-              onClick: () => navigate('/app/billing'),
+            onClick: () => navigate(`/${tenant?.slug}/app/billing`),
               variant: 'default',
             },
           ]}
@@ -116,7 +116,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     // Non-strict mode: show warning banner + children
     return (
       <>
-        <BillingWarningBanner status={billingStatus} />
+        <BillingWarningBanner status={billingStatus} tenantSlug={tenant?.slug} />
         {children}
       </>
     );
@@ -128,9 +128,10 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
 
 interface BillingWarningBannerProps {
   status: string | null;
+  tenantSlug?: string;
 }
 
-function BillingWarningBanner({ status }: BillingWarningBannerProps) {
+function BillingWarningBanner({ status, tenantSlug }: BillingWarningBannerProps) {
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -154,7 +155,7 @@ function BillingWarningBanner({ status }: BillingWarningBannerProps) {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => navigate('/app/billing')}
+          onClick={() => navigate(`/${tenantSlug}/app/billing`)}
         >
           {t('billing.gate.warning.action')}
         </Button>
