@@ -1046,7 +1046,7 @@ async function handleCreateTenant(
 
     const { error: billingError } = await supabase
       .from("tenant_billing")
-      .insert({
+      .upsert({
         tenant_id: newTenant.id,
         status: "TRIALING",
         plan_name: "Plano Federação Anual",
@@ -1055,7 +1055,7 @@ async function handleCreateTenant(
         trial_expires_at: trialExpiresAt.toISOString(),
         current_period_start: now.toISOString(),
         current_period_end: trialExpiresAt.toISOString(),
-      });
+      }, { onConflict: 'tenant_id', ignoreDuplicates: true });
 
     if (billingError) {
       log.error("TRIAL_15_DAYS: Failed to create tenant_billing", billingError);
