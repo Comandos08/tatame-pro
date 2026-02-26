@@ -46,6 +46,9 @@ export default function IdentityWizard() {
   const [profileType, setProfileType] = useState<ProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // P1-003: Pending redirect — set by handleComplete, consumed by identityState effect
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+
   // Form fields - NO open search, only exact invite code
   const [inviteCode, setInviteCode] = useState('');
   const [newOrgName, setNewOrgName] = useState('');
@@ -72,12 +75,18 @@ export default function IdentityWizard() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // Redirect if already resolved
+  // Redirect if already resolved (or after wizard completes)
+  // P1-003: pendingRedirect takes priority over /portal fallback
   useEffect(() => {
     if (identityState === 'resolved' || identityState === 'superadmin') {
-      navigate('/portal', { replace: true });
+      if (pendingRedirect) {
+        navigate(pendingRedirect, { replace: true });
+        setPendingRedirect(null);
+      } else {
+        navigate('/portal', { replace: true });
+      }
     }
-  }, [identityState, navigate]);
+  }, [identityState, navigate, pendingRedirect]);
 
   // Complete wizard via backend — PI-ONB-001: Use explicit methods
   const handleComplete = async () => {
@@ -123,21 +132,17 @@ export default function IdentityWizard() {
             description: 'Sua organização foi criada com sucesso.',
           });
 
-          // FRONT-FIX-ONBOARDING-REDIRECT: Invalidate caches and redirect deterministically
+          // P1-003: Set pending redirect BEFORE refreshIdentity so the effect
+          // navigates only when identityState stabilizes to "resolved"
+          const targetPath = result.redirectPath || (result.tenant?.slug ? `/${result.tenant.slug}/app` : null);
+          if (targetPath) {
+            setPendingRedirect(targetPath);
+          }
           await queryClient.invalidateQueries({ queryKey: ['identity'] });
           await queryClient.invalidateQueries({ queryKey: ['user-roles'] });
           await queryClient.invalidateQueries({ queryKey: ['tenant'] });
           await refreshIdentity();
-
-          // Defensive: only redirect if we got tenant info and role is ADMIN_TENANT
-          const tenantSlug = result.tenant?.slug;
-          const hasAdminRole = result.role === 'ADMIN_TENANT';
-
-          if (tenantSlug && hasAdminRole) {
-            navigate(`/${tenantSlug}/app`, { replace: true });
-          } else if (result.redirectPath) {
-            navigate(result.redirectPath, { replace: true });
-          }
+          // Navigation happens in identityState useEffect above
         } else if (result.error) {
           handleWizardError(result.error);
         }
@@ -167,15 +172,15 @@ export default function IdentityWizard() {
             description: 'Sua solicitação foi enviada para análise.',
           });
 
-          // FRONT-FIX-ONBOARDING-REDIRECT: Invalidate caches
+          // P1-003: Set pending redirect BEFORE refreshIdentity
+          if (result.redirectPath) {
+            setPendingRedirect(result.redirectPath);
+          }
           await queryClient.invalidateQueries({ queryKey: ['identity'] });
           await queryClient.invalidateQueries({ queryKey: ['user-roles'] });
           await queryClient.invalidateQueries({ queryKey: ['tenant'] });
           await refreshIdentity();
-
-          if (result.redirectPath) {
-            navigate(result.redirectPath, { replace: true });
-          }
+          // Navigation happens in identityState useEffect above
         } else if (result.error) {
           handleWizardError(result.error);
         }
