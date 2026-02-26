@@ -25,6 +25,13 @@ export type IdentityState =
   | 'ERROR';
 
 /**
+ * Context-level identity state (lowercase).
+ * Used by IdentityContext to track raw state from the edge function.
+ * Single Source of Truth — no other file should define this type.
+ */
+export type ContextIdentityState = 'loading' | 'wizard_required' | 'resolved' | 'superadmin' | 'error';
+
+/**
  * Inputs explícitos para resolução.
  * TODOS os dados vêm deste objeto — sem dependências externas.
  */

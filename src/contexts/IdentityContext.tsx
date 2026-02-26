@@ -5,8 +5,9 @@ import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { emitInstitutionalEvent } from "@/lib/institutional";
+import { type ContextIdentityState } from "@/lib/identity/identity-state-machine";
 
-export type IdentityState = "loading" | "wizard_required" | "resolved" | "superadmin" | "error";
+export type IdentityState = ContextIdentityState;
 
 export interface IdentityError {
   code:
