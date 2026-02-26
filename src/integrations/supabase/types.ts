@@ -2374,6 +2374,78 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_fees: {
+        Row: {
+          amount_cents: number
+          created_at: string | null
+          currency: string
+          id: string
+          membership_id: string
+          paid_at: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string | null
+          currency?: string
+          id?: string
+          membership_id: string
+          paid_at?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string | null
+          currency?: string
+          id?: string
+          membership_id?: string
+          paid_at?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_fees_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: true
+            referencedRelation: "membership_verification"
+            referencedColumns: ["membership_id"]
+          },
+          {
+            foreignKeyName: "membership_fees_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: true
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_fees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "membership_verification"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "membership_fees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_lifecycle_governance_audit_v1"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "membership_fees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           academy_id: string | null
@@ -2387,6 +2459,8 @@ export type Database = {
           currency: string
           documents_uploaded: Json | null
           end_date: string | null
+          fee_amount_cents: number | null
+          fee_paid_at: string | null
           id: string
           payment_status: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id: string | null
@@ -2421,6 +2495,8 @@ export type Database = {
           currency?: string
           documents_uploaded?: Json | null
           end_date?: string | null
+          fee_amount_cents?: number | null
+          fee_paid_at?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id?: string | null
@@ -2455,6 +2531,8 @@ export type Database = {
           currency?: string
           documents_uploaded?: Json | null
           end_date?: string | null
+          fee_amount_cents?: number | null
+          fee_paid_at?: string | null
           id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           preferred_coach_id?: string | null
