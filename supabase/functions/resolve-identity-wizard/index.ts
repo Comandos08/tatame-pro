@@ -649,7 +649,7 @@ async function handleJoinExistingTenant(
     status: "RESOLVED",
     role: "ATLETA",
     tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
-    redirectPath: `/${tenant.slug}/membership/adult`,
+    redirectPath: `/${tenant.slug}/membership/new`,
   };
 }
 
