@@ -8,7 +8,7 @@
 
 import { logger } from '@/lib/logger';
 
-type Persona = 'SUPERADMIN_GLOBAL' | 'ADMIN_TENANT' | 'ATHLETE' | 'PUBLIC';
+type Persona = 'SUPERADMIN_GLOBAL' | 'ADMIN_TENANT' | 'ATLETA' | 'PUBLIC';
 
 interface ContractEntry {
   pattern: RegExp;
@@ -29,8 +29,8 @@ const ROUTE_CONTRACT: ContractEntry[] = [
   { pattern: /^\/[^/]+\/app(\/|$)/, persona: ['ADMIN_TENANT'], description: 'Tenant App' },
 
   // 3️⃣ Athlete
-  { pattern: /^\/[^/]+\/portal(\/|$)/, persona: ['ATHLETE'], description: 'Athlete Portal (tenant)' },
-  { pattern: /^\/portal(\/|$)/, persona: ['ATHLETE'], description: 'Portal Router' },
+  { pattern: /^\/[^/]+\/portal(\/|$)/, persona: ['ATLETA'], description: 'Athlete Portal (tenant)' },
+  { pattern: /^\/portal(\/|$)/, persona: ['ATLETA'], description: 'Portal Router' },
 
   // 4️⃣ Federation — DECLARED / INACTIVE (PI E1.1)
   // No federation routes are allowed without an explicit activation PI.
