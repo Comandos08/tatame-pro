@@ -597,17 +597,9 @@ async function handleJoinExistingTenant(
     const st = String(existing.status).toUpperCase();
     log.info("Membership re-entry blocked", { existing_id: existing.id, status: st });
 
-    if (st === "APPROVED") {
-      return {
-        status: "ERROR",
-        error: { code: "ALREADY_MEMBER", message: "Você já faz parte desta organização." },
-      };
-    }
-
-    // DRAFT, PENDING_PAYMENT, PENDING_REVIEW
     return {
       status: "ERROR",
-      error: { code: "ALREADY_REQUESTED", message: "Sua solicitação já está em análise." },
+      error: { code: "MEMBERSHIP_EXISTS", message: "Já existe um vínculo com esta organização." },
     };
   }
 
