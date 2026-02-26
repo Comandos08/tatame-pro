@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+.lovable
+supabase/functions
+*.min.js
+*.min.css
+package-lock.json
