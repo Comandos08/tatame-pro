@@ -2,12 +2,12 @@
  * 🏠 AppShell — Main authenticated layout with sidebar and header
  *
  * P-MENU-01: Reorganized header with tenant context, consolidated settings dropdown,
- * and quick create action. Reduced from 345 to ~310 lines via component extraction.
+ * and quick create action.
  */
-import React, { ReactNode, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { NavLink } from '@/components/NavLink';
-import { motion } from 'framer-motion';
+import React, { ReactNode, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { NavLink } from "@/components/NavLink";
+import { motion } from "framer-motion";
 import {
   Home,
   Users,
@@ -25,21 +25,26 @@ import {
   UserCheck,
   Calendar,
   Shield,
-  Plus
-} from 'lucide-react';
-import iconLogo from '@/assets/iconLogo.png';
-import logoTatameLight from '@/assets/logoTatameLight.png';
-import logoTatameDark from '@/assets/logoTatameDark.png';
-import { useCurrentUser } from '@/contexts/AuthContext';
-import { useTenant } from '@/contexts/TenantContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useI18n } from '@/contexts/I18nContext';
-import { useImpersonation } from '@/contexts/ImpersonationContext';
-import { useIdentity } from '@/contexts/IdentityContext';
-import { useAccessContract } from '@/hooks/useAccessContract';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+  Plus,
+} from "lucide-react";
+
+import iconLogo from "@/assets/iconLogo.png";
+import logoTatameLight from "@/assets/logoTatameLight.png";
+import logoTatameDark from "@/assets/logoTatameDark.png";
+
+import { useCurrentUser } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
+import { useIdentity } from "@/contexts/IdentityContext";
+
+import { useAccessContract } from "@/hooks/useAccessContract";
+import type { FeatureKey } from "@/hooks/useAccessContract";
+
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,15 +52,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
-import { SystemAwarenessBanner } from '@/components/institutional/SystemAwarenessBanner';
-import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
-import { CreateEventDialog } from '@/components/events/CreateEventDialog';
-import { useTenantStatus } from '@/hooks/useTenantStatus';
-import { useRouteFocusReset } from '@/hooks/a11y/useRouteFocusReset';
-import { useAppShellInstrumentation } from '@/hooks/useAppShellInstrumentation';
-import type { FeatureKey } from '@/hooks/useAccessContract';
+} from "@/components/ui/dropdown-menu";
+
+import { TenantStatusBanner } from "@/components/tenant/TenantStatusBanner";
+import { SystemAwarenessBanner } from "@/components/institutional/SystemAwarenessBanner";
+import { HeaderSettingsDropdown, HeaderUserMenu } from "@/components/layout";
+import { CreateEventDialog } from "@/components/events/CreateEventDialog";
+
+import { useTenantStatus } from "@/hooks/useTenantStatus";
+import { useRouteFocusReset } from "@/hooks/a11y/useRouteFocusReset";
+
+// 3.4
+import { useAppShellInstrumentation } from "@/hooks/useAppShellInstrumentation";
 
 interface AppShellProps {
   children: ReactNode;
@@ -70,6 +78,7 @@ interface NavItem {
 
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const { currentUser, signOut, isGlobalSuperadmin } = useCurrentUser();
   const { tenant } = useTenant();
   const { resolvedTheme } = useTheme();
@@ -77,7 +86,7 @@ export function AppShell({ children }: AppShellProps) {
   const { isImpersonating, session: impersonationSession } = useImpersonation();
   const { can } = useAccessContract(tenant?.id);
 
-  // Keep hooks (even if values not used directly here) — they register internal effects
+  // Keep hooks (their internal effects matter)
   useIdentity();
   useTenantStatus();
   useRouteFocusReset();
@@ -87,37 +96,47 @@ export function AppShell({ children }: AppShellProps) {
   // 🔐 HARDENED: Logout goes to /login (since /portal global route was removed in 3.2)
   const handleSignOut = async () => {
     await signOut();
-    navigate('/login');
+    navigate("/login");
   };
 
   const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
-  const tenantSlug = tenant?.slug || '';
+  const tenantSlug = tenant?.slug || "";
 
   // 🔐 Navigation items with feature-based access control
   const allNavigation: NavItem[] = [
-    { name: t('nav.athleteArea'), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: 'TENANT_MY_AREA' },
-    { name: t('nav.dashboard'), href: `/${tenantSlug}/app`, icon: Home, feature: 'TENANT_APP' },
-    { name: t('nav.athletes'), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: 'TENANT_ATHLETES' },
-    { name: t('nav.memberships'), href: `/${tenantSlug}/app/memberships`, icon: UserCheck, feature: 'TENANT_MEMBERSHIPS' },
-    { name: t('nav.academies'), href: `/${tenantSlug}/app/academies`, icon: Building2, feature: 'TENANT_ACADEMIES' },
-    { name: t('nav.coaches'), href: `/${tenantSlug}/app/coaches`, icon: Award, feature: 'TENANT_COACHES' },
-    { name: t('nav.gradings'), href: `/${tenantSlug}/app/grading-schemes`, icon: Award, feature: 'TENANT_GRADINGS' },
-    { name: t('nav.approvals'), href: `/${tenantSlug}/app/approvals`, icon: Settings, feature: 'TENANT_APPROVALS' },
-    { name: t('nav.rankings'), href: `/${tenantSlug}/app/rankings`, icon: Trophy, feature: 'TENANT_RANKINGS' },
-    { name: t('nav.events'), href: `/${tenantSlug}/app/events`, icon: Calendar, feature: 'TENANT_EVENTS' },
-    { name: t('nav.auditLog'), href: `/${tenantSlug}/app/audit-log`, icon: FileText, feature: 'TENANT_AUDIT_LOG' },
-    { name: t('nav.security'), href: `/${tenantSlug}/app/security`, icon: Shield, feature: 'TENANT_SECURITY' },
-    { name: t('billing.title'), href: `/${tenantSlug}/app/billing`, icon: CreditCard, feature: 'TENANT_BILLING' },
-    { name: t('nav.settings'), href: `/${tenantSlug}/app/settings`, icon: Settings, feature: 'TENANT_SETTINGS' },
-    { name: t('nav.help'), href: `/${tenantSlug}/app/help`, icon: HelpCircle, feature: 'TENANT_HELP' },
+    { name: t("nav.athleteArea"), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: "TENANT_MY_AREA" },
+    { name: t("nav.dashboard"), href: `/${tenantSlug}/app`, icon: Home, feature: "TENANT_APP" },
+    { name: t("nav.athletes"), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: "TENANT_ATHLETES" },
+    {
+      name: t("nav.memberships"),
+      href: `/${tenantSlug}/app/memberships`,
+      icon: UserCheck,
+      feature: "TENANT_MEMBERSHIPS",
+    },
+    { name: t("nav.academies"), href: `/${tenantSlug}/app/academies`, icon: Building2, feature: "TENANT_ACADEMIES" },
+    { name: t("nav.coaches"), href: `/${tenantSlug}/app/coaches`, icon: Award, feature: "TENANT_COACHES" },
+    { name: t("nav.gradings"), href: `/${tenantSlug}/app/grading-schemes`, icon: Award, feature: "TENANT_GRADINGS" },
+    { name: t("nav.approvals"), href: `/${tenantSlug}/app/approvals`, icon: Settings, feature: "TENANT_APPROVALS" },
+    { name: t("nav.rankings"), href: `/${tenantSlug}/app/rankings`, icon: Trophy, feature: "TENANT_RANKINGS" },
+    { name: t("nav.events"), href: `/${tenantSlug}/app/events`, icon: Calendar, feature: "TENANT_EVENTS" },
+    { name: t("nav.auditLog"), href: `/${tenantSlug}/app/audit-log`, icon: FileText, feature: "TENANT_AUDIT_LOG" },
+    { name: t("nav.security"), href: `/${tenantSlug}/app/security`, icon: Shield, feature: "TENANT_SECURITY" },
+    { name: t("billing.title"), href: `/${tenantSlug}/app/billing`, icon: CreditCard, feature: "TENANT_BILLING" },
+    { name: t("nav.settings"), href: `/${tenantSlug}/app/settings`, icon: Settings, feature: "TENANT_SETTINGS" },
+    { name: t("nav.help"), href: `/${tenantSlug}/app/help`, icon: HelpCircle, feature: "TENANT_HELP" },
   ];
 
   // 🔐 Filter navigation based on permissions (UX only - guards still enforce)
-  const navigation = allNavigation.filter(item => {
+  const navigation = allNavigation.filter((item) => {
     if (!item.feature) return true;
     return can(item.feature);
   });
@@ -135,10 +154,7 @@ export function AppShell({ children }: AppShellProps) {
         Skip to main content
       </a>
 
-      <div
-        className="min-h-screen bg-background"
-        {...dataAttributes}
-      >
+      <div className="min-h-screen bg-background" {...dataAttributes}>
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <motion.div
@@ -153,7 +169,7 @@ export function AppShell({ children }: AppShellProps) {
         {/* Sidebar */}
         <aside
           className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-sidebar-border bg-sidebar transform transition-transform duration-200 ease-in-out ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
           } lg:translate-x-0`}
         >
           <div className="flex h-full flex-col">
@@ -167,18 +183,13 @@ export function AppShell({ children }: AppShellProps) {
                   </>
                 ) : (
                   <img
-                    src={resolvedTheme === 'dark' ? logoTatameDark : logoTatameLight}
+                    src={resolvedTheme === "dark" ? logoTatameDark : logoTatameLight}
                     alt="TATAME"
                     className="h-8 w-auto object-contain"
                   />
                 )}
               </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-              >
+              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
@@ -187,7 +198,7 @@ export function AppShell({ children }: AppShellProps) {
             {isImpersonating && impersonationSession && (
               <div className="mx-4 mb-2 rounded-md bg-yellow-100 dark:bg-yellow-900/30 px-3 py-2 text-xs">
                 <span className="text-yellow-800 dark:text-yellow-200 opacity-80">
-                  {t('impersonation.operatingAs')}:
+                  {t("impersonation.operatingAs")}:
                 </span>
                 <strong className="block truncate text-yellow-900 dark:text-yellow-100">
                   {impersonationSession.targetTenantName}
@@ -210,8 +221,6 @@ export function AppShell({ children }: AppShellProps) {
                   <span>{item.name}</span>
                 </NavLink>
               ))}
-
-              {/* U20: Help is now in allNavigation array, gated by can('TENANT_HELP') */}
             </nav>
 
             {/* User menu */}
@@ -226,27 +235,23 @@ export function AppShell({ children }: AppShellProps) {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {currentUser?.name || 'Usuário'}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {currentUser?.email}
-                      </p>
+                      <p className="text-sm font-medium text-foreground truncate">{currentUser?.name || "Usuário"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
                     </div>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>{t('nav.myAccount')}</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("nav.myAccount")}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {isGlobalSuperadmin && (
-                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
                       <img src={iconLogo} alt="Admin" className="mr-2 h-4 w-4 rounded object-contain" />
-                      {t('nav.globalAdmin')}
+                      {t("nav.globalAdmin")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    {t('nav.logout')}
+                    {t("nav.logout")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -256,54 +261,74 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <div className="lg:pl-64">
-          {/* Header — P-MENU-01: Reorganized with tenant context and consolidated menus */}
+          {/* Header */}
           <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
             {/* LEFT: Context */}
             <div className="flex items-center gap-3">
               {/* Mobile menu button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                onClick={() => setSidebarOpen(true)}
-              >
+              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
 
-              {/* Tenant name (desktop only, since sidebar shows on lg) */}
+              {/* Tenant name (desktop only) */}
               <div className="hidden lg:flex items-center gap-2">
-                {tenant?.logoUrl && (
-                  <img
-                    src={tenant.logoUrl}
-                    alt=""
-                    className="h-6 w-6 rounded object-cover"
-                  />
-                )}
-                <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
-                  {tenant?.name}
-                </span>
+                {tenant?.logoUrl && <img src={tenant.logoUrl} alt="" className="h-6 w-6 rounded object-cover" />}
+                <span className="text-sm font-medium text-foreground truncate max-w-[180px]">{tenant?.name}</span>
               </div>
 
-              {/* C3: Redundant impersonation badge — always visible for superadmin */}
+              {/* Impersonation badge */}
               {isImpersonating && (
                 <Badge
                   variant="outline"
                   className="text-xs font-bold border-warning/50 bg-warning/10 text-warning-foreground dark:text-warning uppercase tracking-wider"
                   data-testid="impersonation-header-badge"
                 >
-                  {t('impersonation.badge')}
+                  {t("impersonation.badge")}
                 </Badge>
               )}
 
-              {/* C1: UX Persona context label — read-only, non-interactive */}
+              {/* UX Persona label */}
               <span
                 className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground"
                 data-testid="ux-persona-label"
                 data-ux-persona={uxPersona}
               >
                 <span className="opacity-60">—</span>
-                {uxPersona === 'ADMIN'
-                  ? t('ux.contextAdmin')
-                  : t('ux.contextAthlete')
-                }
-              </
+                {uxPersona === "ADMIN" ? t("ux.contextAdmin") : t("ux.contextAthlete")}
+              </span>
+            </div>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* RIGHT: Actions */}
+            <div className="flex items-center gap-1">
+              {/* Quick Create Event */}
+              {can("TENANT_EVENTS") && (
+                <CreateEventDialog>
+                  <Button size="sm" variant="default" className="hidden md:flex gap-2">
+                    <Plus className="h-4 w-4" />
+                    <span>{t("events.createEvent")}</span>
+                  </Button>
+                </CreateEventDialog>
+              )}
+
+              <HeaderSettingsDropdown />
+              <HeaderUserMenu />
+            </div>
+          </header>
+
+          {/* Page content */}
+          <main id="main-content" className="flex-1 p-4 lg:p-6">
+            <SystemAwarenessBanner />
+            <TenantStatusBanner />
+
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+              {children}
+            </motion.div>
+          </main>
+        </div>
+      </div>
+    </>
+  );
+}
