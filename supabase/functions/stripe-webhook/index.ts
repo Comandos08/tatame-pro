@@ -508,9 +508,36 @@ async function handlePaymentFailed(
   log.setStep("payment_failed");
   log.info("Processing payment_intent.payment_failed", { id: paymentIntent.id });
 
-  const membershipId = paymentIntent.metadata?.membership_id;
+  // Try metadata first, then fallback to stripe_payment_intent_id lookup
+  let membershipId = paymentIntent.metadata?.membership_id;
+  let tenantId: string | null = null;
+
+  if (membershipId) {
+    const { data: membership } = await supabase
+      .from("memberships")
+      .select("id, tenant_id")
+      .eq("id", membershipId)
+      .maybeSingle();
+
+    if (membership) {
+      tenantId = membership.tenant_id;
+    }
+  } else {
+    // Fallback: buscar membership pelo payment_intent_id
+    const { data: membership } = await supabase
+      .from("memberships")
+      .select("id, tenant_id")
+      .eq("stripe_payment_intent_id", paymentIntent.id)
+      .maybeSingle();
+
+    if (membership) {
+      membershipId = membership.id;
+      tenantId = membership.tenant_id;
+    }
+  }
+
   if (!membershipId) {
-    log.info("No membership_id in metadata");
+    log.info("No membership found for payment intent", { paymentIntentId: paymentIntent.id });
     return;
   }
 
@@ -525,7 +552,26 @@ async function handlePaymentFailed(
     log.warn("Payment RPC failed", { error: rpcError.message, membershipId });
   }
 
-  log.info("Updated membership payment status to FAILED", { membershipId });
+  // Audit log
+  if (tenantId) {
+    await createAuditLog(supabase, {
+      event_type: "MEMBERSHIP_PAYMENT_FAILED",
+      tenant_id: tenantId,
+      metadata: {
+        membership_id: membershipId,
+        payment_intent_id: paymentIntent.id,
+        failure_message: paymentIntent.last_payment_error?.message || null,
+        source: "stripe_webhook",
+      },
+    });
+
+    // Send billing email notification
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    await sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", tenantId, log);
+  }
+
+  log.info("Payment failed processed", { membershipId });
 }
 
 // Subscription event handlers for tenant billing
