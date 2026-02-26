@@ -2211,7 +2211,7 @@ export type Database = {
           id: string
           national_id: string | null
           phone: string | null
-          profile_id: string | null
+          profile_id: string
           tenant_id: string
           updated_at: string | null
         }
@@ -2222,7 +2222,7 @@ export type Database = {
           id?: string
           national_id?: string | null
           phone?: string | null
-          profile_id?: string | null
+          profile_id: string
           tenant_id: string
           updated_at?: string | null
         }
@@ -2233,7 +2233,7 @@ export type Database = {
           id?: string
           national_id?: string | null
           phone?: string | null
-          profile_id?: string | null
+          profile_id?: string
           tenant_id?: string
           updated_at?: string | null
         }

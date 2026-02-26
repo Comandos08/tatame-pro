@@ -1,0 +1,1 @@
+ALTER TABLE public.guardians ALTER COLUMN profile_id SET NOT NULL;
