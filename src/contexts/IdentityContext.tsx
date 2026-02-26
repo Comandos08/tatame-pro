@@ -35,6 +35,14 @@ export interface TenantInfo {
   name: string;
 }
 
+interface IdentityResult {
+  status?: "RESOLVED" | "WIZARD_REQUIRED" | "ERROR";
+  tenant?: TenantInfo;
+  role?: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL";
+  redirectPath?: string | null;
+  error?: IdentityError;
+}
+
 interface IdentityContextType {
   identityState: IdentityState;
   error: IdentityError | null;
@@ -45,9 +53,9 @@ interface IdentityContextType {
   role: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
-  completeWizard: (payload: any) => Promise<any>;
-  createTenant: (payload: any) => Promise<any>;
-  joinExistingTenant: (payload: any) => Promise<any>;
+  completeWizard: (payload: unknown) => Promise<any>;
+  createTenant: (payload: unknown) => Promise<any>;
+  joinExistingTenant: (payload: unknown) => Promise<any>;
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
 }
@@ -56,9 +64,14 @@ const IdentityContext = createContext<IdentityContextType | undefined>(undefined
 
 const IDENTITY_TIMEOUT_MS = 12_000;
 
+function unwrapInvoke<T>(data: any): T {
+  return data?.ok ? data.data : data;
+}
+
 function hardAbortableFetch(timeoutMs: number) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
   return {
     signal: controller.signal,
     abort: () => controller.abort(),
@@ -78,6 +91,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
   const isMountedRef = useRef(true);
   const inFlightAbortRef = useRef<null | (() => void)>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -100,7 +114,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     setRedirectPath(null);
   }, []);
 
-  const applyResult = useCallback((result: any) => {
+  const applyResult = useCallback((result: IdentityResult) => {
     if (!isMountedRef.current) return;
 
     if (result?.status === "RESOLVED") {
@@ -109,8 +123,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       setRole(result.role || null);
       setRedirectPath(result.redirectPath || null);
 
-      if (result.role === "SUPERADMIN_GLOBAL") setIdentityState("superadmin");
-      else setIdentityState("resolved");
+      setIdentityState(result.role === "SUPERADMIN_GLOBAL" ? "superadmin" : "resolved");
 
       setError(null);
 
@@ -118,10 +131,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         domain: "IDENTITY",
         type: "IDENTITY_RESOLVED",
         tenantId: result.tenant?.id,
-        metadata: {
-          role: result.role,
-          status: result.status,
-        },
+        metadata: { role: result.role },
       });
 
       return;
@@ -144,21 +154,25 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         message: "Falha ao verificar identidade.",
       },
     );
+
+    emitInstitutionalEvent({
+      domain: "IDENTITY",
+      type: "IDENTITY_ERROR",
+      metadata: result?.error || { code: "UNKNOWN" },
+    });
   }, []);
 
-  // ============================
-  // CHECK IDENTITY (COM TIMEOUT)
-  // ============================
-
   const checkIdentity = useCallback(async () => {
-    if (inFlightAbortRef.current) {
-      inFlightAbortRef.current();
-      inFlightAbortRef.current = null;
-    }
-
     if (!session?.user?.id || !isAuthenticated) {
       reset();
       return;
+    }
+
+    const currentRequestId = ++requestIdRef.current;
+
+    if (inFlightAbortRef.current) {
+      inFlightAbortRef.current();
+      inFlightAbortRef.current = null;
     }
 
     setIdentityState("loading");
@@ -171,17 +185,16 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       const invokePromise = supabase.functions.invoke("resolve-identity-wizard", { body: { action: "CHECK" } });
 
       const abortPromise = new Promise((_, reject) => {
-        signal.addEventListener("abort", () => {
-          reject(new DOMException("Aborted", "AbortError"));
-        });
+        signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
       });
 
-      const { data: invokeResult, error: invokeError } = (await Promise.race([invokePromise, abortPromise])) as any;
+      const { data, error } = (await Promise.race([invokePromise, abortPromise])) as any;
 
-      if (invokeError) throw invokeError;
+      if (error) throw error;
 
-      const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
+      if (currentRequestId !== requestIdRef.current) return;
 
+      const unwrapped = unwrapInvoke<IdentityResult>(data);
       applyResult(unwrapped);
     } catch (err: any) {
       if (err?.name === "AbortError") {
@@ -190,6 +203,12 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
           code: "IDENTITY_TIMEOUT",
           message: "Timeout identity.",
         });
+
+        emitInstitutionalEvent({
+          domain: "IDENTITY",
+          type: "IDENTITY_TIMEOUT",
+        });
+
         return;
       }
 
@@ -200,11 +219,17 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         code: "UNKNOWN",
         message: "Falha ao conectar ao serviço.",
       });
+
+      emitInstitutionalEvent({
+        domain: "IDENTITY",
+        type: "IDENTITY_ERROR",
+        metadata: { message: err?.message },
+      });
     } finally {
       clear();
       inFlightAbortRef.current = null;
     }
-  }, [applyResult, session?.user?.id, isAuthenticated, reset]);
+  }, [session?.user?.id, isAuthenticated, reset, applyResult]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -215,27 +240,14 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     }
 
     checkIdentity();
-
-    return () => {
-      if (inFlightAbortRef.current) {
-        inFlightAbortRef.current();
-        inFlightAbortRef.current = null;
-      }
-    };
   }, [authLoading, isAuthenticated, session?.user?.id, checkIdentity, reset]);
 
   const refreshIdentity = async () => {
     await checkIdentity();
   };
 
-  // ============================
-  // COMPLETE WIZARD
-  // ============================
-
-  const completeWizard = async (payload: any) => {
-    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
-      body: { action: "COMPLETE_WIZARD", payload },
-    });
+  const invokeAction = async (action: string, payload?: unknown) => {
+    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", { body: { action, payload } });
 
     if (error) {
       return {
@@ -244,7 +256,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const unwrapped = data?.ok ? data.data : data;
+    const unwrapped = unwrapInvoke<IdentityResult>(data);
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
@@ -257,78 +269,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     }
 
     return { success: false, error: unwrapped?.error };
-  };
-
-  // ============================
-  // CREATE TENANT
-  // ============================
-
-  const createTenant = async (payload: any) => {
-    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
-      body: { action: "CREATE_TENANT", payload },
-    });
-
-    if (error) {
-      return {
-        success: false,
-        error: { code: "UNKNOWN", message: error.message },
-      };
-    }
-
-    const unwrapped = data?.ok ? data.data : data;
-
-    if (unwrapped?.status === "RESOLVED") {
-      applyResult(unwrapped);
-      return {
-        success: true,
-        tenant: unwrapped.tenant,
-        role: unwrapped.role,
-        redirectPath: unwrapped.redirectPath,
-      };
-    }
-
-    return { success: false, error: unwrapped?.error };
-  };
-
-  // ============================
-  // JOIN EXISTING TENANT
-  // ============================
-
-  const joinExistingTenant = async (payload: any) => {
-    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
-      body: { action: "JOIN_EXISTING_TENANT", payload },
-    });
-
-    if (error) {
-      return {
-        success: false,
-        error: { code: "UNKNOWN", message: error.message },
-      };
-    }
-
-    const unwrapped = data?.ok ? data.data : data;
-
-    if (unwrapped?.status === "RESOLVED") {
-      applyResult(unwrapped);
-      return {
-        success: true,
-        tenant: unwrapped.tenant,
-        role: unwrapped.role,
-        redirectPath: unwrapped.redirectPath,
-      };
-    }
-
-    return { success: false, error: unwrapped?.error };
-  };
-
-  const setIdentityError = (newError: IdentityError) => {
-    setError(newError);
-    setIdentityState("error");
-  };
-
-  const clearError = () => {
-    setError(null);
-    checkIdentity();
   };
 
   return (
@@ -343,11 +283,17 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         role,
         redirectPath,
         refreshIdentity,
-        completeWizard,
-        createTenant,
-        joinExistingTenant,
-        setIdentityError,
-        clearError,
+        completeWizard: (payload) => invokeAction("COMPLETE_WIZARD", payload),
+        createTenant: (payload) => invokeAction("CREATE_TENANT", payload),
+        joinExistingTenant: (payload) => invokeAction("JOIN_EXISTING_TENANT", payload),
+        setIdentityError: (e) => {
+          setError(e);
+          setIdentityState("error");
+        },
+        clearError: () => {
+          setError(null);
+          checkIdentity();
+        },
       }}
     >
       {children}
