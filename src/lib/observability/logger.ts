@@ -8,6 +8,8 @@
  * @module src/lib/observability/logger
  */
 
+import { getCorrelationId } from './correlationId';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogContext {
@@ -92,7 +94,11 @@ export function createLogger(scope: string): Logger {
   const log = (level: LogLevel, message: string, context?: LogContext, error?: unknown) => {
     if (!shouldLog(level)) return;
     
-    const scopedContext = { ...context, component: scope };
+    const scopedContext = {
+      ...context,
+      component: scope,
+      correlationId: context?.correlationId ?? getCorrelationId(),
+    };
     const formatted = formatLogEntry(level, message, scopedContext);
     const method = getConsoleMethod(level);
     
