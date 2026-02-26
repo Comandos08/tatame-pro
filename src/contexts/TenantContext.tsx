@@ -15,6 +15,7 @@ interface TenantBillingInfo {
   status: string;
   stripe_customer_id: string | null;
   scheduled_delete_at: string | null;
+  trial_expires_at: string | null;
 }
 
 const TenantContext = createContext<ExtendedTenantContext | undefined>(undefined);
@@ -159,20 +160,17 @@ export function TenantProvider({ children }: TenantProviderProps) {
             setBoundaryViolation(false);
           }
 
-          if (!data.is_active) {
-            if (abortController.signal.aborted) return;
-
+          // TRIAL_15_DAYS: Always fetch billing info (needed for trial expiration check)
+          if (!abortController.signal.aborted) {
             const { data: billing } = await supabase
               .from("tenant_billing")
-              .select("status, stripe_customer_id, scheduled_delete_at")
+              .select("status, stripe_customer_id, scheduled_delete_at, trial_expires_at")
               .eq("tenant_id", data.id)
               .maybeSingle();
 
             if (!abortController.signal.aborted && isMountedRef.current) {
               setBillingInfo(billing);
             }
-          } else {
-            setBillingInfo(null);
           }
         }
       } catch (err) {

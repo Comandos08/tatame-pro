@@ -823,7 +823,7 @@ async function handleCreateTenant(
    * ✅ CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════ */
   
-  // SAFE_BOOT_TENANT_ACTIVATION: Wizard tenants nasce ACTIVE para acesso imediato
+  // TRIAL_15_DAYS: Wizard tenants start with 15-day trial, is_active=true for immediate access
   const sanitizedPayload = {
     name: orgName,
     slug: finalSlug,
@@ -1033,12 +1033,13 @@ async function handleCreateTenant(
       tenant_slug: finalSlug,
       creation_source: "wizard",
       status: "ACTIVE",
-      safe_boot: true,
+      billing_status: "TRIALING",
+      trial_days: 15,
     },
   });
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 7.5: SAFE_BOOT — Criar tenant_billing com status ACTIVE (idempotente)
+   * STEP 7.5: TRIAL_15_DAYS — Criar tenant_billing com status TRIALING (idempotente)
    * ───────────────────────────────────────────────────────────────────────────── */
   const { data: existingBilling } = await supabase
     .from("tenant_billing")
@@ -1047,23 +1048,34 @@ async function handleCreateTenant(
     .limit(1);
 
   if (!existingBilling || existingBilling.length === 0) {
+    // TRIAL_15_DAYS: Create billing with TRIALING status and 15-day trial window
+    const now = new Date();
+    const trialExpiresAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // +15 days
+
     const { error: billingError } = await supabase
       .from("tenant_billing")
       .insert({
         tenant_id: newTenant.id,
-        status: "ACTIVE",
+        status: "TRIALING",
         plan_name: "Plano Federação Anual",
         plan_price_id: "price_1Spz03HH533PC5DdDUbCe7fS",
+        trial_started_at: now.toISOString(),
+        trial_expires_at: trialExpiresAt.toISOString(),
+        current_period_start: now.toISOString(),
+        current_period_end: trialExpiresAt.toISOString(),
       });
 
     if (billingError) {
-      log.error("SAFE_BOOT: Failed to create tenant_billing", billingError);
+      log.error("TRIAL_15_DAYS: Failed to create tenant_billing", billingError);
       // Non-blocking — tenant already created and functional
     } else {
-      log.info("SAFE_BOOT: tenant_billing created with ACTIVE status", { tenantId: newTenant.id });
+      log.info("TRIAL_15_DAYS: tenant_billing created with TRIALING status", {
+        tenantId: newTenant.id,
+        trialExpiresAt: trialExpiresAt.toISOString(),
+      });
     }
   } else {
-    log.info("SAFE_BOOT: tenant_billing already exists, skipping", { tenantId: newTenant.id });
+    log.info("TRIAL_15_DAYS: tenant_billing already exists, skipping", { tenantId: newTenant.id });
   }
 
   log.info("Success - redirecting to onboarding");

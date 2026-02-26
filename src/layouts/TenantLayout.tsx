@@ -153,20 +153,32 @@ function TenantContent() {
   // =========================================================================
   // STEP 4: Billing Block Check (Protected Routes Only)
   // =========================================================================
-  // SECURITY BOUNDARY: Inactive tenants cannot access /app/* routes
+  // SECURITY BOUNDARY: Inactive tenants OR expired trials cannot access /app/* routes
   // BY DESIGN: Public routes (landing, events, verification) are NOT blocked
-  // INTENTIONAL: Only /app/* and /portal/* routes require active billing status
-  if (!tenant.isActive && isProtectedRoute) {
-    // FAIL-CLOSED: Show blocking screen with recovery options
-    return (
-      <TenantBlockedScreen
-        tenantName={tenant.name}
-        tenantId={tenant.id}
-        billingStatus={billingInfo?.status || undefined}
-        scheduledDeleteAt={billingInfo?.scheduled_delete_at || undefined}
-        hasStripeCustomer={!!billingInfo?.stripe_customer_id}
-      />
-    );
+  // TRIAL_15_DAYS: TRIALING tenants are blocked when trial_expires_at has passed
+  if (isProtectedRoute) {
+    const billingStatus = billingInfo?.status?.toUpperCase();
+    const trialExpiresAt = billingInfo?.trial_expires_at ? new Date(billingInfo.trial_expires_at) : null;
+    const isTrialExpired = billingStatus === 'TRIALING' && trialExpiresAt && trialExpiresAt < new Date();
+
+    // Block if: tenant inactive, trial expired, or billing explicitly blocked
+    const shouldBlock = !tenant.isActive || isTrialExpired || billingStatus === 'TRIAL_EXPIRED' || billingStatus === 'PENDING_DELETE';
+
+    if (shouldBlock) {
+      // Allow /billing route even when blocked (so admin can pay)
+      const isBillingRoute = location.pathname.includes('/billing');
+      if (!isBillingRoute) {
+        return (
+          <TenantBlockedScreen
+            tenantName={tenant.name}
+            tenantId={tenant.id}
+            billingStatus={billingInfo?.status || undefined}
+            scheduledDeleteAt={billingInfo?.scheduled_delete_at || undefined}
+            hasStripeCustomer={!!billingInfo?.stripe_customer_id}
+          />
+        );
+      }
+    }
   }
 
   // =========================================================================
