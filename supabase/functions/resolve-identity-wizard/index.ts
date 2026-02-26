@@ -45,10 +45,11 @@
  *      1. Valida payload
  *      2. Verifica idempotência (wizard já completado?)
  *      3. Gera slug único
- *      4. Cria tenant com status=SETUP, creation_source=wizard
- *      5. Atribui role ADMIN_TENANT ao usuário criador
- *      6. Marca wizard_completed = true
- *      7. Retorna RESOLVED + /{slug}/app/onboarding
+ *      4. Cria tenant com status=ACTIVE, creation_source=wizard (SAFE_BOOT)
+ *      5. Cria tenant_billing com status=ACTIVE (idempotente)
+ *      6. Atribui role ADMIN_TENANT ao usuário criador
+ *      7. Marca wizard_completed = true
+ *      8. Retorna RESOLVED + /{slug}/app
  *
  *    JOIN_EXISTING_TENANT:
  *      1. Valida tenantCode (slug)
@@ -764,19 +765,14 @@ async function handleCreateTenant(
 
     if (existingTenantData?.[0]) {
       const existingTenant = existingTenantData[0];
-      // P1-001: If tenant is still in SETUP, redirect to onboarding (not /app)
-      const isSetup = existingTenant.status === "SETUP";
       log.info("IDEMPOTENT: Wizard already completed, returning existing tenant", {
         tenantStatus: existingTenant.status,
-        isSetup,
       });
       return {
         status: "RESOLVED",
         role: "ADMIN_TENANT",
         tenant: { id: existingTenant.id, slug: existingTenant.slug, name: existingTenant.name },
-        redirectPath: isSetup
-          ? `/${existingTenant.slug}/app/onboarding`
-          : `/${existingTenant.slug}/app`,
+        redirectPath: `/${existingTenant.slug}/app`,
       };
     }
   }
@@ -827,11 +823,13 @@ async function handleCreateTenant(
    * ✅ CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════ */
   
+  // SAFE_BOOT_TENANT_ACTIVATION: Wizard tenants nasce ACTIVE para acesso imediato
   const sanitizedPayload = {
     name: orgName,
     slug: finalSlug,
     is_active: true,
-    status: "SETUP" as const,
+    status: "ACTIVE" as const,
+    lifecycle_status: "ACTIVE" as const,
     creation_source: "wizard" as const,
     onboarding_completed: false,
     sport_types: [] as string[],
@@ -871,10 +869,10 @@ async function handleCreateTenant(
     };
   }
 
-  // ✅ SANITY CHECK PÓS-CRIAÇÃO
-  if (newTenant.status !== "SETUP") {
+  // ✅ SANITY CHECK PÓS-CRIAÇÃO (SAFE_BOOT: expects ACTIVE for wizard tenants)
+  if (newTenant.status !== "ACTIVE") {
     log.error("SANITY_CHECK failed", undefined, {
-      expected: "SETUP",
+      expected: "ACTIVE",
       actual: newTenant.status,
       tenantId: newTenant.id,
       userId,
@@ -890,7 +888,7 @@ async function handleCreateTenant(
       tenant_status: newTenant.status,
       billing_status: null,
       metadata: {
-        expected_status: "SETUP",
+        expected_status: "ACTIVE",
         actual_status: newTenant.status,
       },
     });
@@ -986,7 +984,7 @@ async function handleCreateTenant(
       domain: "WIZARD",
       operation: "assign_admin_role",
       decision: "BLOCKED",
-      tenant_status: "SETUP",
+      tenant_status: "ACTIVE",
       billing_status: null,
       metadata: {
         error_code: roleError.code,
@@ -1034,14 +1032,44 @@ async function handleCreateTenant(
       tenant_name: orgName,
       tenant_slug: finalSlug,
       creation_source: "wizard",
-      status: "SETUP",
+      status: "ACTIVE",
+      safe_boot: true,
     },
   });
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 7.5: SAFE_BOOT — Criar tenant_billing com status ACTIVE (idempotente)
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { data: existingBilling } = await supabase
+    .from("tenant_billing")
+    .select("id")
+    .eq("tenant_id", newTenant.id)
+    .limit(1);
+
+  if (!existingBilling || existingBilling.length === 0) {
+    const { error: billingError } = await supabase
+      .from("tenant_billing")
+      .insert({
+        tenant_id: newTenant.id,
+        status: "ACTIVE",
+        plan_name: "Plano Federação Anual",
+        plan_price_id: "price_1Spz03HH533PC5DdDUbCe7fS",
+      });
+
+    if (billingError) {
+      log.error("SAFE_BOOT: Failed to create tenant_billing", billingError);
+      // Non-blocking — tenant already created and functional
+    } else {
+      log.info("SAFE_BOOT: tenant_billing created with ACTIVE status", { tenantId: newTenant.id });
+    }
+  } else {
+    log.info("SAFE_BOOT: tenant_billing already exists, skipping", { tenantId: newTenant.id });
+  }
 
   log.info("Success - redirecting to onboarding");
 
   /* ─────────────────────────────────────────────────────────────────────────────
-   * RETORNO: RESOLVED com redirecionamento para onboarding
+   * RETORNO: RESOLVED com redirecionamento para /app (SAFE_BOOT: tenant ACTIVE)
    * ───────────────────────────────────────────────────────────────────────────── */
   return {
     status: "RESOLVED",
@@ -1051,6 +1079,6 @@ async function handleCreateTenant(
       slug: newTenant.slug,
       name: newTenant.name,
     },
-    redirectPath: `/${newTenant.slug}/app/onboarding`,
+    redirectPath: `/${newTenant.slug}/app`,
   };
 }
