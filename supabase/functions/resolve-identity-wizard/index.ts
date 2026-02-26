@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 function json(payload: IdentityResponse) {
-  return new Response(JSON.stringify(payload), {
+  return new Response(JSON.stringify({ ok: true, data: payload }), {
     status: 200, // 🔒 INVARIANTE ABSOLUTA — Nunca alterar
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });

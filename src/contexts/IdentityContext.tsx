@@ -182,18 +182,18 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       }
 
       const result = await resp.json();
+      const unwrapped = result?.ok ? result.data : result;
 
       if (!resp.ok) {
         setIdentityState("error");
         setError({
           code: "UNKNOWN",
-          message: result?.error?.message || "Erro identidade.",
+          message: unwrapped?.error?.message || "Erro identidade.",
         });
         return;
       }
 
-      // 🔥 AGORA CONSUME DIRETAMENTE
-      applyResult(result);
+      applyResult(unwrapped);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         setIdentityState("error");
@@ -246,18 +246,19 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     });
 
     const result = await resp.json();
+    const unwrapped = result?.ok ? result.data : result;
 
-    if (result?.status === "RESOLVED") {
-      applyResult(result);
+    if (unwrapped?.status === "RESOLVED") {
+      applyResult(unwrapped);
       return {
         success: true,
-        tenant: result.tenant,
-        role: result.role,
-        redirectPath: result.redirectPath,
+        tenant: unwrapped.tenant,
+        role: unwrapped.role,
+        redirectPath: unwrapped.redirectPath,
       };
     }
 
-    return { success: false, error: result?.error };
+    return { success: false, error: unwrapped?.error };
   };
 
   const createTenant = async (payload: any) => {
@@ -274,18 +275,19 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     });
 
     const result = await resp.json();
+    const unwrapped = result?.ok ? result.data : result;
 
-    if (result?.status === "RESOLVED") {
-      applyResult(result);
+    if (unwrapped?.status === "RESOLVED") {
+      applyResult(unwrapped);
       return {
         success: true,
-        tenant: result.tenant,
-        role: result.role,
-        redirectPath: result.redirectPath,
+        tenant: unwrapped.tenant,
+        role: unwrapped.role,
+        redirectPath: unwrapped.redirectPath,
       };
     }
 
-    return { success: false, error: result?.error };
+    return { success: false, error: unwrapped?.error };
   };
 
   const joinExistingTenant = async (payload: any) => {
@@ -302,18 +304,19 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     });
 
     const result = await resp.json();
+    const unwrapped = result?.ok ? result.data : result;
 
-    if (result?.status === "RESOLVED") {
-      applyResult(result);
+    if (unwrapped?.status === "RESOLVED") {
+      applyResult(unwrapped);
       return {
         success: true,
-        tenant: result.tenant,
-        role: result.role,
-        redirectPath: result.redirectPath,
+        tenant: unwrapped.tenant,
+        role: unwrapped.role,
+        redirectPath: unwrapped.redirectPath,
       };
     }
 
-    return { success: false, error: result?.error };
+    return { success: false, error: unwrapped?.error };
   };
 
   const setIdentityError = (newError: IdentityError) => {
