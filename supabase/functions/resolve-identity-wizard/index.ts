@@ -62,7 +62,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { emitBillingAuditEvent } from "../_shared/emitBillingAuditEvent.ts";
 import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
