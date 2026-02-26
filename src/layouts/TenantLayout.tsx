@@ -39,6 +39,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
 import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
+import { TenantFlagsProvider } from '@/contexts/TenantFlagsContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2, Home, ShieldAlert } from 'lucide-react';
@@ -186,19 +187,17 @@ function TenantContent() {
   // =========================================================================
   // BY DESIGN: Protected routes are wrapped with TenantOnboardingGate
   // INTENTIONAL: Ensures onboarding is complete before accessing tenant features
-  if (isProtectedRoute) {
-    return (
-      <TenantOnboardingGate>
+  return (
+    <TenantFlagsProvider tenantId={tenant?.id}>
+      {isProtectedRoute ? (
+        <TenantOnboardingGate>
+          <Outlet />
+        </TenantOnboardingGate>
+      ) : (
         <Outlet />
-      </TenantOnboardingGate>
-    );
-  }
-
-  // =========================================================================
-  // STEP 6: Public Route Rendering
-  // =========================================================================
-  // BY DESIGN: Public tenant routes render directly without additional gates
-  return <Outlet />;
+      )}
+    </TenantFlagsProvider>
+  );
 }
 
 // =============================================================================

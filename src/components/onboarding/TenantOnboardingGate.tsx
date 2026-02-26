@@ -11,7 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
-import { useTenantFlagsContract } from '@/hooks/useTenantFlagsContract';
+import { useTenantFlags } from '@/contexts/TenantFlagsContext';
 import { logger } from '@/lib/logger';
 
 interface TenantOnboardingGateProps {
@@ -30,7 +30,7 @@ const ALLOWED_ROUTES = [
 export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const { tenant, isLoading: isTenantLoading } = useTenant();
   const { isImpersonating, resolutionStatus } = useImpersonation();
-  const { contract: _contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
+  const { contract: _contract, isLoading: isContractLoading } = useTenantFlags();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -88,7 +88,7 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
  */
 export function useOnboardingStatus() {
   const { tenant, isLoading: isTenantLoading, refetchTenant } = useTenant();
-  const { contract, isLoading: isContractLoading, refetch: refetchContract } = useTenantFlagsContract(tenant?.id);
+  const { contract, isLoading: isContractLoading, refetch: refetchContract } = useTenantFlags();
   
   // B2: Use contract for onboarding_completed, tenant.status for SETUP check
   const isComplete = contract?.onboarding_completed === true || tenant?.status === 'ACTIVE';

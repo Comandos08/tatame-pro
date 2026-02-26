@@ -15,7 +15,7 @@
 import React, { useEffect, useMemo } from "react";
 import { CreditCard, AlertTriangle, Clock } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
-import { useTenantFlagsContract } from "@/hooks/useTenantFlagsContract";
+import { useTenantFlags } from "@/contexts/TenantFlagsContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
 import { LoadingState } from "@/components/ux/LoadingState";
@@ -31,7 +31,7 @@ interface BillingGateProps {
 
 export function BillingGate({ children, strictMode = false, fallback }: BillingGateProps) {
   const { tenant } = useTenant();
-  const { contract, isLoading: isContractLoading } = useTenantFlagsContract(tenant?.id);
+  const { contract, isLoading: isContractLoading } = useTenantFlags();
   useI18n();
   const navigate = useNavigate();
 
