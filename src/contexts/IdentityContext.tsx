@@ -118,7 +118,10 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         domain: "IDENTITY",
         type: "IDENTITY_RESOLVED",
         tenantId: result.tenant?.id,
-        metadata: { role: result.role, status: result.status },
+        metadata: {
+          role: result.role,
+          status: result.status,
+        },
       });
 
       return;
@@ -143,6 +146,10 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  // ============================
+  // CHECK IDENTITY (COM TIMEOUT)
+  // ============================
+
   const checkIdentity = useCallback(async () => {
     if (inFlightAbortRef.current) {
       inFlightAbortRef.current();
@@ -161,38 +168,38 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     inFlightAbortRef.current = abort;
 
     try {
-      const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
-        'resolve-identity-wizard',
-        { body: { action: "CHECK" } }
-      );
+      const invokePromise = supabase.functions.invoke("resolve-identity-wizard", { body: { action: "CHECK" } });
 
-      if (signal.aborted) {
-        setIdentityState("error");
-        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout identity." });
-        return;
-      }
+      const abortPromise = new Promise((_, reject) => {
+        signal.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
 
-      if (invokeError) {
+      const { data: invokeResult, error: invokeError } = (await Promise.race([invokePromise, abortPromise])) as any;
+
+      if (invokeError) throw invokeError;
+
+      const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
+
+      applyResult(unwrapped);
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
         setIdentityState("error");
         setError({
-          code: "UNKNOWN",
-          message: invokeError.message || "Erro identidade.",
+          code: "IDENTITY_TIMEOUT",
+          message: "Timeout identity.",
         });
         return;
       }
 
-      const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
-      applyResult(unwrapped);
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setIdentityState("error");
-        setError({ code: "IDENTITY_TIMEOUT", message: "Timeout identity." });
-        return;
-      }
-
       logger.error("[IdentityContext] checkIdentity error:", err);
+
       setIdentityState("error");
-      setError({ code: "UNKNOWN", message: "Falha ao conectar ao serviço." });
+      setError({
+        code: "UNKNOWN",
+        message: "Falha ao conectar ao serviço.",
+      });
     } finally {
       clear();
       inFlightAbortRef.current = null;
@@ -221,15 +228,23 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     await checkIdentity();
   };
 
+  // ============================
+  // COMPLETE WIZARD
+  // ============================
+
   const completeWizard = async (payload: any) => {
-    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
-      'resolve-identity-wizard',
-      { body: { action: "COMPLETE_WIZARD", payload } }
-    );
+    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
+      body: { action: "COMPLETE_WIZARD", payload },
+    });
 
-    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
+    if (error) {
+      return {
+        success: false,
+        error: { code: "UNKNOWN", message: error.message },
+      };
+    }
 
-    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
+    const unwrapped = data?.ok ? data.data : data;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
@@ -243,16 +258,24 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
     return { success: false, error: unwrapped?.error };
   };
+
+  // ============================
+  // CREATE TENANT
+  // ============================
 
   const createTenant = async (payload: any) => {
-    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
-      'resolve-identity-wizard',
-      { body: { action: "CREATE_TENANT", payload } }
-    );
+    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
+      body: { action: "CREATE_TENANT", payload },
+    });
 
-    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
+    if (error) {
+      return {
+        success: false,
+        error: { code: "UNKNOWN", message: error.message },
+      };
+    }
 
-    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
+    const unwrapped = data?.ok ? data.data : data;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
@@ -267,15 +290,23 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     return { success: false, error: unwrapped?.error };
   };
 
+  // ============================
+  // JOIN EXISTING TENANT
+  // ============================
+
   const joinExistingTenant = async (payload: any) => {
-    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
-      'resolve-identity-wizard',
-      { body: { action: "JOIN_EXISTING_TENANT", payload } }
-    );
+    const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
+      body: { action: "JOIN_EXISTING_TENANT", payload },
+    });
 
-    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
+    if (error) {
+      return {
+        success: false,
+        error: { code: "UNKNOWN", message: error.message },
+      };
+    }
 
-    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
+    const unwrapped = data?.ok ? data.data : data;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
