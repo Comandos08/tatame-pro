@@ -72,9 +72,9 @@ export default function AdminLandingSettings() {
       const { data, error } = await supabase
         .from('platform_landing_config')
         .select('*')
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as LandingConfig;
+      return (data ?? null) as LandingConfig | null;
     },
     enabled: isGlobalSuperadmin,
   });
