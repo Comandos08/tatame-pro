@@ -18,8 +18,6 @@ import PublicVerifyDocument from "@/pages/PublicVerifyDocument";
 import IdentityWizard from "@/pages/IdentityWizard";
 
 // Portal
-import PortalRouter from "@/pages/PortalRouter";
-
 // Admin
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDiagnostics from "@/pages/AdminDiagnostics";
@@ -74,9 +72,6 @@ export default function App() {
 
         {/* Identity */}
         <Route path="/identity/wizard" element={<IdentityWizard />} />
-
-        {/* Portal */}
-        <Route path="/portal/*" element={<PortalRouter />} />
 
         {/* Admin (Superadmin only - explicit RequireRoles guard) */}
         <Route path="/admin" element={<RequireGlobalRoles allowed={['SUPERADMIN_GLOBAL']}><AdminDashboard /></RequireGlobalRoles>} />
