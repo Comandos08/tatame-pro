@@ -66,9 +66,9 @@ export default function Landing() {
       const {
         data,
         error
-      } = await supabase.from('platform_landing_config').select('hero_image_url, hero_enabled').single();
+      } = await supabase.from('platform_landing_config').select('hero_image_url, hero_enabled').maybeSingle();
       if (error) return null;
-      return data;
+      return data ?? { hero_image_url: null, hero_enabled: false };
     },
     staleTime: 5 * 60 * 1000 // 5 min cache
   });
