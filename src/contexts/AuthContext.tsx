@@ -8,7 +8,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
-import { CurrentUser, UserRole, AppRole } from "@/types/auth";
+import { CurrentUser, AppRole } from "@/types/auth";
 import { emitInstitutionalEvent } from "@/lib/institutional";
 
 type AuthState = "initializing" | "authenticated" | "unauthenticated";
@@ -41,38 +41,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const mountedRef = useRef(true);
 
-  const fetchProfile = async (user: User): Promise<CurrentUser | null> => {
+  const fetchProfile = async (_user: User): Promise<CurrentUser | null> => {
     try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_my_profile_with_roles');
+      if (error || !data) return null;
 
-      if (error || !profile) return null;
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("*")
-        .eq("user_id", user.id);
-
-      const userRoles: UserRole[] = (roles || []).map((r: any) => ({
-        id: r.id,
-        userId: r.user_id,
-        role: r.role as AppRole,
-        tenantId: r.tenant_id,
-        createdAt: r.created_at,
-      }));
-
+      const parsed = data as Record<string, unknown>;
       return {
-        id: profile.id,
-        tenantId: profile.tenant_id,
-        email: profile.email ?? '',
-        name: profile.name ?? null,
-        avatarUrl: profile.avatar_url ?? null,
-        createdAt: profile.created_at ?? '',
-        updatedAt: profile.updated_at ?? '',
-        roles: userRoles,
+        id: parsed.id as string,
+        tenantId: (parsed.tenantId as string) ?? null,
+        email: (parsed.email as string) ?? '',
+        name: (parsed.name as string) ?? null,
+        avatarUrl: (parsed.avatarUrl as string) ?? null,
+        createdAt: (parsed.createdAt as string) ?? '',
+        updatedAt: (parsed.updatedAt as string) ?? '',
+        roles: ((parsed.roles as Array<Record<string, unknown>>) ?? []).map((r) => ({
+          id: r.id as string,
+          userId: r.userId as string,
+          role: r.role as AppRole,
+          tenantId: (r.tenantId as string) ?? null,
+          createdAt: (r.createdAt as string) ?? '',
+        })),
       };
     } catch {
       return null;

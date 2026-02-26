@@ -3753,6 +3753,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_my_profile_with_roles: { Args: never; Returns: Json }
       get_next_diploma_serial: {
         Args: { p_sport_type: string; p_tenant_id: string }
         Returns: string
