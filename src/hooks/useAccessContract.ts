@@ -15,8 +15,10 @@
  * - Feature not in set → no access
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentUser } from '@/contexts/AuthContext';
 import { normalizeAsyncState } from '@/lib/async/normalizeAsyncState';
 import { failSafeAccess } from '@/lib/safety/failSafe';
 import type { AsyncState } from '@/types/async';
@@ -54,6 +56,35 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
 
   const allowedFeatures = new Set(data || []);
   const asyncState = normalizeAsyncState({ data, isLoading, isError, error });
+
+  // 3.1: Realtime invalidation — revoke access immediately on role change
+  const queryClient = useQueryClient();
+  const { session } = useCurrentUser();
+  const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (!userId || !tenantId) return;
+
+    const channel = supabase
+      .channel(`access-invalidation-${tenantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_roles',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['access-contract', tenantId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, tenantId, queryClient]);
 
   return {
     allowedFeatures,
