@@ -4,8 +4,8 @@
  * P-MENU-01: Reorganized header with tenant context, consolidated settings dropdown,
  * and quick create action. Reduced from 345 to ~310 lines via component extraction.
  */
-import React, { ReactNode, useState, useMemo } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import React, { ReactNode, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { NavLink } from '@/components/NavLink';
 import { motion } from 'framer-motion';
 import { 
@@ -52,20 +52,9 @@ import { TenantStatusBanner } from '@/components/tenant/TenantStatusBanner';
 import { SystemAwarenessBanner } from '@/components/institutional/SystemAwarenessBanner';
 import { HeaderSettingsDropdown, HeaderUserMenu } from '@/components/layout';
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
-import { assertTenantLifecycleState } from '@/domain/tenant/normalize';
-import { normalizeBillingState, deriveBillingViewState } from '@/domain/billing/normalizeBillingUx';
-import { deriveReportMode, normalizeAnalyticsViewState } from '@/domain/reports/normalize';
-import { 
-  isReportsRoute as checkIsReportsRoute, 
-  normalizeReportsViewState, 
-  deriveActiveReportType 
-} from '@/domain/reports/normalizeReports';
-import { normalizeExportViewState, isExportRoute } from '@/domain/exports/normalize';
-import { isAnalyticsRoute, deriveActiveMetrics, normalizeAnalyticsViewState as normalizeAnalyticsState } from '@/domain/analytics/normalize';
-import { normalizeAuditViewState } from '@/domain/audit/normalize';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useRouteFocusReset } from '@/hooks/a11y/useRouteFocusReset';
-import { resolveUXPersona } from '@/lib/ux/resolveUXPersona';
+import { useAppShellInstrumentation } from '@/hooks/useAppShellInstrumentation';
 import type { FeatureKey } from '@/hooks/useAccessContract';
 interface AppShellProps {
   children: ReactNode;
@@ -84,12 +73,11 @@ export function AppShell({ children }: AppShellProps) {
   const { tenant } = useTenant();
   const { resolvedTheme } = useTheme();
   const { t } = useI18n();
-  const { isImpersonating, session: impersonationSession, isLoading: impersonationLoading, resolutionStatus } = useImpersonation();
+  const { isImpersonating, session: impersonationSession } = useImpersonation();
   const { can } = useAccessContract(tenant?.id);
-  const { role: identityRole } = useIdentity();
-  const { billingStatus } = useTenantStatus();
+  useIdentity();
+  useTenantStatus();
   const navigate = useNavigate();
-  const location = useLocation();
   useRouteFocusReset();
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
@@ -130,67 +118,8 @@ export function AppShell({ children }: AppShellProps) {
     return can(item.feature);
   });
 
-  // SAFE GOLD: Derive deterministic view state for E2E instrumentation
-  const impersonationViewState = impersonationLoading || resolutionStatus === 'RESOLVING'
-    ? 'LOADING'
-    : resolutionStatus === 'RESOLVED' || !impersonationLoading
-      ? 'READY'
-      : 'ERROR';
-  
-  const impersonationState = isImpersonating ? 'ON' : 'OFF';
-
-  // SAFE GOLD T1.0: Derive tenant lifecycle state deterministically
-  const tenantLifecycleState = assertTenantLifecycleState(tenant?.status);
-
-  // ADMIN SAFE GOLD A1.0: route-based deterministic mode
-  const pathname = location.pathname;
-  const adminMode = pathname.includes('/admin') ? 'ON' : 'OFF';
-
-  // C1 SAFE GOLD: Derive UX persona from route (purely declarative, no access logic)
-  const uxPersona = useMemo(() => resolveUXPersona(identityRole), [identityRole]);
-
-  // ADMIN SAFE GOLD A1.0: derive deterministic view state (no business logic)
-  const adminViewState =
-    adminMode === 'ON'
-      ? (impersonationLoading || resolutionStatus === 'RESOLVING' ? 'LOADING' : 'READY')
-      : 'READY';
-
-  // ADMIN SAFE GOLD A1.0: best-effort role read from existing role signals (fail-safe to NONE)
-  // NOTE: This is instrumentation only; does not change behavior.
-  const adminRole = isGlobalSuperadmin
-    ? 'SUPERADMIN_GLOBAL'
-    : 'NONE';
-
-  // BILLING UX SAFE GOLD B2.0: derive billing state deterministically
-  const billingState = normalizeBillingState(billingStatus);
-  const billingViewState = deriveBillingViewState(billingState);
-
-  // REPORTS SAFE GOLD REPORTS1.0: derive report mode and view state deterministically
-  const isReportsRoute = pathname.includes('/reports') || pathname.includes('/analytics') || pathname.includes('/dashboard');
-  const reportMode = deriveReportMode(tenant?.id, isGlobalSuperadmin && !tenant?.id);
-  const reportViewState = normalizeAnalyticsViewState(isReportsRoute ? { ready: true } : null);
-
-  // REPORTS1.0 SAFE GOLD: New reports instrumentation
-  const isOnReportsRoute = checkIsReportsRoute(pathname);
-  const reportsViewState = normalizeReportsViewState(isOnReportsRoute ? { ready: true } : null);
-  const reportsType = deriveActiveReportType(pathname);
-  const reportsContext = isOnReportsRoute ? 'ACTIVE' : '';
-
-  // EXPORTS SAFE GOLD EXPORTS1.0: derive export state deterministically
-  const isOnExportRoute = isExportRoute(pathname);
-  const exportViewState = normalizeExportViewState(isOnExportRoute ? 'READY' : null);
-  const exportType = isOnExportRoute ? (pathname.includes('/pdf') ? 'PDF' : 'CSV') : '';
-
-  // ANALYTICS SAFE GOLD ANALYTICS2.0: derive analytics state deterministically
-  const isOnAnalyticsRoute = isAnalyticsRoute(pathname);
-  const analyticsViewState = normalizeAnalyticsState(isOnAnalyticsRoute ? { ready: true } : null);
-  const analyticsMetrics = deriveActiveMetrics(pathname);
-
-  // AUDIT SAFE GOLD AUDIT2.0: derive audit state deterministically
-  const isAuditRoute = pathname.includes('/audit');
-  const auditViewState = normalizeAuditViewState(isAuditRoute ? { ready: true } : null);
-  const auditEntity = isAuditRoute ? 'TENANT' : '';
-  const auditLevel = 'INFO';
+  // 📊 E2E instrumentation — extracted to dedicated hook
+  const { uxPersona, dataAttributes } = useAppShellInstrumentation();
 
   return (
     <>
@@ -203,35 +132,7 @@ export function AppShell({ children }: AppShellProps) {
       </a>
     <div
       className="min-h-screen bg-background"
-      data-testid="app-shell"
-      data-impersonation-state={impersonationState}
-      data-impersonation-view-state={impersonationViewState}
-      data-tenant-state={tenantLifecycleState}
-      data-tenant-id={tenant?.id ?? ''}
-      data-admin-mode={adminMode}
-      data-admin-view-state={adminViewState}
-      data-admin-role={adminRole}
-      data-admin-route={pathname}
-      data-billing-state={billingState}
-      data-billing-view-state={billingViewState}
-      data-report-mode={reportMode}
-      data-report-view-state={reportViewState}
-      data-report-route={isReportsRoute ? pathname : ''}
-      data-reports-context={reportsContext}
-      data-reports-view-state={reportsViewState}
-      data-reports-type={isOnReportsRoute ? reportsType : ''}
-      data-reports-route={isOnReportsRoute ? pathname : ''}
-      data-export-type={exportType}
-      data-export-view-state={exportViewState}
-      data-export-route={isOnExportRoute ? pathname : ''}
-      data-analytics-view-state={analyticsViewState}
-      data-analytics-metrics={analyticsMetrics.join(',')}
-      data-analytics-route={isOnAnalyticsRoute ? pathname : ''}
-      data-audit-context={isAuditRoute ? 'ACTIVE' : ''}
-      data-audit-view-state={auditViewState}
-      data-audit-entity={auditEntity}
-      data-audit-level={auditLevel}
-      data-audit-route={isAuditRoute ? pathname : ''}
+      {...dataAttributes}
     >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
