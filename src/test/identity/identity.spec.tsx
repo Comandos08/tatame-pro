@@ -13,7 +13,7 @@
  *
  * Architecture:
  * - Auth mock: hoisted vi.mock for supabase client (provides session)
- * - Identity mock: global.fetch interceptor (provides edge function responses)
+ * - Identity mock: supabase.functions.invoke mock (provides edge function responses)
  * - Consumer: IdentityStateConsumer renders data-* attributes
  */
 
@@ -43,11 +43,9 @@ const mockSignInWithPassword = vi.fn();
 const mockSignUp = vi.fn();
 const mockSignOut = vi.fn();
 
-// ── Mutable identity fetch refs ──
+// ── Mutable identity invoke mock ref ──
 
-let _mockFetchResponse: any = IDENTITY_ERROR_RESPONSE;
-let _mockFetchStatus: number = 200;
-let _mockFetchError: Error | null = null;
+const mockInvoke = vi.fn();
 
 // ── Hoisted supabase mock ──
 
@@ -59,6 +57,9 @@ vi.mock('@/integrations/supabase/client', () => ({
       signInWithPassword: (...args: any[]) => mockSignInWithPassword(...args),
       signUp: (...args: any[]) => mockSignUp(...args),
       signOut: (...args: any[]) => mockSignOut(...args),
+    },
+    functions: {
+      invoke: (...args: any[]) => mockInvoke(...args),
     },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
@@ -115,31 +116,25 @@ function setupAuthMock(options: { initialSession?: any } = {}) {
   mockSignOut.mockResolvedValue({ error: null });
 }
 
-// ── Fetch mock (intercepts resolve-identity-wizard) ──
+// ── Invoke mock helpers ──
 
-function installFetchMock() {
-  (globalThis as any).fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input.toString();
+function setInvokeMock(options: { response?: any; error?: Error | null; abort?: boolean } = {}) {
+  if (options.abort) {
+    mockInvoke.mockImplementation(() =>
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new DOMException('Aborted', 'AbortError')), 0)
+      )
+    );
+    return;
+  }
 
-    if (url.includes('resolve-identity-wizard')) {
-      if (_mockFetchError) {
-        throw _mockFetchError;
-      }
-      return new Response(JSON.stringify(_mockFetchResponse), {
-        status: _mockFetchStatus,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (options.error) {
+    mockInvoke.mockResolvedValue({ data: null, error: options.error });
+    return;
+  }
 
-    // Non-identity requests → empty response
-    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
-  });
-}
-
-function setFetchMock(options: { response?: any; status?: number; error?: Error | null } = {}) {
-  _mockFetchResponse = options.response ?? IDENTITY_ERROR_RESPONSE;
-  _mockFetchStatus = options.status ?? 200;
-  _mockFetchError = options.error ?? null;
+  const response = options.response ?? IDENTITY_ERROR_RESPONSE;
+  mockInvoke.mockResolvedValue({ data: response, error: null });
 }
 
 // ── Identity State Consumer (semantic, data-attribute based) ──
@@ -183,7 +178,6 @@ function renderWithIdentity() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  installFetchMock();
 });
 
 afterEach(() => {
@@ -197,7 +191,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Fail-Closed Default', () => {
     it('T1: no session → identity stays in loading (fail-closed)', async () => {
       setupAuthMock({ initialSession: null });
-      setFetchMock({ response: IDENTITY_ERROR_RESPONSE });
+      setInvokeMock({ response: IDENTITY_ERROR_RESPONSE });
       renderWithIdentity();
 
       // Wait for auth to resolve (no session)
@@ -211,9 +205,9 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
       });
     });
 
-    it('T1b: no session → no fetch to edge function', async () => {
+    it('T1b: no session → no invoke to edge function', async () => {
       setupAuthMock({ initialSession: null });
-      setFetchMock({ response: IDENTITY_RESOLVED_RESPONSE });
+      setInvokeMock({ response: IDENTITY_RESOLVED_RESPONSE });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -221,17 +215,14 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
       });
 
       // Edge function should NOT be called without a session
-      const fetchCalls = (globalThis.fetch as any).mock.calls.filter(
-        (call: any[]) => call[0]?.toString().includes('resolve-identity-wizard')
-      );
-      expect(fetchCalls.length).toBe(0);
+      expect(mockInvoke).not.toHaveBeenCalled();
     });
   });
 
   describe('Happy Path (Resolved)', () => {
     it('T2: session + resolve OK → RESOLVED with tenant and role', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ response: IDENTITY_RESOLVED_RESPONSE });
+      setInvokeMock({ response: IDENTITY_RESOLVED_RESPONSE });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -249,7 +240,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Resolve Failure', () => {
     it('T3: session OK + edge function returns ERROR → error state', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ response: IDENTITY_ERROR_RESPONSE });
+      setInvokeMock({ response: IDENTITY_ERROR_RESPONSE });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -264,7 +255,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Wizard Required', () => {
     it('session OK + WIZARD_REQUIRED → wizard_required state', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ response: IDENTITY_WIZARD_REQUIRED_RESPONSE });
+      setInvokeMock({ response: IDENTITY_WIZARD_REQUIRED_RESPONSE });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -280,7 +271,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Superadmin', () => {
     it('session OK + SUPERADMIN_GLOBAL → superadmin state', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ response: IDENTITY_SUPERADMIN_RESPONSE });
+      setInvokeMock({ response: IDENTITY_SUPERADMIN_RESPONSE });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -295,9 +286,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Timeout / Abort', () => {
     it('T4: AbortError → error state with IDENTITY_TIMEOUT', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      const abortError = new Error('The operation was aborted');
-      abortError.name = 'AbortError';
-      setFetchMock({ error: abortError });
+      setInvokeMock({ abort: true });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -312,7 +301,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
   describe('Network / HTTP Errors', () => {
     it('network error → error state', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ error: new Error('Failed to fetch') });
+      setInvokeMock({ error: new Error('Failed to fetch') });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -325,10 +314,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
     it('HTTP 500 → error state', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({
-        response: { error: { message: 'Internal server error' } },
-        status: 500,
-      });
+      setInvokeMock({ error: new Error('Internal server error') });
       renderWithIdentity();
 
       await waitFor(() => {
@@ -343,7 +329,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
     it('identity does NOT resolve before auth completes', async () => {
       // Auth starts loading, identity must wait
       setupAuthMock({ initialSession: null });
-      setFetchMock({ response: IDENTITY_RESOLVED_RESPONSE });
+      setInvokeMock({ response: IDENTITY_RESOLVED_RESPONSE });
       renderWithIdentity();
 
       // Initially loading (auth hasn't resolved yet)
@@ -353,7 +339,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
     it('identity resolves independently from profile loading', async () => {
       setupAuthMock({ initialSession: TEST_SESSION });
-      setFetchMock({ response: IDENTITY_RESOLVED_RESPONSE });
+      setInvokeMock({ response: IDENTITY_RESOLVED_RESPONSE });
       renderWithIdentity();
 
       // Identity resolves via edge function, not via profile
