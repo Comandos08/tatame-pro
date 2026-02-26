@@ -161,19 +161,10 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     inFlightAbortRef.current = abort;
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) throw new Error("No token");
-
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: "CHECK" }),
-        signal,
-      });
+      const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
+        'resolve-identity-wizard',
+        { body: { action: "CHECK" } }
+      );
 
       if (signal.aborted) {
         setIdentityState("error");
@@ -181,18 +172,16 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const result = await resp.json();
-      const unwrapped = result?.ok ? result.data : result;
-
-      if (!resp.ok) {
+      if (invokeError) {
         setIdentityState("error");
         setError({
           code: "UNKNOWN",
-          message: unwrapped?.error?.message || "Erro identidade.",
+          message: invokeError.message || "Erro identidade.",
         });
         return;
       }
 
+      const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
       applyResult(unwrapped);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -233,20 +222,14 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   };
 
   const completeWizard = async (payload: any) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
+      'resolve-identity-wizard',
+      { body: { action: "COMPLETE_WIZARD", payload } }
+    );
 
-    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ action: "COMPLETE_WIZARD", payload }),
-    });
+    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
 
-    const result = await resp.json();
-    const unwrapped = result?.ok ? result.data : result;
+    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
@@ -262,20 +245,14 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   };
 
   const createTenant = async (payload: any) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
+      'resolve-identity-wizard',
+      { body: { action: "CREATE_TENANT", payload } }
+    );
 
-    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ action: "CREATE_TENANT", payload }),
-    });
+    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
 
-    const result = await resp.json();
-    const unwrapped = result?.ok ? result.data : result;
+    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
@@ -291,20 +268,14 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   };
 
   const joinExistingTenant = async (payload: any) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    const { data: invokeResult, error: invokeError } = await supabase.functions.invoke(
+      'resolve-identity-wizard',
+      { body: { action: "JOIN_EXISTING_TENANT", payload } }
+    );
 
-    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-identity-wizard`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ action: "JOIN_EXISTING_TENANT", payload }),
-    });
+    if (invokeError) return { success: false, error: { code: "UNKNOWN", message: invokeError.message } };
 
-    const result = await resp.json();
-    const unwrapped = result?.ok ? result.data : result;
+    const unwrapped = invokeResult?.ok ? invokeResult.data : invokeResult;
 
     if (unwrapped?.status === "RESOLVED") {
       applyResult(unwrapped);
