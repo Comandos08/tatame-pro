@@ -1,15 +1,17 @@
 /**
  * BillingGate - Unified access control based on billing status
  *
- * PI B2 — Now consumes TenantFlagsContract as canonical source
+ * PI B2 — Consumes TenantFlagsContract as canonical source
  *
  * LOGIC:
  * - tenant.status !== 'ACTIVE' → Ignore billing (show children)
- * - contract.billing.status in ['TRIALING', 'ACTIVE'] → Allow (show children)
- * - contract.billing.status === 'PAST_DUE' → Partial block (show warning + children)
+ * - contract.billing.status in ['TRIALING', 'ACTIVE'] → Allow
+ * - contract.billing.status === 'PAST_DUE' → Partial block (warning or strict block)
  * - contract.billing.status in ['BLOCKED', 'UNKNOWN'] → Full block
  *
- * FAIL-CLOSED: contract not loaded → loader (never allow through)
+ * FAIL-CLOSED:
+ * - contract not loaded → loader
+ * - any unrecognized status → block
  */
 
 import React, { useEffect, useMemo } from "react";
@@ -36,40 +38,38 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
   const navigate = useNavigate();
 
   const isTenantActive = tenant?.status === "ACTIVE";
-
-  // B2: Use contract billing status for blocking decisions
   const billingStatus = contract?.billing.status ?? null;
 
   const shouldBlock = useMemo(() => {
     if (!isTenantActive) return false;
     if (isContractLoading) return false;
-    if (!contract) return true; // B2 fail-closed: no contract = block
+    if (!contract) return true; // fail-closed
 
     return billingStatus === "BLOCKED" || billingStatus === "UNKNOWN";
   }, [isTenantActive, isContractLoading, contract, billingStatus]);
 
-  // Navigate via useEffect, never during render
+  // Navigate via effect only (never during render)
   useEffect(() => {
     if (!shouldBlock) return;
     navigate(`/${tenant?.slug}/app/billing`, { replace: true });
   }, [shouldBlock, navigate, tenant?.slug]);
 
-  // Ignore billing for non-ACTIVE tenants (still in SETUP)
+  // Ignore billing for non-ACTIVE tenants (e.g., SETUP)
   if (!isTenantActive) {
     return <>{children}</>;
   }
 
-  // B2 fail-closed: block while contract loads
+  // Fail-closed while contract loads
   if (isContractLoading) {
     return <LoadingState titleKey="common.loading" />;
   }
 
-  // Allowed states - full access
+  // Allowed states
   if (billingStatus === "ACTIVE" || billingStatus === "TRIALING") {
     return <>{children}</>;
   }
 
-  // Blocked states (BLOCKED, UNKNOWN, or no contract)
+  // Explicit blocked states
   if (shouldBlock) {
     return (
       fallback || (
@@ -117,7 +117,6 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
       );
     }
 
-    // Non-strict mode: show warning banner + children
     return (
       <>
         <BillingWarningBanner status={billingStatus} tenantSlug={tenant?.slug} />
@@ -126,7 +125,7 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     );
   }
 
-  // FAIL-CLOSED: Any unrecognized billing status is treated as blocked
+  // 🔒 FAIL-CLOSED DEFAULT
   return (
     fallback || (
       <BlockedStateCard
