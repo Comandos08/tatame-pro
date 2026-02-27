@@ -1,6 +1,10 @@
+// ============= Full file contents =============
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 // Constantes fixas (IMUTÁVEIS)
 const TTL_DAYS = 7;
@@ -15,14 +19,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-function logStep(step: string, details?: Record<string, unknown>) {
-  console.log(`[CLEANUP-TMP] ${step}`, details ? JSON.stringify(details) : "");
-}
+// ... logStep replaced by logger
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("cleanup-tmp-documents", correlationId);
 
   try {
     // 1. Validar CRON_SECRET
@@ -30,7 +35,7 @@ serve(async (req) => {
     const requestSecret = req.headers.get("x-cron-secret") ?? "";
 
     if (!cronSecret) {
-      logStep("Error", { message: "CRON_SECRET not configured" });
+      log.error("Error: CRON_SECRET not configured");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -38,7 +43,7 @@ serve(async (req) => {
     }
 
     if (requestSecret !== cronSecret) {
-      logStep("Forbidden", { message: "Invalid or missing x-cron-secret header" });
+      log.error("Forbidden: Invalid or missing x-cron-secret header");
       return new Response(
         JSON.stringify({ error: "Forbidden" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -49,7 +54,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    logStep("Starting cleanup job", { ttlDays: TTL_DAYS, bucket: BUCKET_NAME });
+    log.info("Starting cleanup job", { ttlDays: TTL_DAYS, bucket: BUCKET_NAME });
 
     // Calcular data de corte
     const cutoffDate = new Date();
@@ -68,7 +73,7 @@ serve(async (req) => {
       throw new Error(`Failed to list tmp folder: ${userListError.message}`);
     }
 
-    logStep("Found user folders", { count: userFolders?.length || 0 });
+    log.info("Found user folders", { count: userFolders?.length || 0 });
 
     // 3. Percorrer tmp/{userId}/
     for (const userFolder of userFolders || []) {
@@ -83,7 +88,7 @@ serve(async (req) => {
         .list(userPath, { limit: 100 });
 
       if (tsListError) {
-        logStep("Error listing timestamp folders", { path: userPath, error: tsListError.message });
+        log.error("Error listing timestamp folders", tsListError, { path: userPath });
         continue;
       }
 
@@ -100,7 +105,7 @@ serve(async (req) => {
           .list(timestampPath, { limit: 100 });
 
         if (filesListError) {
-          logStep("Error listing files", { path: timestampPath, error: filesListError.message });
+          log.error("Error listing files", filesListError, { path: timestampPath });
           continue;
         }
 
@@ -139,7 +144,7 @@ serve(async (req) => {
           );
 
           if (rpcError) {
-            logStep("RPC error", { path: storagePath, error: rpcError.message });
+            log.error("RPC error", rpcError, { path: storagePath });
             results.push({ path: storagePath, action: "SKIP", reason: `RPC_ERROR: ${rpcError.message}`, daysOld });
             skippedCount++;
             continue;
@@ -200,11 +205,11 @@ serve(async (req) => {
 
               results.push({ path: storagePath, action: "DELETED", reason: deleteReason, daysOld });
               deletedCount++;
-              logStep("Deleted file", { path: storagePath, reason: deleteReason, daysOld });
+              log.info("Deleted file", { path: storagePath, reason: deleteReason, daysOld });
 
             } catch (deleteErr) {
               const errMsg = deleteErr instanceof Error ? deleteErr.message : String(deleteErr);
-              logStep("Delete error", { path: storagePath, error: errMsg });
+              log.error("Delete error", deleteErr, { path: storagePath });
               results.push({ path: storagePath, action: "ERROR", reason: errMsg, daysOld });
               skippedCount++;
             }
@@ -226,7 +231,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Cleanup completed", { deletedCount, skippedCount });
+    log.info("Cleanup completed", { deletedCount, skippedCount });
 
     // 7. Retornar relatório estruturado
     return new Response(
@@ -242,7 +247,7 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Fatal error", { error: errorMessage });
+    log.error("Fatal error", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

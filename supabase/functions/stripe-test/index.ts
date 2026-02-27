@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,12 +14,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("stripe-test", correlationId);
+
   try {
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
     
     if (!stripeSecretKey) {
       throw new Error("STRIPE_SECRET_KEY is not configured");
     }
+
+    // Dynamic import to avoid static analysis issues if module not available
+    const { default: Stripe } = await import("https://esm.sh/stripe@14.21.0?target=deno");
 
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2023-10-16",
@@ -53,7 +61,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Stripe test error:", error);
+    log.error("Stripe test error:", error);
     
     return new Response(
       JSON.stringify({

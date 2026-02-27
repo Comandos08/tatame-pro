@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
@@ -7,6 +8,8 @@ import {
   isPreflightEnabled 
 } from "../_shared/stripeEnv.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,16 +19,12 @@ const corsHeaders = {
 // Trial period in days for new tenants (Growth Trial Strategy)
 const TRIAL_PERIOD_DAYS = 7;
 
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CREATE-TENANT-SUBSCRIPTION] ${step}${detailsStr}`);
-};
-
 async function sendBillingEmail(
   supabaseUrl: string,
   supabaseServiceKey: string,
   eventType: string,
   tenantId: string,
+  log: any,
   data?: Record<string, unknown>
 ) {
   try {
@@ -38,9 +37,9 @@ async function sendBillingEmail(
       },
       body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
     });
-    logStep("Billing email triggered", { eventType, tenantId });
+    log.info("Billing email triggered", { eventType, tenantId });
   } catch (err) {
-    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+    log.warn("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
   }
 }
 
@@ -48,6 +47,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("create-tenant-subscription", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -87,7 +89,7 @@ serve(async (req) => {
       throw new Error("Unauthorized: Only superadmins can create tenant subscriptions");
     }
 
-    logStep("Superadmin verified", { userId: userData.user.id });
+    log.info("Superadmin verified", { userId: userData.user.id });
 
     // Get request body
     const body = await req.json();
@@ -105,7 +107,7 @@ serve(async (req) => {
     const envValidation = await validateStripeEnv(supabase, stripeSecretKey);
 
     if (!envValidation.ok) {
-      logStep("Environment validation failed", { 
+      log.warn("Environment validation failed", { 
         error_code: envValidation.error_code,
         keyEnv: envValidation.keyEnv,
         configEnv: envValidation.configEnv
@@ -142,7 +144,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Environment validation passed", { 
+    log.info("Environment validation passed", { 
       keyEnv: envValidation.keyEnv, 
       configEnv: envValidation.configEnv 
     });
@@ -158,7 +160,7 @@ serve(async (req) => {
     );
 
     if (!priceResolution.ok) {
-      logStep("Price resolution failed", { 
+      log.warn("Price resolution failed", { 
         error_code: priceResolution.error_code,
         planType: planType || 'annual',
         stripeEnv: envValidation.configEnv
@@ -189,7 +191,7 @@ serve(async (req) => {
     const priceId = priceResolution.priceId;
     const planName = priceResolution.planName;
 
-    logStep("Price resolved from database", { 
+    log.info("Price resolved from database", { 
       priceId, 
       planName, 
       planCode: priceResolution.planCode 
@@ -206,7 +208,7 @@ serve(async (req) => {
       throw new Error(`Tenant not found: ${tenantId}`);
     }
 
-    logStep("Tenant found", { name: tenant.name, slug: tenant.slug });
+    log.info("Tenant found", { name: tenant.name, slug: tenant.slug });
 
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-08-27.basil",
@@ -220,11 +222,11 @@ serve(async (req) => {
     if (isPreflightEnabled()) {
       try {
         await stripe.prices.retrieve(priceId);
-        logStep("Preflight price check passed", { priceId });
+        log.info("Preflight price check passed", { priceId });
       } catch (priceError: unknown) {
         const errorMessage = priceError instanceof Error ? priceError.message : String(priceError);
         
-        logStep("Preflight price check failed", { priceId, error: errorMessage });
+        log.warn("Preflight price check failed", { priceId, error: errorMessage });
         
         await createAuditLog(supabase, {
           event_type: AUDIT_EVENTS.BILLING_STRIPE_PRICE_LOOKUP_FAILED,
@@ -249,7 +251,7 @@ serve(async (req) => {
         );
       }
     } else {
-      logStep("Preflight price check skipped (ENABLE_STRIPE_PREFLIGHT not set)");
+      log.info("Preflight price check skipped (ENABLE_STRIPE_PREFLIGHT not set)");
     }
 
     // Check/create Stripe customer - handle mode mismatch (live vs test)
@@ -260,12 +262,12 @@ serve(async (req) => {
       // Validate the existing customer exists in current Stripe mode
       try {
         await stripe.customers.retrieve(stripeCustomerId);
-        logStep("Validated existing Stripe customer", { customerId: stripeCustomerId });
+        log.info("Validated existing Stripe customer", { customerId: stripeCustomerId });
       } catch (customerError: unknown) {
         const errorMessage = customerError instanceof Error ? customerError.message : String(customerError);
         // Customer doesn't exist in current mode - need to create new one
         if (errorMessage.includes("No such customer") || errorMessage.includes("does not exist")) {
-          logStep("Customer not found in current Stripe mode, will create new", { 
+          log.warn("Customer not found in current Stripe mode, will create new", { 
             oldCustomerId: stripeCustomerId,
             error: errorMessage 
           });
@@ -277,7 +279,7 @@ serve(async (req) => {
     }
 
     if (needsNewCustomer) {
-      logStep("Creating Stripe customer for tenant");
+      log.info("Creating Stripe customer for tenant");
       
       const customer = await stripe.customers.create({
         name: tenant.name,
@@ -296,7 +298,7 @@ serve(async (req) => {
         .update({ stripe_customer_id: stripeCustomerId })
         .eq("id", tenantId);
 
-      logStep("Stripe customer created", { customerId: stripeCustomerId });
+      log.info("Stripe customer created", { customerId: stripeCustomerId });
     }
 
     // Check if subscription already exists
@@ -311,7 +313,7 @@ serve(async (req) => {
       const existingSub = await stripe.subscriptions.retrieve(existingBilling.stripe_subscription_id);
       
       if (existingSub.status === "active" || existingSub.status === "trialing") {
-        logStep("Active subscription already exists", { 
+        log.info("Active subscription already exists", { 
           subscriptionId: existingBilling.stripe_subscription_id,
           status: existingSub.status
         });
@@ -332,7 +334,7 @@ serve(async (req) => {
     const isNewTenant = !existingBilling;
 
     // Create new subscription
-    logStep("Creating Stripe subscription", { isNewTenant, trialDays: isNewTenant ? TRIAL_PERIOD_DAYS : 0 });
+    log.info("Creating Stripe subscription", { isNewTenant, trialDays: isNewTenant ? TRIAL_PERIOD_DAYS : 0 });
     
     const subscriptionParams: Stripe.SubscriptionCreateParams = {
       customer: stripeCustomerId,
@@ -354,7 +356,7 @@ serve(async (req) => {
 
     const subscription = await stripe.subscriptions.create(subscriptionParams);
 
-    logStep("Subscription created", { 
+    log.info("Subscription created", { 
       subscriptionId: subscription.id, 
       status: subscription.status 
     });
@@ -402,7 +404,7 @@ serve(async (req) => {
       await supabase.from("tenant_billing").insert(billingData);
     }
 
-    logStep("Billing record saved", { status: billingStatus });
+    log.info("Billing record saved", { status: billingStatus });
 
     // Update tenant isActive based on billing status
     const isActive = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
@@ -411,14 +413,14 @@ serve(async (req) => {
       .update({ is_active: isActive })
       .eq("id", tenantId);
 
-    logStep("Tenant isActive updated", { isActive });
+    log.info("Tenant isActive updated", { isActive });
 
     // Send trial started email for new tenants
     if (isNewTenant && billingStatus === "TRIALING" && subscription.current_period_end) {
       const trialEndDate = new Date(subscription.current_period_end * 1000);
       // Validate the date before using it
       if (!isNaN(trialEndDate.getTime())) {
-        sendBillingEmail(supabaseUrl, supabaseServiceKey, "TRIAL_STARTED", tenantId, {
+        sendBillingEmail(supabaseUrl, supabaseServiceKey, "TRIAL_STARTED", tenantId, log, {
           trial_end_date: trialEndDate.toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "long",
@@ -445,7 +447,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown billing error";
 
-    logStep("Unexpected billing error", { error: errorMessage });
+    log.error("Unexpected billing error", { error: errorMessage });
 
     // PI-BILL-HARD-001 — Normalize unexpected errors (SAFE GOLD)
     try {
@@ -461,7 +463,7 @@ serve(async (req) => {
       });
     } catch {
       // Fail-silent: audit failure must NOT cascade
-      console.error("[BILLING] Failed to audit unexpected error");
+      log.error("[BILLING] Failed to audit unexpected error");
     }
 
     return new Response(

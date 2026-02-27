@@ -1,3 +1,5 @@
+// ============= Full file contents =============
+
 /**
  * @contract generate-diploma
  * 
@@ -45,6 +47,8 @@ import {
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -85,6 +89,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("generate-diploma", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -196,7 +203,7 @@ serve(async (req) => {
     // ========================================================================
     const tenantCheck = await requireTenantActive(supabase, tenantId);
     if (!tenantCheck.allowed) {
-      console.log("[GENERATE-DIPLOMA] Tenant not active:", tenantCheck.code);
+      log.info("[GENERATE-DIPLOMA] Tenant not active:", { code: tenantCheck.code });
       return tenantNotActiveResponse(tenantCheck.status);
     }
 
@@ -205,7 +212,7 @@ serve(async (req) => {
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, tenantId);
     if (!billingCheck.allowed) {
-      console.log("[GENERATE-DIPLOMA] Billing status blocked operation:", billingCheck.status);
+      log.info("[GENERATE-DIPLOMA] Billing status blocked operation:", { status: billingCheck.status });
       
       await logBillingRestricted(supabase, {
         operation: 'generate-diploma',
@@ -217,7 +224,7 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    console.log("[GENERATE-DIPLOMA] Billing status OK:", billingCheck.status);
+    log.info("[GENERATE-DIPLOMA] Billing status OK:", { status: billingCheck.status });
 
     // ─────────────────────────────────────────────────────────────
     // PI-POL-001B — MEMBERSHIP REQUIRED (OFFICIAL DIPLOMA)
@@ -228,7 +235,7 @@ serve(async (req) => {
 
     // Case 1: Athlete has no profile_id (fail-closed)
     if (!profileId) {
-      console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: athlete.profile_id is null");
+      log.info("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: athlete.profile_id is null");
       
       await supabase.from('audit_logs').insert({
         tenant_id: tenantId,
@@ -268,13 +275,13 @@ serve(async (req) => {
         .maybeSingle();
 
       if (membershipErr) {
-        console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup error:', membershipErr);
+        log.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup error:', membershipErr);
         hasActiveMembership = false; // fail-closed
       } else {
         hasActiveMembership = !!activeMembership;
       }
     } catch (e) {
-      console.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup exception:', e);
+      log.error('[GENERATE-DIPLOMA][PI-POL-001B] membership lookup exception:', e);
       hasActiveMembership = false; // fail-closed
     }
 
@@ -294,7 +301,7 @@ serve(async (req) => {
         const grantedBy = override.granted_by_profile_id;
 
         if (!grantedBy || overrideReason.length < 8) {
-          console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: invalid parameters");
+          log.info("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: invalid parameters");
           
           await supabase.from('audit_logs').insert({
             tenant_id: tenantId,
@@ -332,7 +339,7 @@ serve(async (req) => {
         );
 
         if (!roleCheck.allowed && !roleCheck.isGlobalSuperadmin) {
-          console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: insufficient permissions");
+          log.info("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: insufficient permissions");
           
           await supabase.from('audit_logs').insert({
             tenant_id: tenantId,
@@ -362,12 +369,12 @@ serve(async (req) => {
         }
 
         // Override approved
-        console.log("[GENERATE-DIPLOMA][PI-POL-001D] Override approved - proceeding with official diploma");
+        log.info("[GENERATE-DIPLOMA][PI-POL-001D] Override approved - proceeding with official diploma");
         overrideApplied = true;
 
       } else {
         // No override requested - apply standard MEMBERSHIP_REQUIRED block
-        console.log("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", profileId);
+        log.info("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", { profileId });
         
         await supabase.from('audit_logs').insert({
           tenant_id: tenantId,
@@ -395,7 +402,7 @@ serve(async (req) => {
       }
     }
 
-    console.log("[GENERATE-DIPLOMA][PI-POL-001B] Membership check OK - proceeding with official diploma");
+    log.info("[GENERATE-DIPLOMA][PI-POL-001B] Membership check OK - proceeding with official diploma");
 
     // Fetch academy if provided
     let academyName = null;
@@ -427,7 +434,7 @@ serve(async (req) => {
       .rpc('get_next_diploma_serial', { p_tenant_id: tenantId, p_sport_type: sportType });
 
     if (serialError) {
-      console.error('Error generating serial number:', serialError);
+      log.error('Error generating serial number:', serialError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -556,7 +563,7 @@ serve(async (req) => {
       });
 
     if (qrUploadError) {
-      console.error('QR upload error:', qrUploadError);
+      log.error('QR upload error:', qrUploadError);
     }
 
     const { data: qrUrlData } = supabase.storage.from('cards').getPublicUrl(qrFileName);
@@ -573,7 +580,7 @@ serve(async (req) => {
       });
 
     if (pdfUploadError) {
-      console.error('PDF upload error:', pdfUploadError);
+      log.error('PDF upload error:', pdfUploadError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -643,7 +650,7 @@ serve(async (req) => {
       },
     };
     const contentHash = await calculateContentHash(canonicalPayload);
-    console.log("Diploma content hash:", contentHash.substring(0, 12) + "...");
+    log.info("Diploma content hash:", { hash: contentHash.substring(0, 12) + "..." });
 
     // Create diploma record with content hash (using pre-generated ID)
     const { data: diploma, error: diplomaError } = await supabase
@@ -669,7 +676,7 @@ serve(async (req) => {
       .single();
 
     if (diplomaError) {
-      console.error('Diploma insert error:', diplomaError);
+      log.error('Diploma insert error:', diplomaError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -694,7 +701,7 @@ serve(async (req) => {
       .single();
 
     if (gradingError) {
-      console.error('Grading insert error:', gradingError);
+      log.error('Grading insert error:', gradingError);
       // Don't fail - diploma was created successfully
     }
 
@@ -729,7 +736,7 @@ serve(async (req) => {
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
         body: JSON.stringify({ grading_id: grading.id }),
-      }).catch((err) => console.error('Failed to send grading notification:', err));
+      }).catch((err) => log.error('Failed to send grading notification:', err));
     }
 
     return new Response(
@@ -748,7 +755,7 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     // PI-D5.B: Neutral error - no stack trace, no semantic info
-    console.error('Error generating diploma:', error);
+    log.error('Error generating diploma:', error);
     return new Response(
       JSON.stringify({ success: false, error: 'Diploma generation failed' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -21,17 +21,14 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 type SupabaseClientAny = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CLEANUP-EXPIRED-TENANTS] ${step}${detailsStr}`);
 };
 
 interface SafeDeleteResult {
@@ -84,7 +81,7 @@ async function canSafelyDelete(
     });
 
     if (hasRecentPayment) {
-      logStep("Recent payment found for tenant", { 
+      log.info("Recent payment found for tenant", { 
         tenantId, 
         stripe_customer_id: billing.stripe_customer_id 
       });
@@ -218,12 +215,12 @@ async function cascadeDeleteTenantData(
         .eq("tenant_id", tenantId);
 
       if (error) {
-        logStep(`Warning: Error deleting from ${table}`, { error: error.message });
+        log.warn(`Warning: Error deleting from ${table}`, { error: error.message });
       } else {
-        logStep(`Deleted from ${table}`, { tenantId });
+        log.info(`Deleted from ${table}`, { tenantId });
       }
     } catch (err) {
-      logStep(`Warning: Exception deleting from ${table}`, { 
+      log.warn(`Warning: Exception deleting from ${table}`, { 
         error: err instanceof Error ? err.message : "Unknown" 
       });
     }
@@ -256,9 +253,9 @@ async function sendBillingEmail(
       },
       body: JSON.stringify({ event_type: eventType, tenant_id: tenantId }),
     });
-    logStep("Billing email triggered", { eventType, tenantId });
+    log.info("Billing email triggered", { eventType, tenantId });
   } catch (err) {
-    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+    log.warn("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
   }
 }
 
@@ -267,6 +264,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  log = createBackendLogger("cleanup-expired-tenants", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -274,7 +274,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[CLEANUP-EXPIRED-TENANTS] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -282,7 +282,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[CLEANUP-EXPIRED-TENANTS] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -302,7 +302,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    logStep("Starting cleanup-expired-tenants job");
+    log.info("Starting cleanup-expired-tenants job");
 
     // Find tenants scheduled for deletion
     const now = new Date().toISOString();
@@ -316,7 +316,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch pending deletions: ${fetchError.message}`);
     }
 
-    logStep("Found pending deletions", { count: pendingDelete?.length || 0 });
+    log.info("Found pending deletions", { count: pendingDelete?.length || 0 });
 
     const results = {
       deleted: 0,
@@ -351,7 +351,7 @@ serve(async (req) => {
             },
           });
 
-          logStep("Skipped tenant deletion", { 
+          log.info("Skipped tenant deletion", { 
             tenantId: billing.tenant_id, 
             reason: safetyCheck.reason 
           });
@@ -369,12 +369,11 @@ serve(async (req) => {
 
         results.deleted++;
         results.deletedTenantIds.push(billing.tenant_id);
-        logStep("Deleted tenant", { tenantId: billing.tenant_id });
+        log.info("Deleted tenant", { tenantId: billing.tenant_id });
       } catch (err) {
         results.errors++;
-        logStep("Error deleting tenant", { 
+        log.error("Error deleting tenant", err, { 
           tenantId: billing.tenant_id, 
-          error: err instanceof Error ? err.message : "Unknown" 
         });
 
         // Log error to audit
@@ -390,7 +389,7 @@ serve(async (req) => {
       }
     }
 
-    logStep("Job completed", results);
+    log.info("Job completed", results);
 
     return new Response(
       JSON.stringify({ success: true, ...results }),
@@ -398,7 +397,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Job failed", { error: errorMessage });
+    log.error("Job failed", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

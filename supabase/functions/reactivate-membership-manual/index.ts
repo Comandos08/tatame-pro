@@ -44,6 +44,8 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,11 +54,6 @@ const corsHeaders = {
 };
 
 const OPERATION_NAME = "reactivate-membership-manual";
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[REACTIVATE-MANUAL] ${step}${detailsStr}`);
-};
 
 interface ReactivateMembershipRequest {
   membershipId: string;
@@ -93,6 +90,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("reactivate-membership-manual", correlationId);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -103,7 +103,7 @@ serve(async (req) => {
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      logStep("Auth failed - missing header");
+      log.info("Auth failed - missing header");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         reason: "MISSING_AUTH",
@@ -122,7 +122,7 @@ serve(async (req) => {
       error: userError,
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) {
-      logStep("Auth failed - invalid token");
+      log.info("Auth failed - invalid token");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         reason: "INVALID_TOKEN",
@@ -137,7 +137,7 @@ serve(async (req) => {
     }
 
     const adminProfileId = user.id;
-    logStep("Admin authenticated", { adminProfileId });
+    log.info("Admin authenticated", { adminProfileId });
 
     // ========================================================================
     // 2️⃣ RATE LIMITING (before any business logic)
@@ -147,7 +147,7 @@ serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.info("Rate limit exceeded", { count: rateLimitResult.count });
 
       await logRateLimitBlock(supabase, {
         operation: OPERATION_NAME,
@@ -167,7 +167,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      logStep("Validation failed - invalid JSON");
+      log.info("Validation failed - invalid JSON");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -182,7 +182,7 @@ serve(async (req) => {
     const reason = body.reason?.trim() || "";
 
     if (!membershipId) {
-      logStep("Validation failed - missing membershipId");
+      log.info("Validation failed - missing membershipId");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -195,7 +195,7 @@ serve(async (req) => {
 
     // Validate reason (min 5 chars)
     if (!reason || reason.length < 5) {
-      logStep("Validation failed - reason too short", { length: reason.length });
+      log.info("Validation failed - reason too short", { length: reason.length });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -232,7 +232,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      logStep("Membership not found or error", { membershipId });
+      log.info("Membership not found or error", { membershipId });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -245,7 +245,7 @@ serve(async (req) => {
 
     const targetTenantId = membership.tenant_id;
     const previousStatus = membership.status;
-    logStep("Fetched membership", {
+    log.info("Fetched membership", {
       previousStatus,
       membershipId,
       tenantId: targetTenantId,
@@ -272,7 +272,7 @@ serve(async (req) => {
     );
 
     if (!isSuperadmin && !isTenantAdmin) {
-      logStep("Permission denied - no valid role");
+      log.info("Permission denied - no valid role");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         user_id: user.id,
@@ -296,7 +296,7 @@ serve(async (req) => {
       );
 
       if (!impersonationCheck.valid) {
-        logStep("Impersonation validation failed", {
+        log.info("Impersonation validation failed", {
           error: impersonationCheck.error,
         });
 
@@ -311,19 +311,19 @@ serve(async (req) => {
         return forbiddenResponse();
       }
 
-      logStep("Superadmin with valid impersonation", {
+      log.info("Superadmin with valid impersonation", {
         impersonationId: impersonationCheck.impersonationId,
       });
     }
 
-    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
+    log.info("Authorization verified", { isSuperadmin, isTenantAdmin });
 
     // ========================================================================
     // 6️⃣ BILLING STATUS CHECK
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, targetTenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", {
+      log.info("Billing status blocked operation", {
         status: billingCheck.status,
         code: billingCheck.code,
       });
@@ -338,14 +338,14 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // 7️⃣ VALIDATE MEMBERSHIP STATUS
     // ========================================================================
     // Idempotent return for DRAFT or PENDING states
     if (["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW"].includes(previousStatus)) {
-      logStep("Membership already in eligible state - idempotent return", {
+      log.info("Membership already in eligible state - idempotent return", {
         membershipId,
         status: previousStatus,
       });
@@ -366,7 +366,7 @@ serve(async (req) => {
 
     // Only CANCELLED can be reactivated
     if (previousStatus !== "CANCELLED") {
-      logStep("Invalid status for reactivation", { status: previousStatus });
+      log.info("Invalid status for reactivation", { status: previousStatus });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -393,7 +393,7 @@ serve(async (req) => {
     // 8️⃣ BLOCK IF ALREADY PAID
     // ========================================================================
     if (membership.payment_status === "PAID") {
-      logStep("Cannot reactivate paid membership", { membershipId });
+      log.info("Cannot reactivate paid membership", { membershipId });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "MEDIUM",
@@ -437,7 +437,7 @@ serve(async (req) => {
     });
 
     if (!lastCancelEvent) {
-      logStep("No cancellation event found", { membershipId });
+      log.info("No cancellation event found", { membershipId });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "MEDIUM",
@@ -462,7 +462,7 @@ serve(async (req) => {
 
     // Only allow reactivation for manual cancellations
     if (lastCancelEvent.event_type !== "MEMBERSHIP_MANUAL_CANCELLED") {
-      logStep("Reactivation not allowed for GC cancellation", {
+      log.info("Reactivation not allowed for GC cancellation", {
         membershipId,
         event_type: lastCancelEvent.event_type,
       });
@@ -492,7 +492,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Last event validated as manual cancellation");
+    log.info("Last event validated as manual cancellation");
 
     // ========================================================================
     // 🔟 UPDATE MEMBERSHIP TO DRAFT (Race-safe)
@@ -507,7 +507,7 @@ serve(async (req) => {
     });
 
     if (rpcError) {
-      logStep("Gatekeeper RPC failed", { error: rpcError.message });
+      log.info("Gatekeeper RPC failed", { error: rpcError.message });
       if (rpcError.message?.includes("Invalid transition")) {
         return new Response(
           JSON.stringify({
@@ -530,7 +530,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Membership reactivated", { newStatus: "DRAFT" });
+    log.info("Membership reactivated", { newStatus: "DRAFT" });
 
     // ========================================================================
     // 1️⃣1️⃣ AUDIT LOG — Membership Manually Reactivated
@@ -579,7 +579,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Operation complete", { membershipId, newStatus: "DRAFT" });
+    log.info("Operation complete", { membershipId, newStatus: "DRAFT" });
 
     // ========================================================================
     // 1️⃣3️⃣ SUCCESS RESPONSE
@@ -598,7 +598,7 @@ serve(async (req) => {
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    logStep("Unhandled error", { error: errorMessage });
+    log.error("Unhandled error", err);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error" }),
       {

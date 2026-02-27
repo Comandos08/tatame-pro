@@ -1,35 +1,11 @@
-/**
- * @contract verify-document
- * 
- * SAFE GOLD — PI-D6.2.2: Public Document Verification
- * 
- * INPUT:
- *   - token: UUID (required) - Opaque public verification token
- * 
- * PRECONDITIONS:
- *   - Token exists in document_public_tokens
- *   - Token is not revoked
- *   - Document exists (digital_card or diploma)
- * 
- * POSTCONDITIONS:
- *   - Returns validity status (VALID, INVALID, REVOKED, NOT_FOUND)
- *   - Audit event DOCUMENT_VERIFIED_PUBLIC logged
- * 
- * SECURITY:
- *   - HTTP 200 always (no enumeration via status codes)
- *   - Neutral error messages (I6)
- *   - No internal IDs exposed
- *   - LGPD-compliant name masking
- * 
- * INVARIANTS:
- *   - I1: Golden Rule applied for validity check
- *   - I6: All failures return same structure, different status_label
- */
+// ============= Full file contents =============
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 /**
  * PI-D3-DOCS1.0: Public Document Verification Endpoint
@@ -85,6 +61,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("verify-document", correlationId);
+
   try {
     const { token }: VerifyRequest = await req.json();
 
@@ -123,7 +102,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (tokenError) {
-      console.error("Token query error:", tokenError);
+      log.error("Token query error:", tokenError);
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
@@ -162,7 +141,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (tenantError || !tenant) {
-      console.error("Tenant query error:", tenantError);
+      log.error("Tenant query error:", tenantError);
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
@@ -199,7 +178,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (cardError || !card) {
-        console.error("Card query error:", cardError);
+        log.error("Card query error:", cardError);
         return new Response(
           JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
           {
@@ -255,7 +234,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (diplomaError || !diploma) {
-        console.error("Diploma query error:", diplomaError);
+        log.error("Diploma query error:", diplomaError);
         return new Response(
           JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
           {
@@ -320,6 +299,7 @@ serve(async (req) => {
     await createAuditLog(supabase, {
       event_type: AUDIT_EVENTS.DOCUMENT_VERIFIED_PUBLIC,
       tenant_id: tenant.id,
+      profile_id: null, // System-generated
       metadata: {
         document_type: tokenData.document_type,
         // No internal IDs exposed in metadata for security
@@ -346,7 +326,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error verifying document:", error);
+    log.error("Error verifying document:", error);
     // Always return neutral error for public endpoints
     return new Response(
       JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),

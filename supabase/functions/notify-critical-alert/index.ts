@@ -1,3 +1,5 @@
+// ============= Full file contents =============
+
 /**
  * 🔔 notify-critical-alert — P4.2.D
  * 
@@ -15,6 +17,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,11 +40,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("notify-critical-alert", correlationId);
+
   try {
     // Validate service role (internal only)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.includes('service_role')) {
-      console.warn('[notify-critical-alert] Unauthorized attempt without service role');
+      log.warn('[notify-critical-alert] Unauthorized attempt without service role');
       return new Response(
         JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -88,7 +95,7 @@ serve(async (req) => {
     });
 
     if (insertError) {
-      console.error('[notify-critical-alert] Failed to log event:', insertError);
+      log.error('[notify-critical-alert] Failed to log event:', insertError);
       // Don't fail the request, just log
     }
 
@@ -96,14 +103,14 @@ serve(async (req) => {
     const slackWebhookUrl = Deno.env.get('SLACK_WEBHOOK_URL');
     if (slackWebhookUrl) {
       // TODO: Implement Slack notification
-      console.log('[notify-critical-alert] Slack webhook configured but not yet implemented');
+      log.info('[notify-critical-alert] Slack webhook configured but not yet implemented');
     }
 
     // Check for email notifications (future integration)
     const emailEnabled = Deno.env.get('ALERT_EMAIL_ENABLED') === 'true';
     if (emailEnabled) {
       // TODO: Implement email notification via Resend
-      console.log('[notify-critical-alert] Email notifications enabled but not yet implemented');
+      log.info('[notify-critical-alert] Email notifications enabled but not yet implemented');
     }
 
     return new Response(
@@ -119,7 +126,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[notify-critical-alert] Error:', error);
+    log.error('[notify-critical-alert] Error:', error);
     return new Response(
       JSON.stringify({ error: 'INTERNAL_ERROR' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

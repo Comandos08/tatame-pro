@@ -1,15 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[SEND-BILLING-EMAIL] ${step}${detailsStr}`);
 };
 
 interface BillingEmailRequest {
@@ -440,10 +437,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("send-billing-email", correlationId);
+
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!isEmailConfigured()) {
-      logStep("RESEND_API_KEY not configured, skipping email");
+      log.info("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -457,7 +457,7 @@ serve(async (req) => {
     );
 
     const { event_type, tenant_id, data }: BillingEmailRequest = await req.json();
-    logStep("Received request", { event_type, tenant_id });
+    log.info("Received request", { event_type, tenant_id });
 
     if (!event_type || !tenant_id) {
       throw new Error("Missing event_type or tenant_id");
@@ -504,14 +504,14 @@ serve(async (req) => {
     const uniqueRecipients = [...new Set(recipients)];
 
     if (uniqueRecipients.length === 0) {
-      logStep("No recipients found, skipping email");
+      log.info("No recipients found, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No recipients" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    logStep("Sending email", { recipients: uniqueRecipients, event_type });
+    log.info("Sending email", { recipients: uniqueRecipients, event_type });
 
     const template = emailTemplates[event_type];
     if (!template) {
@@ -539,7 +539,7 @@ serve(async (req) => {
       throw new Error(`Resend API error: ${JSON.stringify(emailResult)}`);
     }
 
-    logStep("Email sent successfully", { response: emailResult });
+    log.info("Email sent successfully", { response: emailResult });
 
     return new Response(
       JSON.stringify({ success: true, emailResponse: emailResult }),
@@ -547,7 +547,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error sending email", { error: errorMessage });
+    log.error("Error sending email", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

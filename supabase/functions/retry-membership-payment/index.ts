@@ -1,34 +1,11 @@
-/**
- * retry-membership-payment
- *
- * Allows a CANCELLED membership to retry payment.
- *
- * SAFE GOLD Rules:
- * - ONLY works for status === CANCELLED && payment_status === NOT_PAID
- * - ONLY for cancellations due to payment_timeout (verified via audit_logs)
- * - Creates NEW Stripe checkout session
- * - Updates status → PENDING_PAYMENT
- * - Does NOT create new membership
- * - Does NOT delete anything
- * - 100% auditable
- *
- * SECURITY:
- * - Validates tenant boundary (membership.tenant.slug must match tenantSlug)
- * - Validates ownership (applicant_profile_id === current user OR athlete.profile_id === current user)
- * - Rate limiting (3 per 10min per membership, 10 per hour per IP)
- * - CAPTCHA validation (Cloudflare Turnstile)
- *
- * TRANSACTIONAL SAFETY:
- * - If Stripe session creation fails AFTER status update → ROLLBACK status to CANCELLED
- * - Logs MEMBERSHIP_PAYMENT_RETRY_FAILED on rollback
- */
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,11 +14,6 @@ const corsHeaders = {
 };
 
 const OPERATION_NAME = "retry-membership-payment";
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[RETRY-MEMBERSHIP-PAYMENT] ${step}${detailsStr}`);
-};
 
 // ============================================
 // RATE LIMITING CONFIGURATION
@@ -57,6 +29,9 @@ interface RateLimitResult {
   windowSeconds: number;
 }
 
+// Global logger reference for helper functions
+let log: ReturnType<typeof createBackendLogger>;
+
 async function checkRateLimit(
   identifier: string,
   prefix: string,
@@ -68,7 +43,7 @@ async function checkRateLimit(
 
   // FAIL-CLOSED: If Redis is not configured, block request
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured - BLOCKING request (fail-closed)");
+    log.info("Rate limiting not configured - BLOCKING request (fail-closed)");
     return {
       success: false,
       remaining: 0,
@@ -101,7 +76,7 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error - BLOCKING request (fail-closed)");
+      log.info("Redis error - BLOCKING request (fail-closed)");
       return {
         success: false,
         remaining: 0,
@@ -117,7 +92,7 @@ async function checkRateLimit(
     const remaining = Math.max(0, limit - count);
     const success = count <= limit;
 
-    logStep(`Rate limit check: ${prefix}:${identifier}`, {
+    log.info(`Rate limit check: ${prefix}:${identifier}`, {
       count,
       limit,
       success,
@@ -131,7 +106,7 @@ async function checkRateLimit(
       windowSeconds,
     };
   } catch (error) {
-    logStep("Rate limit error - BLOCKING request (fail-closed)", {
+    log.info("Rate limit error - BLOCKING request (fail-closed)", {
       error: String(error),
     });
     return {
@@ -162,16 +137,6 @@ interface RetryPaymentRequest {
   captchaToken?: string;
 }
 
-function genericErrorResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
-}
-
 function rateLimitResponse(): Response {
   return new Response(
     JSON.stringify({ ok: false, error: "Too many requests" }),
@@ -190,6 +155,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  log = createBackendLogger("retry-membership-payment", correlationId);
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -201,7 +169,7 @@ serve(async (req) => {
     // Rate limit by IP (10 retry attempts per hour)
     const ipRateLimit = await checkRateLimit(clientIP, "retry-ip", 10, 3600);
     if (!ipRateLimit.success) {
-      logStep("Rate limited by IP", { ip: clientIP });
+      log.info("Rate limited by IP", { ip: clientIP });
 
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
@@ -296,7 +264,7 @@ serve(async (req) => {
       600
     );
     if (!membershipRateLimit.success) {
-      logStep("Rate limited by membership", { membershipId });
+      log.info("Rate limited by membership", { membershipId });
 
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.RATE_LIMIT_BLOCK,
@@ -325,7 +293,7 @@ serve(async (req) => {
       name: string;
     } | null;
     if (!tenant || tenant.slug !== tenantSlug) {
-      logStep("Tenant boundary violation", {
+      log.info("Tenant boundary violation", {
         expected: tenantSlug,
         actual: tenant?.slug,
       });
@@ -352,7 +320,7 @@ serve(async (req) => {
     // Allow unauthenticated retry for users who haven't logged in
     // But if logged in, must be the owner
     if (currentUserId && !isOwner) {
-      logStep("Ownership violation", {
+      log.info("Ownership violation", {
         currentUserId,
         applicant_profile_id: membership.applicant_profile_id,
         athlete_profile_id: athlete?.profile_id,
@@ -368,7 +336,7 @@ serve(async (req) => {
       membership.status !== "CANCELLED" ||
       membership.payment_status !== "NOT_PAID"
     ) {
-      logStep("Membership not eligible for retry", {
+      log.info("Membership not eligible for retry", {
         status: membership.status,
         payment_status: membership.payment_status,
       });
@@ -407,7 +375,7 @@ serve(async (req) => {
     const isManualCancellation = matchingLog?.event_type === "MEMBERSHIP_MANUAL_CANCELLED";
 
     if (isManualCancellation) {
-      logStep("Retry BLOCKED for manual cancellation", { 
+      log.info("Retry BLOCKED for manual cancellation", { 
         membershipId,
         event_type: matchingLog?.event_type,
       });
@@ -434,7 +402,7 @@ serve(async (req) => {
       !matchingLog;
 
     if (!isPaymentTimeout && matchingLog) {
-      logStep("Retry not allowed for unknown cancellation reason", {
+      log.info("Retry not allowed for unknown cancellation reason", {
         cancellationReason,
       });
       return new Response(
@@ -462,7 +430,7 @@ serve(async (req) => {
     });
 
     if (rpcError) {
-      logStep("Gatekeeper RPC failed", { error: rpcError.message });
+      log.info("Gatekeeper RPC failed", { error: rpcError.message });
       return new Response(
         JSON.stringify({
           error: "STATUS_CHANGED_CONCURRENT_RETRY",
@@ -477,7 +445,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Status updated to PENDING_PAYMENT", { membershipId });
+    log.info("Status updated to PENDING_PAYMENT", { membershipId });
 
     // Get customer email
     let customerEmail: string | null = null;
@@ -534,10 +502,10 @@ serve(async (req) => {
         },
       });
 
-      logStep("Stripe session created", { sessionId: stripeSession.id });
+      log.info("Stripe session created", { sessionId: stripeSession.id });
     } catch (stripeError) {
       // ROLLBACK: Revert status to CANCELLED
-      logStep("Stripe session creation failed - rolling back", {
+      log.info("Stripe session creation failed - rolling back", {
         error: String(stripeError),
       });
 
@@ -606,7 +574,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Retry successful", {
+    log.info("Retry successful", {
       membershipId,
       sessionId: stripeSession.id,
     });
@@ -621,7 +589,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logStep("Error in retry-membership-payment", { error: errorMessage });
+    log.info("Error in retry-membership-payment", { error: errorMessage });
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

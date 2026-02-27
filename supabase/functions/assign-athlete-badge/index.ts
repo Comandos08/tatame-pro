@@ -18,16 +18,13 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const log = (step: string, details?: Record<string, unknown>) => {
-  const d = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[ASSIGN-BADGE] ${step}${d}`);
 };
 
 interface AssignBadgeRequest {
@@ -39,6 +36,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("assign-athlete-badge", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -55,7 +55,7 @@ serve(async (req) => {
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) return unauthorizedResponse("Invalid token");
 
-    log("Authenticated", { userId: user.id });
+    log.info("Authenticated", { userId: user.id });
 
     // 2. Parse input
     const body: AssignBadgeRequest = await req.json();
@@ -87,7 +87,7 @@ serve(async (req) => {
     // 4. Role check: ADMIN_TENANT for this tenant
     const roleCheck = await requireTenantRole(supabase, authHeader, tenantId, ["ADMIN_TENANT"]);
     if (!roleCheck.allowed) {
-      log("Permission denied", { error: roleCheck.error });
+      log.warn("Permission denied", { error: roleCheck.error });
       return forbiddenResponse(roleCheck.error || "Forbidden");
     }
 
@@ -106,7 +106,7 @@ serve(async (req) => {
     }
 
     if (badge.tenant_id !== tenantId) {
-      log("Cross-tenant badge attempt blocked");
+      log.warn("Cross-tenant badge attempt blocked");
       return forbiddenResponse("Badge does not belong to this tenant");
     }
 
@@ -129,11 +129,9 @@ serve(async (req) => {
 
     if (existing) {
       if (existing.revoked_at === null) {
-        // Already active — no-op
         action = "NOOP";
-        log("Badge already active, no-op", { athleteId, badgeCode: badge.code });
+        log.info("Badge already active, no-op", { athleteId, badgeCode: badge.code });
       } else {
-        // Revoked — reactivate
         const { error: updateError } = await supabase
           .from("athlete_badges")
           .update({ revoked_at: null, granted_by: user.id, granted_at: new Date().toISOString() })
@@ -141,10 +139,9 @@ serve(async (req) => {
 
         if (updateError) throw updateError;
         action = "REACTIVATED";
-        log("Badge reactivated", { athleteId, badgeCode: badge.code });
+        log.info("Badge reactivated", { athleteId, badgeCode: badge.code });
       }
     } else {
-      // New assignment
       const { error: insertError } = await supabase.from("athlete_badges").insert({
         athlete_id: athleteId,
         badge_id: badgeId,
@@ -154,7 +151,7 @@ serve(async (req) => {
 
       if (insertError) throw insertError;
       action = "GRANTED";
-      log("Badge granted", { athleteId, badgeCode: badge.code });
+      log.info("Badge granted", { athleteId, badgeCode: badge.code });
     }
 
     // 7. Audit log (B3 — via canonical helper)
@@ -178,7 +175,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    log("Unexpected error", { error: String(error) });
+    log.error("Unexpected error", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

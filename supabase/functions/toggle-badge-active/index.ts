@@ -1,3 +1,5 @@
+// ============= Full file contents =============
+
 /**
  * 🏅 toggle-badge-active — Activate or deactivate a badge
  *
@@ -18,6 +20,8 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +33,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("toggle-badge-active", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -108,7 +115,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[TOGGLE-BADGE-ACTIVE] Error:", error);
+    log.error("[TOGGLE-BADGE-ACTIVE] Error:", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
