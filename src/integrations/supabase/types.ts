@@ -3862,6 +3862,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_tenant_dashboard_metrics: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
       get_tenant_flags_contract: {
         Args: { p_tenant_id: string }
         Returns: Json
