@@ -1,15 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CLEANUP-ABANDONED] ${step}${detailsStr}`);
 };
 
 /**
@@ -32,6 +29,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("cleanup-abandoned-memberships", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -39,7 +39,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[CLEANUP-ABANDONED] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -47,7 +47,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[CLEANUP-ABANDONED] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -61,7 +61,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    logStep("Starting cleanup job for abandoned memberships");
+    log.info("Starting cleanup job for abandoned memberships");
 
     const jobRunId = crypto.randomUUID();
 
@@ -83,7 +83,7 @@ serve(async (req) => {
     cutoffTime.setHours(cutoffTime.getHours() - 24);
     const cutoffIso = cutoffTime.toISOString();
 
-    logStep("Looking for DRAFT memberships older than", { cutoff: cutoffIso });
+    log.info("Looking for DRAFT memberships older than", { cutoff: cutoffIso });
 
     // Find abandoned memberships (DRAFT status, older than 24 hours, no payment)
     const { data: abandonedMemberships, error: fetchError } = await supabase
@@ -104,7 +104,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch memberships: ${fetchError.message}`);
     }
 
-    logStep("Found abandoned memberships", { count: abandonedMemberships?.length || 0 });
+    log.info("Found abandoned memberships", { count: abandonedMemberships?.length || 0 });
 
     if (!abandonedMemberships || abandonedMemberships.length === 0) {
       return new Response(
@@ -151,12 +151,12 @@ serve(async (req) => {
           },
         });
 
-        logStep("Membership marked as abandoned", { membershipId: membership.id });
+        log.info("Membership marked as abandoned", { membershipId: membership.id });
         results.push({ membershipId: membership.id, success: true });
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        logStep("Error cleaning membership", { membershipId: membership.id, error: errorMessage });
+        log.error("Error cleaning membership", { membershipId: membership.id, error: errorMessage });
         results.push({ membershipId: membership.id, success: false, error: errorMessage });
       }
     }
@@ -164,7 +164,7 @@ serve(async (req) => {
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
 
-    logStep("Cleanup completed", { successCount, failCount });
+    log.info("Cleanup completed", { successCount, failCount });
 
     // Log job execution completion
     await createAuditLog(supabase, {
@@ -193,7 +193,7 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    log.error("Error", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

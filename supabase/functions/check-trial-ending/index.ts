@@ -14,15 +14,12 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CHECK-TRIAL-ENDING] ${step}${detailsStr}`);
 };
 
 const DAYS_BEFORE_TRIAL_END = 3;
@@ -32,6 +29,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("check-trial-ending", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -39,7 +39,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[CHECK-TRIAL-ENDING] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -47,7 +47,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[CHECK-TRIAL-ENDING] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -56,7 +56,7 @@ serve(async (req) => {
   // ========================================
 
   try {
-    logStep("Starting trial ending check");
+    log.info("Starting trial ending check");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -88,7 +88,7 @@ serve(async (req) => {
     const maxDate = new Date(now);
     maxDate.setDate(maxDate.getDate() + (DAYS_BEFORE_TRIAL_END + 1)); // 4 days from now
 
-    logStep("Checking for trials ending soon", { 
+    log.info("Checking for trials ending soon", { 
       minDate: minDate.toISOString(), 
       maxDate: maxDate.toISOString() 
     });
@@ -110,7 +110,7 @@ serve(async (req) => {
       throw new Error(`Error fetching trialing tenants: ${fetchError.message}`);
     }
 
-    logStep("Found trialing tenants", { count: trialingTenants?.length || 0 });
+    log.info("Found trialing tenants", { count: trialingTenants?.length || 0 });
 
     if (!trialingTenants || trialingTenants.length === 0) {
       return new Response(
@@ -122,13 +122,13 @@ serve(async (req) => {
     // Filter out tenants that already received notification today
     const tenantsToNotify = trialingTenants.filter(t => !t.trial_end_notification_sent);
     
-    logStep("Tenants to notify", { count: tenantsToNotify.length });
+    log.info("Tenants to notify", { count: tenantsToNotify.length });
 
     const results = [];
 
     for (const tenant of tenantsToNotify) {
       try {
-        logStep("Processing tenant", { tenantId: tenant.tenant_id });
+        log.info("Processing tenant", { tenantId: tenant.tenant_id });
 
         // Send email notification
         const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-billing-email`, {
@@ -146,8 +146,7 @@ serve(async (req) => {
           }),
         });
 
-        const emailResult = await emailResponse.json();
-        logStep("Email sent", { tenantId: tenant.tenant_id, result: emailResult });
+        log.info("Email sent", { tenantId: tenant.tenant_id, result: emailResult });
 
         // Mark as notified
         const { error: updateError } = await supabase
@@ -156,7 +155,7 @@ serve(async (req) => {
           .eq("id", tenant.id);
 
         if (updateError) {
-          logStep("Error updating notification flag", { error: updateError.message });
+          log.error("Error updating notification flag", { error: updateError.message });
         }
 
         // Create audit log entry
@@ -172,12 +171,12 @@ serve(async (req) => {
         results.push({ tenantId: tenant.tenant_id, success: true });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        logStep("Error processing tenant", { tenantId: tenant.tenant_id, error: errorMessage });
+        log.error("Error processing tenant", { tenantId: tenant.tenant_id, error: errorMessage });
         results.push({ tenantId: tenant.tenant_id, success: false, error: errorMessage });
       }
     }
 
-    logStep("Finished processing", { results });
+    log.info("Finished processing", { results });
 
     // Log job execution completion
     await supabase.from("audit_logs").insert({
@@ -205,7 +204,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error in check-trial-ending", { error: errorMessage });
+    log.error("Error in check-trial-ending", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

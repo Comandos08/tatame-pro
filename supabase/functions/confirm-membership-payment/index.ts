@@ -31,6 +31,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -59,6 +61,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("confirm-membership-payment", correlationId);
 
   try {
     // ========================================================================
@@ -193,7 +198,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${supabaseServiceKey}`,
       },
       body: JSON.stringify({ membershipId }),
-    }).catch((err) => console.error("Failed to trigger card generation:", err));
+    }).catch((err) => log.error("Failed to trigger card generation", err));
 
     // ========================================================================
     // STEP 9: Success Response
@@ -211,7 +216,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error confirming payment:", error);
+    log.error("Error confirming payment", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {

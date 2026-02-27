@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,6 +49,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("verify-digital-card", correlationId);
+
   try {
     const { cardId, tenantSlug }: VerifyRequest = await req.json();
 
@@ -88,7 +93,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (cardError) {
-      console.error("Card query error:", cardError);
+      log.error("Card query error", cardError);
       return new Response(
         JSON.stringify({ found: false, error: "Verification failed" }),
         {
@@ -118,7 +123,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      console.error("Membership query error:", membershipError);
+      log.error("Membership query error", membershipError);
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
@@ -160,7 +165,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (athleteError || !athlete) {
-      console.error("Athlete query error:", athleteError);
+      log.error("Athlete query error", athleteError);
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
@@ -212,7 +217,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (tenantError || !tenant) {
-      console.error("Tenant query error:", tenantError);
+      log.error("Tenant query error", tenantError);
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
@@ -297,7 +302,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error verifying card:", error);
+    log.error("Error verifying card", error);
     return new Response(
       JSON.stringify({ found: false, error: "Internal error" }),
       {

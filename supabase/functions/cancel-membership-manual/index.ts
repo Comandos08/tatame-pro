@@ -42,6 +42,8 @@ import {
   requireBillingStatus,
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,11 +52,6 @@ const corsHeaders = {
 };
 
 const OPERATION_NAME = "cancel-membership-manual";
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CANCEL-MANUAL] ${step}${detailsStr}`);
-};
 
 interface CancelMembershipRequest {
   membershipId: string;
@@ -94,6 +91,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("cancel-membership-manual", correlationId);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -104,7 +104,7 @@ serve(async (req) => {
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      logStep("Auth failed - missing header");
+      log.error("Auth failed - missing header");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         reason: "MISSING_AUTH",
@@ -123,7 +123,7 @@ serve(async (req) => {
       error: userError,
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) {
-      logStep("Auth failed - invalid token");
+      log.error("Auth failed - invalid token");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         reason: "INVALID_TOKEN",
@@ -138,7 +138,7 @@ serve(async (req) => {
     }
 
     const adminProfileId = user.id;
-    logStep("Admin authenticated", { adminProfileId });
+    log.info("Admin authenticated", { adminProfileId });
 
     // ========================================================================
     // 2️⃣ RATE LIMITING (before any business logic)
@@ -148,7 +148,7 @@ serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.warn("Rate limit exceeded", { count: rateLimitResult.count });
 
       await logRateLimitBlock(supabase, {
         operation: OPERATION_NAME,
@@ -168,7 +168,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      logStep("Validation failed - invalid JSON");
+      log.warn("Validation failed - invalid JSON");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -183,7 +183,7 @@ serve(async (req) => {
     const reason = body.reason?.trim() || "";
 
     if (!membershipId) {
-      logStep("Validation failed - missing membershipId");
+      log.warn("Validation failed - missing membershipId");
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -196,7 +196,7 @@ serve(async (req) => {
 
     // Validate reason (min 5 chars)
     if (!reason || reason.length < 5) {
-      logStep("Validation failed - reason too short", { length: reason.length });
+      log.warn("Validation failed - reason too short", { length: reason.length });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -233,7 +233,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError || !membership) {
-      logStep("Membership not found or error", { membershipId });
+      log.warn("Membership not found or error", { membershipId });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -246,7 +246,7 @@ serve(async (req) => {
 
     const targetTenantId = membership.tenant_id;
     const previousStatus = membership.status;
-    logStep("Fetched membership", {
+    log.info("Fetched membership", {
       previousStatus,
       membershipId,
       tenantId: targetTenantId,
@@ -273,7 +273,7 @@ serve(async (req) => {
     );
 
     if (!isSuperadmin && !isTenantAdmin) {
-      logStep("Permission denied - no valid role");
+      log.warn("Permission denied - no valid role");
       await logPermissionDenied(supabase, {
         operation: OPERATION_NAME,
         user_id: user.id,
@@ -297,7 +297,7 @@ serve(async (req) => {
       );
 
       if (!impersonationCheck.valid) {
-        logStep("Impersonation validation failed", {
+        log.warn("Impersonation validation failed", {
           error: impersonationCheck.error,
         });
 
@@ -312,19 +312,19 @@ serve(async (req) => {
         return forbiddenResponse();
       }
 
-      logStep("Superadmin with valid impersonation", {
+      log.info("Superadmin with valid impersonation", {
         impersonationId: impersonationCheck.impersonationId,
       });
     }
 
-    logStep("Authorization verified", { isSuperadmin, isTenantAdmin });
+    log.info("Authorization verified", { isSuperadmin, isTenantAdmin });
 
     // ========================================================================
     // 6️⃣ BILLING STATUS CHECK
     // ========================================================================
     const billingCheck = await requireBillingStatus(supabase, targetTenantId);
     if (!billingCheck.allowed) {
-      logStep("Billing status blocked operation", {
+      log.warn("Billing status blocked operation", {
         status: billingCheck.status,
         code: billingCheck.code,
       });
@@ -339,13 +339,13 @@ serve(async (req) => {
       return billingRestrictedResponse(billingCheck.status);
     }
 
-    logStep("Billing status OK", { status: billingCheck.status });
+    log.info("Billing status OK", { status: billingCheck.status });
 
     // ========================================================================
     // 7️⃣ VALIDATE MEMBERSHIP STATUS (Idempotent for CANCELLED)
     // ========================================================================
     if (previousStatus === "CANCELLED") {
-      logStep("Membership already cancelled - idempotent return", {
+      log.info("Membership already cancelled - idempotent return", {
         membershipId,
       });
       return new Response(
@@ -364,7 +364,7 @@ serve(async (req) => {
     }
 
     if (!ELIGIBLE_STATUSES.includes(previousStatus)) {
-      logStep("Invalid status for cancellation", { status: previousStatus });
+      log.warn("Invalid status for cancellation", { status: previousStatus });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -391,7 +391,7 @@ serve(async (req) => {
     // 8️⃣ BLOCK IF ALREADY PAID
     // ========================================================================
     if (membership.payment_status === "PAID") {
-      logStep("Cannot cancel paid membership", { membershipId });
+      log.warn("Cannot cancel paid membership", { membershipId });
       await logDecision(supabase, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "MEDIUM",
@@ -428,7 +428,7 @@ serve(async (req) => {
     });
 
     if (rpcError) {
-      logStep("Gatekeeper RPC failed", { error: rpcError.message });
+      log.error("Gatekeeper RPC failed", { error: rpcError.message });
       // Check if it's a transition error (race condition)
       if (rpcError.message?.includes("Invalid transition")) {
         return new Response(
@@ -452,7 +452,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Membership cancelled", { newStatus: "CANCELLED" });
+    log.info("Membership cancelled", { newStatus: "CANCELLED" });
 
     // ========================================================================
     // 🔟 AUDIT LOG — Membership Manually Cancelled
@@ -499,7 +499,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Operation completed successfully", { membershipId });
+    log.info("Operation completed successfully", { membershipId });
 
     return new Response(
       JSON.stringify({
@@ -514,7 +514,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("[CANCEL-MANUAL] Unexpected error:", error);
+    log.error("Unexpected error", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error" }),
       {
