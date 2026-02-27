@@ -1213,7 +1213,34 @@ async function handleMembershipFeeCompleted(
     return;
   }
 
-  // Update membership_fees record (lookup by session or membership)
+  // ── IDEMPOTENCY CHECK: If already paid, return silently ──
+  const { data: existingFee, error: feeLookupError } = await supabase
+    .from("membership_fees")
+    .select("id, paid_at")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+
+  if (feeLookupError) {
+    log.error("Failed to lookup membership_fees", feeLookupError, { session_id: session.id });
+    // Return silently to avoid Stripe retry loop (I6 invariant)
+    return;
+  }
+
+  if (!existingFee) {
+    log.warn("No membership_fees record found for session", { session_id: session.id });
+    return;
+  }
+
+  if (existingFee.paid_at) {
+    log.info("Fee already paid — idempotent skip", {
+      fee_id: existingFee.id,
+      paid_at: existingFee.paid_at,
+      session_id: session.id,
+    });
+    return;
+  }
+
+  // Update membership_fees record (lookup by stripe_checkout_session_id, NOT membership_id)
   const { error: feeUpdateError } = await supabase
     .from("membership_fees")
     .update({
@@ -1224,7 +1251,8 @@ async function handleMembershipFeeCompleted(
 
   if (feeUpdateError) {
     log.error("Failed to update membership_fees", feeUpdateError, { membershipId });
-    throw new Error(`membership_fees update failed: ${feeUpdateError.message}`);
+    // Return silently — never throw after signature validation (I6 invariant)
+    return;
   }
 
   // GOV: Update ONLY fee_paid_at (non-lifecycle column) — never touch payment_status
