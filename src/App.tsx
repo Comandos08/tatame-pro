@@ -29,6 +29,7 @@ import SecurityDashboard from "@/pages/admin/SecurityDashboard";
 import AdminMembershipAnalytics from "@/pages/admin/AdminMembershipAnalytics";
 import MembershipObservability from "@/pages/admin/MembershipObservability";
 import { RequireGlobalRoles } from "@/components/auth/RequireGlobalRoles";
+import { RequireRoles } from "@/components/auth/RequireRoles";
 
 
 // Tenant
@@ -96,9 +97,9 @@ export default function App() {
           <Route path="app/*" element={<AppRouter />} />
           
           {/* Athlete Portal */}
-          <Route path="portal" element={<AthletePortal />} />
-          <Route path="portal/card" element={<PortalCard />} />
-          <Route path="portal/events" element={<PortalEvents />} />
+          <Route path="portal" element={<RequireRoles allowed={['ATLETA']}><AthletePortal /></RequireRoles>} />
+          <Route path="portal/card" element={<RequireRoles allowed={['ATLETA']}><PortalCard /></RequireRoles>} />
+          <Route path="portal/events" element={<RequireRoles allowed={['ATLETA']}><PortalEvents /></RequireRoles>} />
           
           {/* Public Tenant Pages */}
           <Route path="academies" element={<PublicAcademies />} />
