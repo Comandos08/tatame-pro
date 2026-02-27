@@ -81,7 +81,7 @@ export default function IdentityWizard() {
   // Redirect if already resolved (or after wizard completes)
   // P1-003: pendingRedirect takes priority over /portal fallback
   useEffect(() => {
-    if (identityState === "resolved" || identityState === "superadmin") {
+    if (identityState === "RESOLVED" || identityState === "SUPERADMIN") {
       if (pendingRedirect) {
         navigate(pendingRedirect, { replace: true });
         setPendingRedirect(null);

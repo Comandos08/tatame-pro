@@ -5,9 +5,9 @@ import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { emitInstitutionalEvent } from "@/lib/institutional";
-import { type ContextIdentityState } from "@/lib/identity/identity-state-machine";
+import { type IdentityState } from "@/lib/identity/identity-state-machine";
 
-export type IdentityState = ContextIdentityState;
+export type { IdentityState };
 
 export interface IdentityError {
   code:
@@ -99,7 +99,7 @@ function emitInstitutional(payload: {
 export function IdentityProvider({ children }: { children: ReactNode }) {
   const { session, isAuthenticated, isLoading: authLoading } = useCurrentUser();
 
-  const [identityState, setIdentityState] = useState<IdentityState>("loading");
+  const [identityState, setIdentityState] = useState<IdentityState>("LOADING");
   const [error, setError] = useState<IdentityError | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState(false);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
@@ -123,7 +123,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     if (!isMountedRef.current) return;
-    setIdentityState("loading");
+    setIdentityState("LOADING");
     setError(null);
     setWizardCompleted(false);
     setTenant(null);
@@ -140,7 +140,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       setRole(result.role || null);
       setRedirectPath(result.redirectPath || null);
 
-      setIdentityState(result.role === "SUPERADMIN_GLOBAL" ? "superadmin" : "resolved");
+      setIdentityState(result.role === "SUPERADMIN_GLOBAL" ? "SUPERADMIN" : "RESOLVED");
 
       setError(null);
 
@@ -160,12 +160,12 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       setTenant(null);
       setRole(null);
       setRedirectPath(null);
-      setIdentityState("wizard_required");
+      setIdentityState("WIZARD_REQUIRED");
       setError(null);
       return;
     }
 
-    setIdentityState("error");
+    setIdentityState("ERROR");
     setError(
       result?.error || {
         code: "UNKNOWN",
@@ -200,7 +200,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       inFlightAbortRef.current = null;
     }
 
-    setIdentityState("loading");
+    setIdentityState("LOADING");
     setError(null);
 
     const { signal, abort, clear } = hardAbortableFetch(IDENTITY_TIMEOUT_MS);
@@ -228,7 +228,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       applyResult(unwrapped);
     } catch (err: any) {
       if (err?.name === "AbortError") {
-        setIdentityState("error");
+        setIdentityState("ERROR");
         setError({
           code: "IDENTITY_TIMEOUT",
           message: "Timeout identity.",
@@ -244,7 +244,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
       logger.error("[IdentityContext] checkIdentity error:", err);
 
-      setIdentityState("error");
+      setIdentityState("ERROR");
       setError({
         code: "UNKNOWN",
         message: "Falha ao conectar ao serviço.",
@@ -324,7 +324,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         joinExistingTenant: (payload) => invokeAction("JOIN_EXISTING_TENANT", payload),
         setIdentityError: (e) => {
           setError(e);
-          setIdentityState("error");
+          setIdentityState("ERROR");
         },
         clearError: () => {
           setError(null);

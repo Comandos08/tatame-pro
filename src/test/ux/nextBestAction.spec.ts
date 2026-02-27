@@ -16,7 +16,7 @@ import {
 /** Base "everything OK" input — should produce null */
 function okInput(overrides: Partial<NextBestActionInput> = {}): NextBestActionInput {
   return {
-    identityState: 'resolved',
+    identityState: 'RESOLVED',
     tenantLifecycle: 'ACTIVE',
     billingStatus: 'ACTIVE',
     hasTenant: true,
@@ -35,7 +35,7 @@ describe('Happy path', () => {
   });
 
   it('returns null for superadmin identity', () => {
-    expect(deriveNextBestAction(okInput({ identityState: 'superadmin' }))).toBeNull();
+    expect(deriveNextBestAction(okInput({ identityState: 'SUPERADMIN' }))).toBeNull();
   });
 });
 
@@ -44,7 +44,7 @@ describe('Happy path', () => {
 // ============================================================================
 describe('Identity loading', () => {
   it('returns INFO with IDENTITY_LOADING reason', () => {
-    const result = deriveNextBestAction(okInput({ identityState: 'loading' }));
+    const result = deriveNextBestAction(okInput({ identityState: 'LOADING' }));
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('INFO');
     expect(result!.reason).toBe('IDENTITY_LOADING');
@@ -57,7 +57,7 @@ describe('Identity loading', () => {
 // ============================================================================
 describe('Wizard required', () => {
   it('returns CTA with WIZARD_REQUIRED reason and correct href', () => {
-    const result = deriveNextBestAction(okInput({ identityState: 'wizard_required' }));
+    const result = deriveNextBestAction(okInput({ identityState: 'WIZARD_REQUIRED' }));
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('CTA');
     expect(result!.reason).toBe('WIZARD_REQUIRED');
@@ -143,7 +143,7 @@ describe('Access denied', () => {
 describe('Priority order', () => {
   it('Identity loading takes priority over billing blocked', () => {
     const result = deriveNextBestAction(okInput({
-      identityState: 'loading',
+      identityState: 'LOADING',
       billingStatus: 'PAST_DUE',
     }));
     expect(result!.reason).toBe('IDENTITY_LOADING');
@@ -151,7 +151,7 @@ describe('Priority order', () => {
 
   it('Wizard takes priority over billing blocked', () => {
     const result = deriveNextBestAction(okInput({
-      identityState: 'wizard_required',
+      identityState: 'WIZARD_REQUIRED',
       billingStatus: 'PAST_DUE',
     }));
     expect(result!.reason).toBe('WIZARD_REQUIRED');
@@ -217,7 +217,7 @@ describe('Null/missing billing', () => {
 describe('Hierarchy determinism', () => {
   it('returns exactly one reason — the highest precedence — when multiple blocks coexist', () => {
     const result = deriveNextBestAction(okInput({
-      identityState: 'loading',
+      identityState: 'LOADING',
       tenantLifecycle: 'BLOCKED',
       billingStatus: 'PAST_DUE',
       canAccess: false,
@@ -228,7 +228,7 @@ describe('Hierarchy determinism', () => {
 
   it('wizard_required outranks all downstream blocks', () => {
     const result = deriveNextBestAction(okInput({
-      identityState: 'wizard_required',
+      identityState: 'WIZARD_REQUIRED',
       tenantLifecycle: 'BLOCKED',
       billingStatus: 'PAST_DUE',
       canAccess: false,
