@@ -12,6 +12,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +21,6 @@ const corsHeaders = {
 };
 
 const OPERATION_NAME = "create-membership-checkout";
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CREATE-MEMBERSHIP-CHECKOUT] ${step}${detailsStr}`);
-};
 
 // ============================================
 // RATE LIMITING CONFIGURATION
@@ -43,14 +40,15 @@ async function checkRateLimit(
   identifier: string,
   prefix: string,
   limit: number,
-  windowSeconds: number
+  windowSeconds: number,
+  log: ReturnType<typeof createBackendLogger>
 ): Promise<RateLimitResult> {
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
   // FAIL-CLOSED: If Redis is not configured, block request
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured - BLOCKING request (fail-closed)");
+    log.info("Rate limiting not configured - BLOCKING request (fail-closed)");
     return { 
       success: false, 
       remaining: 0, 
@@ -83,7 +81,7 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error - BLOCKING request (fail-closed)");
+      log.info("Redis error - BLOCKING request (fail-closed)");
       return { 
         success: false, 
         remaining: 0, 
@@ -99,10 +97,10 @@ async function checkRateLimit(
     const remaining = Math.max(0, limit - count);
     const success = count <= limit;
 
-    logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
+    log.info(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
     return { success, remaining, reset: now + windowSeconds * 1000, count, limit, windowSeconds };
   } catch (error) {
-    logStep("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
+    log.info("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
     return { 
       success: false, 
       remaining: 0, 
@@ -126,17 +124,17 @@ function getClientIP(req: Request): string {
 // ============================================
 // CAPTCHA VALIDATION (Cloudflare Turnstile)
 // ============================================
-async function validateCaptcha(token: string | null | undefined, clientIP: string): Promise<{ success: boolean; error?: string }> {
+async function validateCaptcha(token: string | null | undefined, clientIP: string, log: ReturnType<typeof createBackendLogger>): Promise<{ success: boolean; error?: string }> {
   const secretKey = Deno.env.get("TURNSTILE_SECRET_KEY");
 
   // If Turnstile is not configured, allow request
   if (!secretKey) {
-    logStep("Turnstile not configured, skipping CAPTCHA validation");
+    log.info("Turnstile not configured, skipping CAPTCHA validation");
     return { success: true };
   }
 
   if (!token) {
-    logStep("No CAPTCHA token provided");
+    log.info("No CAPTCHA token provided");
     return { success: false, error: "Verificação de segurança necessária." };
   }
 
@@ -155,20 +153,20 @@ async function validateCaptcha(token: string | null | undefined, clientIP: strin
     );
 
     if (!response.ok) {
-      logStep("Turnstile API error");
+      log.info("Turnstile API error");
       return { success: true }; // Fail-open for CAPTCHA only
     }
 
     const result = await response.json();
     if (!result.success) {
-      logStep("CAPTCHA validation failed", { errors: result["error-codes"] });
+      log.info("CAPTCHA validation failed", { errors: result["error-codes"] });
       return { success: false, error: "Verificação de segurança falhou. Tente novamente." };
     }
 
-    logStep("CAPTCHA validation successful");
+    log.info("CAPTCHA validation successful");
     return { success: true };
   } catch (error) {
-    logStep("CAPTCHA error", { error: String(error) });
+    log.info("CAPTCHA error", { error: String(error) });
     return { success: true }; // Fail-open for CAPTCHA only
   }
 }
@@ -212,6 +210,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("create-membership-checkout", correlationId);
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -220,9 +221,9 @@ serve(async (req) => {
     const clientIP = getClientIP(req);
     
     // Rate limit by IP (10 checkout attempts per hour)
-    const ipRateLimit = await checkRateLimit(clientIP, "checkout-ip", 10, 3600);
+    const ipRateLimit = await checkRateLimit(clientIP, "checkout-ip", 10, 3600, log);
     if (!ipRateLimit.success) {
-      logStep("Rate limited by IP", { ip: clientIP });
+      log.info("Rate limited by IP", { ip: clientIP });
       
       // MANDATORY: Log decision BEFORE returning 429
       const logId = await logDecision(supabaseAdmin, {
@@ -244,7 +245,7 @@ serve(async (req) => {
 
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
-        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
         return genericErrorResponse();
       }
 
@@ -275,7 +276,7 @@ serve(async (req) => {
     }
 
     // Validate CAPTCHA
-    const captchaResult = await validateCaptcha(captchaToken, clientIP);
+    const captchaResult = await validateCaptcha(captchaToken, clientIP, log);
     if (!captchaResult.success) {
       return new Response(
         JSON.stringify({ error: captchaResult.error, captchaRequired: true }),
@@ -293,9 +294,9 @@ serve(async (req) => {
     const tenantIdForLogging = membershipForContext?.tenant_id || null;
 
     // Rate limit by membership (3 attempts per 10 minutes)
-    const membershipRateLimit = await checkRateLimit(membershipId, "checkout-membership", 3, 600);
+    const membershipRateLimit = await checkRateLimit(membershipId, "checkout-membership", 3, 600, log);
     if (!membershipRateLimit.success) {
-      logStep("Rate limited by membership", { membershipId });
+      log.info("Rate limited by membership", { membershipId });
       
       // MANDATORY: Log decision BEFORE returning 429
       const logId = await logDecision(supabaseAdmin, {
@@ -317,7 +318,7 @@ serve(async (req) => {
 
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
-        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
         return genericErrorResponse();
       }
 
@@ -366,7 +367,7 @@ serve(async (req) => {
       throw new Error("Customer email not found");
     }
 
-    logStep("Creating checkout session", { membershipId, customerEmail });
+    log.info("Creating checkout session", { membershipId, customerEmail });
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -401,7 +402,7 @@ serve(async (req) => {
       .eq("id", membershipId);
 
     if (sessionUpdateError) {
-      logStep("Failed to update stripe_checkout_session_id", { error: sessionUpdateError.message });
+      log.info("Failed to update stripe_checkout_session_id", { error: sessionUpdateError.message });
     }
 
     // GOV-001B: Transition status via gatekeeper RPC
@@ -414,10 +415,10 @@ serve(async (req) => {
     });
 
     if (rpcError) {
-      logStep("Gatekeeper RPC failed", { error: rpcError.message });
+      log.info("Gatekeeper RPC failed", { error: rpcError.message });
     }
 
-    logStep("Checkout session created", { sessionId: session.id });
+    log.info("Checkout session created", { sessionId: session.id });
 
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),
@@ -428,7 +429,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error creating checkout session", { error: errorMessage });
+    log.info("Error creating checkout session", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {

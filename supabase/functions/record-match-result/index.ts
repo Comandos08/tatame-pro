@@ -14,6 +14,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,13 +34,16 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("record-match-result", correlationId);
+
   try {
     // 1️⃣ Parse request
     const body: RecordResultRequest = await req.json();
     const { matchId, winnerRegistrationId } = body;
     const impersonationId = extractImpersonationId(req, body);
 
-    console.log('[RECORD-RESULT] Request:', { matchId, winnerRegistrationId, hasImpersonation: !!impersonationId });
+    log.info("Request", { matchId, winnerRegistrationId, hasImpersonation: !!impersonationId });
 
     if (!matchId) {
       return new Response(
@@ -71,7 +76,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('[RECORD-RESULT] Auth error:', authError);
+      log.error("Auth error", authError);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,7 +91,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (matchError || !match) {
-      console.error('[RECORD-RESULT] Match not found:', matchError);
+      log.error("Match not found", matchError);
       return new Response(
         JSON.stringify({ error: 'Match not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -125,7 +130,7 @@ Deno.serve(async (req) => {
       operation: 'record_match_result',
     });
     if (!billingGate.ok) {
-      console.warn('[RECORD-RESULT] Billing gate failed:', billingGate.code);
+      log.warn("Billing gate failed", { code: billingGate.code });
       return new Response(
         JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
         { status: billingGate.httpStatus ?? 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -140,7 +145,7 @@ Deno.serve(async (req) => {
       ['ADMIN_TENANT']
     );
     if (!roleCheck.allowed) {
-      console.warn('[RECORD-RESULT] Role check failed:', roleCheck.error);
+      log.warn("Role check failed", { error: roleCheck.error });
       return new Response(
         JSON.stringify({ error: roleCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -156,7 +161,7 @@ Deno.serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      console.warn('[RECORD-RESULT] Impersonation check failed:', impersonationCheck.error);
+      log.warn("Impersonation check failed", { error: impersonationCheck.error });
       return new Response(
         JSON.stringify({ error: impersonationCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -172,14 +177,14 @@ Deno.serve(async (req) => {
       });
 
     if (rpcError) {
-      console.error('[RECORD-RESULT] RPC error:', rpcError);
+      log.error("RPC error", rpcError);
       return new Response(
         JSON.stringify({ error: rpcError.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[RECORD-RESULT] Success:', rpcResult);
+    log.info("Success", { result: rpcResult });
 
     return new Response(
       JSON.stringify(rpcResult),
@@ -187,7 +192,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    console.error('[RECORD-RESULT] Unexpected error:', err);
+    log.error("Unexpected error", err);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

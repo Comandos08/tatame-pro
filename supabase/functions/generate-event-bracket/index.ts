@@ -14,6 +14,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,13 +34,16 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("generate-event-bracket", correlationId);
+
   try {
     // 1️⃣ Parse request
     const body: GenerateBracketRequest = await req.json();
     const { categoryId, eventId } = body;
     const impersonationId = extractImpersonationId(req, body);
 
-    console.log('[GENERATE-BRACKET] Request:', { categoryId, eventId, hasImpersonation: !!impersonationId });
+    log.info("Request", { categoryId, eventId, hasImpersonation: !!impersonationId });
 
     if (!categoryId || !eventId) {
       return new Response(
@@ -64,7 +69,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('[GENERATE-BRACKET] Auth error:', authError);
+      log.error("Auth error", authError);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -79,7 +84,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (catError || !category) {
-      console.error('[GENERATE-BRACKET] Category not found:', catError);
+      log.error("Category not found", catError);
       return new Response(
         JSON.stringify({ error: 'Category not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -104,7 +109,7 @@ Deno.serve(async (req) => {
       operation: 'generate_event_bracket',
     });
     if (!billingGate.ok) {
-      console.warn('[GENERATE-BRACKET] Billing gate failed:', billingGate.code);
+      log.warn("Billing gate failed", { code: billingGate.code });
       return new Response(
         JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
         { status: billingGate.httpStatus ?? 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -119,7 +124,7 @@ Deno.serve(async (req) => {
       ['ADMIN_TENANT']
     );
     if (!roleCheck.allowed) {
-      console.warn('[GENERATE-BRACKET] Role check failed:', roleCheck.error);
+      log.warn("Role check failed", { error: roleCheck.error });
       return new Response(
         JSON.stringify({ error: roleCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -135,7 +140,7 @@ Deno.serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      console.warn('[GENERATE-BRACKET] Impersonation check failed:', impersonationCheck.error);
+      log.warn("Impersonation check failed", { error: impersonationCheck.error });
       return new Response(
         JSON.stringify({ error: impersonationCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -150,7 +155,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (eventError || !event) {
-      console.error('[GENERATE-BRACKET] Event not found:', eventError);
+      log.error("Event not found", eventError);
       return new Response(
         JSON.stringify({ error: 'Event not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -185,7 +190,7 @@ Deno.serve(async (req) => {
       .order('id', { ascending: true });
 
     if (regError) {
-      console.error('[GENERATE-BRACKET] Registration fetch error:', regError);
+      log.error("Registration fetch error", regError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch registrations' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -199,7 +204,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[GENERATE-BRACKET] Registrations found:', registrations.length);
+    log.info("Registrations found", { count: registrations.length });
 
     // 8️⃣ Prepare payload for RPC
     const registrationsPayload = registrations.map(r => ({
@@ -219,7 +224,7 @@ Deno.serve(async (req) => {
       });
 
     if (rpcError) {
-      console.error('[GENERATE-BRACKET] RPC error:', rpcError);
+      log.error("RPC error", rpcError);
       // Check for specific errors
       const errorMessage = rpcError.message || 'Failed to generate bracket';
       const isDraftExists = errorMessage.includes('Draft bracket already exists');
@@ -233,7 +238,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[GENERATE-BRACKET] Success via RPC:', rpcResult);
+    log.info("Success via RPC", { result: rpcResult });
 
     return new Response(
       JSON.stringify(rpcResult),
@@ -241,7 +246,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    console.error('[GENERATE-BRACKET] Unexpected error:', err);
+    log.error("Unexpected error", err);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

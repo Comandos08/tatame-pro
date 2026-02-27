@@ -13,6 +13,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,13 +32,16 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("publish-event-bracket", correlationId);
+
   try {
     // 1️⃣ Parse request
     const body: PublishBracketRequest = await req.json();
     const { bracketId } = body;
     const impersonationId = extractImpersonationId(req, body);
 
-    console.log('[PUBLISH-BRACKET] Request:', { bracketId, hasImpersonation: !!impersonationId });
+    log.info("Request", { bracketId, hasImpersonation: !!impersonationId });
 
     if (!bracketId) {
       return new Response(
@@ -62,7 +67,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('[PUBLISH-BRACKET] Auth error:', authError);
+      log.error("Auth error", authError);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -77,7 +82,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (bracketError || !bracket) {
-      console.error('[PUBLISH-BRACKET] Bracket not found:', bracketError);
+      log.error("Bracket not found", bracketError);
       return new Response(
         JSON.stringify({ error: 'Bracket not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -109,7 +114,7 @@ Deno.serve(async (req) => {
       operation: 'publish_event_bracket',
     });
     if (!billingGate.ok) {
-      console.warn('[PUBLISH-BRACKET] Billing gate failed:', billingGate.code);
+      log.warn("Billing gate failed", { code: billingGate.code });
       return new Response(
         JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
         { status: billingGate.httpStatus ?? 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -124,7 +129,7 @@ Deno.serve(async (req) => {
       ['ADMIN_TENANT']
     );
     if (!roleCheck.allowed) {
-      console.warn('[PUBLISH-BRACKET] Role check failed:', roleCheck.error);
+      log.warn("Role check failed", { error: roleCheck.error });
       return new Response(
         JSON.stringify({ error: roleCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -140,7 +145,7 @@ Deno.serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      console.warn('[PUBLISH-BRACKET] Impersonation check failed:', impersonationCheck.error);
+      log.warn("Impersonation check failed", { error: impersonationCheck.error });
       return new Response(
         JSON.stringify({ error: impersonationCheck.error }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -157,14 +162,14 @@ Deno.serve(async (req) => {
       .eq('id', bracketId);
 
     if (updateError) {
-      console.error('[PUBLISH-BRACKET] Update error:', updateError);
+      log.error("Update error", updateError);
       return new Response(
         JSON.stringify({ error: 'Failed to publish bracket' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[PUBLISH-BRACKET] Success! Bracket:', bracketId, 'Version:', bracket.version);
+    log.info("Success! Bracket published", { bracketId, version: bracket.version });
 
     return new Response(
       JSON.stringify({
@@ -178,7 +183,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    console.error('[PUBLISH-BRACKET] Unexpected error:', err);
+    log.error("Unexpected error", err);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
