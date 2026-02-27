@@ -83,7 +83,6 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // ✅ P-IMP-FIX — Explicit resolution status state machine
   const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>('IDLE');
   
-  const validationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const impersonationInFlightRef = useRef(false);
 
@@ -138,7 +137,6 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setRemainingMinutes(null);
     setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset to IDLE on clear
     sessionStorage.removeItem(STORAGE_KEY);
-    if (validationInterval.current) clearInterval(validationInterval.current);
     if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
     // AJUSTE A2: Limpar cache de clients Supabase ao encerrar impersonation
     clearImpersonationClientCache();
