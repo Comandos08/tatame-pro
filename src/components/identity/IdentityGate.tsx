@@ -78,14 +78,21 @@ interface IdentityGateProps {
  * INTENTIONAL: Prevents /admin, /portal, /login from being misinterpreted.
  */
 const RESERVED_ROUTE_SEGMENTS = new Set([
+  "about",
   "admin",
-  "portal",
-  "login",
+  "api",
+  "app",
   "auth",
-  "identity",
-  "help",
   "forgot-password",
+  "help",
+  "identity",
+  "join",
+  "login",
+  "logout",
+  "portal",
   "reset-password",
+  "signup",
+  "verify",
 ]);
 
 /**

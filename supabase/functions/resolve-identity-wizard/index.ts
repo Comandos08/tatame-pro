@@ -469,7 +469,23 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
 /**
  * Palavras reservadas que não podem ser usadas como slugs.
  */
-const RESERVED_SLUGS = ['admin', 'auth', 'login', 'logout', 'help', 'portal', 'api', 'app', 'forgot-password', 'reset-password', 'join', 'verify'];
+const RESERVED_SLUGS = [
+  "about",
+  "admin",
+  "api",
+  "app",
+  "auth",
+  "forgot-password",
+  "help",
+  "identity",
+  "join",
+  "login",
+  "logout",
+  "portal",
+  "reset-password",
+  "signup",
+  "verify",
+];
 
 function generateSlug(name: string): string {
   if (!name) return '';
