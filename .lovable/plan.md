@@ -1,81 +1,34 @@
 
+## Remover estado morto `_errorMessage` do AutoImpersonationResolver
 
-# Fail-Close the BillingGate Default Branch
+### Contexto
+O estado `_errorMessage` e `setErrorMessage` sao escritos em 6 locais mas nunca lidos pela UI. O componente usa i18n keys via `BlockedStateCard` para exibir erros.
 
-## Problem
+### Alteracoes em `src/components/impersonation/AutoImpersonationResolver.tsx`
 
-`BillingGate.tsx` has a permissive default branch at line 120:
-
-```tsx
-// Default: allow access
-return <>{children}</>;
+**1. Linha 56** — Remover declaracao do estado:
+```
+const [_errorMessage, setErrorMessage] = useState<string | null>(null);
 ```
 
-Any billing status not explicitly handled (e.g., an unexpected value from the RPC) falls through and grants access. This contradicts the documented fail-closed contract.
+**2. Linha 72** — Remover `setErrorMessage('MISSING_TENANT_SLUG');`
 
-## Current Decision Flow
+**3. Linha 89** — Remover `setErrorMessage('TENANT_LOOKUP_FAILED');`
 
-```text
-tenant not ACTIVE?      --> pass through (correct, SETUP tenants bypass)
-contract loading?       --> loader (correct)
-ACTIVE or TRIALING?     --> allow (correct)
-shouldBlock (BLOCKED/UNKNOWN/null)? --> block (correct)
-PAST_DUE + strictMode?  --> block (correct)
-PAST_DUE + !strictMode? --> warning + allow (correct)
-DEFAULT                 --> allow (BUG: fail-open)
-```
+**4. Linha 96** — Remover `setErrorMessage('TENANT_NOT_FOUND');`
 
-## Fix
+**5. Linha 103** — Remover `setErrorMessage('TENANT_INACTIVE');`
 
-Replace the final `return <>{children}</>` (line 120) with the same blocked UI used by `shouldBlock`. This ensures any unrecognized status is treated as BLOCKED.
+**6. Linha 116** — Remover `setErrorMessage('IMPERSONATION_START_FAILED');`
 
-### Before (line 118-120):
-```tsx
-  // Default: allow access
-  return <>{children}</>;
-```
+**7. Linha 121** — Remover `setErrorMessage('UNEXPECTED_ERROR');`
 
-### After:
-```tsx
-  // FAIL-CLOSED: Any unrecognized billing status is treated as blocked
-  return (
-    fallback || (
-      <BlockedStateCard
-        icon={CreditCard}
-        iconVariant="destructive"
-        titleKey="billing.gate.blocked.title"
-        descriptionKey="billing.gate.blocked.description"
-        actions={[
-          {
-            labelKey: "billing.gate.blocked.action",
-            onClick: () => navigate(`/${tenant?.slug}/app/billing`),
-            variant: "default",
-          },
-          {
-            labelKey: "common.goBack",
-            onClick: () => navigate(-1),
-            variant: "outline",
-          },
-        ]}
-      />
-    )
-  );
-```
+**8. Linha 193** — No handler de retry do ERROR case, remover `setErrorMessage(null);` (manter `setStatus('IDLE')`)
 
-## Scope
-
-- **1 file modified**: `src/components/billing/BillingGate.tsx`
-- **0 new components**
-- **No changes** to: PAST_DUE logic, strictMode, TenantFlagsContext, navigation patterns, or any other file
-
-## Post-Change Decision Flow
-
-```text
-tenant not ACTIVE?           --> pass through (unchanged)
-contract loading?            --> loader (unchanged)
-ACTIVE or TRIALING?          --> allow (unchanged)
-BLOCKED/UNKNOWN/null?        --> block (unchanged)
-PAST_DUE?                    --> warning or block per strictMode (unchanged)
-ANY OTHER STATUS (default)   --> block (NEW: fail-closed)
-```
-
+### O que NAO muda
+- Estado `status` e sua maquina de estados
+- Guards (`inFlightRef`, check de `status !== 'IDLE'`)
+- Fluxo IDLE -> RESOLVING -> RESOLVED/ERROR
+- Navegacao e UI
+- Acoes do BlockedStateCard
+- Logger calls (continuam registrando os codigos de erro)
