@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +16,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("get-document", correlationId);
 
   try {
     // Only accept POST
@@ -90,7 +95,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (docError) {
-      console.error("Error fetching document:", docError);
+      log.error("Error fetching document", docError);
       return new Response(
         JSON.stringify({ error: "Error fetching document" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -199,8 +204,6 @@ Deno.serve(async (req) => {
     }
 
     // Extract the file path from the stored URL
-    // The file_url format is: https://{project}.supabase.co/storage/v1/object/public/documents/{path}
-    // We need to extract just the path part after /documents/
     const fileUrl = document.file_url;
     let filePath: string;
 
@@ -226,7 +229,7 @@ Deno.serve(async (req) => {
       .createSignedUrl(filePath, 300); // 5 minutes expiry
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
-      console.error("Error creating signed URL:", signedUrlError);
+      log.error("Error creating signed URL", signedUrlError);
       return new Response(
         JSON.stringify({ error: "Error generating download URL" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -257,7 +260,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Unexpected error in get-document:", error);
+    log.error("Unexpected error in get-document", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

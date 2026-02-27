@@ -12,6 +12,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getEmailClient, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +21,6 @@ const corsHeaders = {
 };
 
 const OPERATION_NAME = "request-password-reset";
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[REQUEST-PASSWORD-RESET] ${step}${detailsStr}`);
-};
 
 // ============================================
 // RATE LIMITING CONFIGURATION
@@ -43,14 +40,15 @@ async function checkRateLimit(
   identifier: string,
   prefix: string,
   limit: number,
-  windowSeconds: number
+  windowSeconds: number,
+  log: ReturnType<typeof createBackendLogger>
 ): Promise<RateLimitResult> {
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
   // FAIL-CLOSED: If Redis is not configured, block request
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured - BLOCKING request (fail-closed)");
+    log.info("Rate limiting not configured - BLOCKING request (fail-closed)");
     return { 
       success: false, 
       remaining: 0, 
@@ -83,7 +81,7 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error - BLOCKING request (fail-closed)");
+      log.info("Redis error - BLOCKING request (fail-closed)");
       return { 
         success: false, 
         remaining: 0, 
@@ -99,10 +97,10 @@ async function checkRateLimit(
     const remaining = Math.max(0, limit - count);
     const success = count <= limit;
 
-    logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
+    log.info(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
     return { success, remaining, reset: now + windowSeconds * 1000, count, limit, windowSeconds };
   } catch (error) {
-    logStep("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
+    log.info("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
     return { 
       success: false, 
       remaining: 0, 
@@ -161,6 +159,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("request-password-reset", correlationId);
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -169,9 +170,9 @@ serve(async (req) => {
     const clientIP = getClientIP(req);
     
     // Rate limit by IP (20 requests per hour)
-    const ipRateLimit = await checkRateLimit(clientIP, "password-reset-ip", 20, 3600);
+    const ipRateLimit = await checkRateLimit(clientIP, "password-reset-ip", 20, 3600, log);
     if (!ipRateLimit.success) {
-      logStep("Rate limited by IP", { ip: clientIP });
+      log.info("Rate limited by IP", { ip: clientIP });
       
       // MANDATORY: Log decision BEFORE returning 429
       const logId = await logDecision(supabaseAdmin, {
@@ -193,7 +194,7 @@ serve(async (req) => {
 
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
-        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
         return genericErrorResponse();
       }
 
@@ -217,9 +218,9 @@ serve(async (req) => {
     }
 
     // Rate limit by email (5 requests per hour)
-    const emailRateLimit = await checkRateLimit(normalizedEmail, "password-reset-email", 5, 3600);
+    const emailRateLimit = await checkRateLimit(normalizedEmail, "password-reset-email", 5, 3600, log);
     if (!emailRateLimit.success) {
-      logStep("Rate limited by email", { email: normalizedEmail });
+      log.info("Rate limited by email", { email: normalizedEmail });
       
       // MANDATORY: Log decision BEFORE returning (anti-enumeration: return 200)
       const logId = await logDecision(supabaseAdmin, {
@@ -241,7 +242,7 @@ serve(async (req) => {
 
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
-        logStep("Failed to log rate limit decision - BLOCKING (fail-closed)");
+        log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
         return genericErrorResponse();
       }
 
@@ -255,7 +256,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Password reset requested", { email: normalizedEmail });
+    log.info("Password reset requested", { email: normalizedEmail });
 
     // Find profile by email
     const { data: profile } = await supabaseAdmin
@@ -266,7 +267,7 @@ serve(async (req) => {
 
     // Always return success to prevent email enumeration
     if (!profile) {
-      logStep("No profile found, returning generic success");
+      log.info("No profile found, returning generic success");
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -302,7 +303,7 @@ serve(async (req) => {
       throw new Error(`Failed to create reset token: ${insertError.message}`);
     }
 
-    logStep("Token created successfully");
+    log.info("Token created successfully");
 
     // Get origin from request or use default
     const origin = req.headers.get("origin") || "https://ippon.tatame.pro";
@@ -355,11 +356,11 @@ serve(async (req) => {
     });
 
     if (emailError) {
-      logStep("Email send error", { error: emailError });
+      log.info("Email send error", { error: emailError });
       throw new Error("Failed to send recovery email");
     }
 
-    logStep("Recovery email sent successfully");
+    log.info("Recovery email sent successfully");
 
     return new Response(
       JSON.stringify({ 
@@ -370,7 +371,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    log.error("Error", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

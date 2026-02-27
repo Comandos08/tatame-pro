@@ -943,7 +943,6 @@ async function handleCreateTenant(
       });
 
     if (profileError) {
-      console.error("PROFILE CREATION FAILED:", JSON.stringify(profileError, null, 2));
       log.error("PROFILE_CREATION_FAILED", profileError, { userId });
 
       // Rollback tenant

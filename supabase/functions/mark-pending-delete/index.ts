@@ -14,6 +14,8 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,17 +24,13 @@ const corsHeaders = {
 
 const DELETE_BUFFER_DAYS = 7;
 
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[MARK-PENDING-DELETE] ${step}${detailsStr}`);
-};
-
 async function sendBillingEmail(
   supabaseUrl: string,
   supabaseServiceKey: string,
   eventType: string,
   tenantId: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  log?: ReturnType<typeof createBackendLogger>
 ) {
   try {
     const emailUrl = `${supabaseUrl}/functions/v1/send-billing-email`;
@@ -44,9 +42,9 @@ async function sendBillingEmail(
       },
       body: JSON.stringify({ event_type: eventType, tenant_id: tenantId, data }),
     });
-    logStep("Billing email triggered", { eventType, tenantId });
+    log?.info("Billing email triggered", { eventType, tenantId });
   } catch (err) {
-    logStep("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
+    log?.info("Failed to trigger billing email", { error: err instanceof Error ? err.message : "Unknown" });
   }
 }
 
@@ -55,6 +53,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("mark-pending-delete", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -62,7 +63,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[MARK-PENDING-DELETE] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -70,7 +71,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[MARK-PENDING-DELETE] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -90,7 +91,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    logStep("Starting mark-pending-delete job");
+    log.info("Starting mark-pending-delete job");
 
     // Find tenants with expired grace period
     const now = new Date().toISOString();
@@ -105,7 +106,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch expired grace periods: ${fetchError.message}`);
     }
 
-    logStep("Found expired grace periods", { count: expiredGrace?.length || 0 });
+    log.info("Found expired grace periods", { count: expiredGrace?.length || 0 });
 
     const results = {
       processed: 0,
@@ -140,7 +141,7 @@ serve(async (req) => {
           .eq("id", billing.tenant_id);
 
         if (updateTenantError) {
-          logStep("Warning: Failed to deactivate tenant", { 
+          log.info("Warning: Failed to deactivate tenant", { 
             tenantId: billing.tenant_id, 
             error: updateTenantError.message 
           });
@@ -166,21 +167,21 @@ serve(async (req) => {
             month: "long",
             year: "numeric",
           }),
-        });
+        }, log);
 
         results.processed++;
         results.tenantIds.push(billing.tenant_id);
-        logStep("Marked pending delete", { tenantId: billing.tenant_id });
+        log.info("Marked pending delete", { tenantId: billing.tenant_id });
       } catch (err) {
         results.errors++;
-        logStep("Error marking pending delete", { 
+        log.info("Error marking pending delete", { 
           tenantId: billing.tenant_id, 
           error: err instanceof Error ? err.message : "Unknown" 
         });
       }
     }
 
-    logStep("Job completed", results);
+    log.info("Job completed", results);
 
     return new Response(
       JSON.stringify({ success: true, ...results }),
@@ -188,7 +189,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Job failed", { error: errorMessage });
+    log.error("Job failed", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
