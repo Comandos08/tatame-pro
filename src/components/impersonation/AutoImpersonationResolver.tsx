@@ -53,7 +53,6 @@ export function AutoImpersonationResolver({
   const navigate = useNavigate();
   const { startImpersonation, isImpersonating } = useImpersonation();
   const [status, setStatus] = useState<ResolverStatus>('IDLE');
-  const [_errorMessage, setErrorMessage] = useState<string | null>(null);
   const inFlightRef = useRef(false);
 
   // ========================================================================
@@ -69,7 +68,6 @@ export function AutoImpersonationResolver({
     if (!tenantSlug) {
       logger.warn('[AutoImpersonation] tenantSlug is undefined — blocking');
       setStatus('ERROR');
-      setErrorMessage('MISSING_TENANT_SLUG');
       return;
     }
 
@@ -86,21 +84,18 @@ export function AutoImpersonationResolver({
       if (tenantError) {
         logger.error('[AutoImpersonation] Tenant lookup failed', { tenantSlug, error: tenantError });
         setStatus('ERROR');
-        setErrorMessage('TENANT_LOOKUP_FAILED');
         return;
       }
 
       if (!tenant) {
         logger.warn('[AutoImpersonation] Tenant not found for slug', { tenantSlug });
         setStatus('ERROR');
-        setErrorMessage('TENANT_NOT_FOUND');
         return;
       }
 
       if (tenant.status !== 'ACTIVE') {
         logger.warn('[AutoImpersonation] Tenant is not ACTIVE', { tenantSlug, status: tenant.status });
         setStatus('ERROR');
-        setErrorMessage('TENANT_INACTIVE');
         return;
       }
 
@@ -113,12 +108,10 @@ export function AutoImpersonationResolver({
       } else {
         logger.error('[AutoImpersonation] startImpersonation returned false', { tenantSlug });
         setStatus('ERROR');
-        setErrorMessage('IMPERSONATION_START_FAILED');
       }
     } catch (err) {
       logger.error('[AutoImpersonation] Unexpected error', { tenantSlug, error: err });
       setStatus('ERROR');
-      setErrorMessage('UNEXPECTED_ERROR');
     } finally {
       inFlightRef.current = false;
     }
@@ -189,7 +182,6 @@ export function AutoImpersonationResolver({
               labelKey: 'impersonation.retry',
               onClick: () => {
                 setStatus('IDLE');
-                setErrorMessage(null);
               },
               icon: RefreshCw,
             },
