@@ -25,20 +25,13 @@ export type IdentityState =
   | 'ERROR';
 
 /**
- * Context-level identity state (lowercase).
- * Used by IdentityContext to track raw state from the edge function.
- * Single Source of Truth — no other file should define this type.
- */
-export type ContextIdentityState = 'loading' | 'wizard_required' | 'resolved' | 'superadmin' | 'error';
-
-/**
  * Inputs explícitos para resolução.
  * TODOS os dados vêm deste objeto — sem dependências externas.
  */
 export interface IdentityResolutionInput {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
-  backendStatus: 'loading' | 'wizard_required' | 'resolved' | 'superadmin' | 'error' | null;
+  backendStatus: IdentityState | null;
   hasError: boolean;
 }
 
@@ -64,19 +57,19 @@ export function resolveIdentityState(input: IdentityResolutionInput): IdentitySt
   if (!input.isAuthenticated) return 'UNAUTHENTICATED';
 
   // R3: Autenticado mas identity ainda carregando
-  if (input.backendStatus === 'loading' || input.backendStatus === null) return 'LOADING';
+  if (input.backendStatus === 'LOADING' || input.backendStatus === null) return 'LOADING';
 
   // R4: Erro
-  if (input.backendStatus === 'error' || input.hasError) return 'ERROR';
+  if (input.backendStatus === 'ERROR' || input.hasError) return 'ERROR';
 
   // R5: Wizard required
-  if (input.backendStatus === 'wizard_required') return 'WIZARD_REQUIRED';
+  if (input.backendStatus === 'WIZARD_REQUIRED') return 'WIZARD_REQUIRED';
 
   // R6: Superadmin
-  if (input.backendStatus === 'superadmin') return 'SUPERADMIN';
+  if (input.backendStatus === 'SUPERADMIN') return 'SUPERADMIN';
 
   // R7: Resolved
-  if (input.backendStatus === 'resolved') return 'RESOLVED';
+  if (input.backendStatus === 'RESOLVED') return 'RESOLVED';
 
   // R8: Fallback defensivo (estado desconhecido = erro)
   return 'ERROR';

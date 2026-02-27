@@ -71,10 +71,10 @@ export function deriveSystemAwarenessState(input: SystemAwarenessInput): SystemA
   let level: SystemAwarenessLevel = 'OK';
 
   // 1. Identity checks (highest priority — system can't function without identity)
-  if (input.identityState === 'loading') {
+  if (input.identityState === 'LOADING') {
     reasons.push('IDENTITY_PENDING');
   }
-  if (input.identityState === 'error') {
+  if (input.identityState === 'ERROR') {
     reasons.push('IDENTITY_ERROR');
   }
 

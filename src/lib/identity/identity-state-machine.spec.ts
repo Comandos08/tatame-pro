@@ -33,7 +33,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'loading',
+      backendStatus: 'LOADING',
       hasError: false,
     };
     expect(resolveIdentityState(input)).toBe('LOADING');
@@ -53,7 +53,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'wizard_required',
+      backendStatus: 'WIZARD_REQUIRED',
       hasError: false,
     };
     expect(resolveIdentityState(input)).toBe('WIZARD_REQUIRED');
@@ -63,7 +63,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'superadmin',
+      backendStatus: 'SUPERADMIN',
       hasError: false,
     };
     expect(resolveIdentityState(input)).toBe('SUPERADMIN');
@@ -73,7 +73,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'resolved',
+      backendStatus: 'RESOLVED',
       hasError: false,
     };
     expect(resolveIdentityState(input)).toBe('RESOLVED');
@@ -83,7 +83,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'resolved',
+      backendStatus: 'RESOLVED',
       hasError: true,
     };
     expect(resolveIdentityState(input)).toBe('ERROR');
@@ -93,7 +93,7 @@ describe('resolveIdentityState', () => {
     const input: IdentityResolutionInput = {
       isAuthenticated: true,
       isAuthLoading: false,
-      backendStatus: 'error',
+      backendStatus: 'ERROR',
       hasError: false,
     };
     expect(resolveIdentityState(input)).toBe('ERROR');

@@ -92,7 +92,7 @@ export function deriveNextBestAction(
   input: NextBestActionInput,
 ): NextBestAction {
   // 1. Identity not resolved — user must wait
-  if (input.identityState === 'loading') {
+  if (input.identityState === 'LOADING') {
     return {
       kind: 'INFO',
       labelKey: 'nba.waitingIdentity',
@@ -101,7 +101,7 @@ export function deriveNextBestAction(
   }
 
   // 2. Wizard required — identity-specific, not a generic BlockReason
-  if (input.identityState === 'wizard_required') {
+  if (input.identityState === 'WIZARD_REQUIRED') {
     return {
       kind: 'CTA',
       labelKey: 'nba.completeSetup',

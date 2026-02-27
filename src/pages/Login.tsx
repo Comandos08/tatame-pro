@@ -35,9 +35,9 @@ export default function Login() {
 
   // ✅ Wait for auth AND identity to be resolved before navigating
   useEffect(() => {
-    if (isAuthenticated && identityState !== "loading") {
+    if (isAuthenticated && identityState !== "LOADING") {
       // If wizard required, let the normal flow handle it
-      if (identityState === "wizard_required") {
+      if (identityState === "WIZARD_REQUIRED") {
         navigate("/identity/wizard", { replace: true });
         return;
       }

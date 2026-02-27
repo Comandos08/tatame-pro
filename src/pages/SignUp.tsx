@@ -56,8 +56,8 @@ export default function SignUp() {
 
   // Redirect when authenticated
   useEffect(() => {
-    if (isAuthenticated && identityState !== "loading") {
-      if (identityState === "wizard_required") {
+    if (isAuthenticated && identityState !== "LOADING") {
+      if (identityState === "WIZARD_REQUIRED") {
         navigate("/identity/wizard", { replace: true });
         return;
       }
