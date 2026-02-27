@@ -3870,6 +3870,16 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: Json
       }
+      get_tenant_revenue_metrics_v1: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          conversion_rate: number
+          revenue_cents: number
+          total_fee_paid: number
+          total_fee_pending: number
+          total_memberships: number
+        }[]
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       grant_admin_tenant_role: {
         Args: {
