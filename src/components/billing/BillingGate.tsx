@@ -126,8 +126,29 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     );
   }
 
-  // Default: allow access
-  return <>{children}</>;
+  // FAIL-CLOSED: Any unrecognized billing status is treated as blocked
+  return (
+    fallback || (
+      <BlockedStateCard
+        icon={CreditCard}
+        iconVariant="destructive"
+        titleKey="billing.gate.blocked.title"
+        descriptionKey="billing.gate.blocked.description"
+        actions={[
+          {
+            labelKey: "billing.gate.blocked.action",
+            onClick: () => navigate(`/${tenant?.slug}/app/billing`),
+            variant: "default",
+          },
+          {
+            labelKey: "common.goBack",
+            onClick: () => navigate(-1),
+            variant: "outline",
+          },
+        ]}
+      />
+    )
+  );
 }
 
 interface BillingWarningBannerProps {
