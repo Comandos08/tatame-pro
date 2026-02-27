@@ -3,6 +3,7 @@ import MembershipNew from '@/pages/MembershipNew';
 import MembershipAdult from '@/pages/MembershipAdult';
 import MembershipYouth from '@/pages/MembershipYouth';
 import MembershipRenew from '@/pages/MembershipRenew';
+import MembershipCheckout from '@/pages/MembershipCheckout';
 import MembershipSuccessPage from '@/pages/MembershipSuccessPage';
 import MembershipStatus from '@/pages/MembershipStatus';
 import NotFound from '@/pages/NotFound';
@@ -16,6 +17,7 @@ export default function MembershipRouter() {
       <Route path="adult" element={<MembershipAdult />} />
       <Route path="youth" element={<MembershipYouth />} />
       <Route path="renew" element={<MembershipRenew />} />
+      <Route path="checkout/:membershipId" element={<MembershipCheckout />} />
       <Route path="success" element={<MembershipSuccessPage />} />
       <Route path="status" element={<MembershipStatus />} />
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
