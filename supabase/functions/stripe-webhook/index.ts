@@ -308,6 +308,12 @@ async function handleCheckoutCompleted(
   log.setStep("checkout_completed");
   log.info("Processing checkout.session.completed", { sessionId: session.id });
 
+  // ── Membership Fee handler (early return) ──
+  if (session.metadata?.type === "membership_fee") {
+    await handleMembershipFeeCompleted(supabase, supabaseUrl, supabaseServiceKey, session, log);
+    return;
+  }
+
   const membershipId = session.metadata?.membership_id;
   if (!membershipId) {
     log.info("No membership_id in metadata, skipping");
@@ -1179,4 +1185,89 @@ async function handleInvoicePaymentFailed(
 
   // Send payment failed email
   sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", billing.tenant_id, log);
+}
+
+// ── Membership Fee Checkout Handler ──
+async function handleMembershipFeeCompleted(
+  supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  session: Stripe.Checkout.Session,
+  log: BackendLogger
+) {
+  log.setStep("membership_fee_completed");
+
+  const membershipId = session.metadata?.membership_id;
+  const tenantId = session.metadata?.tenant_id;
+
+  if (!membershipId || !tenantId) {
+    log.warn("Missing membership_id or tenant_id in fee metadata", {
+      membership_id: membershipId,
+      tenant_id: tenantId,
+    });
+    return;
+  }
+
+  if (session.payment_status !== "paid") {
+    log.info("Fee payment not complete", { status: session.payment_status });
+    return;
+  }
+
+  // Update membership_fees record
+  const { error: feeUpdateError } = await supabase
+    .from("membership_fees")
+    .update({
+      stripe_payment_intent_id: session.payment_intent as string,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("membership_id", membershipId);
+
+  if (feeUpdateError) {
+    log.error("Failed to update membership_fees", feeUpdateError, { membershipId });
+    throw new Error(`membership_fees update failed: ${feeUpdateError.message}`);
+  }
+
+  // GOV: Update fee_paid_at (non-lifecycle column) directly
+  const { error: feeTimestampError } = await supabase
+    .from("memberships")
+    .update({ fee_paid_at: new Date().toISOString() } as Record<string, unknown>)
+    .eq("id", membershipId);
+
+  if (feeTimestampError) {
+    log.warn("Failed to set fee_paid_at", { error: feeTimestampError.message, membershipId });
+  }
+
+  // GOV: Set payment_status via gatekeeper RPC
+  const { error: rpcError } = await supabase.rpc("set_membership_payment_status", {
+    p_membership_id: membershipId,
+    p_payment_status: "PAID",
+    p_reason: "stripe_webhook_membership_fee_paid",
+  });
+
+  if (rpcError) {
+    log.error("Payment status RPC failed for fee", rpcError, { membershipId });
+    throw new Error(`Payment RPC failed: ${rpcError.message}`);
+  }
+
+  log.info("Membership fee paid", { membershipId, tenantId });
+
+  // Audit log
+  await createAuditLog(supabase, {
+    event_type: AUDIT_EVENTS.MEMBERSHIP_FEE_PAID,
+    tenant_id: tenantId,
+    metadata: {
+      membership_id: membershipId,
+      amount_cents: session.amount_total,
+      currency: session.currency?.toUpperCase() || "BRL",
+      stripe_session_id: session.id,
+      stripe_payment_intent: session.payment_intent as string,
+      automatic: false,
+      source: "stripe_webhook",
+    },
+  });
+
+  // Send confirmation email
+  sendBillingEmail(supabaseUrl, supabaseServiceKey, "MEMBERSHIP_FEE_PAID", tenantId, log, {
+    membership_id: membershipId,
+  });
 }
