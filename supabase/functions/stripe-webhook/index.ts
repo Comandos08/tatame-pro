@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
+import { assertBillingTenantConsistency } from "../_shared/tenant-boundary.ts";
 import {
   type BillingStatus,
   isKnownBillingStatus,
@@ -794,6 +795,27 @@ async function handleSubscriptionChange(
     }
   }
 
+  // A03-CONSISTENCY: Post-write billing-tenant consistency check
+  try {
+    await assertBillingTenantConsistency(supabase, actualTenantId);
+  } catch (consistencyError) {
+    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+      tenant_id: actualTenantId,
+      handler: "subscription_update",
+    });
+    await createAuditLog(supabase, {
+      event_type: "BILLING_CONSISTENCY_MISMATCH",
+      tenant_id: actualTenantId,
+      metadata: {
+        handler: "subscription_update",
+        error_message: consistencyError instanceof Error ? consistencyError.message : String(consistencyError),
+        automatic: true,
+        source: "stripe_webhook",
+      },
+    });
+    // INTENTIONAL: Never fail the webhook due to consistency check
+  }
+
   log.info("Subscription updated", { tenantId: actualTenantId, status: billingStatus, isActive });
 
   // Send emails based on status transitions
@@ -890,6 +912,27 @@ async function handleSubscriptionDeleted(
     .from("tenants")
     .update({ is_active: isActiveCanceled } as Record<string, unknown>)
     .eq("id", billing.tenant_id);
+
+  // A03-CONSISTENCY: Post-write billing-tenant consistency check
+  try {
+    await assertBillingTenantConsistency(supabase, billing.tenant_id);
+  } catch (consistencyError) {
+    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+      tenant_id: billing.tenant_id,
+      handler: "subscription_deleted",
+    });
+    await createAuditLog(supabase, {
+      event_type: "BILLING_CONSISTENCY_MISMATCH",
+      tenant_id: billing.tenant_id,
+      metadata: {
+        handler: "subscription_deleted",
+        error_message: consistencyError instanceof Error ? consistencyError.message : String(consistencyError),
+        automatic: true,
+        source: "stripe_webhook",
+      },
+    });
+    // INTENTIONAL: Never fail the webhook due to consistency check
+  }
 
   log.info("Subscription deleted, tenant deactivated", { tenantId: billing.tenant_id });
 
@@ -1063,6 +1106,27 @@ async function handleInvoicePaymentSucceeded(
     .update({ is_active: isActive } as Record<string, unknown>)
     .eq("id", billing.tenant_id);
 
+  // A03-CONSISTENCY: Post-write billing-tenant consistency check
+  try {
+    await assertBillingTenantConsistency(supabase, billing.tenant_id);
+  } catch (consistencyError) {
+    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+      tenant_id: billing.tenant_id,
+      handler: "invoice_payment_succeeded",
+    });
+    await createAuditLog(supabase, {
+      event_type: "BILLING_CONSISTENCY_MISMATCH",
+      tenant_id: billing.tenant_id,
+      metadata: {
+        handler: "invoice_payment_succeeded",
+        error_message: consistencyError instanceof Error ? consistencyError.message : String(consistencyError),
+        automatic: true,
+        source: "stripe_webhook",
+      },
+    });
+    // INTENTIONAL: Never fail the webhook due to consistency check
+  }
+
   log.info("Invoice paid, tenant activated", { tenantId: billing.tenant_id, isActive });
 
   // Send payment success email
@@ -1160,6 +1224,27 @@ async function handleInvoicePaymentFailed(
     .from("tenants")
     .update({ is_active: isActive } as Record<string, unknown>)
     .eq("id", billing.tenant_id);
+
+  // A03-CONSISTENCY: Post-write billing-tenant consistency check
+  try {
+    await assertBillingTenantConsistency(supabase, billing.tenant_id);
+  } catch (consistencyError) {
+    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+      tenant_id: billing.tenant_id,
+      handler: "invoice_payment_failed",
+    });
+    await createAuditLog(supabase, {
+      event_type: "BILLING_CONSISTENCY_MISMATCH",
+      tenant_id: billing.tenant_id,
+      metadata: {
+        handler: "invoice_payment_failed",
+        error_message: consistencyError instanceof Error ? consistencyError.message : String(consistencyError),
+        automatic: true,
+        source: "stripe_webhook",
+      },
+    });
+    // INTENTIONAL: Never fail the webhook due to consistency check
+  }
 
   log.info("Invoice payment failed, marked as past due", { tenantId: billing.tenant_id, isActive });
 
