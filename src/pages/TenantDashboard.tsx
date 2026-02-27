@@ -25,7 +25,7 @@ import { useTenantOnboarding } from "@/hooks/tenant/useTenantOnboarding";
 import { TenantOnboardingCard } from "@/components/onboarding/TenantOnboardingCard";
 import { BillingStatusBanner } from "@/components/billing/BillingStatusBanner";
 import { SystemHealthCard } from "@/components/dashboard/SystemHealthCard";
-import { TenantRevenueCards } from "@/components/dashboard/TenantRevenueCards"; // ✅ NOVO
+import { TenantRevenueCards } from "@/components/dashboard/TenantRevenueCards";
 import { PostLoginInstitutionalBanner } from "@/components/notifications/PostLoginInstitutionalBanner";
 import { InstitutionalEnvironmentStatus } from "@/components/institutional";
 import { useTenant } from "@/contexts/TenantContext";
@@ -195,6 +195,12 @@ export default function TenantDashboard() {
                 </Card>
               ))}
             </div>
+            {/* Revenue Metrics (governado por get_tenant_revenue_metrics_v1) */}
+            {tenant?.id && (
+              <div className="mt-6">
+                <TenantRevenueCards tenantId={tenant.id} />
+              </div>
+            )}
 
             {/* ✅ REVENUE CARDS */}
             {tenant?.id && <TenantRevenueCards tenantId={tenant.id} />}
