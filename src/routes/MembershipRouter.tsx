@@ -17,7 +17,7 @@ export default function MembershipRouter() {
       <Route path="adult" element={<MembershipAdult />} />
       <Route path="youth" element={<MembershipYouth />} />
       <Route path="renew" element={<MembershipRenew />} />
-      <Route path="checkout/:membershipId" element={<MembershipCheckout />} />
+      <Route path=":membershipId/checkout" element={<MembershipCheckout />} />
       <Route path="success" element={<MembershipSuccessPage />} />
       <Route path="status" element={<MembershipStatus />} />
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
