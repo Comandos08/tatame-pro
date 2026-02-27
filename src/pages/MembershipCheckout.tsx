@@ -64,7 +64,7 @@ export default function MembershipCheckout() {
   async function handlePayment() {
     setIsLoading(true);
     try {
-      const successUrl = `${window.location.origin}/${tenantSlug}/membership/checkout/${membershipId}?success=1`;
+      const successUrl = `${window.location.origin}/${tenantSlug}/membership/${membershipId}/checkout?success=1`;
       const { data, error } = await supabase.functions.invoke(
         "create-membership-fee-checkout",
         {
