@@ -1213,40 +1213,30 @@ async function handleMembershipFeeCompleted(
     return;
   }
 
-  // Update membership_fees record
+  // Update membership_fees record (lookup by session or membership)
   const { error: feeUpdateError } = await supabase
     .from("membership_fees")
     .update({
       stripe_payment_intent_id: session.payment_intent as string,
       paid_at: new Date().toISOString(),
     })
-    .eq("membership_id", membershipId);
+    .eq("stripe_checkout_session_id", session.id);
 
   if (feeUpdateError) {
     log.error("Failed to update membership_fees", feeUpdateError, { membershipId });
     throw new Error(`membership_fees update failed: ${feeUpdateError.message}`);
   }
 
-  // GOV: Update fee_paid_at (non-lifecycle column) directly
+  // GOV: Update ONLY fee_paid_at (non-lifecycle column) — never touch payment_status
   const { error: feeTimestampError } = await supabase
     .from("memberships")
     .update({ fee_paid_at: new Date().toISOString() } as Record<string, unknown>)
     .eq("id", membershipId);
 
   if (feeTimestampError) {
-    log.warn("Failed to set fee_paid_at", { error: feeTimestampError.message, membershipId });
-  }
-
-  // GOV: Set payment_status via gatekeeper RPC
-  const { error: rpcError } = await supabase.rpc("set_membership_payment_status", {
-    p_membership_id: membershipId,
-    p_payment_status: "PAID",
-    p_reason: "stripe_webhook_membership_fee_paid",
-  });
-
-  if (rpcError) {
-    log.error("Payment status RPC failed for fee", rpcError, { membershipId });
-    throw new Error(`Payment RPC failed: ${rpcError.message}`);
+    log.warn("Failed to set fee_paid_at (column may not exist yet)", {
+      error: feeTimestampError.message, membershipId,
+    });
   }
 
   log.info("Membership fee paid", { membershipId, tenantId });
