@@ -37,7 +37,7 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { TenantProvider, useTenant } from '@/contexts/TenantContext';
-import { TenantBlockedScreen } from '@/components/billing/TenantBlockedScreen';
+import { BillingGate } from '@/components/billing/BillingGate';
 import { TenantOnboardingGate } from '@/components/onboarding/TenantOnboardingGate';
 import { TenantFlagsProvider } from '@/contexts/TenantFlagsContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -51,7 +51,7 @@ import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
 // =============================================================================
 
 function TenantContent() {
-  const { tenant, isLoading, error, billingInfo, boundaryViolation } = useTenant();
+  const { tenant, isLoading, error, boundaryViolation } = useTenant();
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -152,47 +152,20 @@ function TenantContent() {
   }
 
   // =========================================================================
-  // STEP 4: Billing Block Check (Protected Routes Only)
+  // STEP 4: Protected Route Rendering
   // =========================================================================
-  // SECURITY BOUNDARY: Inactive tenants OR expired trials cannot access /app/* routes
-  // BY DESIGN: Public routes (landing, events, verification) are NOT blocked
-  // TRIAL_15_DAYS: TRIALING tenants are blocked when trial_expires_at has passed
-  if (isProtectedRoute) {
-    const billingStatus = billingInfo?.status?.toUpperCase();
-    const trialExpiresAt = billingInfo?.trial_expires_at ? new Date(billingInfo.trial_expires_at) : null;
-    const isTrialExpired = billingStatus === 'TRIALING' && trialExpiresAt && trialExpiresAt < new Date();
-
-    // Block if: tenant inactive, trial expired, or billing explicitly blocked
-    const shouldBlock = !tenant.isActive || isTrialExpired || billingStatus === 'TRIAL_EXPIRED' || billingStatus === 'PENDING_DELETE';
-
-    if (shouldBlock) {
-      // Allow /billing route even when blocked (so admin can pay)
-      const isBillingRoute = location.pathname.includes('/billing');
-      if (!isBillingRoute) {
-        return (
-          <TenantBlockedScreen
-            tenantName={tenant.name}
-            tenantId={tenant.id}
-            billingStatus={billingInfo?.status || undefined}
-            scheduledDeleteAt={billingInfo?.scheduled_delete_at || undefined}
-            hasStripeCustomer={!!billingInfo?.stripe_customer_id}
-          />
-        );
-      }
-    }
-  }
-
-  // =========================================================================
-  // STEP 5: Protected Route Rendering
-  // =========================================================================
-  // BY DESIGN: Protected routes are wrapped with TenantOnboardingGate
-  // INTENTIONAL: Ensures onboarding is complete before accessing tenant features
+  // BY DESIGN: Protected routes are wrapped with BillingGate → TenantOnboardingGate
+  // BillingGate consumes TenantFlagsContract for billing decisions (single source of truth)
+  // TenantOnboardingGate ensures onboarding is complete before accessing tenant features
+  // Public routes bypass both gates
   return (
     <TenantFlagsProvider tenantId={tenant?.id}>
       {isProtectedRoute ? (
-        <TenantOnboardingGate>
-          <Outlet />
-        </TenantOnboardingGate>
+        <BillingGate>
+          <TenantOnboardingGate>
+            <Outlet />
+          </TenantOnboardingGate>
+        </BillingGate>
       ) : (
         <Outlet />
       )}
