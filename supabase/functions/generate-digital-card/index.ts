@@ -1,3 +1,5 @@
+// ============= Full file contents =============
+
 /**
  * @contract generate-digital-card
  *
@@ -34,6 +36,8 @@ import { encode } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 import { qrcode } from "https://deno.land/x/qrcode@v2.0.0/mod.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +68,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("generate-digital-card", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -116,7 +123,7 @@ serve(async (req) => {
     // ========================================================================
     const tenantCheck = await requireTenantActive(supabase, membership.tenant?.id);
     if (!tenantCheck.allowed) {
-      console.log("[GENERATE-DIGITAL-CARD] Tenant not active:", tenantCheck.code);
+      log.info("[GENERATE-DIGITAL-CARD] Tenant not active:", { code: tenantCheck.code });
       return tenantNotActiveResponse(tenantCheck.status);
     }
 
@@ -277,7 +284,7 @@ serve(async (req) => {
 
     // Calculate content hash from canonical payload
     const contentHash = await calculateContentHash(canonicalPayload);
-    console.log("Content hash calculated:", contentHash.substring(0, 12) + "...");
+    log.info("Content hash calculated:", { hash: contentHash.substring(0, 12) + "..." });
 
     // Generate QR code data with verification URL
     const verificationUrl = `https://tatame-pro.lovable.app/${tenant.slug}/verify/card/${cardId}`;
@@ -323,7 +330,7 @@ serve(async (req) => {
           doc.addImage(base64Data, "PNG", 0, 0, 85.6, 140, undefined, "FAST");
         }
       } catch (e) {
-        console.error("Failed to load card template:", e);
+        log.error("Failed to load card template:", e);
         doc.setFillColor(20, 20, 25);
         doc.rect(0, 0, 85.6, 140, "F");
         doc.setFillColor(rgb.r, rgb.g, rgb.b);
@@ -410,7 +417,7 @@ serve(async (req) => {
       .upload(qrFileName, qrBlob, { contentType: "image/png", upsert: true });
 
     if (qrUploadError) {
-      console.error("QR upload error:", qrUploadError);
+      log.error("QR upload error:", qrUploadError);
     }
 
     const { data: qrUrl } = supabase.storage.from("cards").getPublicUrl(qrFileName);
@@ -423,7 +430,7 @@ serve(async (req) => {
       .upload(pdfFileName, pdfBlob, { contentType: "application/pdf", upsert: true });
 
     if (pdfUploadError) {
-      console.error("PDF upload error:", pdfUploadError);
+      log.error("PDF upload error:", pdfUploadError);
     }
 
     const { data: pdfUrl } = supabase.storage.from("cards").getPublicUrl(pdfFileName);
@@ -459,7 +466,7 @@ serve(async (req) => {
     });
 
     if (tokenError || !tokenResult) {
-      console.error("[GENERATE-DIGITAL-CARD] FATAL: token generation failed", tokenError);
+      log.error("[GENERATE-DIGITAL-CARD] FATAL: token generation failed", tokenError);
 
       // Rollback digital card creation
       if (digitalCard?.id) {
@@ -510,7 +517,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     // PI-D5.B: Neutral error - no stack trace, no semantic info
-    console.error("Error generating digital card:", error);
+    log.error("Error generating digital card:", error);
     return new Response(JSON.stringify({ success: false, error: "Card generation failed" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

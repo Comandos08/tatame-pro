@@ -7,15 +7,12 @@ import {
   getMembershipExpiringTemplate,
   type EmailLayoutData,
 } from "../_shared/email-templates/index.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[SEND-ATHLETE-EMAIL] ${step}${detailsStr}`);
 };
 
 type EmailType = 
@@ -57,7 +54,6 @@ function getMembershipApprovedEmail(data: AthleteEmailRequest["data"], layoutDat
 }
 
 function getNewMembershipPendingEmail(data: AthleteEmailRequest["data"]): { subject: string; html: string } {
-  // Admin notification - kept as simple inline template (not user-facing)
   return {
     subject: `Nova filiação aguardando aprovação — ${data?.athlete_name || "Novo atleta"}`,
     html: `
@@ -202,9 +198,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("send-athlete-email", correlationId);
+
   try {
     if (!isEmailConfigured()) {
-      logStep("RESEND_API_KEY not configured, skipping email");
+      log.info("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -222,7 +221,7 @@ serve(async (req) => {
     const request: AthleteEmailRequest = await req.json();
     const { email_type, membership_id, data } = request;
     
-    logStep("Received request", { email_type, membership_id });
+    log.info("Received request", { email_type, membership_id });
 
     if (!email_type) {
       throw new Error("Missing email_type");
@@ -231,7 +230,6 @@ serve(async (req) => {
     let recipients: string[] = [];
     let emailData = { ...data };
 
-    // If membership_id provided, fetch additional data
     if (membership_id) {
       const { data: membership, error: membershipError } = await supabase
         .from("memberships")
@@ -257,11 +255,9 @@ serve(async (req) => {
       emailData.tenant_name = tenant?.name || emailData.tenant_name;
       emailData.card_url = digitalCard?.pdf_url || `${BASE_URL}/athlete`;
 
-      // Determine recipients based on email type
       if (email_type === "MEMBERSHIP_APPROVED" && athlete?.email) {
         recipients.push(athlete.email);
       } else if (email_type === "NEW_MEMBERSHIP_PENDING" && tenant?.id) {
-        // Get admin emails for the tenant
         const { data: adminRoles } = await supabase
           .from("user_roles")
           .select("user_id")
@@ -278,37 +274,32 @@ serve(async (req) => {
           recipients = (profiles || []).map((p) => p.email).filter(Boolean);
         }
 
-        // Also add billing email if available
         if (tenant.billing_email) {
           recipients.push(tenant.billing_email);
         }
       }
     }
 
-    // Use provided recipients if any
     if (data?.admin_emails && data.admin_emails.length > 0) {
       recipients = [...recipients, ...data.admin_emails];
     }
 
-    // Use athlete email directly if provided
     if (email_type === "MEMBERSHIP_APPROVED" && data?.athlete_email) {
       recipients.push(data.athlete_email);
     }
 
-    // Remove duplicates
     recipients = [...new Set(recipients)];
 
     if (recipients.length === 0) {
-      logStep("No recipients found, skipping email");
+      log.info("No recipients found, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No recipients" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    logStep("Sending email", { recipients, email_type });
+    log.info("Sending email", { recipients, email_type });
 
-    // Build layout data for templates
     const layoutData: EmailLayoutData = {
       tenantName: emailData.tenant_name || "TATAME",
     };
@@ -326,7 +317,7 @@ serve(async (req) => {
       throw new Error(`Resend error: ${JSON.stringify(emailError)}`);
     }
 
-    logStep("Email sent successfully", { recipients, email_type });
+    log.info("Email sent successfully", { recipients, email_type });
 
     return new Response(
       JSON.stringify({ success: true, recipients, email_type }),
@@ -334,7 +325,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error sending email", { error: errorMessage });
+    log.error("Error sending email", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

@@ -1,15 +1,5 @@
-/**
- * 🏅 update-badge-metadata — Update badge name/description
- *
- * SECURITY:
- * - Requires ADMIN_TENANT (or SUPERADMIN_GLOBAL)
- * - Validates badge belongs to tenant
- * - code is immutable
- * - Writes via service_role only
- * - Audit logged: BADGE_METADATA_UPDATED
- *
- * @see docs/BADGE-CONTRACT.md
- */
+// ============= Full file contents =============
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -18,6 +8,8 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +21,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("update-badge-metadata", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -105,7 +100,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[UPDATE-BADGE-METADATA] Error:", error);
+    log.error("[UPDATE-BADGE-METADATA] Error:", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

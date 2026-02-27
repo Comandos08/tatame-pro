@@ -18,16 +18,13 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const log = (step: string, details?: Record<string, unknown>) => {
-  const d = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[REVOKE-BADGE] ${step}${d}`);
 };
 
 interface RevokeBadgeRequest {
@@ -39,6 +36,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("revoke-athlete-badge", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -55,7 +55,7 @@ serve(async (req) => {
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) return unauthorizedResponse("Invalid token");
 
-    log("Authenticated", { userId: user.id });
+    log.info("Authenticated", { userId: user.id });
 
     // 2. Parse input
     const body: RevokeBadgeRequest = await req.json();
@@ -87,7 +87,7 @@ serve(async (req) => {
     // 4. Role check
     const roleCheck = await requireTenantRole(supabase, authHeader, tenantId, ["ADMIN_TENANT"]);
     if (!roleCheck.allowed) {
-      log("Permission denied", { error: roleCheck.error });
+      log.warn("Permission denied", { error: roleCheck.error });
       return forbiddenResponse(roleCheck.error || "Forbidden");
     }
 
@@ -107,7 +107,7 @@ serve(async (req) => {
     }
 
     if (existing.revoked_at !== null) {
-      log("Already revoked, no-op");
+      log.info("Already revoked, no-op");
       return new Response(
         JSON.stringify({ ok: true, action: "NOOP", reason: "Already revoked" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -122,8 +122,9 @@ serve(async (req) => {
 
     if (updateError) throw updateError;
 
+    // deno-lint-ignore no-explicit-any
     const badgeInfo = existing.badges as any;
-    log("Badge revoked", { athleteId, badgeCode: badgeInfo?.code });
+    log.info("Badge revoked", { athleteId, badgeCode: badgeInfo?.code });
 
     // 7. Audit log (B3 — via canonical helper)
     await createAuditLog(supabase, {
@@ -143,7 +144,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    log("Unexpected error", { error: String(error) });
+    log.error("Unexpected error", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

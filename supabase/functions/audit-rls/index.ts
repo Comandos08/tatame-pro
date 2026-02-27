@@ -13,6 +13,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildErrorEnvelope, errorResponse, ERROR_CODES, unauthorizedResponse, forbiddenResponse, rpcErrorResponse } from "../_shared/errors/envelope.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -274,6 +276,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("audit-rls", correlationId);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -313,7 +318,7 @@ serve(async (req) => {
       .rpc("audit_rls_snapshot");
 
     if (policiesError) {
-      console.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
+      log.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
       return rpcErrorResponse(corsHeaders, "audit_rls_snapshot", policiesError.message);
     }
 
@@ -326,7 +331,7 @@ serve(async (req) => {
       .rpc("audit_security_definer_snapshot");
 
     if (definersError) {
-      console.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
+      log.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
       return rpcErrorResponse(corsHeaders, "audit_security_definer_snapshot", definersError.message);
     }
 
@@ -339,7 +344,7 @@ serve(async (req) => {
       .rpc("audit_tables_without_rls");
 
     if (tablesError) {
-      console.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
+      log.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
       return rpcErrorResponse(corsHeaders, "audit_tables_without_rls", tablesError.message);
     }
 
@@ -355,7 +360,7 @@ serve(async (req) => {
         .rpc("audit_public_access_snapshot");
 
       if (anonError) {
-        console.warn("[AUDIT-RLS] RPC audit_public_access_snapshot failed (non-fatal):", anonError.message);
+        log.warn("[AUDIT-RLS] RPC audit_public_access_snapshot failed (non-fatal):", anonError.message);
         piiExposureError = true;
       } else if (anonPolicies) {
         const policies_arr = Array.isArray(anonPolicies) ? anonPolicies : (anonPolicies as unknown as AnonPolicyRow[]);
@@ -364,7 +369,7 @@ serve(async (req) => {
         );
       }
     } catch {
-      console.warn("[AUDIT-RLS] PII exposure audit failed unexpectedly (non-fatal)");
+      log.warn("[AUDIT-RLS] PII exposure audit failed unexpectedly (non-fatal)");
       piiExposureError = true;
     }
 
@@ -420,7 +425,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("[AUDIT-RLS] Unexpected error:", error);
+    log.error("[AUDIT-RLS] Unexpected error:", error);
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
     ), corsHeaders);
