@@ -14,18 +14,21 @@
  * Estas rotas são usadas pelo sistema e conflitariam com tenants.
  */
 const RESERVED_SLUGS = [
-  'admin',   // Painel administrativo
-  'auth',    // Autenticação
-  'login',   // Login
-  'logout',  // Logout
-  'help',    // Ajuda
-  'portal',  // Portal do atleta
-  'api',     // Reservado para API
-  'app',     // Reservado para aplicação
-  'forgot-password', // Recuperação de senha
-  'reset-password',  // Reset de senha
-  'join',    // Fluxo de adesão
-  'verify',  // Verificação
+  'about',
+  'admin',
+  'api',
+  'app',
+  'auth',
+  'forgot-password',
+  'help',
+  'identity',
+  'join',
+  'login',
+  'logout',
+  'portal',
+  'reset-password',
+  'signup',
+  'verify',
 ] as const;
 
 /**
