@@ -21,6 +21,8 @@ import {
 } from "../_shared/notification-engine.ts";
 import { getMembershipExpiringTemplate, type MembershipExpiringData } from "../_shared/email-templates/index.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 // ============================================================================
 // CONFIGURATION
@@ -176,6 +178,9 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("pre-expiration-scheduler", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -183,7 +188,7 @@ serve(async (req: Request): Promise<Response> => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[PRE-EXPIRATION-SCHEDULER] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -191,7 +196,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[PRE-EXPIRATION-SCHEDULER] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -200,18 +205,9 @@ serve(async (req: Request): Promise<Response> => {
   // ========================================
 
   const jobRunId = crypto.randomUUID();
-  const logPrefix = "[PRE-EXPIRATION-SCHEDULER]";
-  
-  const logStep = (message: string, data?: Record<string, unknown>) => {
-    console.log(`${logPrefix} [${jobRunId}] ${message}`, data ? JSON.stringify(data) : "");
-  };
-
-  const logEmail = (message: string, data?: Record<string, unknown>) => {
-    console.log(`[EMAIL] [${jobRunId}] ${message}`, data ? JSON.stringify(data) : "");
-  };
 
   try {
-    logStep("Job started");
+    log.info("Job started", { jobRunId });
 
     // Initialize clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -235,7 +231,7 @@ serve(async (req: Request): Promise<Response> => {
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     const thirtyDaysStr = thirtyDaysFromNow.toISOString().split('T')[0];
 
-    logStep("Fetching expiring memberships", { from: todayStr, to: thirtyDaysStr });
+    log.info("Fetching expiring memberships", { from: todayStr, to: thirtyDaysStr });
 
     // Fetch eligible memberships
     const { data: memberships, error: fetchError } = await supabase
@@ -266,7 +262,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!memberships || memberships.length === 0) {
-      logStep("No expiring memberships found");
+      log.info("No expiring memberships found");
       const response: JobResponse = {
         job: "pre-expiration-scheduler",
         jobRunId,
@@ -283,7 +279,7 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    logStep(`Found ${memberships.length} expiring memberships`);
+    log.info(`Found ${memberships.length} expiring memberships`);
 
     // Process each membership
     const results: ProcessResult[] = [];
@@ -304,7 +300,7 @@ serve(async (req: Request): Promise<Response> => {
         : membership.tenants;
 
       if (!athlete || !tenant) {
-        logStep("Skip - missing athlete or tenant", { membershipId });
+        log.info("Skip - missing athlete or tenant", { membershipId });
         results.push({
           membershipId,
           daysToExpire: 0,
@@ -338,7 +334,7 @@ serve(async (req: Request): Promise<Response> => {
 
       // Idempotency check: already sent for this or more urgent window?
       if (isAlreadySentForWindow(membership.email_sent_for_status, window)) {
-        logEmail(`Skip: already sent for status=${membership.email_sent_for_status}`, { membershipId });
+        log.info(`Skip: already sent for status=${membership.email_sent_for_status}`, { membershipId });
         results.push({
           membershipId,
           daysToExpire,
@@ -374,7 +370,7 @@ serve(async (req: Request): Promise<Response> => {
       });
 
       if (!shouldSend(decision)) {
-        logStep("Engine decided not to send", { membershipId, window });
+        log.info("Engine decided not to send", { membershipId, window });
         results.push({
           membershipId,
           daysToExpire,
@@ -389,7 +385,7 @@ serve(async (req: Request): Promise<Response> => {
 
       // Prepare and send email
       if (!resend) {
-        logEmail("Skip - Resend not configured", { membershipId });
+        log.info("Skip - Resend not configured", { membershipId });
         results.push({
           membershipId,
           daysToExpire,
@@ -414,7 +410,7 @@ serve(async (req: Request): Promise<Response> => {
 
         const { subject, html } = getMembershipExpiringTemplate(templateData);
 
-        logEmail("Sending pre-expiration email", {
+        log.info("Sending pre-expiration email", {
           membershipId,
           window,
           daysToExpire,
@@ -440,7 +436,7 @@ serve(async (req: Request): Promise<Response> => {
           .eq("id", membershipId);
 
         if (updateError) {
-          logStep("Warning: failed to update flag", { membershipId, error: updateError.message });
+          log.info("Warning: failed to update flag", { membershipId, error: updateError.message });
         }
 
         // Audit log
@@ -470,7 +466,7 @@ serve(async (req: Request): Promise<Response> => {
           },
         });
 
-        logEmail("Email sent successfully", { membershipId, window });
+        log.info("Email sent successfully", { membershipId, window });
 
         results.push({
           membershipId,
@@ -484,7 +480,7 @@ serve(async (req: Request): Promise<Response> => {
 
       } catch (emailError) {
         const errorMessage = emailError instanceof Error ? emailError.message : "Unknown error";
-        logEmail("Failed to send email", { membershipId, error: errorMessage });
+        log.info("Failed to send email", { membershipId, error: errorMessage });
 
         // Audit log for failure
         await createAuditLog(supabase, {
@@ -511,7 +507,7 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    logStep("Job completed", {
+    log.info("Job completed", {
       processed: memberships.length,
       notified,
       skipped,
@@ -537,7 +533,7 @@ serve(async (req: Request): Promise<Response> => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Job failed", { error: errorMessage });
+    log.info("Job failed", { error: errorMessage });
 
     return new Response(
       JSON.stringify({
