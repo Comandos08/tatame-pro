@@ -4,20 +4,12 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { resolveMembershipNotification, shouldSend, type MembershipStatus, type SupportedLocale } from "../_shared/notification-engine.ts";
 import { getEmailClient, DEFAULT_EMAIL_FROM, isEmailConfigured } from "../_shared/emailClient.ts";
 import { getMembershipExpiredTemplate } from "../_shared/email-templates/membership/expired.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[EXPIRE-MEMBERSHIPS] ${step}${detailsStr}`);
-};
-
-const logEmail = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[EMAIL] ${step}${detailsStr}`);
 };
 
 interface MembershipResult {
@@ -54,6 +46,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("expire-memberships", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -61,7 +56,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[EXPIRE-MEMBERSHIPS] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -69,7 +64,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[EXPIRE-MEMBERSHIPS] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -88,7 +83,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    logStep("Job started", { jobRunId });
+    log.info("Job started", { jobRunId });
 
     // Log job execution start
     await createAuditLog(supabase, {
@@ -110,7 +105,7 @@ serve(async (req) => {
 
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split("T")[0];
-    logStep("Checking memberships with end_date before", { jobRunId, today });
+    log.info("Checking memberships with end_date before", { jobRunId, today });
 
     // ========================================================================
     // 1️⃣ FIND MEMBERSHIPS TO EXPIRE (only ACTIVE)
@@ -135,7 +130,7 @@ serve(async (req) => {
     }
 
     const totalFound = expiredMemberships?.length || 0;
-    logStep("Found memberships to expire", { jobRunId, count: totalFound });
+    log.info("Found memberships to expire", { jobRunId, count: totalFound });
 
     if (!expiredMemberships || expiredMemberships.length === 0) {
       return new Response(
@@ -181,7 +176,7 @@ serve(async (req) => {
         if (rpcError) {
           // If idempotent (already expired) or invalid transition, skip
           if (rpcError.message?.includes("Invalid transition") || rpcError.message?.includes("not found")) {
-            logStep("Skip - RPC rejected (likely already processed)", { 
+            log.info("Skip - RPC rejected (likely already processed)", { 
               jobRunId, 
               membershipId: membership.id,
               error: rpcError.message,
@@ -199,7 +194,7 @@ serve(async (req) => {
 
         // Check if no_change (idempotent)
         if (rpcResult?.status === "no_change") {
-          logStep("Skip - already expired (idempotent)", { 
+          log.info("Skip - already expired (idempotent)", { 
             jobRunId, 
             membershipId: membership.id,
           });
@@ -212,7 +207,7 @@ serve(async (req) => {
           continue;
         }
 
-        logStep("Membership expired", { jobRunId, membershipId: membership.id });
+        log.info("Membership expired", { jobRunId, membershipId: membership.id });
 
         // Log to audit - MEMBERSHIP_EXPIRED
         await createAuditLog(supabase, {
@@ -244,7 +239,7 @@ serve(async (req) => {
           : tenantData as { id: string; slug: string; name: string; default_locale: string } | null;
 
         if (!athlete || !tenant) {
-          logEmail("Skip - missing athlete or tenant data", { 
+          log.info("[EMAIL] Skip - missing athlete or tenant data", { 
             jobRunId,
             membershipId: membership.id,
             hasAthlete: !!athlete,
@@ -256,7 +251,7 @@ serve(async (req) => {
           // 4️⃣ CALL NOTIFICATION ENGINE (using actual previousStatus)
           // ==================================================================
           const decision = resolveMembershipNotification({
-            previousStatus, // 3️⃣ Use actual status from DB
+            previousStatus,
             newStatus: "EXPIRED",
             membership: {
               id: membership.id,
@@ -274,7 +269,7 @@ serve(async (req) => {
             baseUrl,
           });
 
-          logEmail("Engine decision", {
+          log.info("[EMAIL] Engine decision", {
             jobRunId,
             membershipId: membership.id,
             shouldSendEmail: decision.shouldSendEmail,
@@ -292,10 +287,10 @@ serve(async (req) => {
             const emailAlreadySent = membership.email_sent_for_status === "EXPIRED";
 
             if (emailAlreadySent) {
-              logEmail("Skip: already sent for status=EXPIRED", { jobRunId, membershipId: membership.id });
+              log.info("[EMAIL] Skip: already sent for status=EXPIRED", { jobRunId, membershipId: membership.id });
               emailResult.skippedReason = "already_sent";
             } else if (!isEmailConfigured()) {
-              logEmail("Skip: RESEND_API_KEY not configured", { jobRunId });
+              log.info("[EMAIL] Skip: RESEND_API_KEY not configured", { jobRunId });
               emailResult.skippedReason = "resend_not_configured";
             } else {
               // ==============================================================
@@ -323,7 +318,7 @@ serve(async (req) => {
                 }
 
                 emailResult.sent = true;
-                logEmail("Sent successfully", {
+                log.info("[EMAIL] Sent successfully", {
                   jobRunId,
                   membershipId: membership.id,
                   recipient: athlete.email,
@@ -352,7 +347,7 @@ serve(async (req) => {
                   .update({ email_sent_for_status: "EXPIRED" })
                   .eq("id", membership.id);
 
-                logEmail("Idempotency flag set", { 
+                log.info("[EMAIL] Idempotency flag set", { 
                   jobRunId,
                   membershipId: membership.id,
                   email_sent_for_status: "EXPIRED",
@@ -360,7 +355,7 @@ serve(async (req) => {
 
               } catch (emailErr) {
                 const errMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
-                logEmail("Failed", { jobRunId, membershipId: membership.id, error: errMsg });
+                log.info("[EMAIL] Failed", { jobRunId, membershipId: membership.id, error: errMsg });
 
                 emailResult.skippedReason = "send_failed";
 
@@ -393,7 +388,7 @@ serve(async (req) => {
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        logStep("Error expiring membership", { jobRunId, membershipId: membership.id, error: errorMessage });
+        log.info("Error expiring membership", { jobRunId, membershipId: membership.id, error: errorMessage });
         results.push({ 
           membershipId: membership.id, 
           success: false, 
@@ -412,7 +407,7 @@ serve(async (req) => {
     const failed = results.filter(r => !r.success).length;
     const emailsSent = results.filter(r => r.email.sent).length;
 
-    logStep("Job completed", { jobRunId, processed, expired, skipped, failed, emailsSent });
+    log.info("Job completed", { jobRunId, processed, expired, skipped, failed, emailsSent });
 
     // Log job execution completion
     await createAuditLog(supabase, {
@@ -449,7 +444,7 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { jobRunId, error: errorMessage });
+    log.error("Error", undefined, { jobRunId, error: errorMessage });
     return new Response(
       JSON.stringify({ 
         job: "expire-memberships",

@@ -21,15 +21,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[YOUTH-TRANSITION] ${step}${detailsStr}`);
 };
 
 /**
@@ -66,6 +63,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("transition-youth-to-adult", correlationId);
+
   // ========================================
   // CRON_SECRET VALIDATION
   // ========================================
@@ -73,7 +73,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[YOUTH-TRANSITION] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -81,7 +81,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[YOUTH-TRANSITION] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -102,7 +102,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    logStep("Starting youth-to-adult transition job", { jobRunId });
+    log.info("Starting youth-to-adult transition job", { jobRunId });
 
     // Log job execution start
     await createAuditLog(supabase, {
@@ -138,7 +138,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch guardian_links: ${fetchError.message}`);
     }
 
-    logStep("Found athletes with guardians", { count: athletesWithGuardians?.length || 0 });
+    log.info("Found athletes with guardians", { count: athletesWithGuardians?.length || 0 });
 
     if (!athletesWithGuardians || athletesWithGuardians.length === 0) {
       // Log job completion even with 0 processed
@@ -181,7 +181,7 @@ serve(async (req) => {
       return athlete && isAdult(athlete.birth_date);
     });
 
-    logStep("Athletes now adults", { count: adultsWithGuardians.length });
+    log.info("Athletes now adults", { count: adultsWithGuardians.length });
 
     const results: TransitionResult[] = [];
 
@@ -204,7 +204,7 @@ serve(async (req) => {
         .limit(1);
 
       if (membershipError) {
-        logStep("Error fetching membership", { athleteId: athlete.id, error: membershipError.message });
+        log.info("Error fetching membership", { athleteId: athlete.id, error: membershipError.message });
         results.push({
           athleteId: athlete.id,
           membershipId: "",
@@ -215,7 +215,7 @@ serve(async (req) => {
       }
 
       if (!memberships || memberships.length === 0) {
-        logStep("Skip - no active membership", { athleteId: athlete.id });
+        log.info("Skip - no active membership", { athleteId: athlete.id });
         results.push({
           athleteId: athlete.id,
           membershipId: "",
@@ -233,7 +233,7 @@ serve(async (req) => {
       // 4️⃣ IDEMPOTENCY CHECK - Skip if already transitioned
       // ====================================================================
       if (applicantData?.is_minor !== true) {
-        logStep("Skip - already transitioned or not a minor", { 
+        log.info("Skip - already transitioned or not a minor", { 
           athleteId: athlete.id, 
           membershipId: membership.id,
           is_minor: applicantData?.is_minor 
@@ -252,12 +252,9 @@ serve(async (req) => {
       // 5️⃣ UPDATE MEMBERSHIP applicant_data (SAFE GOLD)
       // ====================================================================
       try {
-        // Remove guardian from applicant_data, set is_minor = false
-        // PRESERVE all other data including historical guardian reference
         const updatedApplicantData = {
           ...applicantData,
           is_minor: false,
-          // Keep guardian data as historical reference (don't delete)
           youth_transition: {
             transitioned_at: new Date().toISOString(),
             previous_guardian: applicantData.guardian || null,
@@ -265,7 +262,6 @@ serve(async (req) => {
           },
         };
 
-        // Remove the active guardian reference (but keep historical in youth_transition)
         delete (updatedApplicantData as Record<string, unknown>).guardian;
 
         const { error: updateError } = await supabase
@@ -275,13 +271,13 @@ serve(async (req) => {
             updated_at: new Date().toISOString()
           })
           .eq("id", membership.id)
-          .eq("status", membership.status); // Optimistic lock
+          .eq("status", membership.status);
 
         if (updateError) {
           throw updateError;
         }
 
-        logStep("Membership transitioned", { 
+        log.info("Membership transitioned", { 
           athleteId: athlete.id, 
           membershipId: membership.id 
         });
@@ -317,7 +313,7 @@ serve(async (req) => {
 
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Unknown error";
-        logStep("Error transitioning", { 
+        log.info("Error transitioning", { 
           athleteId: athlete.id, 
           membershipId: membership.id,
           error: errorMessage 
@@ -339,7 +335,7 @@ serve(async (req) => {
     const skipped = results.filter(r => r.skipped).length;
     const failed = results.filter(r => !r.success).length;
 
-    logStep("Job completed", { jobRunId, processed, transitioned, skipped, failed });
+    log.info("Job completed", { jobRunId, processed, transitioned, skipped, failed });
 
     // Log job execution completion
     await createAuditLog(supabase, {
@@ -374,7 +370,7 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Job failed", { jobRunId, error: errorMessage });
+    log.info("Job failed", { jobRunId, error: errorMessage });
     return new Response(
       JSON.stringify({
         job: "transition-youth-to-adult",

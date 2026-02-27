@@ -29,6 +29,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +47,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("leave-federation", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -145,7 +150,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (membershipError) {
-      console.error("[LEAVE-FEDERATION] Membership lookup error:", membershipError);
+      log.error("Membership lookup error", membershipError);
       return new Response(
         JSON.stringify({ success: false, error: "Membership lookup failed" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -187,7 +192,7 @@ serve(async (req) => {
       .eq("federation_id", federationId);
 
     if (updateError) {
-      console.error("[LEAVE-FEDERATION] Update error:", updateError);
+      log.error("Update error", updateError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to leave federation" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -210,7 +215,7 @@ serve(async (req) => {
       },
     });
 
-    console.log("[LEAVE-FEDERATION] Success:", { tenantId, federationId, reason: reason.trim() });
+    log.info("Success", { tenantId, federationId, reason: reason.trim() });
 
     return new Response(
       JSON.stringify({
@@ -223,7 +228,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[LEAVE-FEDERATION] Error:", error);
+    log.error("Error", error);
     return new Response(
       JSON.stringify({ success: false, error: "Operation failed" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

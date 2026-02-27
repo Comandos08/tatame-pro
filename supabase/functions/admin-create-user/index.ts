@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +21,9 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("admin-create-user", correlationId);
 
   try {
     const supabaseAdmin = createClient(
@@ -78,7 +83,7 @@ serve(async (req: Request) => {
     });
 
     if (createError) {
-      console.error("Error creating user:", createError);
+      log.error("Error creating user", createError);
       return new Response(
         JSON.stringify({ error: createError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -127,7 +132,7 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log("User created successfully:", { userId, email });
+    log.info("User created successfully", { userId, email });
 
     return new Response(
       JSON.stringify({
@@ -139,7 +144,7 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error in admin-create-user:", error);
+    log.error("Error in admin-create-user", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

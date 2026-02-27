@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +25,9 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("seed-test-user", correlationId);
 
   try {
     // Basic rate limiting via checking origin (optional security layer)
@@ -84,7 +89,7 @@ serve(async (req: Request) => {
     });
 
     if (createError) {
-      console.error("Error creating user:", createError);
+      log.error("Error creating user", createError);
       return new Response(
         JSON.stringify({ error: createError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -120,7 +125,7 @@ serve(async (req: Request) => {
       }
     }
 
-    console.log("Seed user created successfully:", { userId, email, athleteId });
+    log.info("Seed user created successfully", { userId, email, athleteId });
 
     return new Response(
       JSON.stringify({
@@ -132,7 +137,7 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error in seed-test-user:", error);
+    log.error("Error in seed-test-user", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

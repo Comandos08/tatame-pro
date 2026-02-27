@@ -6,15 +6,12 @@ import {
   billingRestrictedResponse,
 } from "../_shared/requireBillingStatus.ts";
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[NOTIFY-NEW-GRADING] ${step}${detailsStr}`);
 };
 
 interface NotifyGradingRequest {
@@ -25,6 +22,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("notify-new-grading", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -44,7 +44,7 @@ serve(async (req) => {
       throw new Error("Missing grading_id");
     }
 
-    logStep("Processing new grading notification", { grading_id });
+    log.info("Processing new grading notification", { grading_id });
 
     // Fetch grading with related data
     const { data: grading, error: gradingError } = await supabase
@@ -70,7 +70,7 @@ serve(async (req) => {
     const diploma = grading.diploma as unknown as { id: string; pdf_url: string | null; status: string } | null;
 
     if (!athlete?.email) {
-      logStep("No athlete email found, skipping notification");
+      log.info("No athlete email found, skipping notification");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No athlete email" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -83,7 +83,7 @@ serve(async (req) => {
     if (tenant?.id) {
       const billingCheck = await requireBillingStatus(supabase, tenant.id);
       if (!billingCheck.allowed) {
-        logStep("Billing status blocked operation", { 
+        log.info("Billing status blocked operation", { 
           status: billingCheck.status, 
           code: billingCheck.code 
         });
@@ -98,10 +98,10 @@ serve(async (req) => {
         return billingRestrictedResponse(billingCheck.status);
       }
 
-      logStep("Billing status OK", { status: billingCheck.status });
+      log.info("Billing status OK", { status: billingCheck.status });
     }
 
-    logStep("Sending grading notification", { 
+    log.info("Sending grading notification", { 
       athlete: athlete.full_name, 
       level: gradingLevel?.display_name 
     });
@@ -144,7 +144,7 @@ serve(async (req) => {
       },
     });
 
-    logStep("Grading notification sent successfully", { grading_id, athlete: athlete.email });
+    log.info("Grading notification sent successfully", { grading_id, athlete: athlete.email });
 
     return new Response(
       JSON.stringify({ success: true, grading_id, athlete_email: athlete.email }),
@@ -153,7 +153,7 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error sending grading notification", { error: errorMessage });
+    log.error("Error sending grading notification", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
