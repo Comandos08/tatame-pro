@@ -47,7 +47,7 @@ import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { useImpersonationScope } from "@/hooks/useImpersonationScope";
-import { useI18n } from "@/contexts/I18nContext";
+
 import { IdentityLoadingScreen } from "./IdentityLoadingScreen";
 import { BlockedStateCard } from "@/components/ux/BlockedStateCard";
 import { ImpersonationScopeMismatchCard } from "@/components/impersonation/ImpersonationScopeMismatchCard";
@@ -181,7 +181,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
   // STEP 1: Hook Initialization (unconditional — React rules)
   // =========================================================================
   // BY DESIGN: All hooks called before any early returns
-  useI18n();
+  
   const { isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState: backendStatus, redirectPath, error, refreshIdentity } = useIdentity();
   const { isImpersonating, session: impersonationSession, resolutionStatus } = useImpersonation();
