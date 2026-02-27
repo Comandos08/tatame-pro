@@ -14,21 +14,21 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[CHECK-MEMBERSHIP-RENEWAL] ${step}${detailsStr}`);
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("check-membership-renewal", correlationId);
 
   // ========================================
   // CRON_SECRET VALIDATION
@@ -37,7 +37,7 @@ serve(async (req) => {
   const requestSecret = req.headers.get("x-cron-secret");
 
   if (!cronSecret) {
-    console.error("[CHECK-MEMBERSHIP-RENEWAL] CRON_SECRET not configured");
+    log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -45,7 +45,7 @@ serve(async (req) => {
   }
 
   if (requestSecret !== cronSecret) {
-    console.error("[CHECK-MEMBERSHIP-RENEWAL] Invalid or missing x-cron-secret");
+    log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -65,7 +65,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    logStep("Starting membership renewal check");
+    log.info("Starting membership renewal check");
 
     // Calculate date range: 7 days from now
     const now = new Date();
@@ -75,7 +75,7 @@ serve(async (req) => {
     // Format as YYYY-MM-DD for date comparison
     const targetDate = sevenDaysFromNow.toISOString().split("T")[0];
     
-    logStep("Looking for memberships expiring on", { targetDate });
+    log.info("Looking for memberships expiring on", { targetDate });
 
     // Find memberships expiring in exactly 7 days that haven't been notified
     const { data: expiringMemberships, error: fetchError } = await supabase
@@ -95,7 +95,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch memberships: ${fetchError.message}`);
     }
 
-    logStep("Found memberships to notify", { count: expiringMemberships?.length || 0 });
+    log.info("Found memberships to notify", { count: expiringMemberships?.length || 0 });
 
     if (!expiringMemberships || expiringMemberships.length === 0) {
       return new Response(
@@ -112,7 +112,7 @@ serve(async (req) => {
         const tenant = membership.tenant as unknown as { id: string; name: string } | null;
 
         if (!athlete?.email) {
-          logStep("Skipping membership - no athlete email", { membershipId: membership.id });
+          log.info("Skipping membership - no athlete email", { membershipId: membership.id });
           results.push({ membershipId: membership.id, success: false, error: "No athlete email" });
           continue;
         }
@@ -156,7 +156,7 @@ serve(async (req) => {
           .eq("id", membership.id);
 
         if (updateError) {
-          logStep("Failed to update reminder flag", { membershipId: membership.id, error: updateError.message });
+          log.info("Failed to update reminder flag", { membershipId: membership.id, error: updateError.message });
         }
 
         // Log to audit
@@ -171,18 +171,18 @@ serve(async (req) => {
           },
         });
 
-        logStep("Renewal reminder sent", { membershipId: membership.id, athlete: athlete.email });
+        log.info("Renewal reminder sent", { membershipId: membership.id, athlete: athlete.email });
         results.push({ membershipId: membership.id, success: true });
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        logStep("Error processing membership", { membershipId: membership.id, error: errorMessage });
+        log.info("Error processing membership", { membershipId: membership.id, error: errorMessage });
         results.push({ membershipId: membership.id, success: false, error: errorMessage });
       }
     }
 
     const successCount = results.filter(r => r.success).length;
-    logStep("Renewal check complete", { total: results.length, success: successCount });
+    log.info("Renewal check complete", { total: results.length, success: successCount });
 
     return new Response(
       JSON.stringify({ 
@@ -196,7 +196,7 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error in renewal check", { error: errorMessage });
+    log.info("Error in renewal check", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

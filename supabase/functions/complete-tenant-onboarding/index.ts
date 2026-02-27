@@ -46,15 +46,12 @@ import {
   logPermissionDenied,
   logImpersonationBlock,
 } from "../_shared/decision-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[COMPLETE-ONBOARDING] ${step}${detailsStr}`);
 };
 
 interface CompleteOnboardingRequest {
@@ -78,6 +75,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("complete-tenant-onboarding", correlationId);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -98,7 +98,7 @@ serve(async (req) => {
       return unauthorizedResponse("Invalid token");
     }
 
-    logStep("User authenticated", { userId: user.id });
+    log.info("User authenticated", { userId: user.id });
 
     // ========================================================================
     // RATE LIMITING (before any business logic)
@@ -108,7 +108,7 @@ serve(async (req) => {
     const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase);
 
     if (!rateLimitResult.allowed) {
-      logStep("Rate limit exceeded", { count: rateLimitResult.count });
+      log.info("Rate limit exceeded", { count: rateLimitResult.count });
       
       await logRateLimitBlock(supabase, {
         operation: 'complete-tenant-onboarding',
@@ -146,7 +146,7 @@ serve(async (req) => {
     );
 
     if (!impersonationCheck.valid) {
-      logStep("Impersonation validation failed", { error: impersonationCheck.error });
+      log.info("Impersonation validation failed", { error: impersonationCheck.error });
       
       await logImpersonationBlock(supabase, {
         operation: 'complete-tenant-onboarding',
@@ -171,7 +171,7 @@ serve(async (req) => {
       );
 
       if (!roleCheck.allowed) {
-        logStep("Role check failed", { error: roleCheck.error });
+        log.info("Role check failed", { error: roleCheck.error });
         
         await logPermissionDenied(supabase, {
           operation: 'complete-tenant-onboarding',
@@ -185,7 +185,7 @@ serve(async (req) => {
       }
     }
 
-    logStep("Permissions verified");
+    log.info("Permissions verified");
 
     // ========================================================================
     // FETCH CURRENT TENANT STATE
@@ -197,7 +197,7 @@ serve(async (req) => {
       .single();
 
     if (tenantError || !tenant) {
-      logStep("Tenant not found", { error: tenantError?.message });
+      log.info("Tenant not found", { error: tenantError?.message });
       return new Response(
         JSON.stringify({ ok: false, error: "Tenant not found", code: "NOT_FOUND" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -224,7 +224,7 @@ serve(async (req) => {
       gradingSchemeCount: gradingResult.count ?? 0,
     };
 
-    logStep("Activation status checked", { ...activationStatus });
+    log.info("Activation status checked", { ...activationStatus });
 
     // ========================================================================
     // VALIDATE ACTIVATION CONTRACT (HARD STOPS)
@@ -235,7 +235,7 @@ serve(async (req) => {
     if (currentState !== "SETUP") {
       // Idempotent: if already ACTIVE, return success
       if (currentState === "ACTIVE" && tenant.onboarding_completed) {
-        logStep("Already activated (idempotent)", { status: currentState });
+        log.info("Already activated (idempotent)", { status: currentState });
         return new Response(
           JSON.stringify({ 
             ok: true, 
@@ -308,7 +308,7 @@ serve(async (req) => {
       });
 
     if (billingError) {
-      logStep("Billing bootstrap failed", { error: billingError.message });
+      log.info("Billing bootstrap failed", { error: billingError.message });
 
       await supabase.from("audit_logs").insert({
         event_type: "TENANT_TRIAL_INIT_FAILED",
@@ -331,7 +331,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Billing bootstrapped", {
+    log.info("Billing bootstrapped", {
       tenant_id: tenantId,
       status: "TRIALING",
       trial_expires_at: trialExpiresAt.toISOString(),
@@ -356,7 +356,7 @@ serve(async (req) => {
       });
 
     if (rpcError) {
-      logStep("Gatekeeper RPC failed, rolling back billing", { error: rpcError.message });
+      log.info("Gatekeeper RPC failed, rolling back billing", { error: rpcError.message });
 
       // ROLLBACK: Delete billing record if activation fails
       await supabase
@@ -375,7 +375,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Tenant activated via gatekeeper", { 
+    log.info("Tenant activated via gatekeeper", { 
       tenant_id: tenantId,
       previous_status: "SETUP",
       new_status: rpcResult,
@@ -411,7 +411,7 @@ serve(async (req) => {
       },
     ]);
 
-    logStep("Audit logs created");
+    log.info("Audit logs created");
 
     return new Response(
       JSON.stringify({
@@ -432,7 +432,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    logStep("Unexpected error", { error: String(error) });
+    log.info("Unexpected error", { error: String(error) });
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

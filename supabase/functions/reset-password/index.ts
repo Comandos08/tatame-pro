@@ -1,14 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: Record<string, unknown>) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[RESET-PASSWORD] ${step}${detailsStr}`);
 };
 
 // ============================================
@@ -27,13 +24,14 @@ async function checkRateLimit(
   identifier: string,
   prefix: string,
   limit: number,
-  windowSeconds: number
+  windowSeconds: number,
+  log: ReturnType<typeof createBackendLogger>
 ): Promise<RateLimitResult> {
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
   if (!redisUrl || !redisToken) {
-    logStep("Rate limiting not configured, allowing request");
+    log.info("Rate limiting not configured, allowing request");
     return { success: true, remaining: limit, reset: Date.now() + windowSeconds * 1000, count: 0 };
   }
 
@@ -59,7 +57,7 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      logStep("Redis error, allowing request");
+      log.info("Redis error, allowing request");
       return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
     }
 
@@ -68,10 +66,10 @@ async function checkRateLimit(
     const remaining = Math.max(0, limit - count);
     const success = count <= limit;
 
-    logStep(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
+    log.info(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
     return { success, remaining, reset: now + windowSeconds * 1000, count };
   } catch (error) {
-    logStep("Rate limit error, allowing request", { error: String(error) });
+    log.info("Rate limit error, allowing request", { error: String(error) });
     return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
   }
 }
@@ -90,13 +88,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("reset-password", correlationId);
+
   try {
     const clientIP = getClientIP(req);
     
     // Rate limit by IP (10 attempts per hour)
-    const ipRateLimit = await checkRateLimit(clientIP, "reset-password-ip", 10, 3600);
+    const ipRateLimit = await checkRateLimit(clientIP, "reset-password-ip", 10, 3600, log);
     if (!ipRateLimit.success) {
-      logStep("Rate limited by IP", { ip: clientIP });
+      log.info("Rate limited by IP", { ip: clientIP });
       return new Response(
         JSON.stringify({ 
           error: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
@@ -125,9 +126,9 @@ serve(async (req) => {
     }
 
     // Rate limit by token (5 attempts per hour) - prevents brute force on specific token
-    const tokenRateLimit = await checkRateLimit(token.substring(0, 16), "reset-password-token", 5, 3600);
+    const tokenRateLimit = await checkRateLimit(token.substring(0, 16), "reset-password-token", 5, 3600, log);
     if (!tokenRateLimit.success) {
-      logStep("Rate limited by token");
+      log.info("Rate limited by token");
       return new Response(
         JSON.stringify({ valid: false, message: "Muitas tentativas para este token." }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -165,7 +166,7 @@ serve(async (req) => {
         );
       }
 
-      logStep("Token validated successfully");
+      log.info("Token validated successfully");
 
       return new Response(
         JSON.stringify({ 
@@ -216,7 +217,7 @@ serve(async (req) => {
       throw new Error("Este link expirou. Solicite um novo.");
     }
 
-    logStep("Token valid, proceeding with password reset", { profileId: resetRecord.profile_id });
+    log.info("Token valid, proceeding with password reset", { profileId: resetRecord.profile_id });
 
     // Find the auth user by email
     const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
@@ -237,7 +238,7 @@ serve(async (req) => {
     });
 
     if (updateError) {
-      logStep("Failed to update password", { error: updateError.message });
+      log.info("Failed to update password", { error: updateError.message });
       throw new Error("Falha ao atualizar a senha. Tente novamente.");
     }
 
@@ -247,7 +248,7 @@ serve(async (req) => {
       .update({ used_at: new Date().toISOString() })
       .eq("id", resetRecord.id);
 
-    logStep("Password reset successful");
+    log.info("Password reset successful");
 
     return new Response(
       JSON.stringify({ 
@@ -258,7 +259,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logStep("Error", { error: errorMessage });
+    log.info("Error", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

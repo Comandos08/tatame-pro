@@ -31,6 +31,8 @@ import {
   logRateLimitBlock,
   DECISION_TYPES 
 } from "../_shared/decision-logger.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +79,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("admin-reset-password", correlationId);
+
   // Only allow POST
   if (req.method !== "POST") {
     return new Response(
@@ -98,7 +103,7 @@ serve(async (req) => {
   // STEP 1: AUTHENTICATION — Require valid JWT
   // ═══════════════════════════════════════════════════════════════
   if (!authHeader?.startsWith("Bearer ")) {
-    console.warn("[ADMIN-RESET-PWD] No auth header");
+    log.warn("No auth header");
     return new Response(
       JSON.stringify({ ok: false, error: "Unauthorized" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -111,7 +116,7 @@ serve(async (req) => {
   const roleCheck = await requireGlobalSuperadmin(supabaseAdmin, authHeader);
 
   if (!roleCheck.allowed || !roleCheck.userId) {
-    console.warn("[ADMIN-RESET-PWD] Not a superadmin:", roleCheck.error);
+    log.warn("Not a superadmin", { error: roleCheck.error });
     
     // Log permission denied
     await logPermissionDenied(supabaseAdmin, {
@@ -131,7 +136,7 @@ serve(async (req) => {
   try {
     body = await req.json();
   } catch {
-    console.warn("[ADMIN-RESET-PWD] Invalid JSON body");
+    log.warn("Invalid JSON body");
     
     await logDecision(supabaseAdmin, {
       decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -156,7 +161,7 @@ serve(async (req) => {
   // Get target tenant from impersonation (we need a tenant context)
   // For password reset, we need to validate the impersonation exists
   if (!impersonationId) {
-    console.warn("[ADMIN-RESET-PWD] Superadmin without impersonation ID");
+    log.warn("Superadmin without impersonation ID");
     
     await logImpersonationBlock(supabaseAdmin, {
       operation: "admin-reset-password",
@@ -175,7 +180,7 @@ serve(async (req) => {
     .maybeSingle();
 
   if (impError || !impersonation) {
-    console.warn("[ADMIN-RESET-PWD] Invalid impersonation session:", impersonationId);
+    log.warn("Invalid impersonation session", { impersonationId });
     
     await logImpersonationBlock(supabaseAdmin, {
       operation: "admin-reset-password",
@@ -189,7 +194,7 @@ serve(async (req) => {
 
   // Verify ownership
   if (impersonation.superadmin_user_id !== superadminUserId) {
-    console.warn("[ADMIN-RESET-PWD] Impersonation not owned by caller");
+    log.warn("Impersonation not owned by caller");
     
     await logImpersonationBlock(supabaseAdmin, {
       operation: "admin-reset-password",
@@ -203,7 +208,7 @@ serve(async (req) => {
 
   // Verify active status
   if (impersonation.status !== "ACTIVE") {
-    console.warn("[ADMIN-RESET-PWD] Impersonation not active:", impersonation.status);
+    log.warn("Impersonation not active", { status: impersonation.status });
     
     await logImpersonationBlock(supabaseAdmin, {
       operation: "admin-reset-password",
@@ -218,7 +223,7 @@ serve(async (req) => {
 
   // Verify not expired
   if (new Date(impersonation.expires_at) <= new Date()) {
-    console.warn("[ADMIN-RESET-PWD] Impersonation expired");
+    log.warn("Impersonation expired");
     
     // Auto-expire the session
     await supabaseAdmin
@@ -246,7 +251,7 @@ serve(async (req) => {
   const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin);
 
   if (!rateLimitResult.allowed) {
-    console.warn("[ADMIN-RESET-PWD] Rate limit exceeded:", rateLimitResult);
+    log.warn("Rate limit exceeded", { count: rateLimitResult.count });
     
     await logRateLimitBlock(supabaseAdmin, {
       operation: "admin-reset-password",
@@ -267,7 +272,7 @@ serve(async (req) => {
 
   // Validate userId is present and valid UUID
   if (!targetUserId || typeof targetUserId !== "string" || !UUID_REGEX.test(targetUserId)) {
-    console.warn("[ADMIN-RESET-PWD] Invalid userId:", targetUserId?.substring(0, 20));
+    log.warn("Invalid userId", { provided_type: typeof targetUserId });
     
     await logDecision(supabaseAdmin, {
       decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -290,7 +295,7 @@ serve(async (req) => {
 
   // Validate newPassword is present and at least 12 characters
   if (!newPassword || typeof newPassword !== "string" || newPassword.length < 12) {
-    console.warn("[ADMIN-RESET-PWD] Invalid password length:", newPassword?.length);
+    log.warn("Invalid password length", { password_length: newPassword?.length });
     
     await logDecision(supabaseAdmin, {
       decision_type: DECISION_TYPES.VALIDATION_FAILURE,
@@ -322,7 +327,7 @@ serve(async (req) => {
     );
 
     if (updateError) {
-      console.error("[ADMIN-RESET-PWD] Update failed:", updateError.message);
+      log.error("Update failed", updateError);
       
       // Log failure but don't expose details
       await logDecision(supabaseAdmin, {
@@ -360,15 +365,17 @@ serve(async (req) => {
       },
     });
 
-    console.log(
-      `[ADMIN-RESET-PWD] Success: superadmin=${superadminUserId}, ` +
-      `target=${targetUserId}, tenant=${targetTenantId}, impersonation=${impersonationId}`
-    );
+    log.info("Success", {
+      superadmin: superadminUserId,
+      target: targetUserId,
+      tenant: targetTenantId,
+      impersonation: impersonationId,
+    });
 
     return successResponse();
 
   } catch (error) {
-    console.error("[ADMIN-RESET-PWD] Unexpected error:", error);
+    log.error("Unexpected error", error);
     
     await logDecision(supabaseAdmin, {
       decision_type: "PASSWORD_RESET" as any,

@@ -31,6 +31,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +54,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("join-federation", correlationId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -198,7 +203,7 @@ serve(async (req) => {
         .eq("federation_id", federationId);
 
       if (updateError) {
-        console.error("[JOIN-FEDERATION] Update error:", updateError);
+        log.error("Update error", updateError);
         return new Response(
           JSON.stringify({ success: false, error: "Failed to rejoin federation" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -215,7 +220,7 @@ serve(async (req) => {
         });
 
       if (insertError) {
-        console.error("[JOIN-FEDERATION] Insert error:", insertError);
+        log.error("Insert error", insertError);
         return new Response(
           JSON.stringify({ success: false, error: "Failed to join federation" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -238,7 +243,7 @@ serve(async (req) => {
       },
     });
 
-    console.log("[JOIN-FEDERATION] Success:", { tenantId, federationId });
+    log.info("Success", { tenantId, federationId });
 
     return new Response(
       JSON.stringify({
@@ -251,7 +256,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[JOIN-FEDERATION] Error:", error);
+    log.error("Error", error);
     return new Response(
       JSON.stringify({ success: false, error: "Operation failed" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
