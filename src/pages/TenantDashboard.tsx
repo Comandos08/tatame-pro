@@ -37,7 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { subMonths, startOfMonth, addDays, format } from "date-fns";
 import { formatRelativeTime } from "@/lib/i18n/formatters";
 
-// ✅ NOVO: cards de receita governados por get_tenant_revenue_metrics_v1
+// ✅ Revenue cards governados por get_tenant_revenue_metrics_v1
 import { TenantRevenueCards } from "@/components/dashboard/TenantRevenueCards";
 
 interface DashboardStats {
@@ -118,6 +118,18 @@ const getEventTypeLabels = (
   },
 });
 
+type QuickActionVariant = "default" | "outline" | "secondary" | "destructive" | "ghost" | "link" | "warning";
+
+interface QuickAction {
+  label: string;
+  description: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  variant: QuickActionVariant;
+  highlight: boolean;
+  feature: string;
+}
+
 export default function TenantDashboard() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
@@ -136,7 +148,6 @@ export default function TenantDashboard() {
     async function fetchStats() {
       if (!tenant?.id) return;
 
-      // Calculate date 30 days from now for expiring memberships
       const thirtyDaysFromNow = addDays(new Date(), 30).toISOString().split("T")[0];
       const today = new Date().toISOString().split("T")[0];
 
@@ -302,14 +313,14 @@ export default function TenantDashboard() {
     },
   };
 
-  // U20: Quick actions only render if user can access the target feature
-  const allQuickActions = [
+  // ✅ Aqui foi a correção: nada de "as const"
+  const allQuickActions: QuickAction[] = [
     {
       label: t("dashboard.approveMembers"),
       description: t("dashboard.pendingCount", { count: String(stats?.pendingMemberships || 0) }),
       href: `/${tenantSlug}/app/approvals`,
       icon: CheckCircle,
-      variant: (stats?.pendingMemberships ? "default" : "outline") as const,
+      variant: (stats?.pendingMemberships || 0) > 0 ? "default" : "outline",
       highlight: (stats?.pendingMemberships || 0) > 0,
       feature: "TENANT_APPROVALS",
     },
@@ -318,7 +329,7 @@ export default function TenantDashboard() {
       description: t("dashboard.expiringCount", { count: String(stats?.expiringMemberships || 0) }),
       href: `/${tenantSlug}/app/athletes`,
       icon: Calendar,
-      variant: (stats?.expiringMemberships ? "warning" : "outline") as const,
+      variant: (stats?.expiringMemberships || 0) > 0 ? "warning" : "outline",
       highlight: (stats?.expiringMemberships || 0) > 0,
       feature: "TENANT_ATHLETES",
     },
@@ -327,7 +338,7 @@ export default function TenantDashboard() {
       description: t("dashboard.newGrading"),
       href: `/${tenantSlug}/app/grading-schemes`,
       icon: Award,
-      variant: "outline" as const,
+      variant: "outline",
       highlight: false,
       feature: "TENANT_GRADINGS",
     },
@@ -336,7 +347,7 @@ export default function TenantDashboard() {
       description: t("dashboard.newAcademy"),
       href: `/${tenantSlug}/app/academies`,
       icon: Building2,
-      variant: "outline" as const,
+      variant: "outline",
       highlight: false,
       feature: "TENANT_ACADEMIES",
     },
@@ -345,7 +356,6 @@ export default function TenantDashboard() {
   const quickActions = allQuickActions.filter((a) => can(a.feature));
 
   const formatActivityTime = (dateStr: string) => {
-    // Use formatRelativeTime from centralized formatters
     return formatRelativeTime(dateStr, locale);
   };
 
@@ -368,7 +378,6 @@ export default function TenantDashboard() {
         <PostLoginInstitutionalBanner />
         <InstitutionalEnvironmentStatus />
 
-        {/* U02: Tenant Onboarding Checklist — only when not fully activated */}
         {!onboarding.isFullyActivated && !onboarding.isLoading && (
           <TenantOnboardingCard steps={onboarding.steps} completionPercent={onboarding.completionPercent} />
         )}
@@ -412,7 +421,7 @@ export default function TenantDashboard() {
               ))}
             </div>
 
-            {/* ✅ Revenue Metrics (governado por get_tenant_revenue_metrics_v1) */}
+            {/* Revenue Metrics */}
             {tenant?.id && (
               <div className="mt-2">
                 <TenantRevenueCards tenantId={tenant.id} />
@@ -492,7 +501,6 @@ export default function TenantDashboard() {
                         );
                       })}
 
-                      {/* U20: Audit log link only if user can access */}
                       {can("TENANT_AUDIT_LOG") && (
                         <Link
                           to={`/${tenantSlug}/app/audit-log`}
@@ -517,7 +525,7 @@ export default function TenantDashboard() {
                     {quickActions.map((action) => (
                       <Link key={action.href} to={action.href}>
                         <Button
-                          variant="outline"
+                          variant={action.variant === "warning" ? "outline" : action.variant}
                           className={`w-full h-auto flex-col items-start p-4 gap-2 ${
                             action.highlight ? "border-primary bg-primary/5 hover:bg-primary/10" : ""
                           }`}
