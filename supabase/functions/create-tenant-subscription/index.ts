@@ -202,7 +202,7 @@ serve(async (req) => {
       .from("tenants")
       .select("id, name, slug, stripe_customer_id")
       .eq("id", tenantId)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       throw new Error(`Tenant not found: ${tenantId}`);

@@ -450,10 +450,10 @@ serve(async (req) => {
         created_at: new Date().toISOString(),
       })
       .select()
-      .single();
+      .maybeSingle();
 
-    if (cardError) {
-      throw new Error(`Failed to create digital card: ${cardError.message}`);
+    if (cardError || !digitalCard) {
+      throw new Error(`Failed to create digital card: ${cardError?.message || 'No data returned'}`);
     }
 
     // PI-D3-DOCS1.0: Generate public verification token for the card (FAIL-CLOSED)
