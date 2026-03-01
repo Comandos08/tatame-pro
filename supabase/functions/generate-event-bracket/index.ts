@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
@@ -99,6 +100,21 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = category.tenant_id;
+
+    // A04 — Tenant Boundary Check (Zero-Trust)
+    try {
+      await assertTenantAccess(supabaseAdmin, user.id, tenantId, impersonationId);
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code });
+        return new Response(
+          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw boundaryError;
+    }
 
     // 4️⃣ P3.4 + P3.5: Check tenant ACTIVE + billing allows writes (with audit)
     const billingGate = await requireActiveTenantBillingWrite({

@@ -17,6 +17,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
@@ -83,6 +84,21 @@ serve(async (req) => {
     }
 
     const tenantId = athlete.tenant_id;
+
+    // A04 — Tenant Boundary Check (Zero-Trust)
+    try {
+      await assertTenantAccess(supabase, user.id, tenantId);
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code });
+        return new Response(
+          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw boundaryError;
+    }
 
     // 4. Role check
     const roleCheck = await requireTenantRole(supabase, authHeader, tenantId, ["ADMIN_TENANT"]);
