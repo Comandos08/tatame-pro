@@ -126,7 +126,8 @@ function TenantContent() {
   // =========================================================================
   // STEP 3.5: Route Classification (used by boundary + billing checks)
   // =========================================================================
-  const isProtectedRoute = location.pathname.includes('/app') || location.pathname.includes('/portal');
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const isProtectedRoute = pathSegments.includes('app') || pathSegments.includes('portal');
 
   // =========================================================================
   // STEP 3.6: Tenant Boundary Violation (A04)
