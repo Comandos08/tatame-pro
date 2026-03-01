@@ -41,10 +41,14 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     
     if (isTenantLoading || isContractLoading || !tenant) return;
 
-    // B2: Use tenant.status (already loaded) — contract validates billing separately
+    // P0-02: Check BOTH tenant.status === 'SETUP' AND onboarding_completed === false
+    // Tenants created via wizard arrive as ACTIVE with onboarding_completed: false
+    // The contract (TenantFlagsContract) is the source of truth for onboarding_completed
     const isSetupMode = tenant.status === 'SETUP';
+    const isOnboardingIncomplete = _contract?.onboarding_completed !== true;
     
-    if (!isSetupMode) return; // Tenant is ACTIVE or other, allow access
+    // Only enforce onboarding gate if tenant is in SETUP or onboarding is explicitly incomplete
+    if (!isSetupMode && !isOnboardingIncomplete) return;
 
     // Check if current route is allowed during onboarding
     const currentPath = location.pathname;
@@ -56,10 +60,13 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     );
 
     if (!isAllowed) {
-      logger.log('[ONBOARDING-GATE] Tenant in SETUP mode, redirecting to onboarding');
+      logger.log('[ONBOARDING-GATE] Tenant onboarding incomplete, redirecting to onboarding', {
+        status: tenant.status,
+        onboarding_completed: _contract?.onboarding_completed,
+      });
       navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
     }
-  }, [tenant, isTenantLoading, isContractLoading, location.pathname, navigate, isImpersonating, resolutionStatus]);
+  }, [tenant, isTenantLoading, isContractLoading, _contract, location.pathname, navigate, isImpersonating, resolutionStatus]);
 
   // Block rendering during impersonation resolution
   if (isImpersonating && resolutionStatus !== 'RESOLVED') {
@@ -91,7 +98,9 @@ export function useOnboardingStatus() {
   const { contract, isLoading: isContractLoading, refetch: refetchContract } = useTenantFlags();
   
   // B2: Use contract for onboarding_completed, tenant.status for SETUP check
-  const isComplete = contract?.onboarding_completed === true || tenant?.status === 'ACTIVE';
+  // P0-02: onboarding_completed from contract is the source of truth
+  // tenant.status === 'ACTIVE' alone does NOT mean onboarding is complete
+  const isComplete = contract?.onboarding_completed === true;
   const isSetupMode = tenant?.status === 'SETUP';
   const isLoading = isTenantLoading || isContractLoading;
 
