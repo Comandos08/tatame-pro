@@ -45,6 +45,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, Loader2, Home, ShieldAlert } from 'lucide-react';
 import { hexToHsl } from '@/lib/colorUtils';
 import { BlockedStateCard } from '@/components/ux/BlockedStateCard';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // =============================================================================
 // TENANT CONTENT COMPONENT
@@ -161,13 +162,17 @@ function TenantContent() {
   return (
     <TenantFlagsProvider tenantId={tenant?.id}>
       {isProtectedRoute ? (
-        <BillingGate>
-          <TenantOnboardingGate>
-            <Outlet />
-          </TenantOnboardingGate>
-        </BillingGate>
+        <ErrorBoundary>
+          <BillingGate>
+            <TenantOnboardingGate>
+              <Outlet />
+            </TenantOnboardingGate>
+          </BillingGate>
+        </ErrorBoundary>
       ) : (
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       )}
     </TenantFlagsProvider>
   );
