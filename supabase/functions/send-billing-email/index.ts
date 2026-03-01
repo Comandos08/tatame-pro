@@ -468,7 +468,7 @@ serve(async (req) => {
       .from("tenants")
       .select("id, name, billing_email")
       .eq("id", tenant_id)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       throw new Error(`Tenant not found: ${tenant_id}`);

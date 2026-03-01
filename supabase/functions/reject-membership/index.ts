@@ -370,7 +370,7 @@ serve(async (req) => {
       .from("tenants")
       .select("id, slug, name, default_locale")
       .eq("id", targetTenantId)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       log.warn("Could not fetch tenant", { error: tenantError?.message });

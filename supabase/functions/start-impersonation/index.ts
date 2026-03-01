@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
         created_by_profile_id: user.id,
       })
       .select('id, target_tenant_id, expires_at, status')
-      .single();
+      .maybeSingle();
 
     // ======================================================================
     // A02.T2: Anti-Concurrent Lock — handle unique violation (23505)

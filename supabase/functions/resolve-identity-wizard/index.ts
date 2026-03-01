@@ -1044,7 +1044,7 @@ async function handleCreateTenant(
     .from("tenants")
     .insert(sanitizedPayload)
     .select("id, slug, name, status")
-    .single();
+    .maybeSingle();
 
   if (tenantError || !newTenant) {
     log.error("Failed to create tenant", tenantError, {

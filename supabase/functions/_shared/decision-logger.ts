@@ -151,9 +151,9 @@ export async function logDecision(
         },
       })
       .select('id')
-      .single();
+      .maybeSingle();
 
-    if (error) {
+    if (error || !data) {
       log.error('Failed to insert decision log', error, { decision_type: decision.decision_type });
       return null;
     }

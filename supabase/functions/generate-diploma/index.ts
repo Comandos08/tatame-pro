@@ -166,7 +166,7 @@ serve(async (req) => {
       .from('athletes')
       .select('id, full_name, tenant_id, profile_id')
       .eq('id', athleteId)
-      .single();
+      .maybeSingle();
 
     if (athleteError || !athlete) {
       return new Response(
@@ -183,7 +183,7 @@ serve(async (req) => {
         grading_schemes:grading_scheme_id (id, name, sport_type)
       `)
       .eq('id', gradingLevelId)
-      .single();
+      .maybeSingle();
 
     if (levelError || !gradingLevel) {
       return new Response(
@@ -222,7 +222,7 @@ serve(async (req) => {
       .from('tenants')
       .select('id, name, slug, logo_url, primary_color')
       .eq('id', tenantId)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       return new Response(
@@ -445,7 +445,7 @@ serve(async (req) => {
         .from('academies')
         .select('name')
         .eq('id', academyId)
-        .single();
+        .maybeSingle();
       academyName = academy?.name;
     }
 
@@ -456,7 +456,7 @@ serve(async (req) => {
         .from('coaches')
         .select('full_name')
         .eq('id', coachId)
-        .single();
+        .maybeSingle();
       coachName = coach?.full_name;
     }
 
@@ -707,9 +707,9 @@ serve(async (req) => {
         is_official: true,
       })
       .select()
-      .single();
+      .maybeSingle();
 
-    if (diplomaError) {
+    if (diplomaError || !diploma) {
       log.error('Diploma insert error:', diplomaError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
@@ -732,7 +732,7 @@ serve(async (req) => {
         is_official: true,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (gradingError) {
       log.error('Grading insert error:', gradingError);
