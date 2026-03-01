@@ -10,6 +10,7 @@ import {
   assertValidBillingTransition,
   deriveTenantActive,
   assertBillingConsistency,
+  mapStripeStatusToBilling,
 } from "../_shared/billing-state-machine.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 
@@ -659,19 +660,8 @@ async function handleSubscriptionChange(
 
   log.setTenant(actualTenantId);
 
-  // Map Stripe status to our enum
-  const statusMap: Record<string, string> = {
-    active: "ACTIVE",
-    past_due: "PAST_DUE",
-    canceled: "CANCELED",
-    incomplete: "INCOMPLETE",
-    trialing: "TRIALING",
-    unpaid: "UNPAID",
-    incomplete_expired: "CANCELED",
-    paused: "PAST_DUE",
-  };
-
-  const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
+  // Map Stripe status to our enum (single source of truth: billing-state-machine.ts)
+  const billingStatus = mapStripeStatusToBilling(subscription.status);
 
   // Check previous status for email triggers and reactivation
   const { data: existingBilling } = await supabase

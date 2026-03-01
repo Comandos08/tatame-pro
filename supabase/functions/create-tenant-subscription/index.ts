@@ -10,6 +10,7 @@ import {
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { mapStripeStatusToBilling } from "../_shared/billing-state-machine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -361,19 +362,8 @@ serve(async (req) => {
       status: subscription.status 
     });
 
-    // Map Stripe status to our enum
-    const statusMap: Record<string, string> = {
-      active: "ACTIVE",
-      past_due: "PAST_DUE",
-      canceled: "CANCELED",
-      incomplete: "INCOMPLETE",
-      trialing: "TRIALING",
-      unpaid: "UNPAID",
-      incomplete_expired: "CANCELED",
-      paused: "PAST_DUE",
-    };
-
-    const billingStatus = statusMap[subscription.status] || "INCOMPLETE";
+    // Map Stripe status to our enum (single source of truth: billing-state-machine.ts)
+    const billingStatus = mapStripeStatusToBilling(subscription.status);
 
     // Upsert tenant_billing record with trial tracking
     const now = new Date();
