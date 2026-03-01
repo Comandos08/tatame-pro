@@ -89,7 +89,7 @@ const corsHeaders = {
  * - ACCEPT_INVITE: Aceitar convite (futuro)
  * - COMPLETE_WIZARD: Compatibilidade temporária
  */
-type Action = "CHECK" | "CREATE_TENANT" | "JOIN_EXISTING_TENANT" | "ACCEPT_INVITE" | "COMPLETE_WIZARD";
+type Action = "CHECK" | "CREATE_TENANT" | "JOIN_EXISTING_TENANT" | "ACCEPT_INVITE" | "COMPLETE_WIZARD" | "POST_AUTH_REDIRECT";
 
 interface CreateTenantPayload {
   orgName: string;
@@ -106,12 +106,18 @@ interface LegacyCompleteWizardPayload {
   profileType: "admin" | "athlete";
 }
 
+interface PostAuthRedirectPayload {
+  tenantSlug?: string | null;
+  nextPath?: string | null;
+}
+
 type RequestPayload =
   | { action: "CHECK" }
   | { action: "CREATE_TENANT"; payload: CreateTenantPayload }
   | { action: "JOIN_EXISTING_TENANT"; payload: JoinExistingTenantPayload }
   | { action: "ACCEPT_INVITE"; payload: { inviteToken: string } }
-  | { action: "COMPLETE_WIZARD"; payload: LegacyCompleteWizardPayload };
+  | { action: "COMPLETE_WIZARD"; payload: LegacyCompleteWizardPayload }
+  | { action: "POST_AUTH_REDIRECT"; payload: PostAuthRedirectPayload };
 
 /**
  * Estados de identidade retornados.
@@ -213,6 +219,16 @@ Deno.serve(async (req) => {
       case "COMPLETE_WIZARD":
         // ⚠️ COMPATIBILIDADE TEMPORÁRIA — roteia para action correta
         return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
+
+      case "POST_AUTH_REDIRECT":
+        return json(
+          await handlePostAuthRedirect(
+            supabaseAdmin,
+            user.id,
+            body.payload,
+            log,
+          ),
+        );
 
       default:
         return json({
@@ -456,6 +472,127 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
       name: tenant.name,
     },
     redirectPath: isAdmin ? `/${tenant.slug}/app` : `/${tenant.slug}/portal`,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * POST_AUTH_REDIRECT — RESOLVE REDIRECT PATH AFTER AUTHENTICATION
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * Centraliza a decisão de redirect pós-login para athletes/membros.
+ * Se tenantSlug não informado ou inválido → fallback para handleIdentityCheck.
+ * SEMPRE retorna HTTP 200.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+async function handlePostAuthRedirect(
+  supabase: SupabaseClient,
+  userId: string,
+  payload: PostAuthRedirectPayload,
+  log: BackendLogger,
+): Promise<IdentityResponse> {
+  log.setStep("post-auth-redirect");
+
+  const tenantSlug = (payload?.tenantSlug ?? "").trim().toLowerCase();
+
+  // Se não houver slug → fallback para fluxo padrão
+  if (!tenantSlug) {
+    return handleIdentityCheck(supabase, userId, log);
+  }
+
+  // Buscar tenant por slug (match EXATO)
+  const { data: tenantRows } = await supabase
+    .from("tenants")
+    .select("id, slug, name, status")
+    .eq("slug", tenantSlug)
+    .limit(1);
+
+  const tenant = tenantRows?.[0];
+
+  if (!tenant) {
+    return handleIdentityCheck(supabase, userId, log);
+  }
+
+  // Buscar athlete vinculado ao tenant
+  const { data: athletes } = await supabase
+    .from("athletes")
+    .select("id")
+    .eq("tenant_id", tenant.id)
+    .eq("profile_id", userId)
+    .limit(1);
+
+  const athleteId = athletes?.[0]?.id;
+  let membershipStatus: string | null = null;
+
+  if (athleteId) {
+    const { data: memberships } = await supabase
+      .from("memberships")
+      .select("status")
+      .eq("tenant_id", tenant.id)
+      .eq("athlete_id", athleteId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    membershipStatus = memberships?.[0]?.status?.toUpperCase() ?? null;
+  } else {
+    const { data: memberships } = await supabase
+      .from("memberships")
+      .select("status")
+      .eq("tenant_id", tenant.id)
+      .eq("applicant_profile_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    membershipStatus = memberships?.[0]?.status?.toUpperCase() ?? null;
+  }
+
+  let redirectPath: string;
+
+  switch (membershipStatus) {
+    case "APPROVED":
+    case "ACTIVE":
+      redirectPath = `/${tenant.slug}/portal`;
+      break;
+
+    case "PENDING_REVIEW":
+    case "PENDING_PAYMENT":
+    case "DRAFT":
+      redirectPath = `/${tenant.slug}/membership/status`;
+      break;
+
+    default:
+      redirectPath = `/${tenant.slug}/portal`;
+  }
+
+  // Sanitização defensiva do nextPath
+  const nextPathRaw = payload?.nextPath ?? null;
+
+  if (typeof nextPathRaw === "string") {
+    const nextPath = nextPathRaw.trim();
+
+    const isValid =
+      nextPath.startsWith(`/${tenant.slug}/`) &&
+      !nextPath.includes("..") &&
+      !nextPath.startsWith("//");
+
+    if (isValid) {
+      redirectPath = nextPath;
+    }
+  }
+
+  log.info("POST_AUTH_REDIRECT resolved", {
+    tenantSlug: tenant.slug,
+    membershipStatus,
+    redirectPath,
+  });
+
+  return {
+    status: "RESOLVED",
+    role: "ATLETA",
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+    },
+    redirectPath,
   };
 }
 
