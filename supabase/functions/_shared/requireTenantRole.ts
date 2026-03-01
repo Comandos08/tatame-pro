@@ -158,18 +158,38 @@ export async function requireGlobalSuperadmin(
   supabaseAdmin: SupabaseClient,
   authHeader: string | null
 ): Promise<{ allowed: boolean; userId: string | null; error?: string }> {
-  const result = await requireTenantRole(
-    supabaseAdmin,
-    authHeader,
-    '', // Not checking tenant-specific roles
-    ['SUPERADMIN_GLOBAL']
-  );
+  const log = createBackendLogger("requireGlobalSuperadmin", crypto.randomUUID());
+  const denyResult = { allowed: false, userId: null as string | null, error: 'Superadmin access required' };
 
-  return {
-    allowed: result.isGlobalSuperadmin,
-    userId: result.userId,
-    error: result.isGlobalSuperadmin ? undefined : 'Superadmin access required',
-  };
+  try {
+    if (!authHeader?.startsWith('Bearer ')) {
+      return { ...denyResult, error: 'Missing or invalid Authorization header' };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !user) {
+      return { ...denyResult, error: 'Invalid or expired token' };
+    }
+
+    const { data: globalRole } = await supabaseAdmin
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('role', 'SUPERADMIN_GLOBAL')
+      .is('tenant_id', null)
+      .maybeSingle();
+
+    if (!globalRole) {
+      return { ...denyResult, userId: user.id };
+    }
+
+    return { allowed: true, userId: user.id };
+  } catch (err) {
+    log.error('Unexpected error in requireGlobalSuperadmin', err);
+    return denyResult;
+  }
 }
 
 /**
