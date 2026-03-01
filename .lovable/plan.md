@@ -1,34 +1,49 @@
 
-## Remover estado morto `_errorMessage` do AutoImpersonationResolver
 
-### Contexto
-O estado `_errorMessage` e `setErrorMessage` sao escritos em 6 locais mas nunca lidos pela UI. O componente usa i18n keys via `BlockedStateCard` para exibir erros.
+## Add `mapStripeStatusToBilling` to Billing State Machine
 
-### Alteracoes em `src/components/impersonation/AutoImpersonationResolver.tsx`
+### What
+Append a new exported function `mapStripeStatusToBilling` to the end of `supabase/functions/_shared/billing-state-machine.ts`. This consolidates the duplicated Stripe-to-BillingStatus mapping that currently exists in both `create-tenant-subscription/index.ts` and `stripe-webhook/index.ts`.
 
-**1. Linha 56** — Remover declaracao do estado:
+### Changes
+
+**File: `supabase/functions/_shared/billing-state-machine.ts`**
+
+Append the following function after the existing `assertBillingConsistency` function, at the end of the file:
+
+```typescript
+/**
+ * Maps Stripe subscription status to canonical BillingStatus.
+ * Single source of truth — used by stripe-webhook and create-tenant-subscription.
+ *
+ * @param stripeStatus - Stripe subscription.status string
+ * @returns Canonical BillingStatus
+ */
+export function mapStripeStatusToBilling(stripeStatus: string): BillingStatus {
+  const statusMap: Record<string, BillingStatus> = {
+    active: "ACTIVE",
+    past_due: "PAST_DUE",
+    canceled: "CANCELED",
+    incomplete: "INCOMPLETE",
+    trialing: "TRIALING",
+    unpaid: "UNPAID",
+    incomplete_expired: "CANCELED",
+    paused: "PAST_DUE",
+  };
+  return statusMap[stripeStatus] || "INCOMPLETE";
+}
 ```
-const [_errorMessage, setErrorMessage] = useState<string | null>(null);
-```
 
-**2. Linha 72** — Remover `setErrorMessage('MISSING_TENANT_SLUG');`
+No other files are modified. All existing exports remain untouched.
 
-**3. Linha 89** — Remover `setErrorMessage('TENANT_LOOKUP_FAILED');`
+### Validation
 
-**4. Linha 96** — Remover `setErrorMessage('TENANT_NOT_FOUND');`
+After the change, the module exports:
+- `BillingStatus` (type)
+- `BILLING_STATUSES` (const)
+- `isKnownBillingStatus`
+- `assertValidBillingTransition`
+- `deriveTenantActive`
+- `assertBillingConsistency`
+- `mapStripeStatusToBilling` (new)
 
-**5. Linha 103** — Remover `setErrorMessage('TENANT_INACTIVE');`
-
-**6. Linha 116** — Remover `setErrorMessage('IMPERSONATION_START_FAILED');`
-
-**7. Linha 121** — Remover `setErrorMessage('UNEXPECTED_ERROR');`
-
-**8. Linha 193** — No handler de retry do ERROR case, remover `setErrorMessage(null);` (manter `setStatus('IDLE')`)
-
-### O que NAO muda
-- Estado `status` e sua maquina de estados
-- Guards (`inFlightRef`, check de `status !== 'IDLE'`)
-- Fluxo IDLE -> RESOLVING -> RESOLVED/ERROR
-- Navegacao e UI
-- Acoes do BlockedStateCard
-- Logger calls (continuam registrando os codigos de erro)
