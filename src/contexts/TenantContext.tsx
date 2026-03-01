@@ -89,12 +89,6 @@ export function TenantProvider({ children }: TenantProviderProps) {
     }
   }, [tenant, isAuthenticated, currentUser, isGlobalSuperadmin, currentRolesByTenant]);
 
-  // ============================================================================
-  // SLUG STABILITY — Prevent redundant fetch for identical slug + trigger
-  // ============================================================================
-  const previousSlugRef = useRef<string | undefined>(undefined);
-  const previousTriggerRef = useRef<number>(0);
-
   // =========================================================================
   // FETCH EFFECT — Stable dependencies only
   // Does NOT depend on currentUser (boundary check is separate)
@@ -120,18 +114,6 @@ export function TenantProvider({ children }: TenantProviderProps) {
         }
         return;
       }
-
-      // =====================================================================
-      // GUARD 1.5: Same slug + same trigger — prevent redundant fetch
-      // refetchTrigger bypass ensures refetchTenant() always works
-      // =====================================================================
-      if (previousSlugRef.current === tenantSlug && previousTriggerRef.current === refetchTrigger) {
-        logger.debug("[TENANT] Slug and trigger unchanged, skipping fetch");
-        return;
-      }
-
-      previousSlugRef.current = tenantSlug;
-      previousTriggerRef.current = refetchTrigger;
 
       // =====================================================================
       // GUARD 2: Reserved slug — fail-closed, no network request
