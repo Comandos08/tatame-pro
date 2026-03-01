@@ -44,6 +44,14 @@ interface IdentityResult {
   error?: IdentityError;
 }
 
+export interface IdentityActionResult {
+  success: boolean;
+  tenant?: TenantInfo;
+  role?: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL";
+  redirectPath?: string | null;
+  error?: IdentityError;
+}
+
 interface IdentityContextType {
   identityState: IdentityState;
   error: IdentityError | null;
@@ -54,9 +62,9 @@ interface IdentityContextType {
   role: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
   refreshIdentity: () => Promise<void>;
-  completeWizard: (payload: unknown) => Promise<any>;
-  createTenant: (payload: unknown) => Promise<any>;
-  joinExistingTenant: (payload: unknown) => Promise<any>;
+  completeWizard: (payload: unknown) => Promise<IdentityActionResult>;
+  createTenant: (payload: unknown) => Promise<IdentityActionResult>;
+  joinExistingTenant: (payload: unknown) => Promise<IdentityActionResult>;
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
 }
@@ -65,8 +73,11 @@ const IdentityContext = createContext<IdentityContextType | undefined>(undefined
 
 const IDENTITY_TIMEOUT_MS = 12_000;
 
-function unwrapInvoke<T>(data: any): T {
-  return data?.ok ? data.data : data;
+function unwrapInvoke<T>(data: Record<string, unknown> | null | undefined): T {
+  if (data && typeof data === 'object' && 'ok' in data && data.ok) {
+    return (data as Record<string, unknown>).data as T;
+  }
+  return data as T;
 }
 
 function hardAbortableFetch(timeoutMs: number) {
@@ -280,7 +291,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   // Shared invoke for actions
   // ============================
 
-  const invokeAction = async (action: string, payload?: unknown) => {
+  const invokeAction = async (action: string, payload?: unknown): Promise<IdentityActionResult> => {
     const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
       body: { action, payload },
     });
