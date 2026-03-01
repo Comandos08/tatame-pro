@@ -13,6 +13,37 @@
  * - PENDING_DELETE: Aguardando deleção, tenant bloqueado
  */
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * BILLING STATUS MAPPING — CROSS-SYSTEM REFERENCE
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Este módulo usa 8 status granulares derivados do Stripe/subscription state.
+ * Outros módulos consomem subconjuntos via TenantFlagsContract (RPC).
+ *
+ * ┌──────────────────────────┬────────────────────────────────────────┐
+ * │ resolveTenantBillingState│ TenantFlagsContract.billing.status    │
+ * │ (este módulo)            │ (RPC get_tenant_flags_contract)       │
+ * ├──────────────────────────┼────────────────────────────────────────┤
+ * │ ACTIVE                   │ ACTIVE                                │
+ * │ TRIALING                 │ TRIALING                              │
+ * │ PAST_DUE                 │ PAST_DUE                              │
+ * │ TRIAL_EXPIRED            │ BLOCKED                               │
+ * │ PENDING_DELETE           │ BLOCKED                               │
+ * │ CANCELED                 │ BLOCKED                               │
+ * │ UNPAID                   │ BLOCKED                               │
+ * │ INCOMPLETE               │ UNKNOWN                               │
+ * └──────────────────────────┴────────────────────────────────────────┘
+ *
+ * IMPORTANTE:
+ * - BillingGate e TenantLayout consomem SOMENTE TenantFlagsContract.
+ * - Este resolver é usado por useTenantStatus (banners, diagnóstico, UX).
+ * - Decisões de BLOQUEIO financeiro SEMPRE passam pelo TenantFlagsContract (RPC).
+ * - Divergências são intencionais e fazem parte do design multi-camada.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
 export type BillingStatus =
   | 'ACTIVE'
   | 'TRIALING'
