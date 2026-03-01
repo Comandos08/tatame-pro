@@ -6,8 +6,11 @@ import { reportErrorBoundary } from "@/lib/observability/error-report";
 
 interface Props {
   children: ReactNode;
+  /** Optional fallback component */
   fallback?: ReactNode;
+  /** Component name for error reporting */
   componentName?: string;
+  /** Callback when error is caught */
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
@@ -18,12 +21,15 @@ interface State {
 }
 
 /**
- * 🔐 ErrorBoundary — Domain-Safe Global Error Catcher
+ * 🔐 ErrorBoundary — Global Error Catcher
  *
- * - Catches render/runtime errors
- * - Reports to observability layer
- * - Preserves app session
- * - Adds contextual metadata (route + environment)
+ * Catches React render errors and displays a user-friendly fallback.
+ * Reports errors to the observability layer for debugging.
+ *
+ * @example
+ * <ErrorBoundary componentName="Dashboard">
+ *   <DashboardContent />
+ * </ErrorBoundary>
  */
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
@@ -37,18 +43,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Keep signature compatible with current reportErrorBoundary(componentName?: string)
     const route = window.location.pathname;
-    const userAgent = navigator.userAgent;
+    const env = import.meta.env.MODE;
 
-    const errorId = reportErrorBoundary(error, errorInfo, {
-      componentName: this.props.componentName ?? "UnknownComponent",
-      route,
-      userAgent,
-      environment: import.meta.env.MODE,
-    });
+    const baseName = this.props.componentName ?? "UnknownComponent";
 
+    // Encode minimal context into a string (no type changes required)
+    const contextName = `${baseName} | route=${route} | env=${env}`;
+
+    const errorId = reportErrorBoundary(error, errorInfo, contextName);
     this.setState({ errorId });
 
+    // Call optional callback
     this.props.onError?.(error, errorInfo);
   }
 
@@ -57,19 +64,17 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
+    // Use /portal as the decision hub
     window.location.href = "/portal";
   };
 
   private handleRetry = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      errorId: null,
-    });
+    this.setState({ hasError: false, error: null, errorId: null });
   };
 
   public render() {
     if (this.state.hasError) {
+      // Use custom fallback if provided
       if (this.props.fallback) {
         return this.props.fallback;
       }
@@ -85,11 +90,12 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
               <CardTitle className="text-2xl">Algo deu errado</CardTitle>
               <CardDescription className="text-base">
-                Ocorreu um erro inesperado. Tente novamente ou volte ao portal.
+                Ocorreu um erro inesperado. Tente recarregar a página ou voltar ao início.
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
+              {/* Error ID for support */}
               {this.state.errorId && (
                 <div className="bg-muted rounded-lg p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-1">Código do erro</p>
@@ -97,6 +103,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </div>
               )}
 
+              {/* Dev-only error details */}
               {isDev && this.state.error && (
                 <div className="bg-muted rounded-lg p-3 text-xs font-mono overflow-auto max-h-32">
                   <p className="text-destructive font-semibold mb-1">{this.state.error.name}</p>
@@ -130,7 +137,7 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 /**
- * HOC wrapper for hook-based components
+ * Hook-friendly error boundary wrapper.
  */
 export function withErrorBoundary<P extends object>(
   WrappedComponent: React.ComponentType<P>,
