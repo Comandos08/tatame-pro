@@ -290,8 +290,45 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     // STEP 5 — Outer catch: return 200 (never 500) to prevent Stripe infinite retries
+    // P0-04: Emit critical alert so this failure is NOT silent
     log.setStep("unhandled_exception");
     log.error("Unhandled webhook exception", error);
+
+    // Emit institutional event for observability (fire-and-forget, never fail the 200)
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const alertSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+      await alertSupabase.from("institutional_events").insert({
+        event_type: "BILLING_WEBHOOK_UNHANDLED_EXCEPTION",
+        severity: "CRITICAL",
+        source: "stripe-webhook",
+        metadata: {
+          error_message: error instanceof Error ? error.message : String(error),
+          error_type: error instanceof Error ? error.name : "Unknown",
+          timestamp: new Date().toISOString(),
+          correlation_id: "unknown",
+        },
+      });
+
+      // Trigger critical alert notification
+      await callEdgeFunctionWithRetry(
+        supabaseUrl,
+        supabaseServiceKey,
+        "notify-critical-alert",
+        {
+          alert_type: "BILLING_WEBHOOK_UNHANDLED_EXCEPTION",
+          severity: "CRITICAL",
+          message: `Unhandled exception in stripe-webhook: ${error instanceof Error ? error.message : String(error)}`,
+          source: "stripe-webhook",
+        },
+        log
+      );
+    } catch {
+      // INTENTIONAL: Alert failure must NEVER prevent the 200 response to Stripe
+    }
+
     return new Response(
       JSON.stringify({ received: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
