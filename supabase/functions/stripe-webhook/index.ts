@@ -393,7 +393,7 @@ async function handleCheckoutCompleted(
     .from("memberships")
     .select("tenant_id, athlete_id, applicant_profile_id")
     .eq("id", membershipId)
-    .single();
+    .maybeSingle();
 
   // Log payment success to audit (SEMPRE, independente de athlete_id)
   if (membershipDetails) {

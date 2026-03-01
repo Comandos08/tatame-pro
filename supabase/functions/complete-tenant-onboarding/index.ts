@@ -216,7 +216,7 @@ serve(async (req) => {
       .from("tenants")
       .select("id, status, lifecycle_status, onboarding_completed, sport_types, name")
       .eq("id", tenantId)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       log.info("Tenant not found", { error: tenantError?.message });

@@ -383,7 +383,7 @@ serve(async (req) => {
   `,
       )
       .eq("id", membershipId.trim())
-      .single();
+      .maybeSingle();
 
     if (membershipError) {
       if (Deno.env.get("GATE_TRACE") === "1") {
@@ -639,7 +639,7 @@ serve(async (req) => {
       .from("tenants")
       .select("id, slug, name, default_locale")
       .eq("id", targetTenantId)
-      .single();
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       log.warn("Tenant not found");
@@ -670,7 +670,7 @@ serve(async (req) => {
         .from("athletes")
         .select("id")
         .eq("id", membership.athlete_id)
-        .single();
+        .maybeSingle();
 
       if (fetchErr || !existingAthlete) {
         log.error("C7: Referenced athlete not found", fetchErr);
@@ -700,9 +700,9 @@ serve(async (req) => {
             phone: applicantData.guardian.phone,
           })
           .select()
-          .single();
+          .maybeSingle();
 
-        if (guardianError) {
+        if (guardianError || !guardian) {
           log.error("Failed to create guardian", guardianError);
           return errorResponse(
             500,
@@ -737,9 +737,9 @@ serve(async (req) => {
           current_main_coach_id: coachId || null,
         })
         .select()
-        .single();
+        .maybeSingle();
 
-      if (athleteError) {
+      if (athleteError || !athlete) {
         log.error("Failed to create athlete", athleteError);
         return errorResponse(
           500,
