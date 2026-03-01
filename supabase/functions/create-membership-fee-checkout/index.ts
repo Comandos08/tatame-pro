@@ -21,6 +21,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
+import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
@@ -178,6 +179,13 @@ serve(async (req) => {
 
     log.setUser(authResult.userId);
     log.setTenant(payload.tenant_id);
+
+    // P1-01 — Billing status check
+    const billingCheck = await requireBillingStatus(supabase, payload.tenant_id);
+    if (!billingCheck.allowed) {
+      log.warn("Billing status blocked operation", { status: billingCheck.status });
+      return billingRestrictedResponse(billingCheck.status);
+    }
 
     // ========================================================================
     // STEP 4: Fetch membership & validate tenant boundary
