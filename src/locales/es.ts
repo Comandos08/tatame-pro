@@ -1388,6 +1388,12 @@ export const es: Record<string, string> = {
   // P3.3 — Billing Errors
   'billing.error.checkoutFailed': 'Error al iniciar checkout. Intenta de nuevo.',
   'billing.error.portalFailed': 'Error al abrir portal de gestión.',
+
+  // Modelo A — Billing Setup
+  'billing.setup.description': 'Su organización está en fase de configuración. Cuando esté listo, active su suscripción para desbloquear todas las funcionalidades.',
+  'billing.setup.cta': 'Iniciar Suscripción',
+  'billing.setup.bannerTitle': 'Suscripción aún no iniciada',
+  'billing.setup.bannerDescription': 'Configure su suscripción cuando esté listo. Mientras tanto, continúe organizando su institución.',
   
   // SAFE GOLD P3 — Portal Card
   'portal.myCard': 'Mi Tarjeta',

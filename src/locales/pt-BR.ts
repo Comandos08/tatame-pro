@@ -2044,6 +2044,12 @@ export const ptBR = {
   'billing.error.checkoutFailed': 'Erro ao iniciar checkout. Tente novamente.',
   'billing.error.portalFailed': 'Erro ao abrir portal de gerenciamento.',
 
+  // Modelo A — Billing Setup
+  'billing.setup.description': 'Sua organização está em fase de configuração. Quando estiver pronto, ative sua assinatura para desbloquear todas as funcionalidades.',
+  'billing.setup.cta': 'Iniciar Assinatura',
+  'billing.setup.bannerTitle': 'Assinatura ainda não iniciada',
+  'billing.setup.bannerDescription': 'Configure sua assinatura quando estiver pronto. Enquanto isso, continue organizando sua instituição.',
+
   // Admin Athletes (P4/4)
   'admin.athletes.title': 'Atletas',
   'admin.athletes.description': 'Gerencie os atletas cadastrados na organização',
