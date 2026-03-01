@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import TenantDashboard from "@/pages/TenantDashboard";
 import AthleteArea from "@/pages/AthleteArea";
@@ -30,7 +31,8 @@ import { RequireRoles } from "@/components/auth/RequireRoles";
 
 export default function AppRouter() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       {/* DASHBOARD */}
       <Route
         index
@@ -288,8 +290,9 @@ export default function AppRouter() {
         }
       />
 
-      {/* FALLBACK */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* FALLBACK */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }
