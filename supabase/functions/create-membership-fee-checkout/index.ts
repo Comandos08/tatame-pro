@@ -20,6 +20,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
@@ -121,9 +122,44 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // STEP 3: Auth — requireTenantRole with tenant_id from payload
+    // STEP 3: Auth — explicit user resolution + tenant boundary + role check
     // ========================================================================
     const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.missing_header", false, ["Missing authorization header"], correlationId),
+        corsHeaders,
+      );
+    }
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
+    if (userErr || !user) {
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.invalid_token", false, ["Invalid authentication"], correlationId),
+        corsHeaders,
+      );
+    }
+
+    // A04 — Tenant Boundary Check (Zero-Trust)
+    try {
+      await assertTenantAccess(supabase, user.id, payload.tenant_id);
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code });
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary_violation", false, [boundaryError.code], correlationId),
+          corsHeaders,
+        );
+      }
+      throw boundaryError;
+    }
+
     const authResult = await requireTenantRole(
       supabase,
       authHeader,

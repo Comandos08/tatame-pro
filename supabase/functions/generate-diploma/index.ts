@@ -46,6 +46,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { requireTenantRole } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
@@ -97,6 +98,24 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // AUTH VALIDATION (Zero-Trust prerequisite)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing authorization' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+    if (userErr || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // PI-D5.B: Parse and validate input
     let body: GenerateDiplomaRequest;
@@ -182,6 +201,21 @@ serve(async (req) => {
     }
 
     const tenantId = athlete.tenant_id;
+
+    // A04 — Tenant Boundary Check (Zero-Trust)
+    try {
+      await assertTenantAccess(supabase, user.id, tenantId);
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code });
+        return new Response(
+          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw boundaryError;
+    }
 
     // Fetch tenant data
     const { data: tenant, error: tenantError } = await supabase
