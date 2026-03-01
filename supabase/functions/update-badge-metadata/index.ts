@@ -8,6 +8,7 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
+import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requireBillingStatus.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
@@ -84,6 +85,13 @@ serve(async (req) => {
     // 4. Role check
     const roleCheck = await requireTenantRole(supabase, authHeader, tenantId, ["ADMIN_TENANT"]);
     if (!roleCheck.allowed) return forbiddenResponse(roleCheck.error || "Forbidden");
+
+    // P1-01 — Billing status check
+    const billingCheck = await requireBillingStatus(supabase, tenantId);
+    if (!billingCheck.allowed) {
+      log.warn("Billing status blocked operation", { status: billingCheck.status });
+      return billingRestrictedResponse(billingCheck.status);
+    }
 
     // 5. Update
     const { error: updateError } = await supabase

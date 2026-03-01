@@ -18,6 +18,7 @@ import {
   unauthorizedResponse,
 } from "../_shared/requireTenantRole.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
+import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requireBillingStatus.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
@@ -105,6 +106,13 @@ serve(async (req) => {
     if (!roleCheck.allowed) {
       log.warn("Permission denied", { error: roleCheck.error });
       return forbiddenResponse(roleCheck.error || "Forbidden");
+    }
+
+    // P1-01 — Billing status check
+    const billingCheck = await requireBillingStatus(supabase, tenantId);
+    if (!billingCheck.allowed) {
+      log.warn("Billing status blocked operation", { status: billingCheck.status });
+      return billingRestrictedResponse(billingCheck.status);
     }
 
     // 5. Validate badge belongs to same tenant
