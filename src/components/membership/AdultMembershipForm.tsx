@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Upload, Loader2, Check, CreditCard, Clock } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -78,20 +78,24 @@ export function AdultMembershipForm() {
     });
   }, [tenantSlug]);
 
-  const stepOneSchema = z.object({
-    fullName: z.string().min(3, t('membership.validation.nameMin')),
-    birthDate: z.string().min(1, t('membership.validation.birthDateRequired')),
-    nationalId: z.string().min(1, t('membership.validation.documentRequired')),
-    gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
-    email: z.string().email(t('membership.validation.emailInvalid')),
-    phone: z.string().min(10, t('membership.validation.phoneInvalid')),
-    addressLine1: z.string().min(5, t('membership.validation.addressRequired')),
-    addressLine2: z.string().optional(),
-    city: z.string().min(2, t('membership.validation.cityRequired')),
-    state: z.string().min(2, t('membership.validation.stateRequired')),
-    postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
-    country: z.string().default('BR'),
-  });
+  const stepOneSchema = useMemo(
+    () =>
+      z.object({
+        fullName: z.string().min(3, t('membership.validation.nameMin')),
+        birthDate: z.string().min(1, t('membership.validation.birthDateRequired')),
+        nationalId: z.string().min(1, t('membership.validation.documentRequired')),
+        gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+        email: z.string().email(t('membership.validation.emailInvalid')),
+        phone: z.string().min(10, t('membership.validation.phoneInvalid')),
+        addressLine1: z.string().min(5, t('membership.validation.addressRequired')),
+        addressLine2: z.string().optional(),
+        city: z.string().min(2, t('membership.validation.cityRequired')),
+        state: z.string().min(2, t('membership.validation.stateRequired')),
+        postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
+        country: z.string().default('BR'),
+      }),
+    [locale]
+  );
 
   const STEPS = [
     { id: 1, title: t('membership.stepPersonalData') },
