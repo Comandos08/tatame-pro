@@ -1,11 +1,10 @@
 /**
- * P3 — ATHLETE AUTHCALLBACK HARDENING (FINAL)
- * AuthCallback com redirect blindado baseado em membership status
+ * AuthCallback — Delegação completa ao backend
  * 
  * REGRAS IMUTÁVEIS:
  * - next NUNCA usado diretamente em navigate()
- * - TODO redirect passa pela função pura
- * - catch SEMPRE redireciona para /login
+ * - Backend (POST_AUTH_REDIRECT) é autoridade da decisão
+ * - catch SEMPRE redireciona para /
  * - Atleta NUNCA acessa /app
  * - Redirect NUNCA sai do tenant
  */
@@ -13,13 +12,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
-import { resolveAthletePostLoginRedirect, MembershipStatus } from '@/lib/resolveAthletePostLoginRedirect';
 import { detectMembershipResume } from '@/lib/membership/membershipSessionPersistence';
 import { Loader2 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
 /**
- * P3 — Sanitizador de tenant slug
+ * Sanitizador de tenant slug
  * LOCAL: Não exportar
  */
 function extractTenantSlug(path: string | null): string | null {
@@ -39,38 +37,6 @@ function extractTenantSlug(path: string | null): string | null {
   return slug;
 }
 
-/**
- * P3 — Validador de redirect pós-auth
- * LOCAL: Não exportar
- * 
- * REGRAS IMUTÁVEIS:
- * 1. No tenantSlug → '/'
- * 2. next válido (starts /${tenantSlug}, no /app) → next
- * 3. next inválido → /${tenantSlug}/portal
- */
-function resolveAthletePostAuthRedirect(
-  tenantSlug: string | null,
-  next: string | null
-): string {
-  if (!tenantSlug) {
-    return '/';
-  }
-
-  const tenantBase = `/${tenantSlug}`;
-  const defaultDestination = `${tenantBase}/portal`;
-
-  if (next) {
-    const startsWithTenant = next.startsWith(tenantBase);
-    const containsApp = next.includes('/app');
-
-    if (startsWithTenant && !containsApp) {
-      return next;
-    }
-  }
-
-  return defaultDestination;
-}
-
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -81,7 +47,6 @@ export default function AuthCallback() {
   const hasProcessedRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  // P3: Não usar default - validação será feita pela função pura
   const nextRaw = searchParams.get('next');
 
   useEffect(() => {
@@ -95,157 +60,108 @@ export default function AuthCallback() {
   }, []);
 
   useEffect(() => {
-    // 🔐 AbortController for cancellable async operations
     const abortController = new AbortController();
-    
+
     const handleRedirect = async () => {
-      // 🔐 Guard: prevent double execution
       if (hasProcessedRef.current) return;
-      if (isLoading || !isAuthenticated || !currentUser?.id || redirecting) {
-        return;
-      }
+      if (isLoading || !isAuthenticated || !currentUser?.id || redirecting) return;
 
       hasProcessedRef.current = true;
-      if (isMountedRef.current) {
-        setRedirecting(true);
-      }
+      if (isMountedRef.current) setRedirecting(true);
 
+      // FX-01A: Check membership resume
       const tenantSlug = extractTenantSlug(nextRaw);
 
-      // FX-01A: If membership resume data exists and no tenantSlug from next param,
-      // redirect to the membership form deterministically
       if (!tenantSlug) {
         const resumeInfo = detectMembershipResume();
         if (resumeInfo) {
-          logger.info('[FX-01A] AuthCallback: membership resume detected, redirecting', {
+          logger.info('[AuthCallback] Membership resume detected', {
             type: resumeInfo.type,
-            tenantSlug: resumeInfo.tenantSlug,
+            tenantSlug: resumeInfo.tenantSlug
           });
-          const membershipPath = `/${resumeInfo.tenantSlug}/membership/${resumeInfo.type}`;
-          navigate(membershipPath, { replace: true });
+
+          navigate(`/${resumeInfo.tenantSlug}/membership/${resumeInfo.type}`, {
+            replace: true
+          });
           return;
         }
-      }
-
-      // Se não há tenant slug, usar função pura para decidir
-      if (!tenantSlug) {
-        const destination = resolveAthletePostAuthRedirect(null, nextRaw);
-        navigate(destination, { replace: true });
-        return;
       }
 
       try {
-        // 🔐 Check abort before each async operation
         if (abortController.signal.aborted) return;
-        
-        // Buscar o tenant para obter o ID
-        const tenantResult = await supabase.from('tenants')
-          .select('id')
-          .eq('slug', tenantSlug)
-          .maybeSingle();
+
+        const { data, error } = await supabase.functions.invoke(
+          'resolve-identity-wizard',
+          {
+            body: {
+              action: 'POST_AUTH_REDIRECT',
+              payload: {
+                tenantSlug: tenantSlug || null,
+                nextPath: nextRaw || null,
+              },
+            },
+          }
+        );
 
         if (abortController.signal.aborted || !isMountedRef.current) return;
 
-        const tenantData = tenantResult?.data as { id: string } | null;
-
-        if (!tenantData?.id) {
-          // Tenant não encontrado - usar função pura
-          const destination = resolveAthletePostAuthRedirect(null, nextRaw);
-          navigate(destination, { replace: true });
+        if (error) {
+          logger.error('[AuthCallback] POST_AUTH_REDIRECT error:', error);
+          navigate('/', { replace: true });
           return;
         }
 
-        if (abortController.signal.aborted) return;
+        const result = data?.data ?? data;
+        let destination = result?.redirectPath || '/';
 
-        // Buscar athlete vinculado ao usuário neste tenant
-        const athleteResult = await supabase.from('athletes')
-          .select('id')
-          .eq('tenant_id', tenantData.id)
-          .eq('user_id', currentUser.id)
-          .maybeSingle();
-
-        if (abortController.signal.aborted || !isMountedRef.current) return;
-
-        const athleteData = athleteResult?.data as { id: string } | null;
-
-        let membershipStatus: MembershipStatus = null;
-
-        if (athleteData?.id) {
-          if (abortController.signal.aborted) return;
-          
-          // Buscar membership mais recente do atleta
-          const membershipResult = await supabase.from('memberships')
-            .select('status')
-            .eq('tenant_id', tenantData.id)
-            .eq('athlete_id', athleteData.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (abortController.signal.aborted || !isMountedRef.current) return;
-
-          const membershipData = membershipResult?.data as { status: string } | null;
-          membershipStatus = (membershipData?.status?.toUpperCase() as MembershipStatus) || null;
-        } else {
-          if (abortController.signal.aborted) return;
-          
-          // Buscar por applicant_profile_id (caso seja aplicante ainda não aprovado)
-          const membershipResult = await supabase.from('memberships')
-            .select('status')
-            .eq('tenant_id', tenantData.id)
-            .eq('applicant_profile_id', currentUser.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (abortController.signal.aborted || !isMountedRef.current) return;
-
-          const membershipData = membershipResult?.data as { status: string } | null;
-          membershipStatus = (membershipData?.status?.toUpperCase() as MembershipStatus) || null;
+        // 🔐 Validação defensiva de path
+        if (
+          typeof destination !== 'string' ||
+          !destination.startsWith('/') ||
+          destination.startsWith('//') ||
+          destination.includes('..')
+        ) {
+          logger.warn('[AuthCallback] Invalid redirectPath received', { destination });
+          navigate('/', { replace: true });
+          return;
         }
 
-        // Resolver o redirect baseado no status
-        const redirectPath = resolveAthletePostLoginRedirect({
-          tenantSlug,
-          membershipStatus,
-        });
-
-        // Se o next era uma rota de formulário de membership, honrar apenas se não tiver membership
-        const isMembershipFormRoute = nextRaw?.includes('/membership/new') || 
-                                       nextRaw?.includes('/membership/adult') || 
-                                       nextRaw?.includes('/membership/youth');
-        
-        // P3: Decidir targetPath SEM non-null assertion
-        let targetPath: string;
-        if (isMembershipFormRoute && !membershipStatus && nextRaw) {
-          targetPath = nextRaw;
-        } else {
-          targetPath = redirectPath;
+        // 🔐 Se tenantSlug presente, impedir sair do tenant
+        if (tenantSlug && !destination.startsWith(`/${tenantSlug}`)) {
+          navigate(`/${tenantSlug}/portal`, { replace: true });
+          return;
         }
 
-        if (abortController.signal.aborted || !isMountedRef.current) return;
+        // 🔐 Atleta nunca acessa /app
+        if (destination.includes('/app') && result?.role === 'ATLETA') {
+          const safeDest = destination.replace('/app', '/portal');
+          navigate(safeDest, { replace: true });
+          return;
+        }
 
-        // P3: SEMPRE validar antes de navegar
-        const destination = resolveAthletePostAuthRedirect(tenantSlug, targetPath);
         navigate(destination, { replace: true });
+        return;
 
-      } catch (error) {
+      } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
-        
-        logger.error('AuthCallback redirect error:', error);
-        // 🔐 HARDENED: Catch goes to /portal (decision hub)
-        // /portal will decide correct destination or redirect to /login if needed
-        navigate('/portal', { replace: true });
+
+        logger.error('[AuthCallback] Redirect error:', err);
+        navigate('/', { replace: true });
       }
     };
 
     handleRedirect();
-    
-    // 🔐 Cleanup
+
     return () => {
       abortController.abort();
     };
-  }, [isLoading, isAuthenticated, currentUser, nextRaw, navigate, redirecting]);
+  }, [
+    isLoading,
+    isAuthenticated,
+    currentUser,
+    nextRaw,
+    navigate
+  ]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
