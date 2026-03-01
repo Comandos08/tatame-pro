@@ -36,16 +36,19 @@ export interface TenantInfo {
   name: string;
 }
 
-interface IdentityResult {
-  status?: "RESOLVED" | "WIZARD_REQUIRED" | "ERROR";
+/**
+ * P1-04 — Explicit action result contract (removes Promise<any>)
+ */
+export interface IdentityActionResult {
+  success: boolean;
   tenant?: TenantInfo;
   role?: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL";
-  redirectPath?: string | null;
+  redirectPath?: string;
   error?: IdentityError;
 }
 
-export interface IdentityActionResult {
-  success: boolean;
+interface IdentityResult {
+  status?: "RESOLVED" | "WIZARD_REQUIRED" | "ERROR";
   tenant?: TenantInfo;
   role?: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL";
   redirectPath?: string | null;
@@ -61,10 +64,13 @@ interface IdentityContextType {
   tenant: TenantInfo | null;
   role: "ADMIN_TENANT" | "ATLETA" | "SUPERADMIN_GLOBAL" | null;
   redirectPath: string | null;
+
   refreshIdentity: () => Promise<void>;
+
   completeWizard: (payload: unknown) => Promise<IdentityActionResult>;
   createTenant: (payload: unknown) => Promise<IdentityActionResult>;
   joinExistingTenant: (payload: unknown) => Promise<IdentityActionResult>;
+
   setIdentityError: (error: IdentityError) => void;
   clearError: () => void;
 }
@@ -73,8 +79,11 @@ const IdentityContext = createContext<IdentityContextType | undefined>(undefined
 
 const IDENTITY_TIMEOUT_MS = 12_000;
 
+/**
+ * P1-04 — Remove any from unwrapInvoke
+ */
 function unwrapInvoke<T>(data: Record<string, unknown> | null | undefined): T {
-  if (data && typeof data === 'object' && 'ok' in data && data.ok) {
+  if (data && typeof data === "object" && "ok" in data && (data as any).ok) {
     return (data as Record<string, unknown>).data as T;
   }
   return data as T;
@@ -91,9 +100,6 @@ function hardAbortableFetch(timeoutMs: number) {
   };
 }
 
-// --- Institutional emit (type-safe bypass) ---
-// The institutional event bus has a closed union for "type" and strict metadata typing.
-// We keep runtime events but bypass TS constraints here to avoid build breaks.
 function emitInstitutional(payload: {
   domain: string;
   type: string;
@@ -155,7 +161,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
       setError(null);
 
-      // Keep existing RESOLVED event (type likely exists), but still pass via wrapper for safety
       emitInstitutional({
         domain: "IDENTITY",
         type: "IDENTITY_RESOLVED",
@@ -194,10 +199,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // ============================
-  // CHECK IDENTITY (COM TIMEOUT)
-  // ============================
-
   const checkIdentity = useCallback(async () => {
     if (!session?.user?.id || !isAuthenticated) {
       reset();
@@ -218,9 +219,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     inFlightAbortRef.current = abort;
 
     try {
-      const invokePromise = supabase.functions.invoke("resolve-identity-wizard", {
-        body: { action: "CHECK" },
-      });
+      const invokePromise = supabase.functions.invoke("resolve-identity-wizard", { body: { action: "CHECK" } });
 
       const abortPromise = new Promise((_, reject) => {
         signal.addEventListener("abort", () => {
@@ -232,7 +231,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // Ignore stale responses
       if (currentRequestId !== requestIdRef.current) return;
 
       const unwrapped = unwrapInvoke<IdentityResult>(data);
@@ -244,12 +242,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
           code: "IDENTITY_TIMEOUT",
           message: "Timeout identity.",
         });
-
-        emitInstitutional({
-          domain: "IDENTITY",
-          type: "IDENTITY_TIMEOUT",
-        });
-
         return;
       }
 
@@ -259,12 +251,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       setError({
         code: "UNKNOWN",
         message: "Falha ao conectar ao serviço.",
-      });
-
-      emitInstitutional({
-        domain: "IDENTITY",
-        type: "IDENTITY_ERROR",
-        metadata: { message: String(err?.message ?? "unknown") },
       });
     } finally {
       clear();
@@ -287,10 +273,9 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     await checkIdentity();
   };
 
-  // ============================
-  // Shared invoke for actions
-  // ============================
-
+  /**
+   * P1-04 — Explicit return type
+   */
   const invokeAction = async (action: string, payload?: unknown): Promise<IdentityActionResult> => {
     const { data, error } = await supabase.functions.invoke("resolve-identity-wizard", {
       body: { action, payload },
@@ -299,7 +284,10 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     if (error) {
       return {
         success: false,
-        error: { code: "UNKNOWN", message: error.message },
+        error: {
+          code: "UNKNOWN",
+          message: error.message,
+        },
       };
     }
 
@@ -311,11 +299,14 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         success: true,
         tenant: unwrapped.tenant,
         role: unwrapped.role,
-        redirectPath: unwrapped.redirectPath,
+        redirectPath: unwrapped.redirectPath ?? undefined,
       };
     }
 
-    return { success: false, error: unwrapped?.error };
+    return {
+      success: false,
+      error: unwrapped?.error,
+    };
   };
 
   return (
