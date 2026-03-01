@@ -1058,11 +1058,17 @@ async function handleCreateTenant(
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 4.5: Ensure profile exists before role assignment (FK safety)
    * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileForFK } = await supabase
+  const { data: profileRows } = await supabase
     .from("profiles")
     .select("id")
     .eq("id", userId)
-    .maybeSingle();
+    .limit(1);
+
+  if (profileRows && profileRows.length > 1) {
+    log.warn("Multiple profile rows returned for single userId", { userId, count: profileRows.length });
+  }
+
+  const profileForFK = profileRows?.[0] ?? null;
 
   if (!profileForFK) {
     log.info("Profile not found, creating before role assignment", { userId });
