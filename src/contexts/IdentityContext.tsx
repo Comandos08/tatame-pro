@@ -126,6 +126,8 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   const isMountedRef = useRef(true);
   const inFlightAbortRef = useRef<null | (() => void)>(null);
   const requestIdRef = useRef(0);
+  const lastRefreshRef = useRef<number>(0);
+  const REFRESH_DEBOUNCE_MS = 3_000;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -270,6 +272,13 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   }, [authLoading, isAuthenticated, session?.user?.id, checkIdentity, reset]);
 
   const refreshIdentity = async () => {
+    const now = Date.now();
+
+    if (now - lastRefreshRef.current < REFRESH_DEBOUNCE_MS) {
+      return; // Debounce: ignore rapid retries
+    }
+
+    lastRefreshRef.current = now;
     await checkIdentity();
   };
 
