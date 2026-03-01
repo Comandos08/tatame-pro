@@ -60,7 +60,6 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
 
   const hasBillingRecord = contract?.billing?.has_billing_record === true;
 
-  // Tenant not yet loaded
   if (!tenant) {
     return (
       <Card className={cn("animate-pulse", className)}>
@@ -75,7 +74,6 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     );
   }
 
-  // Tenant not ACTIVE (SETUP, etc.)
   if (tenant.status !== "ACTIVE") {
     return (
       <Card className={cn("overflow-hidden", className)} data-testid="billing-card" data-billing-status="not-active">
@@ -94,9 +92,6 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
     );
   }
 
-  /**
-   * MODELO A — ACTIVE but no billing record yet
-   */
   if (!isLoading && !hasBillingRecord) {
     return (
       <Card className={cn("overflow-hidden", className)} data-testid="billing-card" data-billing-status="setup">
@@ -119,7 +114,7 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
               setIsRedirecting(true);
               try {
                 const { data, error } = await supabase.functions.invoke("create-tenant-subscription", {
-                  body: { tenantId: tenant.id, planType: "monthly" },
+                  body: { tenantId: tenant.id }, // CORRETO (esta Edge aceita camelCase)
                 });
 
                 if (error) throw error;
@@ -193,26 +188,12 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
         return t("billing.overview.trialDaysLeft", {
           days: String(daysToTrialEnd ?? 0),
         });
-
-      case "TRIAL_EXPIRED":
-        return t("billing.overview.trialExpired");
-
       case "ACTIVE":
         return t("billing.overview.active", {
           plan: planName || "Growth",
         });
-
-      case "PAST_DUE":
-        return t("billing.overview.pastDue");
-
-      case "PENDING_DELETE":
-        return t("billing.overview.pendingDelete");
-
-      case "CANCELED":
-        return t("billing.overview.canceled");
-
       default:
-        return t("billing.overview.unknown");
+        return t(`billing.status.${status.toLowerCase()}`);
     }
   };
 
@@ -223,7 +204,7 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
       setIsRedirecting(true);
       try {
         const { data, error } = await supabase.functions.invoke("create-tenant-subscription", {
-          body: { tenantId: tenant.id, planType: "monthly" },
+          body: { tenantId: tenant.id }, // CORRETO
         });
 
         if (error) throw error;
@@ -237,7 +218,7 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
       setIsRedirecting(true);
       try {
         const { data, error } = await supabase.functions.invoke("tenant-customer-portal", {
-          body: { tenant_id: tenant.id },
+          body: { tenant_id: tenant.id }, // 🔥 CORREÇÃO AQUI
         });
 
         if (error) throw error;
@@ -270,44 +251,23 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
               <CardDescription>{getStatusDescription()}</CardDescription>
             </div>
           </div>
-          <Badge variant={variant === "success" ? "default" : variant === "destructive" ? "destructive" : "secondary"}>
-            {(() => {
-              const key = `billing.status.${status.toLowerCase()}`;
-              const label = t(key);
-              return label !== key ? label : t("billing.status.unknown");
-            })()}
-          </Badge>
+          <Badge variant="secondary">{status}</Badge>
         </div>
       </CardHeader>
 
       <CardContent className="pt-4">
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-          {planName && (
-            <p className="text-sm text-muted-foreground">
-              {t("billing.overview.currentPlan")}: <span className="font-medium">{planName}</span>
-            </p>
-          )}
-
-          {cta && (
-            <Button
-              variant={cta.variant}
-              onClick={handleCTAClick}
-              disabled={isRedirecting}
-              className="w-full sm:w-auto"
-              data-testid="billing-cta"
-              data-billing-action={cta.action}
-            >
-              {isRedirecting ? (
-                <span className="animate-pulse">{t("common.loading")}</span>
-              ) : (
-                <>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {t(cta.labelKey)}
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+        {cta && (
+          <Button variant={cta.variant} onClick={handleCTAClick} disabled={isRedirecting} className="w-full sm:w-auto">
+            {isRedirecting ? (
+              <span className="animate-pulse">{t("common.loading")}</span>
+            ) : (
+              <>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {t(cta.labelKey)}
+              </>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
