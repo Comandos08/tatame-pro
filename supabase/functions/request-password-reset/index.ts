@@ -14,6 +14,7 @@ import { getEmailClient, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -203,7 +204,17 @@ serve(async (req) => {
 
     const resend = getEmailClient();
 
-    const { email } = await req.json();
+    const body = await req.json();
+    const { email } = body;
+
+    // CAPTCHA validation (Cloudflare Turnstile)
+    const captchaToken = body.captchaToken;
+    if (captchaToken) {
+      const captchaResult = await validateCaptcha(captchaToken, clientIP);
+      if (!captchaResult.success) {
+        return captchaErrorResponse(captchaResult, corsHeaders);
+      }
+    }
 
     if (!email || typeof email !== "string") {
       throw new Error("Email is required");
