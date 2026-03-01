@@ -31,8 +31,8 @@ async function checkRateLimit(
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
   if (!redisUrl || !redisToken) {
-    log.info("Rate limiting not configured, allowing request");
-    return { success: true, remaining: limit, reset: Date.now() + windowSeconds * 1000, count: 0 };
+    log.info("Rate limiting not configured - BLOCKING request (fail-closed)");
+    return { success: false, remaining: 0, reset: Date.now() + windowSeconds * 1000, count: -1 };
   }
 
   const key = `ratelimit:${prefix}:${identifier}`;
@@ -57,8 +57,8 @@ async function checkRateLimit(
     });
 
     if (!response.ok) {
-      log.info("Redis error, allowing request");
-      return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+      log.info("Redis error - BLOCKING request (fail-closed)");
+      return { success: false, remaining: 0, reset: now + windowSeconds * 1000, count: -1 };
     }
 
     const results = await response.json();
@@ -69,8 +69,8 @@ async function checkRateLimit(
     log.info(`Rate limit check: ${prefix}:${identifier}`, { count, limit, success });
     return { success, remaining, reset: now + windowSeconds * 1000, count };
   } catch (error) {
-    log.info("Rate limit error, allowing request", { error: String(error) });
-    return { success: true, remaining: limit, reset: now + windowSeconds * 1000, count: 0 };
+    log.info("Rate limit error - BLOCKING request (fail-closed)", { error: String(error) });
+    return { success: false, remaining: 0, reset: now + windowSeconds * 1000, count: -1 };
   }
 }
 
