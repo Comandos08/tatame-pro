@@ -103,3 +103,24 @@ export function assertBillingConsistency(
     );
   }
 }
+
+/**
+ * Maps Stripe subscription status to canonical BillingStatus.
+ * Single source of truth — used by stripe-webhook and create-tenant-subscription.
+ *
+ * @param stripeStatus - Stripe subscription.status string
+ * @returns Canonical BillingStatus
+ */
+export function mapStripeStatusToBilling(stripeStatus: string): BillingStatus {
+  const statusMap: Record<string, BillingStatus> = {
+    active: "ACTIVE",
+    past_due: "PAST_DUE",
+    canceled: "CANCELED",
+    incomplete: "INCOMPLETE",
+    trialing: "TRIALING",
+    unpaid: "UNPAID",
+    incomplete_expired: "CANCELED",
+    paused: "PAST_DUE",
+  };
+  return statusMap[stripeStatus] || "INCOMPLETE";
+}
