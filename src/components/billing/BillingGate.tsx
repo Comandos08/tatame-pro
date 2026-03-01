@@ -3,18 +3,16 @@
  *
  * PI B2 — Consumes TenantFlagsContract as canonical source
  *
- * LOGIC (Modelo A — Onboarding Progressivo):
+ * MODELO A (ATUAL):
  * - tenant.status !== 'ACTIVE' → Ignore billing (show children)
- * - contract.billing.status in ['TRIALING', 'ACTIVE'] → Allow
- * - contract.billing.status === 'UNKNOWN' → Allow (billing not yet configured)
- * - contract.billing.status === 'PAST_DUE' → Partial block (warning or strict block)
- * - contract.billing.status === 'BLOCKED' → Full block
+ * - ACTIVE | TRIALING → Allow
+ * - UNKNOWN → Allow (billing not yet configured)
+ * - PAST_DUE → Partial block (warning or strict block)
+ * - BLOCKED → Full block
  *
  * FAIL-CLOSED:
  * - contract not loaded → loader
- * - contract is null after loading → block (fail-closed)
- *
- * MODELO A: UNKNOWN = "organização ainda não iniciou cobrança", NÃO "organização inválida"
+ * - contract null → block
  */
 
 import React, { useEffect, useMemo } from "react";
@@ -37,50 +35,58 @@ interface BillingGateProps {
 export function BillingGate({ children, strictMode = false, fallback }: BillingGateProps) {
   const { tenant } = useTenant();
   const { contract, isLoading: isContractLoading } = useTenantFlags();
-  useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const isTenantActive = tenant?.status === "ACTIVE";
   const billingStatus = contract?.billing.status ?? null;
 
+  /**
+   * SHOULD BLOCK LOGIC (Modelo A)
+   */
   const shouldBlock = useMemo(() => {
     if (!isTenantActive) return false;
     if (isContractLoading) return false;
-    if (!contract) return true; // fail-closed
 
-    // Modelo A: UNKNOWN = billing not yet configured, NOT blocked
-    // Only BLOCKED triggers full block
+    // Fail-closed if contract missing
+    if (!contract) return true;
+
+    // Only BLOCKED blocks fully
     return billingStatus === "BLOCKED";
   }, [isTenantActive, isContractLoading, contract, billingStatus]);
 
-  // Navigate via effect only (never during render)
+  /**
+   * Navigation side-effect (never during render)
+   */
   useEffect(() => {
     if (!shouldBlock) return;
     navigate(`/${tenant?.slug}/app/billing`, { replace: true });
   }, [shouldBlock, navigate, tenant?.slug]);
 
-  // Ignore billing for non-ACTIVE tenants (e.g., SETUP)
+  /**
+   * Ignore billing for non-active tenants (SETUP etc.)
+   */
   if (!isTenantActive) {
     return <>{children}</>;
   }
 
-  // Fail-closed while contract loads
+  /**
+   * Loader while contract loads
+   */
   if (isContractLoading) {
     return <LoadingState titleKey="common.loading" />;
   }
 
-  // Allowed states
-  if (billingStatus === "ACTIVE" || billingStatus === "TRIALING") {
+  /**
+   * Allowed states (Modelo A)
+   */
+  if (billingStatus === "ACTIVE" || billingStatus === "TRIALING" || billingStatus === "UNKNOWN") {
     return <>{children}</>;
   }
 
-  // Modelo A: UNKNOWN = billing not yet configured (no stripe customer, no billing record)
-  // Tenant operates freely until billing is explicitly required
-  if (billingStatus === "UNKNOWN") {
-    return <>{children}</>;
-  }
-
-  // Explicit blocked states
+  /**
+   * Explicit blocked state
+   */
   if (shouldBlock) {
     return (
       fallback || (
@@ -106,7 +112,9 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     );
   }
 
-  // Read-only state (PAST_DUE)
+  /**
+   * Read-only state (PAST_DUE)
+   */
   if (billingStatus === "PAST_DUE") {
     if (strictMode) {
       return (
@@ -136,7 +144,9 @@ export function BillingGate({ children, strictMode = false, fallback }: BillingG
     );
   }
 
-  // 🔒 FAIL-CLOSED DEFAULT
+  /**
+   * Final fail-safe (should never happen)
+   */
   return (
     fallback || (
       <BlockedStateCard
