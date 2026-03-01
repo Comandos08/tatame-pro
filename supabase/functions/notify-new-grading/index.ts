@@ -58,7 +58,7 @@ serve(async (req) => {
         diploma:diplomas(id, pdf_url, status)
       `)
       .eq("id", grading_id)
-      .single();
+      .maybeSingle();
 
     if (gradingError || !grading) {
       throw new Error(`Grading not found: ${grading_id}`);

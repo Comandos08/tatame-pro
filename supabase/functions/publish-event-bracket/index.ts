@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       .from('event_brackets')
       .select('id, tenant_id, status, version, deleted_at')
       .eq('id', bracketId)
-      .single();
+      .maybeSingle();
 
     if (bracketError || !bracket) {
       log.error("Bracket not found", bracketError);

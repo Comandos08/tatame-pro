@@ -240,7 +240,7 @@ serve(async (req) => {
           digital_cards(id, pdf_url)
         `)
         .eq("id", membership_id)
-        .single();
+        .maybeSingle();
 
       if (membershipError || !membership) {
         throw new Error(`Membership not found: ${membership_id}`);

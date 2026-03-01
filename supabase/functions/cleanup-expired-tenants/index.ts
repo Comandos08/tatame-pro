@@ -51,7 +51,7 @@ async function canSafelyDelete(
     .from("tenant_billing")
     .select("status, is_manual_override, stripe_customer_id")
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
 
   // 2. Check manual override first
   if (billing?.is_manual_override) {
@@ -114,14 +114,14 @@ async function saveDeletedTenantRecord(
     .from("tenants")
     .select("id, slug, name")
     .eq("id", tenantId)
-    .single();
+    .maybeSingle();
 
   // Get billing info
   const { data: billing } = await supabase
     .from("tenant_billing")
     .select("trial_started_at")
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
 
   // Get admin email
   const { data: adminRoles } = await supabase
@@ -137,7 +137,7 @@ async function saveDeletedTenantRecord(
       .from("profiles")
       .select("email")
       .eq("id", adminRoles[0].user_id)
-      .single();
+      .maybeSingle();
     creatorEmail = profile?.email || null;
   }
 

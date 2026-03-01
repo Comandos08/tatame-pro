@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       .from('event_bracket_matches')
       .select('id, tenant_id, bracket_id, status, deleted_at')
       .eq('id', matchId)
-      .single();
+      .maybeSingle();
 
     if (matchError || !match) {
       log.error("Match not found", matchError);

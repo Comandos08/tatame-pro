@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       .from('event_categories')
       .select('id, tenant_id, event_id, name, deleted_at')
       .eq('id', categoryId)
-      .single();
+      .maybeSingle();
 
     if (catError || !category) {
       log.error("Category not found", catError);
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
       .from('events')
       .select('id, status, deleted_at')
       .eq('id', eventId)
-      .single();
+      .maybeSingle();
 
     if (eventError || !event) {
       log.error("Event not found", eventError);
