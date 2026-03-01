@@ -89,6 +89,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
     }
   }, [tenant, isAuthenticated, currentUser, isGlobalSuperadmin, currentRolesByTenant]);
 
+  // ============================================================================
+  // SLUG STABILITY — Prevent redundant fetch for identical slug + trigger
+  // ============================================================================
+  const previousSlugRef = useRef<string | undefined>(undefined);
+  const previousTriggerRef = useRef<number>(0);
+
   // =========================================================================
   // FETCH EFFECT — Stable dependencies only
   // Does NOT depend on currentUser (boundary check is separate)
@@ -116,6 +122,18 @@ export function TenantProvider({ children }: TenantProviderProps) {
       }
 
       // =====================================================================
+      // GUARD 1.5: Same slug + same trigger — prevent redundant fetch
+      // refetchTrigger bypass ensures refetchTenant() always works
+      // =====================================================================
+      if (previousSlugRef.current === tenantSlug && previousTriggerRef.current === refetchTrigger) {
+        logger.debug("[TENANT] Slug and trigger unchanged, skipping fetch");
+        return;
+      }
+
+      previousSlugRef.current = tenantSlug;
+      previousTriggerRef.current = refetchTrigger;
+
+      // =====================================================================
       // GUARD 2: Reserved slug — fail-closed, no network request
       // Symmetric with creation-time validation in slugify.ts
       // =====================================================================
@@ -136,6 +154,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
       if (isMountedRef.current) {
         setIsLoading(true);
         setError(null);
+
+        // 🔒 HARD RESET — prevent stale tenant flash during slug transitions
+        setTenant(null);
+        setBillingInfo(null);
       }
 
       try {
