@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useTenant } from '@/contexts/TenantContext';
+import { useTenantFlags } from '@/contexts/TenantFlagsContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -69,6 +70,8 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
   const { billingState, daysToTrialEnd, planName, isLoading } = useTenantStatus();
   const { t } = useI18n();
   const [isRedirecting, setIsRedirecting] = React.useState(false);
+  const { contract } = useTenantFlags();
+  const hasBillingRecord = contract?.billing?.has_billing_record === true;
 
   // Tenant not yet loaded — show loading skeleton
   if (!tenant) {
@@ -100,6 +103,69 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
             </div>
           </div>
         </CardHeader>
+      </Card>
+    );
+  }
+
+  // Modelo A: Tenant ACTIVE but no billing record = show setup invitation
+  if (!isLoading && !hasBillingRecord) {
+    return (
+      <Card className={cn('overflow-hidden', className)} data-testid="billing-card" data-billing-status="setup">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-muted">
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">{t('billing.overview.title')}</CardTitle>
+              <CardDescription>{t('billing.setup.description')}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Button
+            variant="default"
+            onClick={async () => {
+              if (!tenant?.id) return;
+
+              setIsRedirecting(true);
+
+              try {
+                const { data, error } = await supabase.functions.invoke(
+                  'create-tenant-subscription',
+                  {
+                    body: {
+                      tenantId: tenant.id,
+                      planType: 'monthly',
+                    },
+                  }
+                );
+
+                if (error) throw error;
+
+                if (data?.url) {
+                  window.location.href = data.url;
+                }
+              } catch (err) {
+                logger.error('[BILLING] Failed to create checkout session:', err);
+                toast.error(t('billing.error.checkoutFailed'));
+                setIsRedirecting(false);
+              }
+            }}
+            disabled={isRedirecting}
+            className="w-full sm:w-auto"
+            data-testid="billing-setup-cta"
+          >
+            {isRedirecting ? (
+              <span className="animate-pulse">{t('common.loading')}</span>
+            ) : (
+              <>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {t('billing.setup.cta')}
+              </>
+            )}
+          </Button>
+        </CardContent>
       </Card>
     );
   }
