@@ -14,8 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, EventSeverity } from '@/types/observability';
 import { subscribeObservabilityRealtime, markAlertAsSeen } from '@/lib/observability/realtime';
+import { useCurrentUser } from '@/contexts/AuthContext';
 
-const ALERTS_STORAGE_KEY = 'tatame_dismissed_alerts';
 const POLLING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_REALTIME_ALERTS = 50;
 
@@ -56,28 +56,48 @@ export function useAlertsOptional(): AlertContextValue | null {
 }
 
 /**
- * Get dismissed IDs from localStorage
+ * Fetch dismissed alert IDs from DB (scoped by user)
  */
-function getDismissedIds(): Set<string> {
+async function fetchDismissedIds(userId: string): Promise<Set<string>> {
   try {
-    const stored = localStorage.getItem(ALERTS_STORAGE_KEY);
-    if (stored) {
-      return new Set(JSON.parse(stored));
-    }
-  } catch (error) {
-    logger.warn('[AlertContext] Failed to parse dismissed alerts:', error);
+    const { data } = await supabase
+      .from('observability_dismissed_alerts')
+      .select('alert_id')
+      .eq('user_id', userId);
+
+    return new Set((data || []).map(d => d.alert_id));
+  } catch {
+    return new Set();
   }
-  return new Set();
 }
 
 /**
- * Save dismissed IDs to localStorage
+ * Persist a dismissed alert to DB (fire-and-forget)
  */
-function saveDismissedIds(ids: Set<string>): void {
+async function persistDismissToDb(alertId: string, userId: string): Promise<void> {
   try {
-    localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify([...ids]));
-  } catch (error) {
-    logger.warn('[AlertContext] Failed to save dismissed alerts:', error);
+    await supabase
+      .from('observability_dismissed_alerts')
+      .upsert(
+        { alert_id: alertId, user_id: userId },
+        { onConflict: 'alert_id,user_id', ignoreDuplicates: true }
+      );
+  } catch {
+    // Silent fail — degrade gracefully
+  }
+}
+
+/**
+ * Clear all dismissed alerts for a user in DB (fire-and-forget)
+ */
+async function clearDismissedInDb(userId: string): Promise<void> {
+  try {
+    await supabase
+      .from('observability_dismissed_alerts')
+      .delete()
+      .eq('user_id', userId);
+  } catch {
+    // Silent fail
   }
 }
 
@@ -165,7 +185,8 @@ function mergeAlerts(
 }
 
 export function AlertProvider({ children }: { children: React.ReactNode }) {
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => getDismissedIds());
+  const { currentUser } = useCurrentUser();
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [realtimeAlerts, setRealtimeAlerts] = useState<Alert[]>([]);
   
   // P4.2: Realtime state
@@ -176,10 +197,13 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   // Track seen alert IDs to prevent counting same event twice
   const seenNewEventIds = useRef<Set<string>>(new Set());
   
-  // Persist dismissed alerts to localStorage
+  // Load dismissed alerts from DB when user is available
   useEffect(() => {
-    saveDismissedIds(dismissedIds);
-  }, [dismissedIds]);
+    if (!currentUser?.id) return;
+    fetchDismissedIds(currentUser.id).then(ids => {
+      setDismissedIds(ids);
+    });
+  }, [currentUser?.id]);
   
   // Polling query for critical events
   const { data: pollingAlerts = [], isLoading, refetch } = useQuery({
@@ -260,16 +284,20 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   
   // Actions
   const dismissAlert = useCallback((id: string) => {
+    if (!currentUser?.id) return;
     setDismissedIds(prev => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
-  }, []);
+    persistDismissToDb(id, currentUser.id); // fire-and-forget
+  }, [currentUser?.id]);
   
   const clearDismissed = useCallback(() => {
+    if (!currentUser?.id) return;
     setDismissedIds(new Set());
-  }, []);
+    clearDismissedInDb(currentUser.id); // fire-and-forget
+  }, [currentUser?.id]);
   
   const refreshAlerts = useCallback(() => {
     refetch();
