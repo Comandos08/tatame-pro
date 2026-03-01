@@ -52,6 +52,8 @@ export function useFeatureFlags(tenantId?: string): UseFeatureFlagsResult {
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000,
     retry: 1,
+    // P2-07: Provide all-false defaults immediately so UI never blocks on flags
+    placeholderData: buildDefaultFlagMap(),
   });
 
   return {
