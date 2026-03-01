@@ -89,7 +89,13 @@ const corsHeaders = {
  * - ACCEPT_INVITE: Aceitar convite (futuro)
  * - COMPLETE_WIZARD: Compatibilidade temporária
  */
-type Action = "CHECK" | "CREATE_TENANT" | "JOIN_EXISTING_TENANT" | "ACCEPT_INVITE" | "COMPLETE_WIZARD" | "POST_AUTH_REDIRECT";
+type Action =
+  | "CHECK"
+  | "CREATE_TENANT"
+  | "JOIN_EXISTING_TENANT"
+  | "ACCEPT_INVITE"
+  | "COMPLETE_WIZARD"
+  | "POST_AUTH_REDIRECT";
 
 interface CreateTenantPayload {
   orgName: string;
@@ -201,7 +207,7 @@ Deno.serve(async (req) => {
     /* ─────────────────────────────────────────────────────────────────────────
      * ROTEAMENTO DE AÇÃO
      * ───────────────────────────────────────────────────────────────────────── */
-    const body = await req.json() as RequestPayload;
+    const body = (await req.json()) as RequestPayload;
 
     switch (body.action) {
       case "CHECK":
@@ -221,14 +227,7 @@ Deno.serve(async (req) => {
         return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
 
       case "POST_AUTH_REDIRECT":
-        return json(
-          await handlePostAuthRedirect(
-            supabaseAdmin,
-            user.id,
-            body.payload,
-            log,
-          ),
-        );
+        return json(await handlePostAuthRedirect(supabaseAdmin, user.id, body.payload, log));
 
       default:
         return json({
@@ -324,7 +323,11 @@ function pickBestRole(candidates: RoleCandidate[]): RoleCandidate {
  *   4. Fallback → ERROR
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
-async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log: BackendLogger): Promise<IdentityResponse> {
+async function handleIdentityCheck(
+  supabase: SupabaseClient,
+  userId: string,
+  log: BackendLogger,
+): Promise<IdentityResponse> {
   log.setStep("identity-check");
 
   /* ─────────────────────────────────────────────────────────────────────────────
@@ -349,11 +352,7 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 2: VERIFICAR SE WIZARD FOI COMPLETADO
    * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileData } = await supabase
-    .from("profiles")
-    .select("wizard_completed")
-    .eq("id", userId)
-    .limit(1);
+  const { data: profileData } = await supabase.from("profiles").select("wizard_completed").eq("id", userId).limit(1);
 
   const wizardCompleted = profileData?.[0]?.wizard_completed === true;
 
@@ -457,7 +456,51 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
       },
     };
   }
+  /* ─────────────────────────────────────────────────────────────────────────────
+   * STEP 4.5: Ensure profile exists before role assignment (FK safety)
+   * ───────────────────────────────────────────────────────────────────────────── */
+  const { data: profileRows } = await supabase.from("profiles").select("id").eq("id", userId).limit(1);
 
+  if (profileRows?.length > 1) {
+    log.warn("Multiple profile rows returned for single userId", {
+      userId,
+      count: profileRows.length,
+    });
+  }
+
+  const profileForFK = profileRows?.[0] ?? null;
+
+  if (!profileForFK) {
+    log.info("Profile not found, creating before role assignment", { userId });
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.admin.getUserById(userId);
+
+    const userEmail = authUser?.email ?? "unknown";
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      email: userEmail,
+      created_at: new Date().toISOString(),
+    });
+
+    if (profileError) {
+      log.error("PROFILE_CREATION_FAILED", profileError, { userId });
+
+      await supabase.from("tenants").delete().eq("id", newTenant.id);
+
+      return {
+        status: "ERROR",
+        error: {
+          code: "PROFILE_CREATION_FAILED",
+          message: "Falha ao criar perfil do usuário.",
+        },
+      };
+    }
+
+    log.info("Profile created successfully", { userId });
+  }
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 5: DECISÃO DE REDIRECIONAMENTO
    * ───────────────────────────────────────────────────────────────────────────── */
@@ -474,7 +517,24 @@ async function handleIdentityCheck(supabase: SupabaseClient, userId: string, log
     redirectPath: isAdmin ? `/${tenant.slug}/app` : `/${tenant.slug}/portal`,
   };
 }
+/* ─────────────────────────────────────────────────────────────────────────────
+ * STEP 6: Atualizar profile com wizard_completed e tenant_id
+ * ───────────────────────────────────────────────────────────────────────────── */
 
+// LEGACY: profiles.tenant_id is set here for backward compatibility only.
+// The canonical source of truth for user-tenant association is user_roles.
+// New features MUST NOT depend on profiles.tenant_id for access decisions.
+const { error: profileError } = await supabase
+  .from("profiles")
+  .update({
+    wizard_completed: true,
+    tenant_id: newTenant.id,
+  })
+  .eq("id", userId);
+
+if (profileError) {
+  log.error("Failed to update profile", profileError);
+}
 /* ═══════════════════════════════════════════════════════════════════════════════
  * POST_AUTH_REDIRECT — RESOLVE REDIRECT PATH AFTER AUTHENTICATION
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -568,10 +628,7 @@ async function handlePostAuthRedirect(
   if (typeof nextPathRaw === "string") {
     const nextPath = nextPathRaw.trim();
 
-    const isValid =
-      nextPath.startsWith(`/${tenant.slug}/`) &&
-      !nextPath.includes("..") &&
-      !nextPath.startsWith("//");
+    const isValid = nextPath.startsWith(`/${tenant.slug}/`) && !nextPath.includes("..") && !nextPath.startsWith("//");
 
     if (isValid) {
       redirectPath = nextPath;
@@ -625,15 +682,15 @@ const RESERVED_SLUGS = [
 ];
 
 function generateSlug(name: string): string {
-  if (!name) return '';
+  if (!name) return "";
 
   return name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // remove accents
-    .replace(/[^a-z0-9]+/g, "-")     // replace non-alphanumeric with hyphen
-    .replace(/-+/g, "-")              // remove duplicate hyphens
-    .replace(/^-+|-+$/g, "")          // trim hyphens from edges
+    .replace(/[^a-z0-9]+/g, "-") // replace non-alphanumeric with hyphen
+    .replace(/-+/g, "-") // remove duplicate hyphens
+    .replace(/^-+|-+$/g, "") // trim hyphens from edges
     .substring(0, 48);
 }
 
@@ -680,7 +737,10 @@ async function handleJoinExistingTenant(
   if (!/^[a-z0-9-]{3,64}$/.test(raw)) {
     return {
       status: "ERROR",
-      error: { code: "VALIDATION_ERROR", message: "Código inválido. Use apenas letras, números e hífen (3-64 caracteres)." },
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Código inválido. Use apenas letras, números e hífen (3-64 caracteres).",
+      },
     };
   }
 
@@ -721,10 +781,10 @@ async function handleJoinExistingTenant(
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 4: Re-entry rule — block only if an ACTIVE pipeline membership exists
-   * 
+   *
    * Blocking statuses: DRAFT, PENDING_PAYMENT, PENDING_REVIEW, APPROVED
    * Non-blocking (re-entry allowed): CANCELLED, REJECTED, EXPIRED, etc.
-   * 
+   *
    * A user may have unlimited historical memberships.
    * ───────────────────────────────────────────────────────────────────────────── */
   const BLOCKING_STATUSES = ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW", "APPROVED"];
@@ -760,10 +820,7 @@ async function handleJoinExistingTenant(
    * STEP 5: Marcar wizard como completo (NUNCA setar tenant_id aqui!)
    * Membership + athlete creation delegated to AdultMembershipForm / YouthMembershipForm
    * ───────────────────────────────────────────────────────────────────────────── */
-  const { error: profileErr } = await supabase
-    .from("profiles")
-    .update({ wizard_completed: true })
-    .eq("id", userId);
+  const { error: profileErr } = await supabase.from("profiles").update({ wizard_completed: true }).eq("id", userId);
 
   if (profileErr) {
     log.error("Profile update error", profileErr);
@@ -927,7 +984,7 @@ async function handleCreateTenant(
    * Tenta até 20 variações para evitar colisão
    * ───────────────────────────────────────────────────────────────────────────── */
   const baseSlug = generateSlug(orgName);
-  
+
   // ✅ Validação de slug reservado
   if (isReservedSlug(baseSlug)) {
     log.warn("RESERVED_SLUG detected", { slug: baseSlug });
@@ -943,11 +1000,7 @@ async function handleCreateTenant(
   let finalSlug = baseSlug;
 
   for (let attemptIndex = 1; attemptIndex <= 20; attemptIndex++) {
-    const { data: existingSlug } = await supabase
-      .from("tenants")
-      .select("id")
-      .eq("slug", finalSlug)
-      .limit(1);
+    const { data: existingSlug } = await supabase.from("tenants").select("id").eq("slug", finalSlug).limit(1);
 
     if (!existingSlug || existingSlug.length === 0) {
       break; // Slug é único, pode prosseguir
@@ -967,7 +1020,7 @@ async function handleCreateTenant(
   /* ═══════════════════════════════════════════════════════════════════════════
    * ✅ CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════ */
-  
+
   // TRIAL_15_DAYS: Wizard tenants start with 15-day trial, is_active=true for immediate access
   const sanitizedPayload = {
     name: orgName,
@@ -979,7 +1032,7 @@ async function handleCreateTenant(
     onboarding_completed: false,
     sport_types: [] as string[],
   };
-  
+
   log.info("Creating tenant in SETUP mode", {
     name: sanitizedPayload.name,
     slug: sanitizedPayload.slug,
@@ -1000,11 +1053,11 @@ async function handleCreateTenant(
       hint: tenantError?.hint,
       user_id: userId,
     });
-    
+
     if (tenantError?.code === "42501" || tenantError?.message?.includes("row-level security")) {
       log.error("RLS policy violation detected - service_role key may be misconfigured");
     }
-    
+
     return {
       status: "ERROR",
       error: {
@@ -1058,32 +1111,22 @@ async function handleCreateTenant(
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 4.5: Ensure profile exists before role assignment (FK safety)
    * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileRows } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", userId)
-    .limit(1);
-
-  if (profileRows && profileRows.length > 1) {
-    log.warn("Multiple profile rows returned for single userId", { userId, count: profileRows.length });
-  }
-
-  const profileForFK = profileRows?.[0] ?? null;
+  const { data: profileForFK } = await supabase.from("profiles").select("id").eq("id", userId).maybeSingle();
 
   if (!profileForFK) {
     log.info("Profile not found, creating before role assignment", { userId });
 
     // Fetch user email from auth for profile creation
-    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.admin.getUserById(userId);
     const userEmail = authUser?.email ?? "unknown";
 
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: userId,
-        email: userEmail,
-        created_at: new Date().toISOString(),
-      });
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      email: userEmail,
+      created_at: new Date().toISOString(),
+    });
 
     if (profileError) {
       log.error("PROFILE_CREATION_FAILED", profileError, { userId });
@@ -1108,10 +1151,11 @@ async function handleCreateTenant(
    * ───────────────────────────────────────────────────────────────────────────── */
   log.info("Inserting ADMIN_TENANT role", { userId, tenantId: newTenant.id });
 
-  const { error: roleError } = await supabase.rpc(
-    'grant_admin_tenant_role',
-    { p_user_id: userId, p_tenant_id: newTenant.id, p_bypass_membership_check: true }
-  );
+  const { error: roleError } = await supabase.rpc("grant_admin_tenant_role", {
+    p_user_id: userId,
+    p_tenant_id: newTenant.id,
+    p_bypass_membership_check: true,
+  });
 
   if (roleError) {
     log.error("ROLE_ASSIGN failed", roleError, { tenantId: newTenant.id, userId });
@@ -1202,9 +1246,8 @@ async function handleCreateTenant(
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // +15 days
 
-    const { error: billingError } = await supabase
-      .from("tenant_billing")
-      .upsert({
+    const { error: billingError } = await supabase.from("tenant_billing").upsert(
+      {
         tenant_id: newTenant.id,
         status: "TRIALING",
         plan_name: "Plano Federação Anual",
@@ -1213,7 +1256,9 @@ async function handleCreateTenant(
         trial_expires_at: trialExpiresAt.toISOString(),
         current_period_start: now.toISOString(),
         current_period_end: trialExpiresAt.toISOString(),
-      }, { onConflict: 'tenant_id', ignoreDuplicates: true });
+      },
+      { onConflict: "tenant_id", ignoreDuplicates: true },
+    );
 
     if (billingError) {
       log.error("TRIAL_15_DAYS: Failed to create tenant_billing", billingError);
