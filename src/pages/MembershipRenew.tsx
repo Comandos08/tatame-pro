@@ -25,6 +25,7 @@ import { resolveAthletePostLoginRedirect, MembershipStatus } from '@/lib/resolve
 import { logger } from '@/lib/logger';
 import { MEMBERSHIP_PRICE_CENTS, MEMBERSHIP_CURRENCY } from '@/types/membership';
 import { toast } from 'sonner';
+import { safeStripeRedirect } from "@/lib/stripeRedirect";
 
 interface MembershipRenewData {
   id: string;
@@ -183,7 +184,9 @@ export default function MembershipRenew() {
       }
 
       if (checkoutData?.url) {
-        window.location.href = checkoutData.url;
+        if (!safeStripeRedirect(checkoutData.url)) {
+          throw new Error("URL de pagamento inválida");
+        }
       } else {
         throw new Error(t('membership.errorPaymentSession'));
       }

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, CreditCard, ArrowLeft, AlertTriangle } from "lucide-react";
 import { logger } from "@/lib/logger";
+import { safeStripeRedirect } from "@/lib/stripeRedirect";
 
 export default function MembershipCheckout() {
   const { membershipId, tenantSlug } = useParams();
@@ -79,7 +80,9 @@ export default function MembershipCheckout() {
       );
 
       if (error) throw error;
-      window.location.href = data.checkout_url;
+      if (!safeStripeRedirect(data.checkout_url)) {
+        throw new Error("URL de pagamento inválida");
+      }
     } catch (error) {
       logger.error("[CHECKOUT] Payment error:", error);
       toast.error("Erro ao processar pagamento");

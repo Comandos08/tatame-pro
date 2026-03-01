@@ -40,6 +40,7 @@ import {
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
 import type { AdultMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
+import { safeStripeRedirect } from "@/lib/stripeRedirect";
 
 // ✅ FX-01 — Draft persistence uses unified membershipSessionPersistence
 // Legacy STORAGE_KEY kept only for one-time migration
@@ -441,7 +442,9 @@ export function AdultMembershipForm() {
 
       if (checkoutData?.url) {
         clearMembershipResume('adult'); // ✅ FX-01 — Clear only after checkout success
-        window.location.href = checkoutData.url;
+        if (!safeStripeRedirect(checkoutData.url)) {
+          throw new Error("URL de pagamento inválida");
+        }
       } else {
         throw new Error(t('membership.errorPaymentSession'));
       }
