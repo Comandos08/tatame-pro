@@ -33,6 +33,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { 
   requireImpersonationIfSuperadmin, 
   extractImpersonationId 
@@ -132,6 +133,27 @@ serve(async (req) => {
         JSON.stringify({ ok: false, error: "Missing tenantId", code: "BAD_REQUEST" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ========================================================================
+    // TENANT BOUNDARY CHECK (A04 — Zero-Trust Tenant Isolation)
+    // Validates: UUID format + tenant exists + tenant active + user has membership
+    // ========================================================================
+    try {
+      const impersonationIdForBoundary = extractImpersonationId(req, body);
+      await assertTenantAccess(supabase, user.id, tenantId, impersonationIdForBoundary, {
+        allowLifecycleSetup: true,
+      });
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code, message: boundaryError.message });
+        return new Response(
+          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw boundaryError;
     }
 
     // ========================================================================
