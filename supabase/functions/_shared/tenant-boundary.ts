@@ -64,6 +64,19 @@ export interface TenantAccessResult {
 }
 
 // =============================================================================
+// OPTIONS
+// =============================================================================
+
+export interface AssertTenantAccessOptions {
+  /**
+   * When true, allows access to tenants with lifecycle_status === 'SETUP'
+   * even if is_active is false. Used exclusively by onboarding flows.
+   * Default: false (fail-closed on inactive tenants).
+   */
+  allowLifecycleSetup?: boolean;
+}
+
+// =============================================================================
 // assertTenantAccess — THROWS on failure (fail-closed)
 // =============================================================================
 
@@ -72,7 +85,7 @@ export interface TenantAccessResult {
  *
  * Checks:
  * 1. tenantId is valid UUID
- * 2. Tenant exists and is_active = true
+ * 2. Tenant exists and is_active = true (or lifecycle_status = 'SETUP' if allowed)
  * 3. User has membership in user_roles for this tenant
  *    OR is SUPERADMIN with valid impersonation
  *
@@ -85,6 +98,7 @@ export async function assertTenantAccess(
   userId: string,
   tenantId: string,
   impersonationId?: string | null,
+  options?: AssertTenantAccessOptions,
 ): Promise<TenantAccessResult> {
   const log = createBackendLogger("tenant-boundary", crypto.randomUUID());
   log.setUser(userId);
@@ -101,7 +115,7 @@ export async function assertTenantAccess(
   // 2. Check tenant exists and is active
   const { data: tenant, error: tenantError } = await supabaseAdmin
     .from("tenants")
-    .select("id, is_active")
+    .select("id, is_active, lifecycle_status")
     .eq("id", tenantId)
     .maybeSingle();
 
@@ -113,10 +127,18 @@ export async function assertTenantAccess(
   }
 
   if (!tenant.is_active) {
-    throw new TenantBoundaryError(
-      "TENANT_INACTIVE",
-      `Tenant is inactive: ${tenantId}`,
-    );
+    // Allow SETUP tenants when explicitly opted in (onboarding flows)
+    if (options?.allowLifecycleSetup && tenant.lifecycle_status === "SETUP") {
+      log.info("Allowing SETUP tenant access (allowLifecycleSetup)", {
+        tenantId,
+        lifecycle_status: tenant.lifecycle_status,
+      });
+    } else {
+      throw new TenantBoundaryError(
+        "TENANT_INACTIVE",
+        `Tenant is inactive: ${tenantId}`,
+      );
+    }
   }
 
   // 3. Check SUPERADMIN status
