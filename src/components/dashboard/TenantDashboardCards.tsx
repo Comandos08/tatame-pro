@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileCheck, Calendar, DollarSign } from "lucide-react";
+import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,7 +27,7 @@ export function TenantDashboardCards({ tenantId }: TenantDashboardCardsProps) {
       );
 
       if (error) {
-        console.error("Error fetching dashboard metrics:", error);
+        logger.error("[DASHBOARD] Error fetching dashboard metrics:", error);
         throw error;
       }
 
