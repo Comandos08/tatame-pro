@@ -41,6 +41,7 @@ import {
   MEMBERSHIP_CURRENCY,
 } from '@/types/membership';
 import type { YouthMembershipInsert, DocumentUploaded } from '@/types/membership-insert';
+import { safeStripeRedirect } from "@/lib/stripeRedirect";
 
 export function YouthMembershipForm() {
   const navigate = useNavigate();
@@ -526,7 +527,9 @@ export function YouthMembershipForm() {
 
       if (checkoutData?.url) {
         clearMembershipResume('youth'); // ✅ FX-01 — Clear only after checkout success
-        window.location.href = checkoutData.url;
+        if (!safeStripeRedirect(checkoutData.url)) {
+          throw new Error("URL de pagamento inválida");
+        }
       } else {
         throw new Error(t('membership.errorPaymentSession'));
       }

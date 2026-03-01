@@ -26,6 +26,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { safeStripeRedirect } from "@/lib/stripeRedirect";
 import { resolveBillingCTA, resolveBillingStatusVariant } from "./billingCtaResolver";
 import type { BillingStatus } from "@/lib/billing/resolveTenantBillingState";
 
@@ -118,7 +119,11 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
                 });
 
                 if (error) throw error;
-                if (data?.url) window.location.href = data.url;
+                if (data?.url && !safeStripeRedirect(data.url)) {
+                  toast.error("URL de pagamento inválida");
+                  setIsRedirecting(false);
+                  return;
+                }
               } catch (err) {
                 logger.error("[BILLING] Failed to create checkout session:", err);
                 toast.error(t("billing.error.checkoutFailed"));
@@ -208,7 +213,11 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
         });
 
         if (error) throw error;
-        if (data?.url) window.location.href = data.url;
+        if (data?.url && !safeStripeRedirect(data.url)) {
+          toast.error("URL de pagamento inválida");
+          setIsRedirecting(false);
+          return;
+        }
       } catch (err) {
         logger.error("Failed to create checkout session:", err);
         toast.error(t("billing.error.checkoutFailed"));
@@ -222,7 +231,11 @@ export function BillingOverviewCard({ className }: BillingOverviewCardProps) {
         });
 
         if (error) throw error;
-        if (data?.url) window.location.href = data.url;
+        if (data?.url && !safeStripeRedirect(data.url)) {
+          toast.error("URL de pagamento inválida");
+          setIsRedirecting(false);
+          return;
+        }
       } catch (err) {
         logger.error("Failed to open customer portal:", err);
         toast.error(t("billing.error.portalFailed"));
