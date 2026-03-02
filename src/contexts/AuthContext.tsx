@@ -5,7 +5,7 @@
  * Profile loading happens in parallel and doesn't block navigation.
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { CurrentUser, AppRole } from "@/types/auth";
@@ -174,12 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (r) => r.role === "SUPERADMIN_GLOBAL" && (r.tenantId === null || r.tenantId === undefined)
     ) ?? false;
 
-  const currentRolesByTenant = new Map<string, AppRole[]>();
-  currentUser?.roles?.forEach((r) => {
-    const key = r.tenantId ?? "global";
-    const existing = currentRolesByTenant.get(key) || [];
-    currentRolesByTenant.set(key, [...existing, r.role]);
-  });
+  const currentRolesByTenant = useMemo(() => {
+    const map = new Map<string, AppRole[]>();
+    currentUser?.roles?.forEach((r) => {
+      const key = r.tenantId ?? "global";
+      const existing = map.get(key) || [];
+      map.set(key, [...existing, r.role]);
+    });
+    return map;
+  }, [currentUser?.roles]);
 
   const hasRole = (role: AppRole, tenantId?: string) =>
     currentUser?.roles?.some((r) => r.role === role && (!tenantId || r.tenantId === tenantId)) ?? false;
