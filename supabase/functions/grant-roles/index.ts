@@ -12,6 +12,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 import { requireTenantRole, forbiddenResponse, unauthorizedResponse } from "../_shared/requireTenantRole.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { 
   requireImpersonationIfSuperadmin, 
   extractImpersonationId 
@@ -240,6 +241,25 @@ serve(async (req) => {
     }
 
     log.info("Billing status OK", { status: billingCheck.status });
+
+    // ========================================================================
+    // A04 — TENANT BOUNDARY CHECK (Zero-Trust)
+    // ========================================================================
+    try {
+      const impersonationIdForBoundary = extractImpersonationId(req, parsed.data);
+      await assertTenantAccess(supabase, user.id, tenantId, impersonationIdForBoundary);
+      log.info("Tenant boundary check passed");
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { error: boundaryError.message });
+        return errorResponse(403, buildErrorEnvelope(
+          ERROR_CODES.FORBIDDEN,
+          "Tenant boundary violation",
+          false, undefined, correlationId
+        ), corsHeaders);
+      }
+      throw boundaryError;
+    }
 
     // ========================================================================
     // GET CURRENT ROLES (for audit)
