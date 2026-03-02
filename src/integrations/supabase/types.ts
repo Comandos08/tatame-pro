@@ -3880,6 +3880,7 @@ export type Database = {
           total_memberships: number
         }[]
       }
+      get_tenant_with_billing: { Args: { p_slug: string }; Returns: Json }
       get_user_tenant_id: { Args: never; Returns: string }
       grant_admin_tenant_role: {
         Args: {
