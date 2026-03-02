@@ -33,6 +33,7 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,6 +99,15 @@ serve(async (req) => {
     }
 
     const { tenantId, federationId } = body;
+
+    // CAPTCHA validation (optional — graceful degradation)
+    if (body.captchaToken) {
+      const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      const captchaResult = await validateCaptcha(body.captchaToken, clientIP);
+      if (!captchaResult.success) {
+        return captchaErrorResponse(captchaResult, corsHeaders);
+      }
+    }
 
     // Validate UUIDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
