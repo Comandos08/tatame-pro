@@ -106,11 +106,43 @@ serve(async (req) => {
       log.info('[notify-critical-alert] Slack webhook configured but not yet implemented');
     }
 
-    // Check for email notifications (future integration)
+    // Send critical alert email
     const emailEnabled = Deno.env.get('ALERT_EMAIL_ENABLED') === 'true';
     if (emailEnabled) {
-      // TODO: Implement email notification via Resend
-      log.info('[notify-critical-alert] Email notifications enabled but not yet implemented');
+      // Send critical alert email to admin
+      try {
+        const { getEmailClient, isEmailConfigured, DEFAULT_EMAIL_FROM } = await import("../_shared/emailClient.ts");
+        if (isEmailConfigured()) {
+          const emailClient = getEmailClient();
+          const adminEmail = Deno.env.get("ADMIN_ALERT_EMAIL") || Deno.env.get("SUPABASE_ADMIN_EMAIL");
+          if (adminEmail) {
+            await emailClient.emails.send({
+              from: DEFAULT_EMAIL_FROM,
+              to: adminEmail,
+              subject: `[TATAME PRO CRITICAL] ${payload.event_type}`,
+              html: `
+                <h2>Critical Alert: ${payload.event_type}</h2>
+                <p><strong>Severity:</strong> ${payload.severity}</p>
+                <p><strong>Source:</strong> ${payload.metadata?.source || "unknown"}</p>
+                <p><strong>Event ID:</strong> ${payload.event_id}</p>
+                <p><strong>Time:</strong> ${payload.timestamp || new Date().toISOString()}</p>
+                <hr>
+                <p>This is an automated alert from Tatame Pro infrastructure.</p>
+              `,
+            });
+            log.info("[notify-critical-alert] Email sent", { to: adminEmail });
+          } else {
+            log.info("[notify-critical-alert] No ADMIN_ALERT_EMAIL configured");
+          }
+        } else {
+          log.info("[notify-critical-alert] Email not configured");
+        }
+      } catch (emailError) {
+        log.warn("[notify-critical-alert] Email send failed", {
+          error: emailError instanceof Error ? emailError.message : String(emailError),
+        });
+        // INTENTIONAL: Email failure must not fail the alert function
+      }
     }
 
     return new Response(
