@@ -1,4 +1,4 @@
-// deno-lint-ignore-file no-explicit-any
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
@@ -25,6 +25,7 @@ async function sendBillingEmail(
   supabaseServiceKey: string,
   eventType: string,
   tenantId: string,
+  // deno-lint-ignore no-explicit-any
   log: any,
   data?: Record<string, unknown>
 ) {
