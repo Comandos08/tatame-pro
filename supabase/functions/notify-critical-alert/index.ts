@@ -85,7 +85,29 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { error: insertError } = await supabase.from('webhook_events').insert({
+    // Insert into institutional_events (primary audit)
+    const { error: ieError } = await supabase.from('institutional_events').insert({
+      type: payload.event_type,
+      domain: 'ALERT',
+      tenant_id: payload.tenant_id || null,
+      metadata: {
+        severity: payload.severity,
+        source: 'notify-critical-alert',
+        event_id: payload.event_id,
+        timestamp: payload.timestamp,
+        ...(payload.metadata || {}),
+      },
+    });
+
+    if (ieError) {
+      log.error('[notify-critical-alert] Failed to insert institutional_events:', { error: ieError.message });
+    } else {
+      log.info('[notify-critical-alert] institutional_events recorded');
+    }
+
+    // Insert into webhook_events (secondary log)
+    const { error: weError } = await supabase.from('webhook_events').insert({
+      event_id: payload.event_id,
       event_type: 'ALERT_NOTIFICATION_STUB',
       payload: {
         ...payload,
@@ -94,9 +116,8 @@ serve(async (req) => {
       status: 'LOGGED',
     });
 
-    if (insertError) {
-      log.error('[notify-critical-alert] Failed to log event:', insertError);
-      // Don't fail the request, just log
+    if (weError) {
+      log.error('[notify-critical-alert] Failed to log webhook_events:', { error: weError.message });
     }
 
     // Check for Slack webhook (future integration)
