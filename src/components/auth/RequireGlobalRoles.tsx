@@ -86,15 +86,6 @@ export function RequireGlobalRoles({ allowed, children }: RequireGlobalRolesProp
 
   // FAIL-CLOSED: No user = no access
   if (!currentUser) {
-    if (import.meta.env.DEV) {
-      logger.warn('[RequireGlobalRoles] AccessDenied — no currentUser', {
-        isAuthenticated,
-        isLoading,
-        timedOut,
-        perfNow: performance.now(),
-        timestamp: new Date().toISOString(),
-      });
-    }
     return <AccessDenied />;
   }
 
@@ -105,15 +96,6 @@ export function RequireGlobalRoles({ allowed, children }: RequireGlobalRolesProp
   });
 
   if (!hasAccess) {
-    if (import.meta.env.DEV) {
-      logger.warn('[RequireGlobalRoles] AccessDenied — role mismatch', {
-        allowed,
-        userRoles: currentUser.roles?.map(r => ({ role: r.role, tenantId: r.tenantId, isGlobal: r.tenantId === null })),
-        isGlobalSuperadmin,
-        perfNow: performance.now(),
-        timestamp: new Date().toISOString(),
-      });
-    }
     return <AccessDenied />;
   }
 

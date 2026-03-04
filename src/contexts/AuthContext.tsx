@@ -55,19 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: (r.createdAt as string) ?? '',
       }));
 
-      // ═══════════════════════════════════════════════════════════
-      // DEBUG TEMPORÁRIO: Verificar roles retornadas (REMOVER após validação)
-      // ═══════════════════════════════════════════════════════════
-      if (import.meta.env.DEV) {
-        console.log('[AuthContext] Profile roles loaded:', {
-          totalRoles: roles.length,
-          roles: roles.map(r => ({ role: r.role, tenantId: r.tenantId, isGlobal: r.tenantId === null })),
-          hasSuperadmin: roles.some(r => r.role === 'SUPERADMIN_GLOBAL'),
-          timestamp: new Date().toISOString(),
-          perfNow: performance.now(),
-        });
-      }
-
       return {
         id: parsed.id as string,
         tenantId: (parsed.tenantId as string) ?? null,

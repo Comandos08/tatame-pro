@@ -153,19 +153,6 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   const applyResult = useCallback((result: IdentityResult) => {
     if (!isMountedRef.current) return;
 
-    // ═══════════════════════════════════════════════════════════
-    // DEBUG TEMPORÁRIO: Verificar resposta da Edge Function (REMOVER após validação)
-    // ═══════════════════════════════════════════════════════════
-    if (import.meta.env.DEV) {
-      console.log('[IdentityContext] applyResult:', {
-        status: result?.status,
-        role: result?.role,
-        redirectPath: result?.redirectPath,
-        timestamp: new Date().toISOString(),
-        perfNow: performance.now(),
-      });
-    }
-
     if (result?.status === "RESOLVED") {
       setWizardCompleted(true);
       setTenant(result.tenant || null);
