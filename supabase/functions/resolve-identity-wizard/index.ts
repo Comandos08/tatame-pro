@@ -74,7 +74,7 @@ import { okResponse, errorResponse, buildErrorEnvelope, ERROR_CODES } from "../_
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -517,24 +517,7 @@ async function handleIdentityCheck(
     redirectPath: isAdmin ? `/${tenant.slug}/app` : `/${tenant.slug}/portal`,
   };
 }
-/* ─────────────────────────────────────────────────────────────────────────────
- * STEP 6: Atualizar profile com wizard_completed e tenant_id
- * ───────────────────────────────────────────────────────────────────────────── */
 
-// LEGACY: profiles.tenant_id is set here for backward compatibility only.
-// The canonical source of truth for user-tenant association is user_roles.
-// New features MUST NOT depend on profiles.tenant_id for access decisions.
-const { error: profileError } = await supabase
-  .from("profiles")
-  .update({
-    wizard_completed: true,
-    tenant_id: newTenant.id,
-  })
-  .eq("id", userId);
-
-if (profileError) {
-  log.error("Failed to update profile", profileError);
-}
 /* ═══════════════════════════════════════════════════════════════════════════════
  * POST_AUTH_REDIRECT — RESOLVE REDIRECT PATH AFTER AUTHENTICATION
  * ═══════════════════════════════════════════════════════════════════════════════
