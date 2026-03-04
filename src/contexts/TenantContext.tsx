@@ -122,7 +122,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       if (RESERVED_SLUGS.has(tenantSlug)) {
         logger.warn("[TENANT] Reserved slug detected at resolution:", tenantSlug);
         if (isMountedRef.current) {
-          setError(new Error("Organização não encontrada"));
+          setError(new Error("TENANT_NOT_FOUND"));
           setTenant(null);
           setBillingInfo(null);
           setIsLoading(false);
@@ -144,85 +144,47 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
       try {
         // =================================================================
-        // PATCH A: .maybeSingle() — 0 rows = null, not PGRST116
+        // SINGLE RPC — get_tenant_with_billing (1 round-trip)
+        // Returns { tenant: {...}, billing: {...} | null }
         // =================================================================
-        let { data, error: fetchError } = await supabase
-          .from("tenants")
-          .select("*")
-          .eq("slug", tenantSlug)
-          .eq("is_active", true)
-          .maybeSingle();
+        const { data: rpcResult, error: fetchError } = await supabase
+          .rpc('get_tenant_with_billing', { p_slug: tenantSlug });
 
         if (abortController.signal.aborted) return;
-
-        if (fetchError) {
-          throw fetchError; // real DB/network error
-        }
-
-        // If not found as active, check inactive
-        if (!data) {
-          const { data: inactiveTenant, error: inactiveError } = await supabase
-            .from("tenants")
-            .select("*")
-            .eq("slug", tenantSlug)
-            .eq("is_active", false)
-            .maybeSingle();
-
-          if (abortController.signal.aborted) return;
-
-          if (inactiveError) {
-            throw inactiveError;
-          }
-
-          if (inactiveTenant) {
-            data = inactiveTenant;
-          }
-        }
-
+        if (fetchError) throw fetchError;
         if (!isMountedRef.current) return;
 
-        if (!data) {
-          // Slug does not match any tenant (active or inactive)
-          setError(new Error("Organização não encontrada"));
+        const tenantRaw = (rpcResult as any)?.tenant;
+
+        if (!tenantRaw) {
+          setError(new Error("TENANT_NOT_FOUND"));
           setTenant(null);
           setBillingInfo(null);
         } else {
           const tenantData: Tenant = {
-            id: data.id,
-            slug: data.slug,
-            name: data.name,
-            description: data.description,
-            logoUrl: data.logo_url,
-            primaryColor: data.primary_color || "#dc2626",
-            sportTypes: (data.sport_types || []) as Tenant["sportTypes"],
-            stripeCustomerId: data.stripe_customer_id,
-            isActive: data.is_active ?? true,
-            createdAt: data.created_at ?? "",
-            updatedAt: data.updated_at ?? "",
-            onboardingCompleted: data.onboarding_completed ?? undefined,
-            status: (data.status as Tenant["status"]) ?? undefined,
-            creationSource: (data.creation_source as Tenant["creationSource"]) ?? undefined,
+            id: tenantRaw.id,
+            slug: tenantRaw.slug,
+            name: tenantRaw.name,
+            description: null,
+            logoUrl: tenantRaw.logo_url,
+            primaryColor: tenantRaw.primary_color || "#dc2626",
+            sportTypes: (tenantRaw.sport_types || []) as Tenant["sportTypes"],
+            stripeCustomerId: tenantRaw.stripe_customer_id,
+            isActive: tenantRaw.is_active ?? true,
+            createdAt: tenantRaw.created_at ?? "",
+            updatedAt: "",
+            onboardingCompleted: tenantRaw.onboarding_completed ?? undefined,
+            status: (tenantRaw.status as Tenant["status"]) ?? undefined,
+            creationSource: undefined,
           };
           setTenant(tenantData);
-
-          // Fetch billing info
-          if (!abortController.signal.aborted) {
-            const { data: billing } = await supabase
-              .from("tenant_billing")
-              .select("status, stripe_customer_id, scheduled_delete_at, trial_expires_at")
-              .eq("tenant_id", data.id)
-              .maybeSingle();
-
-            if (!abortController.signal.aborted && isMountedRef.current) {
-              setBillingInfo(billing);
-            }
-          }
+          setBillingInfo((rpcResult as any)?.billing ?? null);
         }
       } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
 
         logger.error("[TENANT] Fetch error:", err);
-        setError(err instanceof Error ? err : new Error("Erro ao carregar organização"));
+        setError(err instanceof Error ? err : new Error("TENANT_FETCH_ERROR"));
         setTenant(null);
         setBillingInfo(null);
       } finally {
