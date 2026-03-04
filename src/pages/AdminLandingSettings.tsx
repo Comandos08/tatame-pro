@@ -58,12 +58,7 @@ export default function AdminLandingSettings() {
   const [partnerOrder, setPartnerOrder] = useState(0);
   const [partnerActive, setPartnerActive] = useState(true);
 
-  // Redirect if not superadmin
-  useEffect(() => {
-    if (!authLoading && !isGlobalSuperadmin) {
-      navigate('/portal');
-    }
-  }, [authLoading, isGlobalSuperadmin, navigate]);
+  // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
 
   // Fetch landing config
   const { data: landingConfig } = useQuery({

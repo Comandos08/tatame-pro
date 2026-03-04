@@ -41,6 +41,14 @@ export default function Login() {
         navigate("/identity/wizard", { replace: true });
         return;
       }
+
+      // ═══════════════════════════════════════════════════════════
+      // SUPERADMIN explicit redirect — don't fall through to /portal
+      // ═══════════════════════════════════════════════════════════
+      if (identityState === "SUPERADMIN") {
+        navigate("/admin", { replace: true });
+        return;
+      }
       
       // Use redirectPath from backend (more precise than hardcoded /portal)
       const destination = redirectPath || "/portal";

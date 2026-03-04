@@ -3290,6 +3290,18 @@ export type Database = {
           },
         ]
       }
+      v_user_id: {
+        Row: {
+          id: string | null
+        }
+        Insert: {
+          id?: string | null
+        }
+        Update: {
+          id?: string | null
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
           created_at: string
