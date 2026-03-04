@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import IdentityGate from "@/components/identity/IdentityGate";
-import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
+
 
 // Public pages
 import Landing from "@/pages/Landing";
@@ -54,7 +54,6 @@ import PublicEventDetails from "@/pages/PublicEventDetails";
 
 export default function App() {
   return (
-    <ImpersonationProvider>
       <IdentityGate>
         <Routes>
           {/* Public */}
@@ -187,6 +186,5 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </IdentityGate>
-    </ImpersonationProvider>
   );
 }
