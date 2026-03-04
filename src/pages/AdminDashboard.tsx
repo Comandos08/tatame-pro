@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -85,12 +85,7 @@ export default function AdminDashboard() {
   const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
   const [impersonatingTenant, setImpersonatingTenant] = useState<Tenant | null>(null);
 
-  // 🔐 HARDENED: Redirect to /portal (decision hub), not /
-  React.useEffect(() => {
-    if (!authLoading && !isGlobalSuperadmin && currentUser) {
-      navigate('/portal');
-    }
-  }, [isGlobalSuperadmin, currentUser, navigate, authLoading]);
+  // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
 
   // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {

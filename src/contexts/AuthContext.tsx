@@ -46,7 +46,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.rpc('get_my_profile_with_roles');
       if (error || !data) return null;
 
-      const parsed = data as Record<string, unknown>;
+    const parsed = data as Record<string, unknown>;
+      const roles = ((parsed.roles as Array<Record<string, unknown>>) ?? []).map((r) => ({
+        id: r.id as string,
+        userId: r.userId as string,
+        role: r.role as AppRole,
+        tenantId: (r.tenantId as string) ?? null,
+        createdAt: (r.createdAt as string) ?? '',
+      }));
+
+      // ═══════════════════════════════════════════════════════════
+      // DEBUG TEMPORÁRIO: Verificar roles retornadas (REMOVER após validação)
+      // ═══════════════════════════════════════════════════════════
+      if (import.meta.env.DEV) {
+        console.log('[AuthContext] Profile roles loaded:', {
+          totalRoles: roles.length,
+          roles: roles.map(r => ({ role: r.role, tenantId: r.tenantId, isGlobal: r.tenantId === null })),
+          hasSuperadmin: roles.some(r => r.role === 'SUPERADMIN_GLOBAL'),
+          timestamp: new Date().toISOString(),
+          perfNow: performance.now(),
+        });
+      }
+
       return {
         id: parsed.id as string,
         tenantId: (parsed.tenantId as string) ?? null,
@@ -55,13 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatarUrl: (parsed.avatarUrl as string) ?? null,
         createdAt: (parsed.createdAt as string) ?? '',
         updatedAt: (parsed.updatedAt as string) ?? '',
-        roles: ((parsed.roles as Array<Record<string, unknown>>) ?? []).map((r) => ({
-          id: r.id as string,
-          userId: r.userId as string,
-          role: r.role as AppRole,
-          tenantId: (r.tenantId as string) ?? null,
-          createdAt: (r.createdAt as string) ?? '',
-        })),
+        roles,
       };
     } catch {
       return null;

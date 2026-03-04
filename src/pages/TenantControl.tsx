@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -104,7 +104,7 @@ type ActionType = 'extend-trial' | 'mark-as-paid' | 'block-tenant' | 'unblock-te
 
 export default function TenantControl() {
   const { tenantId } = useParams<{ tenantId: string }>();
-  const navigate = useNavigate();
+  
   const { t, locale } = useI18n();
   const { toast } = useToast();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
@@ -190,17 +190,12 @@ export default function TenantControl() {
     }
   };
 
-  // 🔐 HARDENED: Redirect to /portal (decision hub), not /admin
+  // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
   useEffect(() => {
-    if (!authLoading && !isGlobalSuperadmin) {
-      navigate('/portal');
-      return;
-    }
-    
     if (tenantId && isGlobalSuperadmin) {
       fetchData();
     }
-  }, [tenantId, authLoading, isGlobalSuperadmin]);
+  }, [tenantId, isGlobalSuperadmin]);
 
   // Open action dialog
   const openActionDialog = (action: ActionType) => {

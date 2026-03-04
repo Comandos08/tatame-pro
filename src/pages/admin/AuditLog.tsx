@@ -5,7 +5,7 @@
  * Filters: event type, tenant, period, document type
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Search, Filter, Calendar, Building2, FileText, User, Clock, RefreshCw, Shield, AlertTriangle, CreditCard, Users, ChevronDown } from 'lucide-react';
@@ -124,12 +124,7 @@ export default function AuditLog() {
   });
   const [limit, setLimit] = useState(50);
 
-  // Redirect if not superadmin
-  React.useEffect(() => {
-    if (!authLoading && !isGlobalSuperadmin) {
-      navigate('/portal');
-    }
-  }, [isGlobalSuperadmin, authLoading, navigate]);
+  // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
 
   // Fetch tenants for filter
   const {

@@ -2364,6 +2364,7 @@ export const ptBR = {
   'common.loadMore': 'Carregar mais',
   'common.refresh': 'Atualizar',
   'common.verifyingPermissions': 'Verificando permissões...',
+  'common.loadingProfile': 'Carregando perfil...',
   'common.createNew': 'Criar Novo',
 
   // Portal - Missing keys (P1)

@@ -2385,6 +2385,7 @@ export const es: Record<string, string> = {
   'common.loadMore': 'Cargar más',
   'common.refresh': 'Actualizar',
   'common.verifyingPermissions': 'Verificando permisos...',
+  'common.loadingProfile': 'Cargando perfil...',
   'common.createNew': 'Crear Nuevo',
 
   // Portal - Missing keys (P1)
