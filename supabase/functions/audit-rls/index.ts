@@ -403,43 +403,43 @@ serve(async (req) => {
     }
 
     // ====================================================================
-    // PHASE 1: Audit RLS Policies (via RPC)
+    // PHASE 1: Audit RLS Policies (via RPC) — USANDO VERSÃO SUPERADMIN
     // ====================================================================
-    const { data: policies, error: policiesError } = await supabase.rpc("audit_rls_snapshot");
+    const { data: policies, error: policiesError } = await supabase.rpc("audit_rls_snapshot_superadmin");
 
     if (policiesError) {
-      log.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
-      return rpcErrorResponse(corsHeaders, "audit_rls_snapshot", policiesError.message);
+      log.error("[AUDIT-RLS] RPC audit_rls_snapshot_superadmin failed:", policiesError.message);
+      return rpcErrorResponse(corsHeaders, "audit_rls_snapshot_superadmin", policiesError.message);
     }
 
     const policyFindings = (policies as PolicyRow[]).map(classifyPolicyRisk);
 
     // ====================================================================
-    // PHASE 2: Audit SECURITY DEFINER Functions (via RPC)
+    // PHASE 2: Audit SECURITY DEFINER Functions (via RPC) — USANDO VERSÃO SUPERADMIN
     // ====================================================================
-    const { data: definers, error: definersError } = await supabase.rpc("audit_security_definer_snapshot");
+    const { data: definers, error: definersError } = await supabase.rpc("audit_security_definer_snapshot_superadmin");
 
     if (definersError) {
-      log.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
-      return rpcErrorResponse(corsHeaders, "audit_security_definer_snapshot", definersError.message);
+      log.error("[AUDIT-RLS] RPC audit_security_definer_snapshot_superadmin failed:", definersError.message);
+      return rpcErrorResponse(corsHeaders, "audit_security_definer_snapshot_superadmin", definersError.message);
     }
 
     const definerFindings = (definers as DefinerRow[]).map(classifyDefinerRisk);
 
     // ====================================================================
-    // PHASE 3: Tables Without RLS (via RPC)
+    // PHASE 3: Tables Without RLS (via RPC) — USANDO VERSÃO SUPERADMIN
     // ====================================================================
-    const { data: tablesNoRls, error: tablesError } = await supabase.rpc("audit_tables_without_rls");
+    const { data: tablesNoRls, error: tablesError } = await supabase.rpc("audit_tables_without_rls_superadmin");
 
     if (tablesError) {
-      log.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
-      return rpcErrorResponse(corsHeaders, "audit_tables_without_rls", tablesError.message);
+      log.error("[AUDIT-RLS] RPC audit_tables_without_rls_superadmin failed:", tablesError.message);
+      return rpcErrorResponse(corsHeaders, "audit_tables_without_rls_superadmin", tablesError.message);
     }
 
     const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map((r) => r.tablename);
 
     // ====================================================================
-    // PHASE 4: PII Exposure Audit — Anon Access Snapshot (PI-A08)
+    // PHASE 4: PII Exposure Audit — Anon Access Snapshot (PI-A08) — USANDO VERSÃO SUPERADMIN
     // ====================================================================
     let piiExposure: PiiExposureFinding[] = [];
     let piiExposureError = false;
@@ -447,7 +447,7 @@ serve(async (req) => {
       const { data: anonPolicies, error: anonError } = await supabase.rpc("audit_public_access_snapshot_superadmin");
 
       if (anonError) {
-        log.warn("[AUDIT-RLS] RPC audit_public_access_snapshot failed (non-fatal):", anonError.message);
+        log.warn("[AUDIT-RLS] RPC audit_public_access_snapshot_superadmin failed (non-fatal):", anonError.message);
         piiExposureError = true;
       } else if (anonPolicies) {
         const policies_arr = Array.isArray(anonPolicies) ? anonPolicies : (anonPolicies as unknown as AnonPolicyRow[]);
