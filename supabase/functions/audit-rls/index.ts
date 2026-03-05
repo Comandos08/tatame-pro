@@ -12,13 +12,21 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildErrorEnvelope, errorResponse, ERROR_CODES, unauthorizedResponse, forbiddenResponse, rpcErrorResponse } from "../_shared/errors/envelope.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  ERROR_CODES,
+  unauthorizedResponse,
+  forbiddenResponse,
+  rpcErrorResponse,
+} from "../_shared/errors/envelope.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 // ============================================================================
@@ -83,35 +91,70 @@ interface PiiExposureFinding {
 // ============================================================================
 
 const PII_SENSITIVE_TABLES = new Set([
-  "profiles", "user_roles", "memberships", "athletes", "guardians",
-  "guardian_links", "coaches", "audit_logs", "decision_logs",
-  "security_events", "digital_cards", "diplomas", "documents",
-  "password_resets", "superadmin_impersonations", "tenant_billing",
-  "tenant_invoices", "webhook_events",
+  "profiles",
+  "user_roles",
+  "memberships",
+  "athletes",
+  "guardians",
+  "guardian_links",
+  "coaches",
+  "audit_logs",
+  "decision_logs",
+  "security_events",
+  "digital_cards",
+  "diplomas",
+  "documents",
+  "password_resets",
+  "superadmin_impersonations",
+  "tenant_billing",
+  "tenant_invoices",
+  "webhook_events",
 ]);
 
 const PII_PUBLIC_SAFE_TABLES = new Set([
-  "platform_landing_config", "platform_partners",
-  "billing_environment_config", "feature_access",
+  "platform_landing_config",
+  "platform_partners",
+  "billing_environment_config",
+  "feature_access",
 ]);
 
-function classifyAnonAccess(
-  tablename: string,
-  cmd: string,
-  policyname: string,
-): PiiExposureFinding {
+function classifyAnonAccess(tablename: string, cmd: string, policyname: string): PiiExposureFinding {
   const isWrite = cmd === "INSERT" || cmd === "UPDATE" || cmd === "DELETE" || cmd === "ALL";
 
   if (isWrite) {
-    return { table: tablename, policy: policyname, cmd, risk: "CRITICAL", reason: `Anonymous ${cmd} access — potential data mutation` };
+    return {
+      table: tablename,
+      policy: policyname,
+      cmd,
+      risk: "CRITICAL",
+      reason: `Anonymous ${cmd} access — potential data mutation`,
+    };
   }
   if (PII_SENSITIVE_TABLES.has(tablename)) {
-    return { table: tablename, policy: policyname, cmd, risk: "CRITICAL", reason: `Anonymous SELECT on sensitive PII table '${tablename}'` };
+    return {
+      table: tablename,
+      policy: policyname,
+      cmd,
+      risk: "CRITICAL",
+      reason: `Anonymous SELECT on sensitive PII table '${tablename}'`,
+    };
   }
   if (!PII_PUBLIC_SAFE_TABLES.has(tablename)) {
-    return { table: tablename, policy: policyname, cmd, risk: "HIGH", reason: `Anonymous SELECT on '${tablename}' not in PUBLIC_SAFE_TABLES` };
+    return {
+      table: tablename,
+      policy: policyname,
+      cmd,
+      risk: "HIGH",
+      reason: `Anonymous SELECT on '${tablename}' not in PUBLIC_SAFE_TABLES`,
+    };
   }
-  return { table: tablename, policy: policyname, cmd, risk: "SAFE", reason: "Anonymous SELECT on explicitly public table" };
+  return {
+    table: tablename,
+    policy: policyname,
+    cmd,
+    risk: "SAFE",
+    reason: "Anonymous SELECT on explicitly public table",
+  };
 }
 
 // ============================================================================
@@ -119,92 +162,133 @@ function classifyAnonAccess(
 // ============================================================================
 
 const SENSITIVE_TABLES = [
-  "profiles", "user_roles", "tenants", "tenant_billing",
-  "memberships", "athletes", "audit_logs", "decision_logs",
-  "security_events", "digital_cards", "diplomas", "documents",
+  "profiles",
+  "user_roles",
+  "tenants",
+  "tenant_billing",
+  "memberships",
+  "athletes",
+  "audit_logs",
+  "decision_logs",
+  "security_events",
+  "digital_cards",
+  "diplomas",
+  "documents",
 ];
 
 function classifyPolicyRisk(p: PolicyRow): PolicyFinding {
   const qual = (p.qual || "").trim().toLowerCase();
   const withCheck = (p.with_check || "").trim().toLowerCase();
   const roles = p.roles || [];
-  const hasAnon = roles.some(r => r === "anon" || r === "{anon}");
+  const hasAnon = roles.some((r) => r === "anon" || r === "{anon}");
   const isSensitive = SENSITIVE_TABLES.includes(p.tablename);
 
   // CRITICAL: USING (true) or WITH CHECK (true)
   if (qual === "true" || qual === "(true)") {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "CRITICAL",
       reason: `USING (true) exposes all rows${hasAnon ? " including to anonymous users" : ""}`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
   if (withCheck === "true" || withCheck === "(true)") {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "CRITICAL",
       reason: `WITH CHECK (true) allows unrestricted writes`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // CRITICAL: anon access on sensitive tables
   if (hasAnon && isSensitive) {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "CRITICAL",
       reason: `Anonymous access on sensitive table '${p.tablename}'`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // CRITICAL: cmd = ALL with broad condition
   if (p.cmd === "ALL" && (!qual || qual === "true" || qual === "(true)")) {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "CRITICAL",
       reason: `ALL command with broad or missing condition`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // HIGH: No auth.uid() reference on sensitive table
-  if (isSensitive && !qual.includes("auth.uid()") && !qual.includes("is_superadmin") && !qual.includes("is_tenant_admin") && !qual.includes("is_member_of_tenant") && !qual.includes("has_role") && !qual.includes("can_view")) {
+  if (
+    isSensitive &&
+    !qual.includes("auth.uid()") &&
+    !qual.includes("is_superadmin") &&
+    !qual.includes("is_tenant_admin") &&
+    !qual.includes("is_member_of_tenant") &&
+    !qual.includes("has_role") &&
+    !qual.includes("can_view")
+  ) {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "HIGH",
       reason: `No auth.uid() or security function reference on sensitive table`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // HIGH: anon access with write
   if (hasAnon && (p.cmd === "INSERT" || p.cmd === "UPDATE" || p.cmd === "DELETE")) {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "HIGH",
       reason: `Anonymous write access (${p.cmd})`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // MEDIUM: permissive on write operations
   if (p.permissive === "PERMISSIVE" && (p.cmd === "UPDATE" || p.cmd === "DELETE")) {
     return {
-      table: p.tablename, policy: p.policyname, cmd: p.cmd,
+      table: p.tablename,
+      policy: p.policyname,
+      cmd: p.cmd,
       risk: "MEDIUM",
       reason: `PERMISSIVE policy on ${p.cmd} — verify if RESTRICTIVE is more appropriate`,
-      roles, permissive: p.permissive,
+      roles,
+      permissive: p.permissive,
     };
   }
 
   // SAFE
   return {
-    table: p.tablename, policy: p.policyname, cmd: p.cmd,
+    table: p.tablename,
+    policy: p.policyname,
+    cmd: p.cmd,
     risk: "SAFE",
     reason: `Policy has proper access controls`,
-    roles, permissive: p.permissive,
+    roles,
+    permissive: p.permissive,
   };
 }
 
@@ -218,7 +302,8 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   // CRITICAL: Dynamic SQL
   if (def.includes("execute") && (def.includes("format(") || def.includes("||"))) {
     return {
-      name: f.function_name, schema: f.schema,
+      name: f.function_name,
+      schema: f.schema,
       risk: "CRITICAL",
       reason: "SECURITY DEFINER with dynamic SQL (EXECUTE + format/concatenation) — SQL injection risk",
     };
@@ -227,7 +312,8 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   // HIGH: Broad UPDATE/DELETE without WHERE
   if ((def.includes("update ") || def.includes("delete ")) && !def.includes("where")) {
     return {
-      name: f.function_name, schema: f.schema,
+      name: f.function_name,
+      schema: f.schema,
       risk: "HIGH",
       reason: "SECURITY DEFINER with UPDATE/DELETE without explicit WHERE clause",
     };
@@ -236,7 +322,8 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   // HIGH: No search_path set
   if (!def.includes("search_path")) {
     return {
-      name: f.function_name, schema: f.schema,
+      name: f.function_name,
+      schema: f.schema,
       risk: "HIGH",
       reason: "SECURITY DEFINER without SET search_path — path hijacking risk",
     };
@@ -245,7 +332,8 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   // SAFE: RLS helper pattern
   if (def.includes("exists") && def.includes("select 1") && def.includes("auth.uid()")) {
     return {
-      name: f.function_name, schema: f.schema,
+      name: f.function_name,
+      schema: f.schema,
       risk: "SAFE",
       reason: "RLS helper function — proper pattern for recursion avoidance",
     };
@@ -254,14 +342,16 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
   // MEDIUM: No explanatory comment
   if (!def.includes("-- security definer") && !def.includes("-- reason:")) {
     return {
-      name: f.function_name, schema: f.schema,
+      name: f.function_name,
+      schema: f.schema,
       risk: "MEDIUM",
       reason: "SECURITY DEFINER without explanatory comment justifying elevation",
     };
   }
 
   return {
-    name: f.function_name, schema: f.schema,
+    name: f.function_name,
+    schema: f.schema,
     risk: "SAFE",
     reason: "SECURITY DEFINER with proper scope, search_path, and justification",
   };
@@ -292,9 +382,10 @@ serve(async (req) => {
       return unauthorizedResponse(corsHeaders, "auth.missing_token");
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) {
       return unauthorizedResponse(corsHeaders, "auth.invalid_token");
     }
@@ -314,8 +405,7 @@ serve(async (req) => {
     // ====================================================================
     // PHASE 1: Audit RLS Policies (via RPC)
     // ====================================================================
-    const { data: policies, error: policiesError } = await supabase
-      .rpc("audit_rls_snapshot");
+    const { data: policies, error: policiesError } = await supabase.rpc("audit_rls_snapshot");
 
     if (policiesError) {
       log.error("[AUDIT-RLS] RPC audit_rls_snapshot failed:", policiesError.message);
@@ -327,8 +417,7 @@ serve(async (req) => {
     // ====================================================================
     // PHASE 2: Audit SECURITY DEFINER Functions (via RPC)
     // ====================================================================
-    const { data: definers, error: definersError } = await supabase
-      .rpc("audit_security_definer_snapshot");
+    const { data: definers, error: definersError } = await supabase.rpc("audit_security_definer_snapshot");
 
     if (definersError) {
       log.error("[AUDIT-RLS] RPC audit_security_definer_snapshot failed:", definersError.message);
@@ -340,15 +429,14 @@ serve(async (req) => {
     // ====================================================================
     // PHASE 3: Tables Without RLS (via RPC)
     // ====================================================================
-    const { data: tablesNoRls, error: tablesError } = await supabase
-      .rpc("audit_tables_without_rls");
+    const { data: tablesNoRls, error: tablesError } = await supabase.rpc("audit_tables_without_rls");
 
     if (tablesError) {
       log.error("[AUDIT-RLS] RPC audit_tables_without_rls failed:", tablesError.message);
       return rpcErrorResponse(corsHeaders, "audit_tables_without_rls", tablesError.message);
     }
 
-    const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map(r => r.tablename);
+    const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map((r) => r.tablename);
 
     // ====================================================================
     // PHASE 4: PII Exposure Audit — Anon Access Snapshot (PI-A08)
@@ -356,8 +444,7 @@ serve(async (req) => {
     let piiExposure: PiiExposureFinding[] = [];
     let piiExposureError = false;
     try {
-      const { data: anonPolicies, error: anonError } = await supabase
-        .rpc("audit_public_access_snapshot");
+      const { data: anonPolicies, error: anonError } = await supabase.rpc("audit_public_access_snapshot_superadmin");
 
       if (anonError) {
         log.warn("[AUDIT-RLS] RPC audit_public_access_snapshot failed (non-fatal):", anonError.message);
@@ -365,7 +452,7 @@ serve(async (req) => {
       } else if (anonPolicies) {
         const policies_arr = Array.isArray(anonPolicies) ? anonPolicies : (anonPolicies as unknown as AnonPolicyRow[]);
         piiExposure = (policies_arr as AnonPolicyRow[]).map((p) =>
-          classifyAnonAccess(p.tablename, p.cmd, p.policyname)
+          classifyAnonAccess(p.tablename, p.cmd, p.policyname),
         );
       }
     } catch {
@@ -410,10 +497,10 @@ serve(async (req) => {
         },
       },
       piiExposureError,
-      policies: policyFindings.filter(f => f.risk !== "SAFE"),
-      securityDefinerFunctions: definerFindings.filter(f => f.risk !== "SAFE"),
+      policies: policyFindings.filter((f) => f.risk !== "SAFE"),
+      securityDefinerFunctions: definerFindings.filter((f) => f.risk !== "SAFE"),
       tablesWithoutRls,
-      piiExposure: piiExposure.filter(f => f.risk !== "SAFE"),
+      piiExposure: piiExposure.filter((f) => f.risk !== "SAFE"),
       allPolicies: policyFindings,
       allDefinerFunctions: definerFindings,
       allPiiExposure: piiExposure,
@@ -423,11 +510,12 @@ serve(async (req) => {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (error) {
     log.error("[AUDIT-RLS] Unexpected error:", error);
-    return errorResponse(500, buildErrorEnvelope(
-      ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false
-    ), corsHeaders);
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false),
+      corsHeaders,
+    );
   }
 });
