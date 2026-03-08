@@ -1,0 +1,94 @@
+BUGFIX_PROMPT_TEMPLATE
+
+Purpose:
+Fix a defect in Tatame Pro while preserving system architecture and existing functionality.
+
+---
+
+# 1. BUG DESCRIPTION
+
+Describe the observed issue.
+
+Example:
+
+Athlete membership approval creates duplicate records.
+
+---
+
+# 2. EXPECTED BEHAVIOR
+
+Describe correct behavior.
+
+Example:
+
+Each athlete must have only one active membership per federation.
+
+---
+
+# 3. CURRENT SYSTEM ANALYSIS
+
+Claude must inspect:
+
+- relevant modules
+- database constraints
+- service logic
+
+Claude must identify root cause.
+
+---
+
+# 4. ROOT CAUSE HYPOTHESIS
+
+Example:
+
+Membership creation logic does not validate existing active membership.
+
+---
+
+# 5. FIX STRATEGY
+
+Lovable must:
+
+Step 1 — add validation logic  
+Step 2 — prevent duplicate membership creation  
+Step 3 — preserve historical records
+
+---
+
+# 6. AFFECTED COMPONENTS
+
+Example:
+
+membership service  
+membership creation API  
+database constraints
+
+---
+
+# 7. CONSTRAINTS
+
+Lovable must NOT:
+
+- delete existing data
+- modify unrelated modules
+- bypass tenant validation
+
+---
+
+# 8. VALIDATION CRITERIA
+
+Fix is valid when:
+
+- duplicate memberships cannot be created
+- existing memberships remain intact
+- tenant isolation remains enforced
+
+---
+
+# 9. TEST CASES
+
+Test scenarios:
+
+create membership twice  
+verify rejection  
+validate multi-tenant behavior

@@ -1,0 +1,64 @@
+REFACTOR_PROMPT_TEMPLATE
+
+Purpose:
+Improve code structure without modifying system behavior.
+
+---
+
+# 1. REFACTOR OBJECTIVE
+
+Example:
+
+Improve ranking service readability and modularity.
+
+---
+
+# 2. CURRENT STATE
+
+Claude must describe:
+
+- existing implementation
+- identified complexity
+- maintainability issues
+
+---
+
+# 3. REFACTOR STRATEGY
+
+Lovable must:
+
+- preserve behavior
+- maintain API contracts
+- avoid database changes
+
+Refactor must be incremental.
+
+---
+
+# 4. TARGET IMPROVEMENTS
+
+Example:
+
+better separation of services  
+clearer domain logic  
+simpler queries
+
+---
+
+# 5. NON-GOALS
+
+Refactor must NOT:
+
+- introduce new features
+- change API responses
+- modify database schema
+
+---
+
+# 6. VALIDATION
+
+After refactor:
+
+- system behavior must remain identical
+- tests must pass
+- no regression allowed

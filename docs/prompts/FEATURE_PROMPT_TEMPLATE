@@ -1,0 +1,129 @@
+FEATURE_PROMPT_TEMPLATE
+
+Purpose:
+Implement a new feature in Tatame Pro while preserving system integrity, tenant isolation and existing contracts.
+
+---
+
+# 1. OBJECTIVE
+
+Describe the feature clearly and concisely.
+
+Example:
+
+Implement athlete ranking filtering by graduation belt and competition category.
+
+---
+
+# 2. SYSTEM CONTEXT
+
+Relevant domains involved:
+
+Example:
+
+Athlete  
+Ranking  
+Competition  
+
+Relevant entities:
+
+Example:
+
+Athlete  
+Competition  
+RankingEntry  
+
+Claude must verify these entities exist in the repository.
+
+---
+
+# 3. CURRENT STATE
+
+Describe how the system currently behaves based on repository analysis.
+
+Example:
+
+Athlete ranking currently lists all competitors without belt filtering.
+
+---
+
+# 4. EXPECTED BEHAVIOR
+
+Describe how the system must behave after implementation.
+
+Example:
+
+Users can filter rankings by:
+
+- belt
+- competition category
+- academy
+
+---
+
+# 5. IMPLEMENTATION PLAN
+
+Lovable must follow this order:
+
+Step 1 — backend logic  
+Step 2 — API integration  
+Step 3 — frontend integration  
+Step 4 — validation
+
+Prefer reuse of existing services.
+
+Avoid creation of unnecessary modules.
+
+---
+
+# 6. FILES OR MODULES LIKELY AFFECTED
+
+Example:
+
+ranking service  
+athlete query service  
+ranking API route  
+ranking UI component
+
+Claude must confirm affected files by repository inspection.
+
+---
+
+# 7. CONSTRAINTS
+
+Lovable must respect the following rules:
+
+- Preserve tenant isolation
+- Do not break existing API contracts
+- Avoid destructive schema changes
+- Maintain role authorization logic
+
+---
+
+# 8. ACCEPTANCE CRITERIA
+
+Feature is complete when:
+
+- ranking filters work correctly
+- tenant boundaries are respected
+- existing ranking functionality remains intact
+
+---
+
+# 9. TEST REQUIREMENTS
+
+Validate:
+
+- role authorization
+- tenant isolation
+- filter accuracy
+
+---
+
+# 10. RISK MITIGATION
+
+Ensure:
+
+- ranking queries remain indexed
+- no cross-tenant ranking exposure
+- backward compatibility

@@ -1,0 +1,66 @@
+MIGRATION_PROMPT_TEMPLATE
+
+Purpose:
+Introduce safe database changes while preserving data integrity.
+
+---
+
+# 1. MIGRATION OBJECTIVE
+
+Example:
+
+Add belt_category column to ranking table.
+
+---
+
+# 2. CURRENT DATA STRUCTURE
+
+Claude must inspect:
+
+- current schema
+- foreign keys
+- indexes
+
+---
+
+# 3. MIGRATION STRATEGY
+
+Follow additive migration pattern.
+
+Step 1 — add column  
+Step 2 — backfill data  
+Step 3 — update services  
+Step 4 — validate usage
+
+Never remove existing columns during the same migration.
+
+---
+
+# 4. DATA SAFETY RULES
+
+Lovable must NOT:
+
+- drop tables
+- truncate data
+- remove columns
+
+---
+
+# 5. BACKWARD COMPATIBILITY
+
+Existing queries must continue working.
+
+Migration must not break:
+
+existing API responses  
+existing services
+
+---
+
+# 6. VALIDATION
+
+After migration:
+
+- queries must still execute
+- indexes must remain valid
+- tenant filtering must remain enforced
