@@ -6,6 +6,7 @@ import IdentityGate from "@/components/identity/IdentityGate";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import SignUp from "@/pages/SignUp";
+import VerifyEmail from "@/pages/VerifyEmail";
 import JoinTenant from "@/pages/JoinTenant";
 import Help from "@/pages/Help";
 import About from "@/pages/About";
