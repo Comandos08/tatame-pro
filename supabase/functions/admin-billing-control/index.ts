@@ -646,6 +646,16 @@ Deno.serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("admin-billing-control", correlationId);
 
+  // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+  const _supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const _supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const _supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!_supabaseUrl || !_supabaseServiceKey || !_supabaseAnonKey) {
+    return errorResponse(500, buildErrorEnvelope(
+      ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, undefined, correlationId
+    ), corsHeaders);
+  }
+
   try {
     // Validate superadmin
     const authHeader = req.headers.get("Authorization");

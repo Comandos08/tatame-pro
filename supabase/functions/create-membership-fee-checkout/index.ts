@@ -83,10 +83,19 @@ serve(async (req) => {
     // ========================================================================
     // STEP 1: Environment
     // ========================================================================
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"], correlationId),
+        corsHeaders,
+      );
+    }
     if (!stripeSecretKey) {
       log.error("Stripe secret key not configured");
       return errorResponse(
@@ -96,6 +105,7 @@ serve(async (req) => {
       );
     }
 
+    // PI-AUTH-CLIENT-SPLIT-001: supabase for DB ops, supabaseAuth for JWT validation
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const stripe = new Stripe(stripeSecretKey, { apiVersion: "2025-08-27.basil" });
 
@@ -134,9 +144,10 @@ serve(async (req) => {
       );
     }
 
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userErr } = await supabaseAuth.auth.getUser();
     if (userErr || !user) {
       return errorResponse(
         401,

@@ -93,11 +93,19 @@ serve(async (req) => {
     // ========================================================================
     // STEP 2: Supabase Client Initialization
     // ========================================================================
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"], correlationId),
+        corsHeaders,
+      );
+    }
+    // PI-AUTH-CLIENT-SPLIT-001: supabaseClient for DB ops, supabaseAuth for JWT validation
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
 
     // ========================================================================
     // STEP 3: Authorization Validation
@@ -108,8 +116,10 @@ serve(async (req) => {
       return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userError } = await supabaseAuth.auth.getUser();
     if (userError) {
       log.warn("Authentication error", { error: userError.message });
       return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
