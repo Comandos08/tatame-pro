@@ -427,6 +427,7 @@ serve(async (req) => {
     // ========================================================================
 
     // 🔐 Defensive normalization (membership already fetched above)
+    const targetTenantId = membership.tenant_id;
     const targetTenantIdNormalized = String(targetTenantId);
 
     // 5.1 Fetch roles for current user

@@ -422,7 +422,7 @@ export function AdultMembershipForm() {
           body: {
             membershipId: membershipId,
             tenantSlug: tenantSlug,
-            successUrl: `${window.location.origin}/${tenantSlug}/membership/success`,
+            successUrl: `${window.location.origin}/${tenantSlug}/membership/success?membership_id=${membershipId}&session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${window.location.origin}/${tenantSlug}/membership/adult`,
             captchaToken: captchaToken,
           },
