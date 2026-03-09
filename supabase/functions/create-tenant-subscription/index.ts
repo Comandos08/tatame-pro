@@ -54,14 +54,20 @@ serve(async (req) => {
   const log = createBackendLogger("create-tenant-subscription", correlationId);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      throw new Error("Server configuration error");
+    }
     if (!stripeSecretKey) {
       throw new Error("Missing Stripe configuration");
     }
 
+    // PI-AUTH-CLIENT-SPLIT-001: supabase for DB ops, supabaseAuth for JWT validation
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
@@ -72,8 +78,10 @@ serve(async (req) => {
       throw new Error("No authorization header");
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userError } = await supabaseAuth.auth.getUser();
     if (userError || !userData.user) {
       throw new Error("Invalid authentication");
     }
