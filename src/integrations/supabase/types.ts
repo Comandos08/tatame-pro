@@ -3632,7 +3632,33 @@ export type Database = {
         Returns: boolean
       }
       audit_public_access_snapshot: { Args: never; Returns: Json }
+      audit_public_access_snapshot_superadmin: {
+        Args: never
+        Returns: {
+          cmd: string
+          permissive: string
+          policyname: string
+          qual: string
+          roles: string[]
+          schemaname: string
+          tablename: string
+          with_check: string
+        }[]
+      }
       audit_rls_snapshot: {
+        Args: never
+        Returns: {
+          cmd: string
+          permissive: string
+          policyname: string
+          qual: string
+          roles: string[]
+          schemaname: string
+          tablename: string
+          with_check: string
+        }[]
+      }
+      audit_rls_snapshot_superadmin: {
         Args: never
         Returns: {
           cmd: string
@@ -3653,7 +3679,21 @@ export type Database = {
           schema: string
         }[]
       }
+      audit_security_definer_snapshot_superadmin: {
+        Args: never
+        Returns: {
+          definition: string
+          function_name: string
+          schema: string
+        }[]
+      }
       audit_tables_without_rls: {
+        Args: never
+        Returns: {
+          tablename: string
+        }[]
+      }
+      audit_tables_without_rls_superadmin: {
         Args: never
         Returns: {
           tablename: string
@@ -3805,6 +3845,7 @@ export type Database = {
         Args: { _coach_id: string }
         Returns: boolean
       }
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       explain_security_decision: {
         Args: { p_decision_id: string }
         Returns: {

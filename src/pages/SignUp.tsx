@@ -112,6 +112,16 @@ export default function SignUp() {
 
     setIsSubmitting(true);
 
+    // Safety net: reset loading after 20s if nothing happens
+    const timeoutId = setTimeout(() => {
+      setIsSubmitting(false);
+      toast({
+        title: "Timeout",
+        description: "A requisição demorou demais. Tente novamente.",
+        variant: "destructive",
+      });
+    }, 20000);
+
     try {
       // PI-ONB-001: Persist onboarding intent BEFORE signup
       if (mode && VALID_MODES.has(mode)) {
@@ -120,12 +130,15 @@ export default function SignUp() {
       }
 
       await signUp(email, password, name);
+      clearTimeout(timeoutId);
+      setIsSubmitting(false);
       toast({
         title: t("auth.accountCreated"),
         description: t("auth.accountCreatedDesc"),
       });
-      // Do not navigate manually - wait for isAuthenticated in useEffect
+      navigate("/verify-email", { state: { email } });
     } catch (error) {
+      clearTimeout(timeoutId);
       logger.error("SignUp error:", error);
       const errorKey = getAuthErrorKey(error);
       toast({
