@@ -83,9 +83,33 @@ serve(async (req) => {
   const log = createBackendLogger("reject-membership", correlationId);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // ========================================================================
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    // ========================================================================
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      log.error("Fail-fast: missing required env vars", undefined, {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+        hasAnonKey: !!supabaseAnonKey,
+      });
+      return errorResponse(500, buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId
+      ), corsHeaders);
+    }
+
+    // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
+    // - supabaseAdmin → SERVICE_ROLE (all DB/RPC operations)
+    // - supabaseAuth  → ANON KEY + Authorization header (JWT validation only)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: req.headers.get("authorization") ?? "" },
+      },
+    });
 
     // ========================================================================
     // 1️⃣ AUTH VALIDATION
@@ -93,7 +117,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       log.warn("Auth failed - missing header");
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: 'reject-membership',
         reason: 'MISSING_AUTH',
       });
@@ -102,12 +126,10 @@ serve(async (req) => {
       ), corsHeaders);
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
     if (userError || !user) {
       log.warn("Auth failed - invalid token");
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: 'reject-membership',
         reason: 'INVALID_TOKEN',
       });
@@ -126,11 +148,11 @@ serve(async (req) => {
     const rateLimiter = rejectMembershipRateLimiter();
     const rateLimitCtx = buildRateLimitContext(req, user.id, null);
     // deno-lint-ignore no-explicit-any
-    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabase as any);
+    const rateLimitResult = await rateLimiter.check(rateLimitCtx, supabaseAdmin as any);
     if (!rateLimitResult.allowed) {
       log.warn("Rate limit exceeded", { count: rateLimitResult.count });
       
-      await logRateLimitBlock(supabase, {
+      await logRateLimitBlock(supabaseAdmin, {
         operation: 'reject-membership',
         user_id: user.id,
         ip_address: extractRequestContext(req).ip_address,
@@ -149,7 +171,7 @@ serve(async (req) => {
       body = await req.json();
     } catch {
       log.warn("Validation failed - invalid JSON");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
         operation: 'reject-membership',
@@ -164,7 +186,7 @@ serve(async (req) => {
 
     if (!membershipId) {
       log.warn("Validation failed - missing membershipId");
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
         operation: 'reject-membership',
@@ -177,7 +199,7 @@ serve(async (req) => {
     // ========================================================================
     // 4️⃣ FETCH MEMBERSHIP (before auth check - need tenant_id)
     // ========================================================================
-    const { data: membership, error: membershipError } = await supabase
+    const { data: membership, error: membershipError } = await supabaseAdmin
       .from("memberships")
       .select(`
         id,
@@ -194,7 +216,7 @@ serve(async (req) => {
     if (membershipError || !membership) {
       log.warn("Membership not found or error", { membershipId });
       // Anti-enumeration: don't reveal if it exists
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
         operation: 'reject-membership',
@@ -214,7 +236,7 @@ serve(async (req) => {
     // ========================================================================
     
     // 5.1 Check user roles
-    const { data: roles } = await supabase
+    const { data: roles } = await supabaseAdmin
       .from("user_roles")
       .select("role, tenant_id")
       .eq("user_id", adminProfileId);
@@ -227,7 +249,7 @@ serve(async (req) => {
 
     if (!isSuperadmin && !isTenantAdmin) {
       log.warn("Permission denied - no valid role");
-      await logPermissionDenied(supabase, {
+      await logPermissionDenied(supabaseAdmin, {
         operation: 'reject-membership',
         user_id: user.id,
         tenant_id: targetTenantId,
@@ -243,7 +265,7 @@ serve(async (req) => {
       const impersonationId = extractImpersonationId(req, body);
       // deno-lint-ignore no-explicit-any
       const impersonationCheck = await requireImpersonationIfSuperadmin(
-        supabase as any,
+        supabaseAdmin as any,
         user.id,
         targetTenantId,
         impersonationId
@@ -252,7 +274,7 @@ serve(async (req) => {
       if (!impersonationCheck.valid) {
         log.warn("Impersonation validation failed", { error: impersonationCheck.error });
         
-        await logImpersonationBlock(supabase, {
+        await logImpersonationBlock(supabaseAdmin, {
           operation: 'reject-membership',
           user_id: user.id,
           tenant_id: targetTenantId,
@@ -271,14 +293,14 @@ serve(async (req) => {
     // ========================================================================
     // 5️⃣.5️⃣ BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
-    const billingCheck = await requireBillingStatus(supabase, targetTenantId);
+    const billingCheck = await requireBillingStatus(supabaseAdmin, targetTenantId);
     if (!billingCheck.allowed) {
       log.warn("Billing status blocked operation", { 
         status: billingCheck.status, 
         code: billingCheck.code 
       });
       
-      await logBillingRestricted(supabase, {
+      await logBillingRestricted(supabaseAdmin, {
         operation: 'reject-membership',
         user_id: user.id,
         tenant_id: targetTenantId,
@@ -295,7 +317,7 @@ serve(async (req) => {
     // ========================================================================
     if (previousStatus !== "PENDING_REVIEW") {
       log.warn("Invalid status for rejection", { status: previousStatus });
-      await logDecision(supabase, {
+      await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: 'LOW',
         operation: 'reject-membership',
@@ -313,7 +335,7 @@ serve(async (req) => {
     const finalRejectionReason = rejectionReason.trim() || membership.rejection_reason || "Motivo não informado";
     
     // GOV-001B: Transition status via gatekeeper RPC
-    const { error: rpcError } = await supabase.rpc("change_membership_state", {
+    const { error: rpcError } = await supabaseAdmin.rpc("change_membership_state", {
       p_membership_id: membershipId,
       p_new_status: "REJECTED",
       p_reason: finalRejectionReason,
@@ -336,7 +358,7 @@ serve(async (req) => {
     const actorRole = isSuperadmin ? 'SUPERADMIN_GLOBAL' : 'ADMIN_TENANT';
     const impersonationIdForLog = isSuperadmin ? extractImpersonationId(req, body) : null;
     
-    await logMembershipRejected(supabase, {
+    await logMembershipRejected(supabaseAdmin, {
       user_id: adminProfileId,
       tenant_id: targetTenantId,
       membership_id: membershipId,
@@ -351,7 +373,7 @@ serve(async (req) => {
     const applicantData = membership.applicant_data as { full_name?: string } | null;
     const applicantName = applicantData?.full_name || "Unknown";
 
-    await createAuditLog(supabase, {
+    await createAuditLog(supabaseAdmin, {
       event_type: AUDIT_EVENTS.MEMBERSHIP_REJECTED,
       tenant_id: targetTenantId,
       profile_id: adminProfileId,
@@ -366,7 +388,7 @@ serve(async (req) => {
     // ========================================================================
     // 🔟 FETCH DATA FOR NOTIFICATION ENGINE
     // ========================================================================
-    const { data: tenant, error: tenantError } = await supabase
+    const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
       .select("id, slug, name, default_locale")
       .eq("id", targetTenantId)
@@ -475,7 +497,7 @@ serve(async (req) => {
 
             emailResult.sent = true;
 
-            await createAuditLog(supabase, {
+            await createAuditLog(supabaseAdmin, {
               event_type: "EMAIL_SENT",
               tenant_id: targetTenantId,
               profile_id: adminProfileId,
@@ -488,7 +510,7 @@ serve(async (req) => {
               },
             });
 
-            await supabase
+            await supabaseAdmin
               .from("memberships")
               .update({ email_sent_for_status: "REJECTED" })
               .eq("id", membershipId);
@@ -502,7 +524,7 @@ serve(async (req) => {
             emailResult.sent = false;
             emailResult.skippedReason = "send_failed";
 
-            await createAuditLog(supabase, {
+            await createAuditLog(supabaseAdmin, {
               event_type: "EMAIL_FAILED",
               tenant_id: targetTenantId,
               profile_id: adminProfileId,

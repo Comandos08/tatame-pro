@@ -531,7 +531,7 @@ export default function ApprovalDetails() {
       )}
 
       {/* Rejection reason (if already cancelled with reason) */}
-      {membership.status === "CANCELLED" && membership.rejection_reason && (
+      {membership.status === "REJECTED" && membership.rejection_reason && (
         <Card className="p-6 border-destructive/30">
           <h2 className="text-lg font-semibold text-destructive mb-2">Motivo da Rejeição</h2>
           <p className="text-sm">{membership.rejection_reason}</p>
