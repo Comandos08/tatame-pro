@@ -95,9 +95,21 @@ serve(async (req) => {
   const log = createBackendLogger("generate-diploma", correlationId);
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: req.headers.get('authorization') ?? '' } },
+    });
 
     // AUTH VALIDATION (Zero-Trust prerequisite)
     const authHeader = req.headers.get('Authorization');
@@ -107,9 +119,7 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const { data: { user }, error: userErr } = await supabaseAuth.auth.getUser();
     if (userErr || !user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid authentication' }),
@@ -162,7 +172,7 @@ serve(async (req) => {
     }
 
     // Fetch athlete data
-    const { data: athlete, error: athleteError } = await supabase
+    const { data: athlete, error: athleteError } = await supabaseAdmin
       .from('athletes')
       .select('id, full_name, tenant_id, profile_id')
       .eq('id', athleteId)
@@ -176,7 +186,7 @@ serve(async (req) => {
     }
 
     // Fetch grading level with scheme
-    const { data: gradingLevel, error: levelError } = await supabase
+    const { data: gradingLevel, error: levelError } = await supabaseAdmin
       .from('grading_levels')
       .select(`
         id, code, display_name, order_index, tenant_id,
@@ -204,7 +214,7 @@ serve(async (req) => {
 
     // A04 — Tenant Boundary Check (Zero-Trust)
     try {
-      await assertTenantAccess(supabase, user.id, tenantId);
+      await assertTenantAccess(supabaseAdmin, user.id, tenantId);
       log.info("Tenant boundary check passed");
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
@@ -218,7 +228,7 @@ serve(async (req) => {
     }
 
     // Fetch tenant data
-    const { data: tenant, error: tenantError } = await supabase
+    const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
       .select('id, name, slug, logo_url, primary_color')
       .eq('id', tenantId)
@@ -235,7 +245,7 @@ serve(async (req) => {
     // PI-D6.1.2: TENANT LIFECYCLE CHECK (I4)
     // INVARIANT: Only ACTIVE tenants can emit documents
     // ========================================================================
-    const tenantCheck = await requireTenantActive(supabase, tenantId);
+    const tenantCheck = await requireTenantActive(supabaseAdmin, tenantId);
     if (!tenantCheck.allowed) {
       log.info("[GENERATE-DIPLOMA] Tenant not active:", { code: tenantCheck.code });
       return tenantNotActiveResponse(tenantCheck.status);
@@ -244,11 +254,11 @@ serve(async (req) => {
     // ========================================================================
     // BILLING STATUS CHECK (P1 - Block operations on restricted tenants)
     // ========================================================================
-    const billingCheck = await requireBillingStatus(supabase, tenantId);
+    const billingCheck = await requireBillingStatus(supabaseAdmin, tenantId);
     if (!billingCheck.allowed) {
       log.info("[GENERATE-DIPLOMA] Billing status blocked operation:", { status: billingCheck.status });
       
-      await logBillingRestricted(supabase, {
+      await logBillingRestricted(supabaseAdmin, {
         operation: 'generate-diploma',
         user_id: athleteId, // Using athleteId as context since no user auth here
         tenant_id: tenantId,
@@ -271,7 +281,7 @@ serve(async (req) => {
     if (!profileId) {
       log.info("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: athlete.profile_id is null");
       
-      await supabase.from('audit_logs').insert({
+      await supabaseAdmin.from('audit_logs').insert({
         tenant_id: tenantId,
         event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
         category: 'GRADING',
@@ -300,12 +310,12 @@ serve(async (req) => {
     let hasActiveMembership = false;
 
     try {
-      const { data: activeMembership, error: membershipErr } = await supabase
+      const { data: activeMembership, error: membershipErr } = await supabaseAdmin
         .from('memberships')
         .select('id')
         .eq('applicant_profile_id', profileId)
         .eq('tenant_id', tenantId)
-        .eq('status', 'ACTIVE')
+        .in('status', ['ACTIVE', 'APPROVED'])
         .maybeSingle();
 
       if (membershipErr) {
@@ -337,7 +347,7 @@ serve(async (req) => {
         if (!grantedBy || overrideReason.length < 8) {
           log.info("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: invalid parameters");
           
-          await supabase.from('audit_logs').insert({
+          await supabaseAdmin.from('audit_logs').insert({
             tenant_id: tenantId,
             event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
             category: 'GRADING',
@@ -366,7 +376,7 @@ serve(async (req) => {
 
         // Validate role of grantor (ADMIN_TENANT or SUPERADMIN_GLOBAL)
         const roleCheck = await requireTenantRole(
-          supabase,
+          supabaseAdmin,
           req.headers.get('Authorization'),
           tenantId,
           ['ADMIN_TENANT', 'STAFF_ORGANIZACAO']
@@ -375,7 +385,7 @@ serve(async (req) => {
         if (!roleCheck.allowed && !roleCheck.isGlobalSuperadmin) {
           log.info("[GENERATE-DIPLOMA][PI-POL-001D] Override rejected: insufficient permissions");
           
-          await supabase.from('audit_logs').insert({
+          await supabaseAdmin.from('audit_logs').insert({
             tenant_id: tenantId,
             event_type: 'DIPLOMA_OVERRIDE_BLOCKED_FORBIDDEN',
             category: 'GRADING',
@@ -410,7 +420,7 @@ serve(async (req) => {
         // No override requested - apply standard MEMBERSHIP_REQUIRED block
         log.info("[GENERATE-DIPLOMA][PI-POL-001B] Blocked: no ACTIVE membership for profile", { profileId });
         
-        await supabase.from('audit_logs').insert({
+        await supabaseAdmin.from('audit_logs').insert({
           tenant_id: tenantId,
           event_type: 'DIPLOMA_BLOCKED_NO_ACTIVE_MEMBERSHIP',
           category: 'GRADING',
@@ -441,7 +451,7 @@ serve(async (req) => {
     // Fetch academy if provided
     let academyName = null;
     if (academyId) {
-      const { data: academy } = await supabase
+      const { data: academy } = await supabaseAdmin
         .from('academies')
         .select('name')
         .eq('id', academyId)
@@ -452,7 +462,7 @@ serve(async (req) => {
     // Fetch coach if provided
     let coachName = null;
     if (coachId) {
-      const { data: coach } = await supabase
+      const { data: coach } = await supabaseAdmin
         .from('coaches')
         .select('full_name')
         .eq('id', coachId)
@@ -464,7 +474,7 @@ serve(async (req) => {
     const sportType = (gradingLevel.grading_schemes as any)?.sport_type || 'SPORT';
 
     // Generate serial number
-    const { data: serialData, error: serialError } = await supabase
+    const { data: serialData, error: serialError } = await supabaseAdmin
       .rpc('get_next_diploma_serial', { p_tenant_id: tenantId, p_sport_type: sportType });
 
     if (serialError) {
@@ -589,7 +599,7 @@ serve(async (req) => {
     const qrImageBuffer = Uint8Array.from(atob(qrCodeDataUrl.split(',')[1]), c => c.charCodeAt(0));
     const qrFileName = `diplomas/${tenantId}/${athleteId}/${serialNumber.replace(/\//g, '-')}_qr.png`;
     
-    const { error: qrUploadError } = await supabase.storage
+    const { error: qrUploadError } = await supabaseAdmin.storage
       .from('cards')
       .upload(qrFileName, qrImageBuffer, {
         contentType: 'image/png',
@@ -600,13 +610,13 @@ serve(async (req) => {
       log.error('QR upload error:', qrUploadError);
     }
 
-    const { data: qrUrlData } = supabase.storage.from('cards').getPublicUrl(qrFileName);
+    const { data: qrUrlData } = supabaseAdmin.storage.from('cards').getPublicUrl(qrFileName);
     const qrCodeImageUrl = qrUrlData?.publicUrl;
 
     // Upload PDF
     const pdfFileName = `diplomas/${tenantId}/${athleteId}/${serialNumber.replace(/\//g, '-')}.pdf`;
     
-    const { error: pdfUploadError } = await supabase.storage
+    const { error: pdfUploadError } = await supabaseAdmin.storage
       .from('cards')
       .upload(pdfFileName, pdfBuffer, {
         contentType: 'application/pdf',
@@ -621,7 +631,7 @@ serve(async (req) => {
       );
     }
 
-    const { data: pdfUrlData } = supabase.storage.from('cards').getPublicUrl(pdfFileName);
+    const { data: pdfUrlData } = supabaseAdmin.storage.from('cards').getPublicUrl(pdfFileName);
     const pdfUrl = pdfUrlData?.publicUrl;
 
     // Helper to mask name for LGPD compliance
@@ -687,7 +697,7 @@ serve(async (req) => {
     log.info("Diploma content hash:", { hash: contentHash.substring(0, 12) + "..." });
 
     // Create diploma record with content hash (using pre-generated ID)
-    const { data: diploma, error: diplomaError } = await supabase
+    const { data: diploma, error: diplomaError } = await supabaseAdmin
       .from('diplomas')
       .insert({
         id: diplomaId,
@@ -718,7 +728,7 @@ serve(async (req) => {
     }
 
     // Create athlete grading record
-    const { data: grading, error: gradingError } = await supabase
+    const { data: grading, error: gradingError } = await supabaseAdmin
       .from('athlete_gradings')
       .insert({
         tenant_id: tenantId,
@@ -741,7 +751,7 @@ serve(async (req) => {
 
     // PI-POL-001D: Log override success if applicable
     if (overrideApplied) {
-      await supabase.from('audit_logs').insert({
+      await supabaseAdmin.from('audit_logs').insert({
         tenant_id: tenantId,
         event_type: 'DIPLOMA_ISSUED_OFFICIAL_OVERRIDE',
         category: 'GRADING',
