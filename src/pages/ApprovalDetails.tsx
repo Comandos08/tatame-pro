@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Loader2, FileText, CreditCard } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Loader2, FileText, CreditCard, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 // ── P0-2: Immutable role constant ──────────────────────────────────
@@ -210,6 +210,16 @@ export default function ApprovalDetails() {
     ? new Date(membership.created_at as string).toLocaleString("pt-BR")
     : "Não informado";
 
+  // ── Document preview ─────────────────────────────────────────────
+  const handleViewDocument = async (storagePath: string) => {
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(storagePath, 300);
+    if (error || !data?.signedUrl) {
+      toast.error('Não foi possível abrir o documento.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   // ── Actions ──────────────────────────────────────────────────────
   const handleApprove = async () => {
     setIsSubmitting(true);
@@ -394,11 +404,24 @@ export default function ApprovalDetails() {
             <FileText className="h-4 w-4" />
             Documentos
           </h2>
-          <ul className="text-sm space-y-1">
-            {(membership.documents_uploaded as Array<{ name?: string; type?: string }>).map(
+          <ul className="text-sm space-y-2">
+            {(membership.documents_uploaded as Array<{ name?: string; type?: string; storage_path?: string }>).map(
               (doc, i) => (
-                <li key={i} className="text-muted-foreground">
-                  {doc.name ?? doc.type ?? `Documento ${i + 1}`}
+                <li key={i} className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    {doc.name ?? doc.type ?? `Documento ${i + 1}`}
+                  </span>
+                  {doc.storage_path && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => handleViewDocument(doc.storage_path!)}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Ver
+                    </Button>
+                  )}
                 </li>
               ),
             )}

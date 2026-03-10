@@ -157,14 +157,14 @@ export default function MembershipList() {
         >
           <div>
             <h1 className="font-display text-2xl md:text-3xl font-bold">
-              Minhas Filiações
+              {t('memberships.myMemberships')}
             </h1>
             <p className="text-muted-foreground">
-              Acompanhe o status das suas filiações na {tenant.name}
+              {t('memberships.trackStatus')} {tenant.name}
             </p>
           </div>
           <Button onClick={() => navigate(`/${tenantSlug}/membership/new`)}>
-            Nova Filiação
+            {t('memberships.newMembership')}
           </Button>
         </motion.div>
 
@@ -176,7 +176,7 @@ export default function MembershipList() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Erro ao carregar filiações</p>
+              <p className="text-muted-foreground">{t('memberships.loadError')}</p>
             </CardContent>
           </Card>
         ) : memberships && memberships.length > 0 ? (
@@ -225,8 +225,8 @@ export default function MembershipList() {
                           </div>
                           
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>Início: {formatMembershipDate(membership.start_date)}</span>
-                            <span>Validade: {formatMembershipDate(membership.end_date)}</span>
+                            <span>{t('memberships.start')}: {formatMembershipDate(membership.start_date)}</span>
+                            <span>{t('memberships.validity')}: {formatMembershipDate(membership.end_date)}</span>
                           </div>
                         </div>
 
@@ -234,7 +234,7 @@ export default function MembershipList() {
                           {hasCard && (
                             <Badge variant="outline" className="hidden sm:flex gap-1 text-success border-success/30">
                               <CreditCard className="h-3 w-3" />
-                              Carteira
+                              {t('memberships.card')}
                             </Badge>
                           )}
                           <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />

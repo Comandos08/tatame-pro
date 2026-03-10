@@ -1,8 +1,8 @@
-
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, CreditCard } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertTriangle, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,6 +48,8 @@ export default function PortalCard() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
   const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Query athlete
   const { data: athlete, isLoading: athleteLoading, error: athleteError } = useQuery<AthleteData | null>({
@@ -125,6 +127,23 @@ export default function PortalCard() {
 
   const isLoading = athleteLoading || membershipLoading || cardLoading;
 
+  // P1.8 — Regenerate card when public_token is null
+  const handleRegenerateCard = async () => {
+    if (!membership?.id) return;
+    setIsRegenerating(true);
+    try {
+      const { error } = await supabase.functions.invoke('generate-digital-card', {
+        body: { membershipId: membership.id },
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['portal-digital-card-full', membership.id] });
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   return (
@@ -193,6 +212,31 @@ export default function PortalCard() {
               contentHash={digitalCard.content_hash_sha256}
               publicToken={digitalCard.public_token}
             />
+            {!digitalCard.public_token && (
+              <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="flex-1 text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-400">QR code indisponível</p>
+                  <p className="text-amber-700 dark:text-amber-500 mt-1">
+                    O QR code desta carteirinha não foi gerado corretamente.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-amber-300"
+                  onClick={handleRegenerateCard}
+                  disabled={isRegenerating}
+                >
+                  {isRegenerating ? (
+                    <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                  )}
+                  Regenerar
+                </Button>
+              </div>
+            )}
           </motion.div>
         ) : membership ? (
           <motion.div

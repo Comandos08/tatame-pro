@@ -96,6 +96,42 @@ export default function EventDetails() {
     enabled: !!eventId,
   });
 
+  // P1.1 — Event results from bracket matches
+  const { data: bracketResults = [] } = useQuery({
+    queryKey: ['event-bracket-results', eventId],
+    queryFn: async () => {
+      if (!eventId) return [];
+      const { data, error } = await supabase
+        .from('event_bracket_matches')
+        .select(`
+          id, round, match_number,
+          category:event_categories(name),
+          athlete1_reg:event_registrations!athlete1_registration_id(
+            athlete:athletes(full_name)
+          ),
+          athlete2_reg:event_registrations!athlete2_registration_id(
+            athlete:athletes(full_name)
+          ),
+          winner_reg:event_registrations!winner_registration_id(
+            athlete:athletes(full_name)
+          )
+        `)
+        .eq('event_id', eventId)
+        .not('winner_registration_id', 'is', null)
+        .order('round')
+        .order('match_number');
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        id: string; round: number; match_number: number;
+        category: { name: string } | null;
+        athlete1_reg: { athlete: { full_name: string } | null } | null;
+        athlete2_reg: { athlete: { full_name: string } | null } | null;
+        winner_reg: { athlete: { full_name: string } | null } | null;
+      }>;
+    },
+    enabled: !!eventId,
+  });
+
   // Update event status mutation
   const updateStatus = useMutation({
     mutationFn: async (newStatus: EventStatus) => {
@@ -431,9 +467,36 @@ export default function EventDetails() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-center py-8 text-muted-foreground">
-                    {t('events.resultsFeatureComingSoon')}
-                  </p>
+                  {bracketResults.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground">
+                      Nenhum resultado registrado ainda.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Round</TableHead>
+                          <TableHead>Atleta 1</TableHead>
+                          <TableHead>Atleta 2</TableHead>
+                          <TableHead className="text-success">Vencedor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bracketResults.map((match) => (
+                          <TableRow key={match.id}>
+                            <TableCell className="font-medium">{match.category?.name ?? '—'}</TableCell>
+                            <TableCell>{match.round}</TableCell>
+                            <TableCell>{match.athlete1_reg?.athlete?.full_name ?? '—'}</TableCell>
+                            <TableCell>{match.athlete2_reg?.athlete?.full_name ?? '—'}</TableCell>
+                            <TableCell className="font-semibold text-success">
+                              {match.winner_reg?.athlete?.full_name ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

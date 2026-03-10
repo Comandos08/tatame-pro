@@ -214,12 +214,40 @@ export default function AthleteGradingsPage() {
     enabled: !!tenant?.id,
   });
 
+  // P1.5 — Shared pre-submit validations
+  const validateGradingForm = async (): Promise<boolean> => {
+    // Validate future date (P1.5)
+    if (formData.promotion_date && new Date(formData.promotion_date) > new Date()) {
+      toast.error('Data de promoção não pode ser no futuro');
+      return false;
+    }
+
+    // Validate duplicate grading level (P1.4)
+    if (formData.grading_level_id && athleteId && tenant?.id) {
+      const { data: dup } = await supabase
+        .from('athlete_gradings')
+        .select('id')
+        .eq('athlete_id', athleteId)
+        .eq('grading_level_id', formData.grading_level_id)
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+      if (dup) {
+        toast.error('Atleta já possui esta graduação registrada');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   // PI-POL-001D: Register grading only (no diploma)
   const handleRegisterGradingOnly = async () => {
     if (!formData.grading_level_id || !athleteId || !tenant?.id) {
       toast.error('Selecione um nível de graduação');
       return;
     }
+
+    if (!(await validateGradingForm())) return;
 
     setIsGenerating(true);
     try {
@@ -270,6 +298,8 @@ export default function AthleteGradingsPage() {
       toast.error('Selecione um nível de graduação');
       return;
     }
+
+    if (!(await validateGradingForm())) return;
 
     setIsGenerating(true);
     try {
@@ -653,6 +683,7 @@ export default function AthleteGradingsPage() {
                   type="date"
                   id="promotion_date"
                   value={formData.promotion_date}
+                  max={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setFormData({ ...formData, promotion_date: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   required

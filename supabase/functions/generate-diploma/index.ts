@@ -99,6 +99,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const BASE_URL = Deno.env.get('PUBLIC_APP_URL') ?? 'https://tatame-pro.lovable.app';
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
@@ -491,7 +492,7 @@ serve(async (req) => {
     const diplomaId = crypto.randomUUID();
 
     // Create QR code data with verification URL
-    const verificationUrl = `https://tatame-pro.lovable.app/${tenant.slug}/verify/diploma/${diplomaId}`;
+    const verificationUrl = `${BASE_URL}/${tenant.slug}/verify/diploma/${diplomaId}`;
     const qrCodeData = verificationUrl;
 
     // Generate QR code image
@@ -695,6 +696,23 @@ serve(async (req) => {
     };
     const contentHash = await calculateContentHash(canonicalPayload);
     log.info("Diploma content hash:", { hash: contentHash.substring(0, 12) + "..." });
+
+    // P0.4 — Prevent duplicate diplomas for same athlete + grading level
+    const { data: existingDiploma } = await supabaseAdmin
+      .from('diplomas')
+      .select('id, serial_number')
+      .eq('athlete_id', athleteId)
+      .eq('grading_level_id', gradingLevelId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (existingDiploma) {
+      log.info('Duplicate diploma prevented', { athlete_id: athleteId, grading_level_id: gradingLevelId, existing_id: existingDiploma.id });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Diploma já emitido para este atleta neste nível', diploma_id: existingDiploma.id, serial_number: existingDiploma.serial_number }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Create diploma record with content hash (using pre-generated ID)
     const { data: diploma, error: diplomaError } = await supabaseAdmin

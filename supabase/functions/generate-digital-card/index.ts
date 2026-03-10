@@ -75,6 +75,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // PI-D5.B: Parse and validate input
@@ -287,7 +288,7 @@ serve(async (req) => {
     log.info("Content hash calculated:", { hash: contentHash.substring(0, 12) + "..." });
 
     // Generate QR code data with verification URL
-    const verificationUrl = `https://tatame-pro.lovable.app/${tenant.slug}/verify/card/${cardId}`;
+    const verificationUrl = `${BASE_URL}/${tenant.slug}/verify/card/${cardId}`;
     const qrCodeData = verificationUrl;
 
     // Generate QR code as data URL
