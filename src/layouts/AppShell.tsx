@@ -61,6 +61,7 @@ import { CreateEventDialog } from "@/components/events/CreateEventDialog";
 
 import { useTenantStatus } from "@/hooks/useTenantStatus";
 import { useRouteFocusReset } from "@/hooks/a11y/useRouteFocusReset";
+import { usePendingApprovalsCount } from "@/hooks/usePendingApprovalsCount";
 
 // 3.4
 import { useAppShellInstrumentation } from "@/hooks/useAppShellInstrumentation";
@@ -90,6 +91,11 @@ export function AppShell({ children }: AppShellProps) {
   useIdentity();
   useTenantStatus();
   useRouteFocusReset();
+
+  // P2.4 — Pending approvals badge (only for admins who can approve)
+  const pendingApprovalsCount = usePendingApprovalsCount(
+    can('TENANT_APPROVALS') ? tenant?.id : undefined
+  );
 
   const navigate = useNavigate();
 
@@ -218,7 +224,16 @@ export function AppShell({ children }: AppShellProps) {
                   activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                 >
                   <item.icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <span className="flex-1">{item.name}</span>
+                  {/* P2.4 — Realtime pending approvals badge */}
+                  {item.feature === 'TENANT_APPROVALS' && pendingApprovalsCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="h-5 min-w-5 px-1 text-xs"
+                    >
+                      {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+                    </Badge>
+                  )}
                 </NavLink>
               ))}
             </nav>

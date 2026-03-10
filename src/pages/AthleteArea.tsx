@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -35,6 +35,19 @@ import { RenewalBanner } from '@/components/membership/RenewalBanner';
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 import { AthleteBadgesList } from '@/components/badges/AthleteBadgesList';
 import { BadgeTimeline } from '@/components/badges/BadgeTimeline';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { toast } from '@/hooks/use-toast';
+import { Trash2 } from 'lucide-react';
 
 interface AthleteData {
   id: string;
@@ -137,6 +150,7 @@ export default function AthleteArea() {
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const { t, locale } = useI18n();
   const [isExporting, setIsExporting] = useState(false);
+  const [isRequestingErasure, setIsRequestingErasure] = useState(false);
 
   // Check if user has admin role (ADMIN_TENANT or SUPERADMIN_GLOBAL)
   const isAdmin = tenant && (
@@ -378,6 +392,30 @@ export default function AthleteArea() {
       setIsExporting(false);
     }
   };
+
+  // P2.8 — LGPD: request data erasure
+  const handleRequestErasure = useCallback(async () => {
+    if (!athlete || !tenant) return;
+    setIsRequestingErasure(true);
+    try {
+      const { error } = await supabase.functions.invoke('request-erasure', {
+        body: { athlete_id: athlete.id, tenant_id: tenant.id },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Solicitação enviada',
+        description: 'Sua solicitação de exclusão foi registrada e será analisada pela equipe administrativa.',
+      });
+    } catch {
+      toast({
+        title: 'Erro ao solicitar exclusão',
+        description: 'Tente novamente ou entre em contato com o suporte.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRequestingErasure(false);
+    }
+  }, [athlete, tenant]);
 
   if (athleteLoading) {
     return (
@@ -867,7 +905,7 @@ export default function AthleteArea() {
               </CardTitle>
               <CardDescription>{t('athleteArea.privacyDesc')}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground max-w-md">
                   {t('athleteArea.exportDataDesc')}
@@ -890,6 +928,56 @@ export default function AthleteArea() {
                     </>
                   )}
                 </Button>
+              </div>
+
+              {/* P2.8 — LGPD: Right to erasure */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t pt-4">
+                <div className="max-w-md">
+                  <p className="text-sm font-medium">Solicitar exclusão de dados</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Direito ao esquecimento (LGPD Art. 18). Registros esportivos oficiais podem ter retenção legal obrigatória — a solicitação será analisada pela administração.
+                  </p>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+                      disabled={isRequestingErasure}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Solicitar exclusão
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Solicitar exclusão de dados</AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-2">
+                        <span className="block">
+                          Sua solicitação será registrada e encaminhada para análise pela equipe administrativa.
+                        </span>
+                        <span className="block font-medium text-foreground">
+                          Importante: registros esportivos oficiais (graduações, diplomas, resultados de eventos) podem ter retenção legal obrigatória e podem não ser apagados imediatamente.
+                        </span>
+                        <span className="block">
+                          Você receberá uma resposta dentro de 30 dias.
+                        </span>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleRequestErasure}
+                        className="bg-destructive hover:bg-destructive/90"
+                      >
+                        {isRequestingErasure ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : null}
+                        Confirmar solicitação
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>

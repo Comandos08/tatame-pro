@@ -88,10 +88,11 @@ export function reportError(error: Error | unknown, context: ErrorContext = {}):
     errorObj
   );
 
-  // 🔮 Future: Send to Sentry or other error tracking service
-  // if (window.Sentry) {
-  //   window.Sentry.captureException(errorObj, { extra: context });
-  // }
+  // Send to Sentry when configured via VITE_SENTRY_DSN
+  if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["Sentry"]) {
+    ((window as unknown as Record<string, unknown>)["Sentry"] as { captureException: (e: Error, opts: unknown) => void })
+      .captureException(errorObj, { extra: context });
+  }
 
   return errorId;
 }
