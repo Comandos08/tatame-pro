@@ -57,7 +57,7 @@ const statusIconConfig: Record<MembershipStatus, { icon: React.ElementType; bgCo
 export default function MembershipList() {
   const { tenant } = useTenant();
   const { currentUser } = useCurrentUser();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
 
