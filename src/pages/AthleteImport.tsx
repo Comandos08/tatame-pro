@@ -83,7 +83,7 @@ function parseCSV(text: string): AthleteRow[] {
 
 export default function AthleteImport() {
   const { tenant } = useTenant();
-  const { t: _t } = useI18n();
+  useI18n();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
