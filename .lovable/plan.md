@@ -1,85 +1,56 @@
 
 
-## Adopt `assertTenantAccess` in `complete-tenant-onboarding` (with SETUP compatibility)
+# Clean Slate Reset — Preservar apenas global@tatame.pro
 
-### Overview
+## Estado Atual do Banco
 
-Add Zero-Trust Tenant Boundary enforcement (A04) to `complete-tenant-onboarding` as an additive security layer. Includes three mandatory adjustments: SETUP tenant compatibility, standardized impersonation extraction, and proper positioning after input validation.
+| Tabela | Registros |
+|--------|-----------|
+| auth.users | 6 usuários |
+| profiles | 5 |
+| user_roles | 2 (1 SUPERADMIN_GLOBAL + 1 ADMIN_TENANT) |
+| tenants | 1 |
+| audit_logs | 81 |
+| Demais tabelas | 0 registros |
 
-### Changes
+**Usuário preservado:** `global@tatame.pro` (ID: `d26454f2-a66d-423f-ae5f-006f1cc90635`)
 
-#### File 1: `supabase/functions/_shared/tenant-boundary.ts`
+**Usuários a remover:**
+- capanomarcelo2@gmail.com
+- global@tierone.pro
+- gleysonasilva@gmail.com
+- cbsabrasil@aol.com
+- admin@sambocbsa.com.br
 
-**Add options interface and modify `assertTenantAccess` signature** to support SETUP tenants without breaking existing callers.
+## Plano de Execução
 
-- Add an `AssertTenantAccessOptions` interface with optional `allowLifecycleSetup: boolean`
-- Modify the `assertTenantAccess` function to accept this as a 5th optional parameter (backward-compatible)
-- When `allowLifecycleSetup === true`, fetch `lifecycle_status` alongside `is_active` and skip the `TENANT_INACTIVE` check if `lifecycle_status === 'SETUP'`
-- All existing callers (without the options param) behave identically -- fail-closed on inactive tenants
+Uma migration SQL que executa na seguinte ordem:
 
-Key logic change in step 2 (tenant existence check):
+1. **Desabilitar RLS temporariamente** nas tabelas afetadas (para permitir bulk delete)
+2. **Deletar dados operacionais** (ordem FK-safe):
+   - digital_cards, diplomas, athlete_gradings
+   - event_registrations, event_results, event_categories, event_brackets, event_bracket_matches, events
+   - documents, document_public_tokens
+   - memberships, guardian_links, guardians, athletes
+   - academy_coaches, coaches, academies
+   - grading_levels, grading_schemes
+   - tenant_invoices, tenant_billing
+   - decision_logs, security_timeline
+   - feature_access, federation_roles, federation_tenants, federations, council_members, councils
+   - webhook_events, deleted_tenants
+3. **Limpar user_roles** exceto SUPERADMIN_GLOBAL do global@tatame.pro
+4. **Limpar audit_logs** (reset completo)
+5. **Deletar profiles** de outros usuários
+6. **Deletar tenants** (todos)
+7. **Deletar auth.users** (exceto global@tatame.pro) — inclui auth.sessions, auth.mfa_factors, auth.identities
+8. **Re-habilitar RLS**
 
-```text
-Current query:  .select("id, is_active")
-New query:      .select("id, is_active, lifecycle_status")
+## Arquivo Afetado
 
-Current check:  if (!tenant.is_active) -> throw TENANT_INACTIVE
-New check:      if (!tenant.is_active) {
-                  if (options?.allowLifecycleSetup && tenant.lifecycle_status === 'SETUP') {
-                    // Allow — onboarding in progress
-                  } else {
-                    throw TENANT_INACTIVE
-                  }
-                }
-```
+Nenhum arquivo de código é alterado. Apenas uma migration SQL de dados.
 
-#### File 2: `supabase/functions/complete-tenant-onboarding/index.ts`
+## Riscos
 
-**Three surgical additions** (no existing code removed or modified):
-
-1. **Add import** (after line 35):
-   ```typescript
-   import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
-   ```
-
-2. **Add tenant boundary check block** (between PARSE INPUT at line 135 and IMPERSONATION CHECK at line 137):
-   - Uses `extractImpersonationId(req, body)` (already imported, consistent with line 140)
-   - Passes `{ allowLifecycleSetup: true }` to permit SETUP tenants
-   - Catches `TenantBoundaryError` and returns 403 with structured code
-   - Re-throws unknown errors
-
-   ```typescript
-   // TENANT BOUNDARY CHECK (A04)
-   try {
-     const impersonationIdForBoundary = extractImpersonationId(req, body);
-     await assertTenantAccess(supabase, user.id, tenantId, impersonationIdForBoundary, {
-       allowLifecycleSetup: true,
-     });
-     log.info("Tenant boundary check passed");
-   } catch (boundaryError) {
-     if (boundaryError instanceof TenantBoundaryError) {
-       log.warn("Tenant boundary violation", { code: boundaryError.code, message: boundaryError.message });
-       return new Response(
-         JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
-     }
-     throw boundaryError;
-   }
-   ```
-
-3. **No removals** -- `requireTenantRole` and `requireImpersonationIfSuperadmin` remain as secondary layers.
-
-### Execution Order (after change)
-
-```text
-AUTH VALIDATION -> RATE LIMITING -> PARSE INPUT -> TENANT BOUNDARY CHECK -> IMPERSONATION CHECK -> ROLE CHECK -> Business Logic
-```
-
-### Technical Details
-
-- `tenantId` is guaranteed to be a non-empty string at the boundary check point (validated by PARSE INPUT block at lines 130-135)
-- `extractImpersonationId` is already imported at line 38 and used at line 140 -- reusing it maintains institutional consistency
-- The `allowLifecycleSetup` option is scoped specifically for the onboarding use case; all other future adopters of `assertTenantAccess` default to strict mode
-- Adding `lifecycle_status` to the select query in `assertTenantAccess` adds negligible overhead (same row, same index hit)
+- Operação **irreversível** — todos os dados exceto o superadmin serão permanentemente removidos
+- auth.users requer `CASCADE` nas tabelas auth (sessions, identities, mfa_factors)
 
