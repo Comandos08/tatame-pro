@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, User, Calendar, FileText, CreditCard } from 'lucide-react';
+import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, ChevronLeft, User, Calendar, FileText, CreditCard, Search } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
@@ -14,6 +14,8 @@ import { AccessDenied } from '@/components/auth/AccessDenied';
 import { formatDateTime } from '@/lib/i18n/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
@@ -101,6 +103,9 @@ export default function ApprovalsList() {
   const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ApprovalTab>('PENDING_REVIEW');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 30;
 
   // Access contract — explicit loading/error/ready flags
   const {
@@ -148,17 +153,18 @@ export default function ApprovalsList() {
   // Query — enabled only when all gates resolved
   const queryEnabled = tenantResolved && userResolved && accessReady && canApprove;
 
-  const { data: allMemberships, isLoading: queryLoading, error: queryError } = useQuery({
-    queryKey: ['pending-approvals', tenant?.id, currentUser?.id],
+  // P1.3 — Server-side paginated query filtered by active tab
+  const { data: queryResult, isLoading: queryLoading, error: queryError } = useQuery({
+    queryKey: ['pending-approvals', tenant?.id, currentUser?.id, activeTab, page, search],
     queryFn: async () => {
-      if (!tenant || !currentUser) return [];
-
-      const allStatuses: MembershipStatus[] = ['PENDING_REVIEW', 'PENDING_PAYMENT', 'DRAFT'];
+      if (!tenant || !currentUser) return { memberships: [], total: 0 };
 
       log.info('[APPROVALS_QUERY_EXEC]', {
         component: 'ApprovalsList',
-        metadata: { tenantId: tenant.id, statuses: allStatuses },
+        metadata: { tenantId: tenant.id, activeTab, page, search },
       });
+
+      const tabConfig = TAB_CONFIG.find(t => t.value === activeTab)!;
 
       let query = supabase
         .from('memberships')
@@ -178,10 +184,11 @@ export default function ApprovalsList() {
           profile:profiles!applicant_profile_id(id, name, email),
           academy_id,
           academy:academies(id, name)
-        `)
+        `, { count: 'exact' })
         .eq('tenant_id', tenant.id)
-        .in('status', allStatuses)
-        .order('created_at', { ascending: true });
+        .in('status', tabConfig.statuses)
+        .order('created_at', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
       // HEAD_COACH: filter by their academies
       if (!isGlobalSuperadmin && !hasRole('ADMIN_TENANT', tenant.id)) {
@@ -201,54 +208,63 @@ export default function ApprovalsList() {
             .eq('is_active', true);
 
           if (academyLinks && academyLinks.length > 0) {
-            const academyIds = academyLinks.map(l => l.academy_id);
-            query = query.in('academy_id', academyIds);
+            query = query.in('academy_id', academyLinks.map(l => l.academy_id));
           } else {
-            return [];
+            return { memberships: [], total: 0 };
           }
         } else {
-          return [];
+          return { memberships: [], total: 0 };
         }
       }
 
-      const { data, error } = await query;
+      const { data, count, error } = await query;
 
       if (error) throw error;
 
-      const results = data as unknown as MembershipApplication[];
-
       log.info('[APPROVALS_QUERY_SUCCESS]', {
         component: 'ApprovalsList',
-        metadata: {
-          total: results.length,
-          draft: results.filter(m => m.status === 'DRAFT').length,
-          pending_review: results.filter(m => m.status === 'PENDING_REVIEW').length,
-          pending_payment: results.filter(m => m.status === 'PENDING_PAYMENT').length,
-        },
+        metadata: { count, page },
       });
 
-      return results;
+      return { memberships: (data as unknown as MembershipApplication[]), total: count ?? 0 };
     },
     enabled: queryEnabled,
   });
 
-  // Filter by active tab
-  const memberships = useMemo(() => {
-    if (!allMemberships) return [];
-    const tabConfig = TAB_CONFIG.find(t => t.value === activeTab);
-    if (!tabConfig) return [];
-    return allMemberships.filter(m => tabConfig.statuses.includes(m.status));
-  }, [allMemberships, activeTab]);
+  // Count queries — one per tab for badge display
+  const { data: countResult } = useQuery({
+    queryKey: ['pending-approvals-counts', tenant?.id, currentUser?.id],
+    queryFn: async () => {
+      if (!tenant || !currentUser) return { PENDING_REVIEW: 0, PENDING_PAYMENT: 0, DRAFT: 0 };
+      const allStatuses: MembershipStatus[] = ['PENDING_REVIEW', 'PENDING_PAYMENT', 'DRAFT'];
+      const { data } = await supabase
+        .from('memberships')
+        .select('status')
+        .eq('tenant_id', tenant.id)
+        .in('status', allStatuses);
+      const rows = data ?? [];
+      return {
+        PENDING_REVIEW: rows.filter(r => r.status === 'PENDING_REVIEW').length,
+        PENDING_PAYMENT: rows.filter(r => r.status === 'PENDING_PAYMENT').length,
+        DRAFT: rows.filter(r => r.status === 'DRAFT').length,
+      };
+    },
+    enabled: queryEnabled,
+  });
 
-  // Counts — null when not yet loaded (shows placeholders)
-  const counts = useMemo(() => {
-    if (!allMemberships) return null;
-    return {
-      PENDING_REVIEW: allMemberships.filter(m => m.status === 'PENDING_REVIEW').length,
-      PENDING_PAYMENT: allMemberships.filter(m => m.status === 'PENDING_PAYMENT').length,
-      DRAFT: allMemberships.filter(m => m.status === 'DRAFT').length,
-    };
-  }, [allMemberships]);
+  const memberships = useMemo(() => {
+    if (!queryResult) return [];
+    const rows = queryResult.memberships;
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(m =>
+      getDisplayName(m).toLowerCase().includes(q) ||
+      getDisplayEmail(m).toLowerCase().includes(q)
+    );
+  }, [queryResult, search]);
+
+  const totalPages = Math.ceil((queryResult?.total ?? 0) / PAGE_SIZE);
+  const counts = countResult ?? null;
 
   const formatDisplayDate = (dateString: string) => {
     return formatDateTime(dateString, locale);
@@ -354,7 +370,18 @@ export default function ApprovalsList() {
           </div>
         </motion.div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ApprovalTab)}>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou e-mail..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            className="pl-9"
+          />
+        </div>
+
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ApprovalTab); setPage(0); setSearch(''); }}>
           <TabsList>
             {TAB_CONFIG.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
@@ -494,6 +521,35 @@ export default function ApprovalsList() {
                     />
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    Página {page + 1} de {totalPages} · {queryResult?.total ?? 0} registros
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page === 0}
+                      onClick={() => setPage(p => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages - 1}
+                      onClick={() => setPage(p => p + 1)}
+                    >
+                      Próxima
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
               )}
             </TabsContent>
           ))}

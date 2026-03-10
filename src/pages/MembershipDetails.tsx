@@ -304,7 +304,7 @@ export default function MembershipDetailsPage() {
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para filiações
+            {t('memberships.backToList')}
           </Button>
         </motion.div>
 
@@ -316,7 +316,7 @@ export default function MembershipDetailsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <p className="text-muted-foreground">Filiação não encontrada</p>
+              <p className="text-muted-foreground">{t('memberships.notFound')}</p>
             </CardContent>
           </Card>
         ) : (
@@ -436,12 +436,12 @@ export default function MembershipDetailsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="h-5 w-5" />
-                      Dados do Atleta
+                      {t('memberships.athleteData')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Nome completo</p>
+                      <p className="text-sm text-muted-foreground">{t('memberships.fullName')}</p>
                       <p className="font-medium">{membership.athlete?.full_name}</p>
                     </div>
                     <Separator />
@@ -485,7 +485,7 @@ export default function MembershipDetailsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <QrCode className="h-5 w-5" />
-                      Carteira Digital
+                      {t('memberships.digitalCard')}
                     </CardTitle>
                     <CardDescription>
                       {digitalCard 
@@ -511,7 +511,7 @@ export default function MembershipDetailsPage() {
                           onClick={() => window.open(digitalCard.pdf_url, '_blank')}
                         >
                           <Download className="h-4 w-4 mr-2" />
-                          Baixar PDF da Carteira
+                          {t('memberships.downloadPdf')}
                         </Button>
                       </div>
                     ) : membership ? (
@@ -546,13 +546,13 @@ export default function MembershipDetailsPage() {
                         {isStaffOrCoach ? 'Graduações do Atleta' : 'Minhas Graduações'}
                       </CardTitle>
                       <CardDescription>
-                        Histórico de faixas e promoções
+                        {t('memberships.gradingHistory')}
                       </CardDescription>
                     </div>
                     {isStaffOrCoach && membership.athlete && (
                       <Button variant="outline" size="sm" asChild>
                         <Link to={`/${tenantSlug}/app/athletes/${membership.athlete.id}/gradings`}>
-                          Gerenciar Graduações
+                          {t('memberships.manageGradings')}
                         </Link>
                       </Button>
                     )}

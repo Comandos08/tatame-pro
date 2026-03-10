@@ -6,6 +6,7 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 
 import { useI18n } from '@/contexts/I18nContext';
+import { slugify } from '@/lib/slugify';
 import { usePermissions } from '@/hooks/usePermissions';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -77,7 +78,7 @@ export default function AcademiesList() {
         .insert({
           tenant_id: tenant.id,
           name: data.name,
-          slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-'),
+          slug: data.slug || slugify(data.name),
           sport_type: data.sport_type || tenant.sportTypes?.[0] || null,
           city: data.city || null,
           state: data.state || null,
