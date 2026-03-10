@@ -173,11 +173,16 @@ Deno.serve(async (req) => {
     /* ─────────────────────────────────────────────────────────────────────────
      * INICIALIZAÇÃO DE CLIENTES SUPABASE
      * ───────────────────────────────────────────────────────────────────────── */
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // Env vars verified at init (no debug logging in production)
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceKey) {
+      return json({
+        status: "ERROR",
+        error: { code: "SERVER_CONFIG_ERROR", message: "Server configuration error" },
+      });
+    }
 
     // 🔒 Client com JWT do usuário (apenas para validação de auth)
     const supabaseAuth = createClient(supabaseUrl, anonKey, {

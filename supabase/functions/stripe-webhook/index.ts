@@ -139,12 +139,21 @@ serve(async (req) => {
   let log = createBackendLogger("stripe-webhook", preCorrelationId);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 
     // STEP 4 — Missing config → 400 (never 500)
+    if (!supabaseUrl || !supabaseServiceKey) {
+      log.setStep("config_check");
+      log.error("Missing Supabase configuration");
+      return new Response(
+        JSON.stringify({ error: "Webhook not configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
     if (!stripeSecretKey || !webhookSecret) {
       log.setStep("config_check");
       log.error("Missing Stripe configuration");
@@ -297,9 +306,10 @@ serve(async (req) => {
 
     // Emit institutional event for observability (fire-and-forget, never fail the 200)
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-      const alertSupabase = createClient(supabaseUrl, supabaseServiceKey);
+      const alertUrl = Deno.env.get("SUPABASE_URL");
+      const alertServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!alertUrl || !alertServiceKey) throw new Error("Missing config for alert");
+      const alertSupabase = createClient(alertUrl, alertServiceKey);
 
       await alertSupabase.from("institutional_events").insert({
         event_type: "BILLING_WEBHOOK_UNHANDLED_EXCEPTION",
@@ -611,9 +621,11 @@ async function handlePaymentFailed(
     });
 
     // Send billing email notification
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    await sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", tenantId, log);
+    const emailUrl = Deno.env.get("SUPABASE_URL");
+    const emailServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (emailUrl && emailServiceKey) {
+      await sendBillingEmail(emailUrl, emailServiceKey, "PAYMENT_FAILED", tenantId, log);
+    }
   }
 
   log.info("Payment failed processed", { membershipId });

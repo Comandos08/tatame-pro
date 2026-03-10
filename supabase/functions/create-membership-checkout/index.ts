@@ -213,11 +213,18 @@ serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-membership-checkout", correlationId);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
   try {
+    // PI-SAFE-GOLD-GATE-TRACE-001 — FAIL-FAST ENV VALIDATION (P0)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: "Operation not permitted" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
     const clientIP = getClientIP(req);
     
     // Rate limit by IP (10 checkout attempts per hour)

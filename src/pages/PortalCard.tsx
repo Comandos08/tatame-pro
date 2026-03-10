@@ -40,6 +40,8 @@ interface DigitalCardData {
   valid_until: string | null;
   content_hash_sha256: string | null;
   membership_id: string;
+  /** PI-D3-DOCS1.0: Public verification token */
+  public_token?: string | null;
 }
 
 export default function PortalCard() {
@@ -93,7 +95,7 @@ export default function PortalCard() {
   const { data: digitalCard, isLoading: cardLoading } = useQuery<DigitalCardData | null>({
     queryKey: ['portal-digital-card-full', membership?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: card, error } = await supabase
         .from('digital_cards')
         .select('id, pdf_url, valid_until, content_hash_sha256, membership_id')
         .eq('membership_id', membership!.id)
@@ -101,7 +103,19 @@ export default function PortalCard() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!card) return null;
+
+      // PI-D3-DOCS1.0: Fetch public token for the verification QR code
+      const { data: tokenData } = await supabase
+        .from('document_public_tokens')
+        .select('token')
+        .eq('document_type', 'digital_card')
+        .eq('document_id', card.id)
+        .is('revoked_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      return { ...card, public_token: tokenData?.token ?? null };
     },
     enabled: !!membership?.id,
   });
@@ -177,6 +191,7 @@ export default function PortalCard() {
               validUntil={digitalCard.valid_until || membership.end_date}
               pdfUrl={digitalCard.pdf_url}
               contentHash={digitalCard.content_hash_sha256}
+              publicToken={digitalCard.public_token}
             />
           </motion.div>
         ) : membership ? (

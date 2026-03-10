@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, Settings, ChevronRight, Award, Loader2 } from 'lucide-react';
@@ -213,10 +214,10 @@ export default function GradingSchemesList() {
                         size="sm"
                         asChild
                       >
-                        <a href={`/${tenant?.slug}/app/grading-schemes/${scheme.id}/levels`}>
+                        <Link to={`/${tenant?.slug}/app/grading-schemes/${scheme.id}/levels`}>
                           Níveis
                           <ChevronRight className="ml-2 h-4 w-4" />
-                        </a>
+                        </Link>
                       </Button>
                     </div>
                   </CardContent>

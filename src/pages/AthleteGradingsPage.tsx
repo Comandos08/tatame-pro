@@ -217,7 +217,7 @@ export default function AthleteGradingsPage() {
   // PI-POL-001D: Register grading only (no diploma)
   const handleRegisterGradingOnly = async () => {
     if (!formData.grading_level_id || !athleteId || !tenant?.id) {
-      toast.error(t('grading.membershipRequired'));
+      toast.error('Selecione um nível de graduação');
       return;
     }
 
