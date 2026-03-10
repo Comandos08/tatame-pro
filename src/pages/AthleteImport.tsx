@@ -44,7 +44,7 @@ interface ImportResult {
   skipped: number;
 }
 
-const REQUIRED_HEADERS = ['full_name', 'birth_date', 'email', 'gender'];
+
 
 function parseCSV(text: string): AthleteRow[] {
   const lines = text.trim().split('\n').filter(l => l.trim());
