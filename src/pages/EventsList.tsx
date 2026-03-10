@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, Filter, Search } from 'lucide-react';
+import { Calendar, Filter, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell } from '@/layouts/AppShell';
 import { EmptyStateCard } from '@/components/ux/EmptyStateCard';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -28,20 +29,32 @@ export default function EventsList() {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<EventStatus | 'ALL'>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const hasDateFilter = dateFrom !== '' || dateTo !== '';
 
   const { data: events = [], isLoading, error } = useQuery({
-    queryKey: ['events', tenant?.id, statusFilter],
+    queryKey: ['events', tenant?.id, statusFilter, dateFrom, dateTo],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      
+
       let query = supabase
         .from('events')
         .select('*')
         .eq('tenant_id', tenant.id)
         .order('start_date', { ascending: false });
-      
+
       if (statusFilter !== 'ALL') {
         query = query.eq('status', statusFilter);
+      }
+
+      if (dateFrom) {
+        query = query.gte('start_date', dateFrom);
+      }
+
+      if (dateTo) {
+        query = query.lte('start_date', dateTo + 'T23:59:59');
       }
       
       const { data, error } = await query;
@@ -109,33 +122,69 @@ export default function EventsList() {
         {/* Filters */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder={t('events.searchEvents')}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder={t('events.searchEvents')}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as EventStatus | 'ALL')}
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <Filter className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder={t('common.filter')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">{t('events.allStatuses')}</SelectItem>
+                    {Object.entries(EVENT_STATUS_CONFIG).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select 
-                value={statusFilter} 
-                onValueChange={(v) => setStatusFilter(v as EventStatus | 'ALL')}
-              >
-                <SelectTrigger className="w-full sm:w-48">
-                  <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder={t('common.filter')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">{t('events.allStatuses')}</SelectItem>
-                  {Object.entries(EVENT_STATUS_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2 flex-1">
+                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Input
+                    type="date"
+                    placeholder={t('events.filterDateFrom')}
+                    aria-label={t('events.filterDateFrom')}
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="flex-1"
+                  />
+                  <span className="text-muted-foreground text-sm shrink-0">–</span>
+                  <Input
+                    type="date"
+                    placeholder={t('events.filterDateTo')}
+                    aria-label={t('events.filterDateTo')}
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+                {hasDateFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setDateFrom(''); setDateTo(''); }}
+                    className="shrink-0"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    {t('events.clearDates')}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -458,6 +458,14 @@ export const es: Record<string, string> = {
   'admin.tenantsWithIssues': 'Con Problemas',
   'admin.monthlyRevenue': 'Ingresos del Mes',
 
+  // Admin SaaS Analytics (I-06)
+  'admin.saasAnalytics': 'Crecimiento SaaS',
+  'admin.newTenantsMonth': 'Nuevos Tenants (mes)',
+  'admin.trialConversionRate': 'Conversión Trial → Pago',
+  'admin.churnedMonth': 'Cancelaciones (mes)',
+  'admin.conversionAnalytics': 'Analytics de Conversión',
+  'admin.conversionAnalyticsDesc': 'Visualiza el embudo completo de afiliación e identifica puntos de abandono.',
+
   // Branding Settings
   'settings.brandingAssets': 'Archivos de Marca',
   'settings.brandingAssetsDesc': 'Logo y plantillas personalizadas para tarjetas y diplomas',
@@ -541,6 +549,11 @@ export const es: Record<string, string> = {
   'athleteArea.noGradings': 'Ninguna graduación registrada aún',
   'athleteArea.currentGrading': 'Graduación Actual',
   'athleteArea.viewDiploma': 'Ver Diploma',
+  'athleteArea.privacyTitle': 'Privacidad y Datos',
+  'athleteArea.privacyDesc': 'Gestiona tus datos personales conforme a la legislación de protección de datos.',
+  'athleteArea.exportData': 'Exportar Mis Datos',
+  'athleteArea.exportDataDesc': 'Descarga una copia de todos tus datos personales almacenados en la plataforma (derecho de portabilidad).',
+  'athleteArea.exportDataLoading': 'Generando exportación...',
   'athleteArea.adminMessage': 'Área Exclusiva para Atletas',
   'athleteArea.adminMessageDesc': 'Esta área es para atletas. Como administrador, puedes gestionar atletas a través del menú de Atletas.',
   'athleteArea.noAthleteFound': 'Perfil de Atleta no encontrado',
@@ -998,6 +1011,9 @@ export const es: Record<string, string> = {
   'events.title': 'Eventos',
   'events.titleDesc': 'Gestiona competiciones y seminarios',
   'events.allStatuses': 'Todos los estados',
+  'events.filterDateFrom': 'Fecha inicio',
+  'events.filterDateTo': 'Fecha fin',
+  'events.clearDates': 'Limpiar fechas',
   'events.noEvents': 'Ningún evento encontrado',
   'events.noEventsDesc': 'Crea tu primer evento para comenzar',
   'events.createEvent': 'Crear Evento',

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Building2, Users, LogOut, Activity, ExternalLink, 
+import {
+  Building2, Users, LogOut, Activity, ExternalLink,
   Loader2, RefreshCw, Sun, Moon, Monitor, Globe, HelpCircle, Check,
-  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock, 
-  Shield, Image
+  Edit2, UserCog, Calendar, CreditCard, TrendingUp, AlertTriangle, Clock,
+  Shield, Image, UserPlus, BarChart3, UserMinus,
 } from 'lucide-react';
 import iconLogo from '@/assets/iconLogo.png';
 import { LoadingState } from '@/components/ux';
@@ -191,6 +191,49 @@ export default function AdminDashboard() {
       return {
         ...statusCounts,
         monthlyRevenue,
+      };
+    },
+    enabled: isGlobalSuperadmin,
+  });
+
+  // SaaS Growth Analytics (I-06)
+  const { data: saasMetrics } = useQuery({
+    queryKey: ['admin-saas-metrics'],
+    queryFn: async () => {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [newTenantsRes, canceledRes, allBillingRes] = await Promise.all([
+        // New tenants this calendar month
+        supabase
+          .from('tenants')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', startOfMonth),
+
+        // Tenants that moved to CANCELED this month
+        supabase
+          .from('tenant_billing')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'CANCELED')
+          .gte('updated_at', startOfMonth),
+
+        // All billing statuses for conversion rate
+        supabase
+          .from('tenant_billing')
+          .select('status'),
+      ]);
+
+      const allStatuses = (allBillingRes.data || []).map((b) => b.status);
+      const paidCount = allStatuses.filter((s) => s === 'ACTIVE').length;
+      const trialOrPaidCount = allStatuses.filter((s) => ['ACTIVE', 'TRIALING'].includes(s)).length;
+      const conversionRate = trialOrPaidCount > 0
+        ? Math.round((paidCount / trialOrPaidCount) * 100)
+        : 0;
+
+      return {
+        newTenantsMonth: newTenantsRes.count ?? 0,
+        churnedMonth: canceledRes.count ?? 0,
+        trialConversionRate: conversionRate,
       };
     },
     enabled: isGlobalSuperadmin,
@@ -421,10 +464,55 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* === Section 3.5: Conversion Analytics === */}
+          {/* === Section 3.5: SaaS Growth Analytics === */}
           <div className="mb-8">
-            <Card 
-              className="card-hover cursor-pointer" 
+            <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              {t('admin.saasAnalytics')}
+            </h3>
+            <div className="grid sm:grid-cols-3 gap-4 mb-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {t('admin.newTenantsMonth')}
+                  </CardTitle>
+                  <UserPlus className="h-5 w-5 text-success" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-display font-bold">
+                    {formatNumber(saasMetrics?.newTenantsMonth ?? 0, locale)}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {t('admin.trialConversionRate')}
+                  </CardTitle>
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-display font-bold">
+                    {saasMetrics?.trialConversionRate ?? 0}%
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {t('admin.churnedMonth')}
+                  </CardTitle>
+                  <UserMinus className="h-5 w-5 text-destructive" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-display font-bold">
+                    {formatNumber(saasMetrics?.churnedMonth ?? 0, locale)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <Card
+              className="card-hover cursor-pointer"
               onClick={() => navigate('/admin/analytics/membership')}
             >
               <CardHeader className="flex flex-row items-center gap-4">
@@ -432,8 +520,8 @@ export default function AdminDashboard() {
                   <TrendingUp className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Analytics de Conversão</CardTitle>
-                  <CardDescription>Visualize o funil completo de filiação e identifique pontos de abandono.</CardDescription>
+                  <CardTitle className="text-base">{t('admin.conversionAnalytics')}</CardTitle>
+                  <CardDescription>{t('admin.conversionAnalyticsDesc')}</CardDescription>
                 </div>
               </CardHeader>
             </Card>

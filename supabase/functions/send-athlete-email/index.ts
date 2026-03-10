@@ -42,7 +42,7 @@ interface AthleteEmailRequest {
 }
 
 const EMAIL_FROM = DEFAULT_EMAIL_FROM;
-const BASE_URL = "https://tatame-pro.lovable.app";
+const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
 
 function getMembershipApprovedEmail(data: AthleteEmailRequest["data"], layoutData: EmailLayoutData): { subject: string; html: string } {
   return getMembershipApprovedTemplate({

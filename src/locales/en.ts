@@ -458,6 +458,14 @@ export const en: Record<string, string> = {
   'admin.tenantsWithIssues': 'With Issues',
   'admin.monthlyRevenue': 'Monthly Revenue',
 
+  // Admin SaaS Analytics (I-06)
+  'admin.saasAnalytics': 'SaaS Growth',
+  'admin.newTenantsMonth': 'New Tenants (month)',
+  'admin.trialConversionRate': 'Trial → Paid Conversion',
+  'admin.churnedMonth': 'Cancellations (month)',
+  'admin.conversionAnalytics': 'Conversion Analytics',
+  'admin.conversionAnalyticsDesc': 'View the full membership funnel and identify drop-off points.',
+
   // Branding Settings
   'settings.brandingAssets': 'Branding Assets',
   'settings.brandingAssetsDesc': 'Logo and custom templates for cards and diplomas',
@@ -541,6 +549,11 @@ export const en: Record<string, string> = {
   'athleteArea.noGradings': 'No gradings recorded yet',
   'athleteArea.currentGrading': 'Current Grading',
   'athleteArea.viewDiploma': 'View Diploma',
+  'athleteArea.privacyTitle': 'Privacy & Data',
+  'athleteArea.privacyDesc': 'Manage your personal data in compliance with data protection laws.',
+  'athleteArea.exportData': 'Export My Data',
+  'athleteArea.exportDataDesc': 'Download a copy of all your personal data stored on this platform (LGPD/GDPR portability right).',
+  'athleteArea.exportDataLoading': 'Generating export...',
   'athleteArea.adminMessage': 'Athletes Only Area',
   'athleteArea.adminMessageDesc': 'This area is for athletes. As an administrator, you can manage athletes through the Athletes menu.',
   'athleteArea.noAthleteFound': 'Athlete Profile not found',
@@ -998,6 +1011,9 @@ export const en: Record<string, string> = {
   'events.title': 'Events',
   'events.titleDesc': 'Manage competitions and seminars',
   'events.allStatuses': 'All statuses',
+  'events.filterDateFrom': 'From date',
+  'events.filterDateTo': 'To date',
+  'events.clearDates': 'Clear dates',
   'events.noEvents': 'No events found',
   'events.noEventsDesc': 'Create your first event to get started',
   'events.createEvent': 'Create Event',

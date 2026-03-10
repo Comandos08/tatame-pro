@@ -456,6 +456,14 @@ export const ptBR = {
   'admin.tenantsWithIssues': 'Com Problemas',
   'admin.monthlyRevenue': 'Receita do Mês',
 
+  // Admin SaaS Analytics (I-06)
+  'admin.saasAnalytics': 'Crescimento SaaS',
+  'admin.newTenantsMonth': 'Novos Tenants (mês)',
+  'admin.trialConversionRate': 'Conversão Trial → Pago',
+  'admin.churnedMonth': 'Cancelamentos (mês)',
+  'admin.conversionAnalytics': 'Analytics de Conversão',
+  'admin.conversionAnalyticsDesc': 'Visualize o funil completo de filiação e identifique pontos de abandono.',
+
   // Branding Settings
   'settings.brandingAssets': 'Arquivos de Branding',
   'settings.brandingAssetsDesc': 'Logo e templates personalizados para carteiras e diplomas',
@@ -539,6 +547,11 @@ export const ptBR = {
   'athleteArea.noGradings': 'Nenhuma graduação registrada ainda',
   'athleteArea.currentGrading': 'Graduação Atual',
   'athleteArea.viewDiploma': 'Ver Diploma',
+  'athleteArea.privacyTitle': 'Privacidade e Dados',
+  'athleteArea.privacyDesc': 'Gerencie seus dados pessoais conforme a LGPD.',
+  'athleteArea.exportData': 'Exportar Meus Dados',
+  'athleteArea.exportDataDesc': 'Baixe uma cópia de todos os seus dados pessoais armazenados na plataforma (LGPD Art. 18, V).',
+  'athleteArea.exportDataLoading': 'Gerando exportação...',
   'athleteArea.adminMessage': 'Área Exclusiva para Atletas',
   'athleteArea.adminMessageDesc': 'Esta área é destinada a atletas. Como administrador, você pode gerenciar atletas através do menu de Atletas.',
   'athleteArea.noAthleteFound': 'Perfil de Atleta não encontrado',
@@ -996,6 +1009,9 @@ export const ptBR = {
   'events.title': 'Eventos',
   'events.titleDesc': 'Gerencie competições e seminários',
   'events.allStatuses': 'Todos os status',
+  'events.filterDateFrom': 'Data inicial',
+  'events.filterDateTo': 'Data final',
+  'events.clearDates': 'Limpar datas',
   'events.noEvents': 'Nenhum evento encontrado',
   'events.noEventsDesc': 'Crie seu primeiro evento para começar',
   'events.createEvent': 'Criar Evento',

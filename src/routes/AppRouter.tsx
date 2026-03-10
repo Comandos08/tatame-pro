@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import TenantDashboard from "@/pages/TenantDashboard";
 import AthleteArea from "@/pages/AthleteArea";
 import AthletesList from "@/pages/AthletesList";
+import AthleteImport from "@/pages/AthleteImport";
 import AthleteGradingsPage from "@/pages/AthleteGradingsPage";
 import MembershipList from "@/pages/MembershipList";
 import MembershipDetails from "@/pages/MembershipDetails";
@@ -73,6 +74,17 @@ export default function AppRouter() {
           <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
             <RequireFeature featureKey="TENANT_ATHLETES">
               <AthletesList />
+            </RequireFeature>
+          </RequireRoles>
+        }
+      />
+
+      <Route
+        path="athletes/import"
+        element={
+          <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
+            <RequireFeature featureKey="TENANT_ATHLETES">
+              <AthleteImport />
             </RequireFeature>
           </RequireRoles>
         }
