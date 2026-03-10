@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, ChevronLeft, User, Calendar, FileText, CreditCard, Search } from 'lucide-react';
+import { ClipboardCheck, Clock, AlertCircle, Loader2, ChevronRight, ChevronLeft, User, Calendar, FileText, CreditCard, Search, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
@@ -16,6 +16,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/hooks/use-toast';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
@@ -106,6 +119,12 @@ export default function ApprovalsList() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
+
+  // P2.3 — Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
 
   // Access contract — explicit loading/error/ready flags
   const {
@@ -270,6 +289,57 @@ export default function ApprovalsList() {
     return formatDateTime(dateString, locale);
   };
 
+  // P2.3 — Bulk approve handler
+  const handleBulkApprove = async () => {
+    if (!selectedIds.size) return;
+    setIsBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map(id => supabase.functions.invoke('approve-membership', { body: { membershipId: id } }))
+    );
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    await queryClient.invalidateQueries({ queryKey: ['pending-approvals', tenant?.id] });
+    await queryClient.invalidateQueries({ queryKey: ['pending-approvals-counts', tenant?.id] });
+    setSelectedIds(new Set());
+    setIsBulkProcessing(false);
+    toast({
+      title: `${succeeded} aprovação(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`,
+      variant: failed ? 'destructive' : 'default',
+    });
+  };
+
+  // P2.3 — Bulk reject handler
+  const handleBulkReject = async () => {
+    if (!selectedIds.size || !bulkRejectReason.trim()) return;
+    setIsBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map(id => supabase.functions.invoke('reject-membership', { body: { membershipId: id, reason: bulkRejectReason } }))
+    );
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    await queryClient.invalidateQueries({ queryKey: ['pending-approvals', tenant?.id] });
+    await queryClient.invalidateQueries({ queryKey: ['pending-approvals-counts', tenant?.id] });
+    setSelectedIds(new Set());
+    setBulkRejectOpen(false);
+    setBulkRejectReason('');
+    setIsBulkProcessing(false);
+    toast({
+      title: `${succeeded} rejeição(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`,
+      variant: failed ? 'destructive' : 'default',
+    });
+  };
+
+  const toggleSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   // CSV columns for export
   const csvColumns = useMemo(() => [
     { 
@@ -381,7 +451,7 @@ export default function ApprovalsList() {
           />
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ApprovalTab); setPage(0); setSearch(''); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ApprovalTab); setPage(0); setSearch(''); setSelectedIds(new Set()); }}>
           <TabsList>
             {TAB_CONFIG.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
@@ -442,12 +512,22 @@ export default function ApprovalsList() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                       >
-                        <Card 
+                        <Card
                           className="card-hover cursor-pointer group"
                           onClick={() => navigate(`/${tenantSlug}/app/approvals/${membership.id}`)}
                         >
                           <CardContent className="p-4 sm:p-6">
                             <div className="flex items-start gap-4">
+                              {/* P2.3 — Bulk selection checkbox */}
+                              {activeTab === 'PENDING_REVIEW' && (
+                                <div className="flex items-center pt-1" onClick={e => toggleSelection(membership.id, e)}>
+                                  <Checkbox
+                                    checked={selectedIds.has(membership.id)}
+                                    onCheckedChange={() => {}}
+                                    aria-label={`Selecionar ${getDisplayName(membership)}`}
+                                  />
+                                </div>
+                              )}
                               <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
                                 membership.status === 'DRAFT' ? 'bg-muted' : 'bg-warning/10'
                               }`}>
@@ -555,6 +635,65 @@ export default function ApprovalsList() {
           ))}
         </Tabs>
       </div>
+
+      {/* P2.3 — Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border bg-background shadow-xl px-6 py-3">
+          <span className="text-sm font-medium">{selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}</span>
+          <Button
+            size="sm"
+            onClick={handleBulkApprove}
+            disabled={isBulkProcessing}
+          >
+            {isBulkProcessing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+            Aprovar todos
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setBulkRejectOpen(true)}
+            disabled={isBulkProcessing}
+          >
+            Rejeitar todos
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-full"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* P2.3 — Bulk reject dialog */}
+      <AlertDialog open={bulkRejectOpen} onOpenChange={setBulkRejectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rejeitar {selectedIds.size} solicitação(ões)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Informe o motivo da rejeição. Todos os solicitantes serão notificados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Motivo da rejeição..."
+            value={bulkRejectReason}
+            onChange={e => setBulkRejectReason(e.target.value)}
+            className="min-h-[80px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBulkRejectReason('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkReject}
+              disabled={!bulkRejectReason.trim() || isBulkProcessing}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Confirmar rejeição
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

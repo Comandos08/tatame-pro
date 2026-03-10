@@ -20,6 +20,21 @@
   <meta name="twitter:title" content="Tatame Pro - Combat Sports Management">
   <meta property="og:description" content="Multi-tenant SaaS platform for combat sports federations and organizations. Manage athletes, academies, gradings and memberships.">
   <meta name="twitter:description" content="Multi-tenant SaaS platform for combat sports federations and organizations. Manage athletes, academies, gradings and memberships.">
+
+  <!-- Sentry Browser SDK — loaded only when VITE_SENTRY_DSN is defined at build time -->
+  <script>
+    (function() {
+      var dsn = '%VITE_SENTRY_DSN%';
+      if (dsn && dsn !== '' && dsn !== '%VITE_SENTRY_DSN%') {
+        window.__SENTRY_DSN__ = dsn;
+      }
+    })();
+  </script>
+  <script
+    src="https://browser.sentry-cdn.com/7.119.0/bundle.min.js"
+    crossorigin="anonymous"
+    data-lazy="true"
+  ></script>
 </head>
 
   <body>
