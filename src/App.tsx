@@ -52,6 +52,7 @@ import PublicAcademies from "@/pages/PublicAcademies";
 import PublicRankings from "@/pages/PublicRankings";
 import PublicEventsList from "@/pages/PublicEventsList";
 import PublicEventDetails from "@/pages/PublicEventDetails";
+import PublicEventBrackets from "@/pages/PublicEventBrackets";
 
 export default function App() {
   return (
@@ -182,6 +183,7 @@ export default function App() {
             <Route path="rankings" element={<PublicRankings />} />
             <Route path="events" element={<PublicEventsList />} />
             <Route path="events/:eventId" element={<PublicEventDetails />} />
+            <Route path="events/:eventId/brackets" element={<PublicEventBrackets />} />
           </Route>
 
           {/* Fallback */}
