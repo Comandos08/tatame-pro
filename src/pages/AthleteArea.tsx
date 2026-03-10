@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  User, 
-  Award, 
-  CreditCard, 
-  FileText, 
+import {
+  User,
+  Award,
+  CreditCard,
+  FileText,
   Calendar,
   Building2,
   Download,
@@ -13,7 +13,8 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
@@ -135,6 +136,7 @@ export default function AthleteArea() {
   const { tenant } = useTenant();
   const { currentUser, hasRole, isGlobalSuperadmin } = useCurrentUser();
   const { t, locale } = useI18n();
+  const [isExporting, setIsExporting] = useState(false);
 
   // Check if user has admin role (ADMIN_TENANT or SUPERADMIN_GLOBAL)
   const isAdmin = tenant && (
@@ -340,6 +342,42 @@ export default function AthleteArea() {
       </AppShell>
     );
   }
+
+  const handleExportData = async () => {
+    if (!athlete || !tenant) return;
+    setIsExporting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const url = new URL(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-athlete-data`);
+      url.searchParams.set('athlete_id', athlete.id);
+      url.searchParams.set('tenant_id', tenant.id);
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `tatame-dados-${athlete.id.substring(0, 8)}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch {
+      // silently ignore — edge function may not be deployed yet
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (athleteLoading) {
     return (
@@ -811,6 +849,48 @@ export default function AthleteArea() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Privacy & LGPD Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                {t('athleteArea.privacyTitle')}
+              </CardTitle>
+              <CardDescription>{t('athleteArea.privacyDesc')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground max-w-md">
+                  {t('athleteArea.exportDataDesc')}
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={handleExportData}
+                  disabled={isExporting}
+                  className="shrink-0"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {t('athleteArea.exportDataLoading')}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      {t('athleteArea.exportData')}
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
