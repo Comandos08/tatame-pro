@@ -92,18 +92,28 @@ export function EventRegistrationButton({
   const registerMutation = useMutation({
     mutationFn: async (categoryId: string) => {
       if (!athlete?.id || !currentUser?.id) throw new Error('Athlete not found');
-      
-      const { error } = await supabase.from('event_registrations').insert({
-        event_id: eventId,
-        category_id: categoryId,
-        athlete_id: athlete.id,
-        tenant_id: tenantId,
-        registered_by: currentUser.id,
-        status: 'PENDING',
-        payment_status: 'NOT_PAID',
-      });
-      
+
+      const { data, error } = await supabase.functions.invoke(
+        'create-event-registration-checkout',
+        {
+          body: {
+            event_id: eventId,
+            category_id: categoryId,
+            athlete_id: athlete.id,
+          },
+        }
+      );
+
       if (error) throw error;
+
+      // Paid event: redirect to Stripe Checkout
+      if (!data?.is_free && data?.checkout_url) {
+        window.location.href = data.checkout_url;
+        // Return without resolving so onSuccess doesn't run during redirect
+        return;
+      }
+
+      // Free event: data.is_free === true, registration already confirmed
     },
     onSuccess: () => {
       toast.success(t('events.registrationSuccess'));
@@ -112,7 +122,7 @@ export function EventRegistrationButton({
     },
     onError: (error: any) => {
       logger.error('Registration error:', error);
-      if (error.message?.includes('unique constraint')) {
+      if (error.message?.includes('already registered') || error.message?.includes('unique constraint')) {
         toast.error(t('events.alreadyRegistered'));
       } else {
         toast.error(t('events.registrationError'));

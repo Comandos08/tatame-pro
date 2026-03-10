@@ -2,7 +2,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle, AlertCircle, UserX } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, Users, Info, CheckCircle, AlertCircle, UserX, GitBranch } from 'lucide-react';
 
 import PublicHeader from '@/components/PublicHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +79,21 @@ export default function PublicEventDetails() {
         counts[reg.category_id] = (counts[reg.category_id] || 0) + 1;
       });
       return counts;
+    },
+    enabled: !!eventId,
+  });
+
+  // P2.1 — Check if published brackets exist for this event
+  const { data: publishedBracketsCount = 0 } = useQuery({
+    queryKey: ['public-brackets-count', eventId],
+    queryFn: async () => {
+      if (!eventId) return 0;
+      const { count } = await supabase
+        .from('event_brackets')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('status', 'PUBLISHED');
+      return count ?? 0;
     },
     enabled: !!eventId,
   });
@@ -390,6 +405,16 @@ export default function PublicEventDetails() {
               />
             </CardContent>
           </Card>
+
+          {/* P2.1 — Bracket link: shown when published brackets exist */}
+          {publishedBracketsCount > 0 && (
+            <Button variant="outline" className="w-full gap-2" asChild>
+              <Link to={`/${tenant?.slug}/events/${event.id}/brackets`}>
+                <GitBranch className="h-4 w-4" />
+                {t('events.viewBrackets') || 'Ver chaves do torneio'}
+              </Link>
+            </Button>
+          )}
         </motion.div>
       </main>
 
