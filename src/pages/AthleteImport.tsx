@@ -44,8 +44,7 @@ interface ImportResult {
   skipped: number;
 }
 
-const REQUIRED_HEADERS = ['full_name', 'birth_date', 'email', 'gender'];
-const ALL_HEADERS = [...REQUIRED_HEADERS, 'national_id', 'phone', 'city', 'state', 'country', 'address_line1', 'academy_slug'];
+
 
 function parseCSV(text: string): AthleteRow[] {
   const lines = text.trim().split('\n').filter(l => l.trim());
@@ -84,7 +83,7 @@ function parseCSV(text: string): AthleteRow[] {
 
 export default function AthleteImport() {
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  useI18n();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
