@@ -9,3 +9,4 @@ export * from './logger';
 export * from './error-report';
 export * from './realtime';
 export * from './types';
+export * from './web-vitals';
