@@ -132,10 +132,9 @@ export function okResponse<T>(
 // CONVENIENCE HELPERS — Canonical responses for common error paths
 // ============================================================================
 
-const DEFAULT_CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
+import { corsHeaders as _sharedCors } from "../cors.ts";
+
+const DEFAULT_CORS: Record<string, string> = _sharedCors;
 
 export function unauthorizedResponse(
   corsHeaders: Record<string, string> = DEFAULT_CORS,
