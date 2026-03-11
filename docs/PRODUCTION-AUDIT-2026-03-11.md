@@ -19,11 +19,11 @@
 | **Frontend & UX** | 7.5/10 | 12% | 0.900 |
 | **Segurança & Multi-tenant** | 7.0/10 | 18% | 1.260 |
 | **CI/CD & DevOps** | 5.5/10 | 10% | 0.550 |
-| **Testes & Qualidade** | 4.0/10 | 15% | 0.600 |
+| **Testes & Qualidade** | 5.5/10 | 15% | 0.825 |
 | **Observabilidade & Monitoring** | 5.5/10 | 8% | 0.440 |
-| **Documentação & Ops** | 7.0/10 | 7% | 0.490 |
+| **Documentação & Ops** | 8.5/10 | 7% | 0.595 |
 
-### **NOTA FINAL: 6.7 / 10**
+### **NOTA FINAL: 7.0 / 10**
 
 ### Veredito
 
@@ -171,26 +171,35 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 
 ---
 
-### F. Testes & Qualidade — 4.0/10 (**PIOR DIMENSÃO**)
+### F. Testes & Qualidade — 5.5/10
 
 **Pontos fortes:**
-- Vitest configurado e funcional
-- Playwright configurado com 93 E2E specs (5 projetos: Chromium, Mobile, Resilience, Contract, Observability)
+- **E2E suite = 9/10** — 93 specs Playwright em 5 projetos (Chromium, Mobile, Resilience, Contract, Observability):
+  - **31 contract tests** — billing, events, tenant lifecycle, auth, impersonation, federation
+  - **21 resilience tests** — failure scenarios para billing, auth, events, polling, exports
+  - **15 security tests** — auth guards, deep links, DOM warnings, rate limiting, routing
+  - **7 UI tests** — actions visibility, dropdown refs, color hardcode, loading contracts
+  - **5 user flow tests** — membership adult/youth, events, verification, portal access
+  - **3 routing tests** — guards, P0 regression, session expiry
+  - **1 smoke test** + 1 observability test
 - TypeScript strict mode (`noImplicitReturns`, `noUnusedLocals`, `noUnusedParameters`)
 - Zod validation nos formulários principais
-- Apenas 34 ocorrências de `: any` em 14 arquivos (baixo)
+- 9 domain unit tests cobrindo billing, events, tenant, identity, notifications, state guards
+- 6 behavioral/UX tests (block reason, trust narrative, next best action, manifesto mode)
+- 5 edge function tests (envelope, PII contract, pagination, integration)
+- Error catalog frozen com i18n integration
 
 **Lacunas CRÍTICAS:**
-- **19 arquivos de teste para 418+ arquivos fonte = ~4.5% de coverage**
+- **0/249 componentes têm unit test** — coverage de componentes = 0%
+- **0/31 hooks têm unit test** — incluindo hooks security-critical como `useImpersonationScope`
+- **68 instâncias de `as any`/`as unknown`** — type assertions inseguras em membership forms
 - **Sem coverage threshold** no CI
-- **Sem testes de integração** para edge functions
 - **Sem testes de RLS policies** automatizados
 - **Sem testes de tenant isolation** automatizados
-- **Sem contract testing** para API
-- **Sem snapshot testing** para componentes UI
 - **Sem load/stress testing**
 - **Sem accessibility testing** automatizado (axe-core, pa11y)
 - **Sem visual regression testing**
+- **Sem i18n flow E2E tests**
 
 ---
 
@@ -220,22 +229,32 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 
 ---
 
-### H. Documentação & Ops — 7.0/10
+### H. Documentação & Ops — 8.5/10
 
 **Pontos fortes:**
+- **68 arquivos markdown, 11.817 linhas** — documentação excepcionalmente completa
 - `RELEASE-READINESS-P0.md` com go/no-go checklist detalhado
 - `SLA.md` com targets de uptime e RTO/RPO definidos por tier
+- `ARCHITECTURAL_DECISIONS.md` (400 linhas) — ADRs existem
+- `SYSTEM_MAP.md` (484 linhas) — topologia do sistema
+- `SYSTEM_ENTITIES.md` (519 linhas) — modelo de entidades
+- `PRODUCT_MODULES.md` (700 linhas) — definição de módulos
+- `ENGINEERING_GUARDRAILS.md` (378 linhas) — padrões de código
+- `SECURITY/INVARIANTS.md` — invariantes I1-I7 (SAFE GOLD)
+- `IDENTITY-CONTRACT.md`, `ERROR-CONTRACT.md`, `AUDIT-CONTRACT.md` — contratos formais
+- `SECURITY/threat-model.md` — modelo de ameaças documentado
+- `PRODUCT-MATURITY-MAP.md` (333 linhas) — níveis de maturidade
 - Runbooks: `incident-supabase-down`, `migration-zero-downtime`, `restore-from-backup`, `stripe-webhook-setup`
 - API docs para edge functions (`docs/api/`)
-- `CLAUDE.md` com princípios arquiteturais
-- `.env.example` documentado
+- `CLAUDE.md` (332 linhas) com princípios arquiteturais
+- `OBSERVABILITY.md` + `OBSERVABILITY-CONTRACT.md`
+- `UI-GOVERNANCE.md` (554 linhas), `HARDENING.md` (459 linhas)
 
 **Lacunas:**
-- **Sem README.md** com setup instructions para novos devs
+- **README.md genérico** — ainda tem template Lovable com `REPLACE_WITH_PROJECT_ID`
 - **Sem CONTRIBUTING.md**
-- **Sem ADR (Architecture Decision Records)**
 - **Sem changelog** automatizado
-- **Sem API reference** gerada automaticamente
+- **Sem OpenAPI/Swagger** specs para edge functions
 - **Sem status page** pública
 - **Sem runbook de rollback**
 
@@ -292,14 +311,14 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 | 33 | **Status page** pública | Ops | Transparência |
 | 34 | **Log aggregation** centralizado (DataDog/Loki) | Observabilidade | Debugging em produção |
 | 35 | **Load testing** (k6, Artillery) | Testes | Capacidade conhecida |
-| 36 | **ADR documentation** | Docs | Memória institucional |
+| 36 | **OpenAPI/Swagger specs** para edge functions | Docs | API reference |
 | 37 | **Visual regression testing** | Testes | Previne regressões de UI |
 | 38 | **Font preload** + self-hosting | Performance | TTFB e CLS |
 | 39 | **Service Worker** para offline básico | UX | PWA readiness |
 | 40 | **Audit log viewer** para admins de tenant | UX | Self-service |
 | 41 | **Dynamic OG tags** por rota | SEO | Social sharing |
 | 42 | **Sitemap.xml dinâmico** | SEO | Indexação |
-| 43 | **README.md + CONTRIBUTING.md** | Docs | Onboarding de devs |
+| 43 | **README.md real** (substituir template Lovable) + **CONTRIBUTING.md** | Docs | Onboarding de devs |
 | 44 | **Data retention policy** documentada | Compliance | LGPD Art. 16 |
 | 45 | **Rollback strategy** automatizada | DevOps | Recovery |
 | 46 | **Notify-critical-alert → Slack** | Observabilidade | Alerting ops |
@@ -405,17 +424,17 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 ## 5. PROJEÇÃO DE NOTAS POR FASE
 
 ```
-ESTADO ATUAL           ██████████████░░░░░░░░  6.7/10
+ESTADO ATUAL           ██████████████░░░░░░░░  7.0/10
 
-APÓS FASE 1 (Sem 1)   ███████████████░░░░░░░  7.2/10  (+0.5)
+APÓS FASE 1 (Sem 1)   ███████████████░░░░░░░  7.5/10  (+0.5)
 
-APÓS FASE 2 (Sem 3)   ████████████████░░░░░░  7.8/10  (+0.6)
+APÓS FASE 2 (Sem 3)   ████████████████░░░░░░  8.1/10  (+0.6)
 
-APÓS FASE 3 (Sem 7)   ██████████████████░░░░  8.5/10  (+0.7)
+APÓS FASE 3 (Sem 7)   ██████████████████░░░░  8.7/10  (+0.6)
 
-APÓS FASE 4 (Sem 10)  ███████████████████░░░  9.2/10  (+0.7)
+APÓS FASE 4 (Sem 10)  ███████████████████░░░  9.3/10  (+0.6)
 
-APÓS FASE 5 (Sem 14)  ████████████████████░░ 10.0/10  (+0.8)
+APÓS FASE 5 (Sem 14)  ████████████████████░░ 10.0/10  (+0.7)
 ```
 
 ---
