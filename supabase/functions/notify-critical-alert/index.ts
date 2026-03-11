@@ -120,11 +120,52 @@ serve(async (req) => {
       log.error('[notify-critical-alert] Failed to log webhook_events:', { error: weError.message });
     }
 
-    // Check for Slack webhook (future integration)
+    // Slack webhook integration (P2-46)
     const slackWebhookUrl = Deno.env.get('SLACK_WEBHOOK_URL');
     if (slackWebhookUrl) {
-      // TODO: Implement Slack notification
-      log.info('[notify-critical-alert] Slack webhook configured but not yet implemented');
+      try {
+        const severityEmoji: Record<string, string> = {
+          LOW: ':information_source:',
+          MEDIUM: ':warning:',
+          HIGH: ':rotating_light:',
+          CRITICAL: ':fire:',
+        };
+        const slackPayload = {
+          text: `${severityEmoji[payload.severity] || ':bell:'} *[${payload.severity}] ${payload.event_type}*`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: [
+                  `${severityEmoji[payload.severity] || ':bell:'} *[${payload.severity}] ${payload.event_type}*`,
+                  `*Event ID:* \`${payload.event_id}\``,
+                  payload.tenant_id ? `*Tenant:* \`${payload.tenant_id}\`` : '',
+                  `*Time:* ${payload.timestamp || new Date().toISOString()}`,
+                  payload.metadata?.source ? `*Source:* ${String(payload.metadata.source)}` : '',
+                ].filter(Boolean).join('\n'),
+              },
+            },
+          ],
+        };
+
+        const slackResponse = await fetch(slackWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slackPayload),
+        });
+
+        if (slackResponse.ok) {
+          log.info('[notify-critical-alert] Slack notification sent');
+        } else {
+          log.warn('[notify-critical-alert] Slack webhook failed', { status: slackResponse.status });
+        }
+      } catch (slackError) {
+        log.warn('[notify-critical-alert] Slack notification failed', {
+          error: slackError instanceof Error ? slackError.message : String(slackError),
+        });
+        // INTENTIONAL: Slack failure must not fail the alert function
+      }
     }
 
     // Send critical alert email
@@ -170,7 +211,7 @@ serve(async (req) => {
       JSON.stringify({ 
         ok: true, 
         status: 'LOGGED',
-        message: 'External notifications are OFF. Event logged for future integration.',
+        message: 'Alert processed. Check integrations for delivery status.',
         integrations: {
           slack: !!slackWebhookUrl,
           email: emailEnabled,

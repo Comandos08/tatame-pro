@@ -1,73 +1,117 @@
-# Welcome to your Lovable project
+# Tatame Pro
 
-## Project info
+Multi-tenant sports management platform for federations, leagues, and martial arts organizations. Built for Brazilian Jiu-Jitsu and combat sports ecosystems.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Backend | Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
+| Payments | Stripe (checkout, subscriptions, webhooks) |
+| Email | Resend (transactional) |
+| CAPTCHA | Cloudflare Turnstile |
+| Rate Limiting | Upstash Redis |
+| Monitoring | Sentry (error tracking) |
+| CI/CD | GitHub Actions |
 
-There are several ways of editing your application.
+## Architecture
 
-**Use Lovable**
+```
+src/
+  components/     — UI components (shadcn/ui + custom)
+  contexts/       — React contexts (Auth, I18n, Theme, etc.)
+  domain/         — Domain logic (audit, billing)
+  layouts/        — Page layouts (TenantLayout, AppShell)
+  lib/            — Utilities (http, observability, safety)
+  locales/        — i18n translations (pt-BR, en, es)
+  pages/          — Route pages
+  routes/         — Router definitions
+  types/          — TypeScript types
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+supabase/
+  functions/      — 70+ Edge Functions
+  functions/_shared/  — Shared utilities (auth, CORS, logging)
+  migrations/     — PostgreSQL migrations
 
-Changes made via Lovable will be committed automatically to this repo.
+docs/             — Architecture docs, audit, policies
+e2e/              — Playwright E2E + contract tests
+```
 
-**Use your preferred IDE**
+## Key Features
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Multi-tenant** — Complete tenant isolation with RLS
+- **RBAC** — Role-based access (SUPERADMIN, ADMIN_TENANT, ATLETA, etc.)
+- **Membership lifecycle** — Draft → Payment → Review → Active → Expired
+- **Billing state machine** — Deterministic transitions with audit trail
+- **Event management** — Brackets, matches, rankings
+- **Digital credentials** — Cards, diplomas with QR verification
+- **LGPD compliance** — Data export, erasure, guardian consent
+- **Audit trail** — Append-only, SHA-256 hashed, immutable
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Local Development
 
-Follow these steps:
+```bash
+# Prerequisites: Node.js 20+, npm
+git clone https://github.com/Comandos08/tatame-pro.git
+cd tatame-pro
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Install dependencies
+npm ci
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Copy environment variables
+cp .env.example .env
+# Edit .env with your Supabase project credentials
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Available Scripts
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Script | Description |
+|---|---|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint check |
+| `npm run test` | Run Vitest unit tests |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run format` | Prettier format |
+| `npm run i18n:check` | Check i18n key consistency |
 
-**Use GitHub Codespaces**
+## Environment Variables
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+See [`.env.example`](.env.example) for all required variables. Key groups:
 
-## What technologies are used for this project?
+- `VITE_SUPABASE_*` — Supabase connection (frontend)
+- `STRIPE_*` — Payment processing (edge functions)
+- `TURNSTILE_*` — CAPTCHA protection
+- `UPSTASH_*` — Rate limiting
+- `RESEND_*` — Email delivery
+- `ALLOWED_ORIGIN` — CORS restriction
+- `VITE_SENTRY_DSN` — Error tracking
 
-This project is built with:
+## Governance
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The codebase follows institutional governance rules (G1-G8) enforced by CI:
 
-## How can I deploy this project?
+- **G1** — No `any` in domain code
+- **G3** — Consistent error handling via institutional envelope
+- **G7** — Structured logging (no `console.log` in production)
+- **SAFE GOLD** — Deterministic, immutable audit system
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Deployment
 
-## Can I connect a custom domain to my Lovable project?
+Configured for Vercel deployment via GitHub Actions CD pipeline. See `.github/workflows/cd.yml`.
 
-Yes, you can!
+## Documentation
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- [Production Audit](docs/PRODUCTION-AUDIT-2026-03-11.md)
+- [Data Retention Policy](docs/DATA-RETENTION-POLICY.md)
+- [SLA](docs/SLA.md)
+- [Engineering Guardrails](docs/ENGINEERING_GUARDRAILS.md)
+- [Contributing](CONTRIBUTING.md)
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## License
+
+Proprietary. All rights reserved.

@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "i18n:check": "node scripts/check-i18n-keys.js",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "test:load": "k6 run load-tests/health-check.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
