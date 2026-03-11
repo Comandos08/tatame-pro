@@ -73,9 +73,11 @@ export async function validateCaptcha(
     );
 
     if (!response.ok) {
-      log.error("Turnstile API error", undefined, { status: response.status });
-      // Fail-open on API errors
-      return { success: true };
+      log.error("Turnstile API error — fail-closed", undefined, { status: response.status });
+      return {
+        success: false,
+        error: "Serviço de verificação temporariamente indisponível. Tente novamente em instantes.",
+      };
     }
 
     const result = await response.json();
@@ -95,9 +97,11 @@ export async function validateCaptcha(
       hostname: result.hostname,
     };
   } catch (error) {
-    log.error("Error", error);
-    // Fail-open on errors
-    return { success: true };
+    log.error("CAPTCHA validation error — fail-closed", error);
+    return {
+      success: false,
+      error: "Serviço de verificação temporariamente indisponível. Tente novamente em instantes.",
+    };
   }
 }
 
