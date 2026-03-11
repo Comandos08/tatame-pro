@@ -5,3 +5,4 @@
  */
 
 export * from './http';
+export * from './circuit-breaker';

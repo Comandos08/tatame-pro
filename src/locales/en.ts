@@ -2815,4 +2815,32 @@ export const en: Record<string, string> = {
   'emptyState.noData.title': 'No records found',
   'emptyState.noData.description': 'There is no data available to display at this time.',
 
+  // Cookie Consent
+  'cookie.message': 'This site uses essential cookies for functionality and analytical cookies to improve your experience.',
+  'cookie.accept': 'Accept',
+  'cookie.decline': 'Decline',
+  'cookie.learnMore': 'Learn more',
+
+  // Privacy Policy
+  'privacy.title': 'Privacy Policy',
+  'privacy.controller.title': '1. Data Controller',
+  'privacy.controller.text': 'Tatame Pro operates as a sports management platform. Each federation, league, or organization using the system is the data controller for their athletes and members, in compliance with the Brazilian General Data Protection Law (LGPD — Law 13,709/2018).',
+  'privacy.dataCollected.title': '2. Data Collected',
+  'privacy.dataCollected.text': 'We collect the following personal data:\n- Full name, date of birth, national ID (CPF)\n- Email and phone contact\n- Sports membership data (rank, academy, federation)\n- Payment data (processed via Stripe — we do not store card data)\n- Legal guardian data (for minors under 18)',
+  'privacy.purpose.title': '3. Purpose of Processing',
+  'privacy.purpose.text': 'Data is processed for:\n- Management of sports memberships and events\n- Document issuance (ID cards, diplomas)\n- Payment processing\n- Communications related to the sports organization\n- Compliance with legal obligations',
+  'privacy.legalBasis.title': '4. Legal Basis (LGPD)',
+  'privacy.legalBasis.text': 'Data processing is based on:\n- Contract execution (Art. 7, V) — sports membership\n- Consent (Art. 7, I) — optional data and communications\n- Legal obligation (Art. 7, II) — tax and regulatory data\n- Child protection (Art. 14) — guardian consent',
+  'privacy.sharing.title': '5. Data Sharing',
+  'privacy.sharing.text': 'Your data may be shared with:\n- The federation/league/organization you are affiliated with\n- Payment processors (Stripe) for financial transactions\n- Infrastructure services (Supabase) for secure storage\n- Competent authorities when required by law',
+  'privacy.rights.title': '6. Your Rights (LGPD Art. 18)',
+  'privacy.rights.text': 'You have the right to:\n- Confirm the existence of data processing\n- Access your personal data\n- Correct incomplete or outdated data\n- Request anonymization or deletion of unnecessary data\n- Request data portability\n- Revoke consent at any time\n\nTo exercise your rights, access the "Privacy & Data" section in the athlete portal or contact your sports organization.',
+  'privacy.cookies.title': '7. Cookies',
+  'privacy.cookies.text': 'We use cookies for:\n- Essential cookies: authentication, session, and language preferences\n- Analytical cookies: error monitoring (Sentry) for service improvement\n\nYou can manage your cookie preferences at any time.',
+  'privacy.retention.title': '8. Data Retention',
+  'privacy.retention.text': 'Personal data is retained while the membership is active. After a deletion request, data is removed within 30 days, except when there is a legal obligation for retention.',
+  'privacy.contact.title': '9. Contact',
+  'privacy.contact.text': 'For privacy-related questions, contact the sports organization you are affiliated with or use the data management tools available in the athlete portal.',
+  'privacy.lastUpdated': 'Last updated: March 2026',
+
 };

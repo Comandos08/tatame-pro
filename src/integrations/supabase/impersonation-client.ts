@@ -17,8 +17,15 @@ import { logger } from '@/lib/logger';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Cache de clients por impersonationId
-const clientCache = new Map<string, SupabaseClient<Database>>();
+// Cache de clients por impersonationId with TTL
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface CachedClient {
+  client: SupabaseClient<Database>;
+  createdAt: number;
+}
+
+const clientCache = new Map<string, CachedClient>();
 
 /**
  * Cria um client Supabase com header x-impersonation-id opcional.
@@ -28,10 +35,16 @@ export function createImpersonationAwareClient(
   impersonationId: string | null
 ): SupabaseClient<Database> {
   const cacheKey = impersonationId || 'default';
-  
-  // Retorna do cache se existir
+
+  // Retorna do cache se existir e não estiver expirado
   const cached = clientCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    const age = Date.now() - cached.createdAt;
+    if (age < CACHE_TTL_MS) return cached.client;
+    // Expired — remove and recreate
+    clientCache.delete(cacheKey);
+    logger.log(`[IMPERSONATION-CLIENT] Cache expired for key: ${cacheKey.slice(0, 8)}...`);
+  }
   
   // Configuração base (idêntica ao client padrão)
   const options: Parameters<typeof createClient>[2] = {
@@ -58,12 +71,12 @@ export function createImpersonationAwareClient(
   
   // Limita tamanho do cache para evitar memory leak
   if (clientCache.size > 10) {
-    const defaultClient = clientCache.get('default');
+    const defaultEntry = clientCache.get('default');
     clientCache.clear();
-    if (defaultClient) clientCache.set('default', defaultClient);
+    if (defaultEntry) clientCache.set('default', defaultEntry);
   }
-  
-  clientCache.set(cacheKey, client);
+
+  clientCache.set(cacheKey, { client, createdAt: Date.now() });
   return client;
 }
 
@@ -95,9 +108,9 @@ export function useImpersonationClient(
  * quando a sessão é encerrada, expirada ou revogada.
  */
 export function clearImpersonationClientCache(): void {
-  const defaultClient = clientCache.get('default');
+  const defaultEntry = clientCache.get('default');
   const cacheSize = clientCache.size;
   clientCache.clear();
-  if (defaultClient) clientCache.set('default', defaultClient);
+  if (defaultEntry) clientCache.set('default', defaultEntry);
   logger.log(`[IMPERSONATION-CLIENT] Cache cleared (${cacheSize - 1} impersonation clients removed)`);
 }

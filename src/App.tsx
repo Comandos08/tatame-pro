@@ -14,7 +14,9 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuthCallback from "@/pages/AuthCallback";
 import NotFound from "@/pages/NotFound";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import PublicVerifyDocument from "@/pages/PublicVerifyDocument";
+import CookieConsent from "@/components/CookieConsent";
 
 // Identity
 import IdentityWizard from "@/pages/IdentityWizard";
@@ -66,6 +68,7 @@ export default function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/help" element={<Help />} />
           <Route path="/about" element={<About />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -189,6 +192,7 @@ export default function App() {
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <CookieConsent />
       </IdentityGate>
   );
 }

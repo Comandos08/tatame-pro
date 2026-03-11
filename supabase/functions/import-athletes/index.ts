@@ -124,6 +124,15 @@ serve(async (req) => {
       });
     }
 
+    // Validate Content-Type (P1-29: CSV MIME type validation)
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      return new Response(
+        JSON.stringify({ error: "Content-Type must be application/json. CSV parsing should be done client-side." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 415 },
+      );
+    }
+
     const body = await req.json();
     const { tenant_id, rows, mode = "validate" } = body as {
       tenant_id: string;

@@ -2794,6 +2794,34 @@ export const ptBR = {
   'emptyState.noData.title': 'Nenhum registro encontrado',
   'emptyState.noData.description': 'Não há dados disponíveis para exibição neste momento.',
 
+  // Cookie Consent
+  'cookie.message': 'Este site utiliza cookies essenciais para funcionamento e cookies analíticos para melhorar sua experiência.',
+  'cookie.accept': 'Aceitar',
+  'cookie.decline': 'Recusar',
+  'cookie.learnMore': 'Saiba mais',
+
+  // Privacy Policy
+  'privacy.title': 'Política de Privacidade',
+  'privacy.controller.title': '1. Controlador de Dados',
+  'privacy.controller.text': 'O Tatame Pro atua como plataforma de gestão esportiva. Cada federação, liga ou organização que utiliza o sistema é a controladora dos dados de seus atletas e membros, conforme a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018).',
+  'privacy.dataCollected.title': '2. Dados Coletados',
+  'privacy.dataCollected.text': 'Coletamos os seguintes dados pessoais:\n- Nome completo, data de nascimento, CPF\n- E-mail e telefone de contato\n- Dados de filiação esportiva (graduação, academia, federação)\n- Dados de pagamento (processados via Stripe — não armazenamos dados de cartão)\n- Dados de responsável legal (para menores de 18 anos)',
+  'privacy.purpose.title': '3. Finalidade do Tratamento',
+  'privacy.purpose.text': 'Os dados são tratados para:\n- Gestão de filiações e eventos esportivos\n- Emissão de documentos (carteirinhas, diplomas)\n- Processamento de pagamentos\n- Comunicações relacionadas à organização esportiva\n- Cumprimento de obrigações legais',
+  'privacy.legalBasis.title': '4. Base Legal (LGPD)',
+  'privacy.legalBasis.text': 'O tratamento de dados é fundamentado em:\n- Execução de contrato (Art. 7º, V) — filiação esportiva\n- Consentimento (Art. 7º, I) — dados opcionais e comunicações\n- Obrigação legal (Art. 7º, II) — dados fiscais e regulatórios\n- Proteção do menor (Art. 14º) — consentimento do responsável legal',
+  'privacy.sharing.title': '5. Compartilhamento de Dados',
+  'privacy.sharing.text': 'Seus dados podem ser compartilhados com:\n- A federação/liga/organização à qual você é filiado\n- Processadores de pagamento (Stripe) para transações financeiras\n- Serviços de infraestrutura (Supabase) para armazenamento seguro\n- Autoridades competentes quando exigido por lei',
+  'privacy.rights.title': '6. Seus Direitos (LGPD Art. 18)',
+  'privacy.rights.text': 'Você tem direito a:\n- Confirmar a existência de tratamento de dados\n- Acessar seus dados pessoais\n- Corrigir dados incompletos ou desatualizados\n- Solicitar anonimização ou eliminação de dados desnecessários\n- Solicitar portabilidade dos dados\n- Revogar consentimento a qualquer momento\n\nPara exercer seus direitos, acesse a seção "Privacidade e Dados" no portal do atleta ou entre em contato com sua organização esportiva.',
+  'privacy.cookies.title': '7. Cookies',
+  'privacy.cookies.text': 'Utilizamos cookies para:\n- Cookies essenciais: autenticação, sessão e preferências de idioma\n- Cookies analíticos: monitoramento de erros (Sentry) para melhoria do serviço\n\nVocê pode gerenciar suas preferências de cookies a qualquer momento.',
+  'privacy.retention.title': '8. Retenção de Dados',
+  'privacy.retention.text': 'Os dados pessoais são mantidos enquanto a filiação estiver ativa. Após solicitação de exclusão, os dados são removidos em até 30 dias, exceto quando houver obrigação legal de retenção.',
+  'privacy.contact.title': '9. Contato',
+  'privacy.contact.text': 'Para questões relacionadas à privacidade, entre em contato com a organização esportiva à qual você é filiado ou utilize as ferramentas de gestão de dados disponíveis no portal do atleta.',
+  'privacy.lastUpdated': 'Última atualização: Março de 2026',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

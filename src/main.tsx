@@ -19,8 +19,12 @@ if (
   });
 }
 
+import { initWebVitals } from "@/lib/observability/web-vitals";
 import "@/index.css";
 import "@/styles/a11y.css";
+
+// Web Vitals — track Core Web Vitals (LCP, CLS, INP, FCP, TTFB)
+initWebVitals();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

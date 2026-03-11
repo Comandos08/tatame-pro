@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { validatePasswordComplexity } from "../_shared/password-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -182,19 +183,10 @@ serve(async (req) => {
       throw new Error("Senha é obrigatória");
     }
 
-    // Validate password strength
-    if (password.length < 8) {
-      throw new Error("A senha deve ter pelo menos 8 caracteres.");
-    }
-
-    if (password.length > 72) {
-      throw new Error("A senha deve ter no máximo 72 caracteres.");
-    }
-
-    // Check for common weak patterns
-    const weakPatterns = ["12345678", "password", "qwerty", "abcdefgh"];
-    if (weakPatterns.some(pattern => password.toLowerCase().includes(pattern))) {
-      throw new Error("Senha muito fraca. Escolha uma senha mais segura.");
+    // Validate password complexity (P1-14)
+    const passwordCheck = validatePasswordComplexity(password);
+    if (!passwordCheck.valid) {
+      throw new Error(passwordCheck.errors[0]);
     }
 
     // Find the reset record
