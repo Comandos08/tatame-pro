@@ -103,7 +103,10 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 - **Sem memoização** consistente (`React.memo`, `useMemo`)
 - **Sem otimização de imagens** (WebP, srcSet, picture)
 - Font loading sem preload strategy
-- Sem página 404 dedicada
+- **Mobile UX fraco (4/10)** — tabelas não responsivas, apenas scroll horizontal
+- **Payment error handling fraco** — toast genérico no Stripe failure, sem retry UI (`MembershipCheckout.tsx:89`)
+- **AthleteArea.tsx = 988 linhas** — maior página, zero otimização de performance
+- **Empty states inconsistentes** — CoachesList, GradingSchemesList sem EmptyStateCard
 - Testes apenas em Chromium — sem Firefox/Safari
 
 ---
@@ -272,7 +275,7 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 | 21 | **Preview deployments** por PR | DevOps | Qualidade de revisão |
 | 22 | **Bundle size budget** no CI | Performance | Previne regressão |
 | 23 | **Accessibility testing** no CI (axe-core) | UX | Inclusão e compliance |
-| 24 | **Página 404** dedicada | UX | Profissionalismo |
+| 24 | **Tabelas responsivas** — card layout no mobile, collapse columns | UX | Mobile UX = 4/10 hoje |
 | 25 | **Matrix testing** (Firefox, Safari) | Qualidade | Compatibilidade |
 | 26 | **Uptime monitoring** com alerting (BetterStack) | Observabilidade | SLA prometido mas não monitorado |
 | 27 | **Missing indexes** — `(tenant_id, athlete_id)` em memberships, `athlete_id` em documents | Backend | Performance de queries |
@@ -353,7 +356,7 @@ O Tatame Pro tem **arquitetura sólida e fundações bem pensadas** para um SaaS
 | 5 | Matrix testing (Firefox, Safari) | 4h | P1-25 |
 | 6 | Bundle size budget no CI | 2h | P1-22 |
 | 7 | Preview deployments por PR | 4h | P1-21 |
-| 8 | Página 404 | 2h | P1-24 |
+| 8 | Tabelas responsivas mobile (card layout) | 16h | P1-24 |
 
 **Meta:** Testes sobe de 4.0 → 7.5. Frontend sobe de 7.5 → 8.5.
 
@@ -490,6 +493,56 @@ O Tatame Pro é um sistema **bem arquitetado com fundações sólidas** que demo
 Com **14 semanas de trabalho focado** seguindo o roadmap proposto, o sistema atinge **10/10** para produção enterprise.
 
 **Estimativa de esforço total: ~300 horas de desenvolvimento**
+
+---
+
+---
+
+## ANEXO A: MOBILE UX — ANÁLISE DETALHADA (4/10)
+
+O Mobile UX é a subdimensão mais fraca do frontend:
+
+| Problema | Impacto | Páginas afetadas |
+|---|---|---|
+| **Tabelas sem layout responsivo** — apenas scroll horizontal | Inutilizável em mobile | ApprovalsList, AthletesList, EventDetails, CoachesList |
+| **Touch targets borderline** — botões `h-10` (40px) vs recomendado 44px | Dificuldade de toque | Todos os buttons |
+| **Formulários não otimizados** para mobile | Experiência ruim | Membership forms, Event forms |
+| **Date pickers** sem fallback mobile nativo | Difícil seleção | Filtros de data em EventsList |
+| **Dialogs pesados** em telas pequenas | Overflow visual | GradingLevelsList, AdminDashboard |
+
+**Recomendação:** Implementar card-based layouts para tabelas no breakpoint `sm`, aumentar touch targets para 44px, e testar E2E em iPhone SE + Android.
+
+---
+
+## ANEXO B: FLUXOS CRÍTICOS — STATUS DETALHADO
+
+| Fluxo | Status | Risco | Arquivo principal |
+|---|---|---|---|
+| Signup → Email Verify → Login | ✅ Completo | Sem retry de email | Login.tsx, SignUp.tsx |
+| Tenant Onboarding (5 steps) | ✅ Completo | Baixo | TenantOnboarding.tsx (580 linhas) |
+| Membership Adult (multi-step) | ✅ Completo | Draft recovery OK | AdultMembershipForm.tsx |
+| Membership Youth (guardian) | ✅ Completo | Consent structure OK | YouthMembershipForm.tsx |
+| **Payment Checkout (Stripe)** | ⚠️ Fraco | **Toast genérico em erro, sem retry** | MembershipCheckout.tsx:89 |
+| Event CRUD + Registration | ✅ Completo | EventDetails complexo (508 linhas) | EventDetails.tsx |
+| Athlete Management + Import | ✅ Completo | Import sem progress bar | AthleteImport.tsx (507 linhas) |
+| Graduation/Belt Promotion | ✅ Completo | Diploma issuance funcional | AthleteGradingsPage.tsx (777 linhas) |
+| Digital Card + QR + PDF | ✅ Completo | Version tracking OK | PortalCard.tsx |
+| Approval Workflow | ✅ Completo | Sem batch approval | ApprovalsList.tsx (699 linhas) |
+| Impersonation | ✅ Completo | Cache não invalidado | ImpersonationBanner.tsx |
+| 404 Not Found | ✅ Completo | Context-aware routing | NotFound.tsx |
+
+**Páginas com mais de 500 linhas (risco de manutenibilidade):**
+
+| Arquivo | Linhas | Risco |
+|---|---|---|
+| AthleteArea.tsx | 988 | **ALTO** — maior página, sem memoização |
+| AdminDashboard.tsx | 839 | MÉDIO — complexidade de admin |
+| AthleteGradingsPage.tsx | 777 | MÉDIO — muitos estados |
+| TenantControl.tsx | 773 | MÉDIO — gestão de tenant |
+| ApprovalsList.tsx | 699 | MÉDIO — filtros complexos |
+| IdentityWizard.tsx | 619 | MÉDIO — wizard multi-step |
+| TenantOnboarding.tsx | 580 | BAIXO — wizard bem estruturado |
+| CoachesList.tsx | 560 | MÉDIO — sem empty state |
 
 ---
 
