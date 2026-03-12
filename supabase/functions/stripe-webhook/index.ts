@@ -13,14 +13,11 @@ import {
   mapStripeStatusToBilling,
 } from "../_shared/billing-state-machine.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClientAny = SupabaseClient<any, any, any>;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
-};
 
 // Retry configuration
 const RETRY_CONFIG = {

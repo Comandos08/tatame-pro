@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Constantes fixas (IMUTÁVEIS)
 const TTL_DAYS = 7;
@@ -14,10 +15,6 @@ const TMP_PREFIX = "tmp";
 // Status protegidos (NUNCA deletar arquivos associados)
 const PROTECTED_STATUSES = ["PENDING_REVIEW", "APPROVED", "ACTIVE"];
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
 
 // ... logStep replaced by logger
 

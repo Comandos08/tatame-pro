@@ -38,11 +38,8 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 interface GenerateCardRequest {
   membershipId: string;
@@ -66,7 +63,7 @@ async function calculateContentHash(payload: Record<string, unknown>): Promise<s
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse();
   }
 
   const correlationId = extractCorrelationId(req);
@@ -74,9 +71,40 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // =========================================================================
+    // AUTH VALIDATION — caller must be authenticated
+    // Allows: athlete (own card), tenant admins, or internal (service role calls)
+    // =========================================================================
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      log.warn("Auth failed - missing authorization header");
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      log.warn("Auth failed - invalid token");
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    log.setUser(user.id);
+    log.info("Caller authenticated");
 
     // PI-D5.B: Parse and validate input
     let body: GenerateCardRequest;
@@ -116,6 +144,34 @@ serve(async (req) => {
 
     if (membershipError || !membership) {
       throw new Error(membershipError?.message || "Membership not found");
+    }
+
+    // =========================================================================
+    // TENANT ACCESS CONTROL — validate caller has access to this membership
+    // Allowed: athlete who owns the membership, or tenant admin/staff
+    // =========================================================================
+    const tenantId = membership.tenant?.id ?? membership.tenant_id;
+    const isOwner = membership.applicant_profile_id === user.id ||
+      (membership.athlete as { profile_id?: string } | null)?.profile_id === user.id;
+
+    if (!isOwner) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("tenant_id", tenantId)
+        .in("role", ["ADMIN_TENANT", "STAFF_ORGANIZACAO", "SUPERADMIN_GLOBAL"])
+        .limit(1);
+
+      const hasAdminRole = (roleData ?? []).length > 0;
+
+      if (!hasAdminRole) {
+        log.warn("Access denied - caller is not membership owner or tenant admin", { userId: user.id });
+        return new Response(JSON.stringify({ success: false, error: "Forbidden" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403,
+        });
+      }
     }
 
     // ========================================================================

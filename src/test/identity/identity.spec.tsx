@@ -199,7 +199,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
         const el = screen.getByTestId('identity-state');
         // Without session, IdentityContext calls reset() → loading
         // The gate (not tested here) maps this to UNAUTHENTICATED
-        expect(el.dataset.identityState).toBe('loading');
+        expect(el.dataset.identityState).toBe('LOADING');
         expect(el.dataset.hasTenant).toBe('false');
         expect(el.dataset.role).toBe('');
       });
@@ -211,7 +211,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
       renderWithIdentity();
 
       await waitFor(() => {
-        expect(screen.getByTestId('identity-state').dataset.identityState).toBe('loading');
+        expect(screen.getByTestId('identity-state').dataset.identityState).toBe('LOADING');
       });
 
       // Edge function should NOT be called without a session
@@ -227,7 +227,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('resolved');
+        expect(el.dataset.identityState).toBe('RESOLVED');
         expect(el.dataset.hasTenant).toBe('true');
         expect(el.dataset.tenantSlug).toBe('test-org');
         expect(el.dataset.role).toBe('ADMIN_TENANT');
@@ -245,7 +245,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('error');
+        expect(el.dataset.identityState).toBe('ERROR');
         expect(el.dataset.hasError).toBe('true');
         expect(el.dataset.hasTenant).toBe('false');
       });
@@ -260,7 +260,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('wizard_required');
+        expect(el.dataset.identityState).toBe('WIZARD_REQUIRED');
         expect(el.dataset.wizardCompleted).toBe('false');
         expect(el.dataset.hasTenant).toBe('false');
         expect(el.dataset.hasError).toBe('false');
@@ -276,7 +276,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('superadmin');
+        expect(el.dataset.identityState).toBe('SUPERADMIN');
         expect(el.dataset.role).toBe('SUPERADMIN_GLOBAL');
         expect(el.dataset.hasError).toBe('false');
       });
@@ -291,7 +291,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('error');
+        expect(el.dataset.identityState).toBe('ERROR');
         expect(el.dataset.hasError).toBe('true');
         expect(el.dataset.errorCode).toBe('IDENTITY_TIMEOUT');
       });
@@ -306,7 +306,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('error');
+        expect(el.dataset.identityState).toBe('ERROR');
         expect(el.dataset.hasError).toBe('true');
         expect(el.dataset.errorCode).toBe('UNKNOWN');
       });
@@ -319,7 +319,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('error');
+        expect(el.dataset.identityState).toBe('ERROR');
         expect(el.dataset.hasError).toBe('true');
       });
     });
@@ -334,7 +334,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
 
       // Initially loading (auth hasn't resolved yet)
       const el = screen.getByTestId('identity-state');
-      expect(el.dataset.identityState).toBe('loading');
+      expect(el.dataset.identityState).toBe('LOADING');
     });
 
     it('identity resolves independently from profile loading', async () => {
@@ -345,7 +345,7 @@ describe('PI U8.B — Identity Deterministic Tests', () => {
       // Identity resolves via edge function, not via profile
       await waitFor(() => {
         const el = screen.getByTestId('identity-state');
-        expect(el.dataset.identityState).toBe('resolved');
+        expect(el.dataset.identityState).toBe('RESOLVED');
       });
     });
   });

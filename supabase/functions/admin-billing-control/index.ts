@@ -28,11 +28,8 @@ import {
 } from "../_shared/billing-state-machine.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 // Supported actions
 type BillingAction = "extend-trial" | "mark-as-paid" | "block-tenant" | "unblock-tenant" | "reset-to-stripe";

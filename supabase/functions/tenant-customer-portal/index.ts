@@ -43,6 +43,7 @@ import {
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
 import {
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -55,10 +56,6 @@ import {
 // CORS HEADERS
 // ============================================================================
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-correlation-id, x-impersonation-id",
-};
 
 // ============================================================================
 // ENTRYPOINT

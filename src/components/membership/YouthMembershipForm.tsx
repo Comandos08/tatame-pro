@@ -383,8 +383,8 @@ export function YouthMembershipForm() {
               state: athleteData.state,
               postal_code: athleteData.postalCode,
               country: athleteData.country,
-              status: 'ASPIRANTE' as any,
-            } as any)
+              status: 'ASPIRANTE' as Database["public"]["Enums"]["athlete_status"],
+            })
             .select('id')
             .single();
 
@@ -407,7 +407,7 @@ export function YouthMembershipForm() {
                 national_id: guardianData.nationalId,
                 email: guardianData.email,
                 phone: guardianData.phone,
-              } as any, { onConflict: 'tenant_id,email' })
+              }, { onConflict: 'tenant_id,email' })
               .select('id')
               .single();
 
@@ -423,7 +423,7 @@ export function YouthMembershipForm() {
                   athlete_id: athleteId,
                   relationship: guardianData.relationship,
                   is_primary: true,
-                } as any, { onConflict: 'guardian_id,athlete_id', ignoreDuplicates: true });
+                }, { onConflict: 'guardian_id,athlete_id', ignoreDuplicates: true });
 
               if (linkError) {
                 logger.warn('[C4] Guardian link warning (non-fatal)', linkError);
@@ -446,7 +446,7 @@ export function YouthMembershipForm() {
         logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
         // C4: Update draft with athlete_id if available
         if (athleteId) {
-          await supabase.from('memberships').update({ athlete_id: athleteId } as any).eq('id', membershipId);
+          await supabase.from('memberships').update({ athlete_id: athleteId }).eq('id', membershipId);
         }
       } else {
         // 2. Create membership WITH applicant_data + athlete_id

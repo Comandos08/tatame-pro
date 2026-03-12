@@ -20,16 +20,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
   ERROR_CODES,
 } from "../_shared/errors/envelope.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret, x-correlation-id",
-};
 
 const GRACE_PERIOD_DAYS = 8;
 

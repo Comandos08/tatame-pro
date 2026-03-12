@@ -21,6 +21,7 @@ import {
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
 import {
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -29,10 +30,6 @@ import {
   forbiddenResponse,
 } from "../_shared/errors/envelope.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-correlation-id, x-impersonation-id',
-};
 
 interface EndImpersonationRequest {
   impersonationId: string;
