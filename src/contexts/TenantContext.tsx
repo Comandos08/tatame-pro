@@ -154,7 +154,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
         if (fetchError) throw fetchError;
         if (!isMountedRef.current) return;
 
-        const tenantRaw = (rpcResult as any)?.tenant;
+        const rpcData = rpcResult as { tenant: Record<string, unknown> | null; billing: Record<string, unknown> | null } | null;
+        const tenantRaw = rpcData?.tenant;
 
         if (!tenantRaw) {
           setError(new Error("TENANT_NOT_FOUND"));
@@ -178,7 +179,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
             creationSource: undefined,
           };
           setTenant(tenantData);
-          setBillingInfo((rpcResult as any)?.billing ?? null);
+          setBillingInfo(rpcData?.billing ?? null);
         }
       } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;

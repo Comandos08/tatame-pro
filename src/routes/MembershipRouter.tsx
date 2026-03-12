@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import MembershipNew from '@/pages/MembershipNew';
 import MembershipAdult from '@/pages/MembershipAdult';
 import MembershipYouth from '@/pages/MembershipYouth';
@@ -10,6 +11,7 @@ import NotFound from '@/pages/NotFound';
 
 export default function MembershipRouter() {
   return (
+    <ErrorBoundary componentName="MembershipRouter">
     <Routes>
       {/* AJUSTE 2: Index renderiza MembershipNew diretamente (sem redirect) */}
       <Route index element={<MembershipNew />} />
@@ -23,5 +25,6 @@ export default function MembershipRouter() {
       {/* AJUSTE 3: Fallback estatico (sem redirect) */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </ErrorBoundary>
   );
 }

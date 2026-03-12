@@ -6,11 +6,8 @@ import { getEmailClient, DEFAULT_EMAIL_FROM, isEmailConfigured } from "../_share
 import { getMembershipExpiredTemplate } from "../_shared/email-templates/membership/expired.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
 
 interface MembershipResult {
   membershipId: string;

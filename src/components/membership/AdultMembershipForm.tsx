@@ -344,8 +344,8 @@ export function AdultMembershipForm() {
               state: athleteData.state,
               postal_code: athleteData.postalCode,
               country: athleteData.country,
-              status: 'ASPIRANTE' as any,
-            } as any)
+              status: 'ASPIRANTE' as Database["public"]["Enums"]["athlete_status"],
+            })
             .select('id')
             .single();
 
@@ -368,7 +368,7 @@ export function AdultMembershipForm() {
         logger.info('[FX-01] Reusing existing DRAFT membership', { membershipId });
         // C3: Update draft with athlete_id if available
         if (athleteId) {
-          await supabase.from('memberships').update({ athlete_id: athleteId } as any).eq('id', membershipId);
+          await supabase.from('memberships').update({ athlete_id: athleteId }).eq('id', membershipId);
         }
       } else {
         // 2. Criar membership COM applicant_data + athlete_id

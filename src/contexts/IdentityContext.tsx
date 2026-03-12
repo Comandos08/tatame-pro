@@ -83,8 +83,8 @@ const IDENTITY_TIMEOUT_MS = 12_000;
  * P1-04 — Remove any from unwrapInvoke
  */
 function unwrapInvoke<T>(data: Record<string, unknown> | null | undefined): T {
-  if (data && typeof data === "object" && "ok" in data && (data as any).ok) {
-    return (data as Record<string, unknown>).data as T;
+  if (data && typeof data === "object" && "ok" in data && data["ok"]) {
+    return data["data"] as T;
   }
   return data as T;
 }
@@ -107,7 +107,7 @@ function emitInstitutional(payload: {
   metadata?: Record<string, unknown>;
 }) {
   try {
-    emitInstitutionalEvent(payload as any);
+    emitInstitutionalEvent(payload);
   } catch {
     // never break identity flow due to telemetry
   }
@@ -221,15 +221,17 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     inFlightAbortRef.current = abort;
 
     try {
+      type InvokeResult = Awaited<ReturnType<typeof supabase.functions.invoke>>;
+
       const invokePromise = supabase.functions.invoke("resolve-identity-wizard", { body: { action: "CHECK" } });
 
-      const abortPromise = new Promise((_, reject) => {
+      const abortPromise = new Promise<never>((_, reject) => {
         signal.addEventListener("abort", () => {
           reject(new DOMException("Aborted", "AbortError"));
         });
       });
 
-      const { data, error } = (await Promise.race([invokePromise, abortPromise])) as any;
+      const { data, error } = await Promise.race<InvokeResult>([invokePromise, abortPromise]);
 
       if (error) throw error;
 

@@ -6,6 +6,7 @@ import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 /**
  * PI-D3-DOCS1.0: Public Document Verification Endpoint
@@ -21,11 +22,6 @@ import { extractCorrelationId } from "../_shared/correlation.ts";
  * - LGPD-compliant name masking
  */
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 interface VerifyRequest {
   token: string;

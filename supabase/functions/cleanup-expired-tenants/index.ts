@@ -23,13 +23,10 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 type SupabaseClientAny = SupabaseClient<any, any, any>;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
 
 interface SafeDeleteResult {
   safe: boolean;

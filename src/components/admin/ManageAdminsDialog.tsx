@@ -80,7 +80,12 @@ export function ManageAdminsDialog({ tenant, open, onOpenChange }: ManageAdminsD
         .eq('role', 'ADMIN_TENANT');
 
       if (error) throw error;
-      return data as unknown as TenantAdmin[];
+      // Supabase returns the joined profile as an array; map to TenantAdmin shape
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        profile: Array.isArray(row.profile) ? (row.profile[0] ?? null) : (row.profile ?? null),
+      })) as TenantAdmin[];
     },
     enabled: open,
   });

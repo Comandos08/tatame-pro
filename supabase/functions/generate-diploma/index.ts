@@ -50,6 +50,7 @@ import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-bound
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -67,10 +68,6 @@ async function calculateContentHash(payload: Record<string, unknown>): Promise<s
   return new TextDecoder().decode(encode(hashArray));
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 interface GenerateDiplomaRequest {
   athleteId: string;

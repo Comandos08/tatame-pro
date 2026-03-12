@@ -9,11 +9,9 @@ import {
 } from "../_shared/email-templates/index.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 type EmailType = 
   | "MEMBERSHIP_APPROVED"
@@ -195,13 +193,45 @@ function getEmailContent(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse();
   }
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("send-athlete-email", correlationId);
 
   try {
+    // =========================================================================
+    // AUTH VALIDATION — requires valid JWT (service-to-service or admin call)
+    // =========================================================================
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      log.warn("Auth failed - missing authorization header");
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        corsHeaders,
+      );
+    }
+
+    const supabaseAuth = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+    );
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      log.warn("Auth failed - invalid token");
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        corsHeaders,
+      );
+    }
+
+    log.setUser(user.id);
+    log.info("Caller authenticated");
+
     if (!isEmailConfigured()) {
       log.info("RESEND_API_KEY not configured, skipping email");
       return new Response(
@@ -211,7 +241,7 @@ serve(async (req) => {
     }
 
     const resend = getEmailClient();
-    
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
