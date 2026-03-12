@@ -16,7 +16,7 @@
 | Dimensão | Nota Anterior | Nota Atual | Delta | Peso | Ponderada |
 |---|---|---|---|---|---|
 | **Arquitetura & Design** | 8.5/10 | 8.5/10 | — | 15% | 1.275 |
-| **Backend (Edge Functions)** | 8.0/10 | 8.5/10 | +0.5 | 15% | 1.275 |
+| **Backend (Edge Functions)** | 8.0/10 | 8.0/10 | — | 15% | 1.200 |
 | **Frontend & UX** | 7.5/10 | 7.5/10 | — | 12% | 0.900 |
 | **Segurança & Multi-tenant** | 7.0/10 | 7.8/10 | +0.8 | 18% | 1.404 |
 | **CI/CD & DevOps** | 5.5/10 | 7.0/10 | +1.5 | 10% | 0.700 |
@@ -24,7 +24,7 @@
 | **Observabilidade & Monitoring** | 5.5/10 | 6.5/10 | +1.0 | 8% | 0.520 |
 | **Documentação & Ops** | 8.5/10 | 9.0/10 | +0.5 | 7% | 0.630 |
 
-### **NOTA FINAL: 7.5 / 10** (anterior: 7.0)
+### **NOTA FINAL: 7.4 / 10** (anterior: 7.0)
 
 ### Veredito
 
@@ -112,55 +112,119 @@ O Tatame Pro avançou significativamente em **segurança de infraestrutura** e *
 
 ## 4. MATRIZ DE CONTROLES DE SEGURANÇA POR EDGE FUNCTION
 
-### Legenda: ✅ = Implementado | ❌ = Ausente | ⏭️ = N/A (cron/public)
+### Estatísticas Gerais
 
-#### Functions com TODOS os controles:
-
-| Function | Auth | Tenant Check | Rate Limit | CORS Centralizado |
-|---|---|---|---|---|
-| admin-reset-password | ✅ | ✅ | ✅ | ❌ |
-| complete-tenant-onboarding | ✅ | ✅ | ✅ | ❌ |
-| grant-roles | ✅ | ✅ | ✅ | ❌ |
-| revoke-roles | ✅ | ✅ | ✅ | ❌ |
-
-#### Functions administrativas SEM controles adequados:
-
-| Function | Auth | Tenant Check | Rate Limit | Risco |
-|---|---|---|---|---|
-| admin-billing-control | ✅ | ❌ | ❌ | MÉDIO — sem tenant boundary em billing admin |
-| admin-create-user | ✅ | ❌ | ❌ | ALTO — criação de user sem rate limit |
-| audit-billing-consistency | ✅ | ❌ | ❌ | BAIXO — read-only |
-| audit-rls | ✅ | ❌ | ❌ | BAIXO — read-only |
-| export-athlete-data | ✅ | ❌ | ❌ | ALTO — export de PII sem rate limit |
-| import-athletes | ✅ | ❌ | ❌ | MÉDIO — importação sem rate limit |
-
-#### Functions PÚBLICAS sem autenticação:
-
-| Function | Justificativa | Rate Limit | Risco |
-|---|---|---|---|
-| list-public-academies | Listagem pública | ❌ | BAIXO — read-only público |
-| verify-digital-card | Verificação pública QR | ❌ | MÉDIO — sem rate limit |
-| verify-diploma | Verificação pública QR | ❌ | MÉDIO — sem rate limit |
-| verify-document | Verificação pública | ❌ | MÉDIO — sem rate limit |
-| **stripe-test** | **NENHUMA** | ❌ | **🔴 ALTO — function de teste em prod** |
-| **send-athlete-email** | **NENHUMA** | ❌ | **🔴 ALTO — envio de email sem auth** |
-
-#### Functions CRON (adequadamente protegidas):
-
-| Function | CRON_SECRET |
+| Métrica | Valor |
 |---|---|
-| check-membership-renewal | ✅ |
-| check-trial-ending | ✅ |
-| cleanup-abandoned-memberships | ✅ |
-| cleanup-expired-tenants | ✅ |
-| cleanup-pending-payment-memberships | ✅ |
-| cleanup-tmp-documents | ✅ |
-| expire-grace-period | ✅ |
-| expire-memberships | ✅ |
-| expire-trials | ✅ |
-| mark-pending-delete | ✅ |
-| pre-expiration-scheduler | ✅ |
-| transition-youth-to-adult | ✅ |
+| Total de Edge Functions | 67 |
+| Functions com TODOS os controles | **3** (grant-roles, approve-membership, tenant-customer-portal) |
+| Functions com 5+ controles | 25 |
+| Functions com <3 controles | 18 |
+| Média de controles por function | **3.8 / 7** |
+| Functions sem rate limiting | **34** |
+| Functions sem tenant boundary | **19** |
+| Functions sem input validation | **25** |
+| Functions com error handling inconsistente | **23** |
+
+### Legenda: ✓ = Implementado | ✗ = Ausente
+
+### Functions Autenticadas — Controles
+
+| Function | Auth | Roles | Input | Rate Limit | Tenant Boundary | Error Envelope |
+|---|---|---|---|---|---|---|
+| admin-billing-control | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ |
+| admin-create-user | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| admin-reset-password | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
+| approve-membership | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ |
+| assign-athlete-badge | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| audit-billing-consistency | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| audit-rls | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ |
+| cancel-membership-manual | ✓ | ✓ | ✗ | ✓ | ✓ | ✗ |
+| complete-tenant-onboarding | ✓ | ✓ | ✗ | ✓ | ✓ | ✗ |
+| create-event-registration-checkout | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| create-membership-fee-checkout | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ |
+| create-tenant-admin | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| create-tenant-subscription | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ |
+| emit-institutional-event | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ |
+| end-impersonation | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ |
+| export-athlete-data | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| generate-diploma | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ |
+| generate-event-bracket | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ |
+| get-document | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| grant-roles | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| import-athletes | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| join-federation | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ |
+| leave-federation | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| notify-critical-alert | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| publish-event-bracket | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| reactivate-membership-manual | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| record-match-result | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| reject-membership | ✓ | ✓ | ✗ | ✓ | ✗ | ✓ |
+| request-erasure | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| resolve-feature-flags | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ |
+| resolve-identity-wizard | ✓ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| retry-membership-payment | ✓ | ✗ | ✓ | ✓ | ✗ | ✗ |
+| revoke-athlete-badge | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| revoke-roles | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ |
+| start-impersonation | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ |
+| tenant-customer-portal | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ |
+| toggle-badge-active | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| update-badge-metadata | ✓ | ✓ | ✗ | ✗ | ✓ | ✗ |
+| validate-impersonation | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ |
+
+### Functions PÚBLICAS (sem autenticação)
+
+| Function | Justificativa | Rate Limit | Input Validation | Risco |
+|---|---|---|---|---|
+| list-public-academies | Listagem pública | ✗ | ✗ | BAIXO — read-only, pagination limits |
+| verify-digital-card | Verificação QR | ✗ | ✗ | MÉDIO — sem rate limit |
+| verify-diploma | Verificação QR | ✗ | ✗ | MÉDIO — sem rate limit |
+| verify-document | Verificação pública | ✗ | ✗ | MÉDIO — sem rate limit, anti-enum OK |
+| health-check | Status check | ✗ | ✗ | BAIXO |
+| generate-digital-card | Geração de card | ✗ | ✓ | MÉDIO — sem auth! |
+| request-password-reset | Público por design | ✓ | ✓ | OK |
+| reset-password | Público por design | ✓ | ✓ | OK |
+| create-membership-checkout | Checkout público | ✓ | ✓ | OK — CAPTCHA + rate limit |
+| confirm-membership-payment | Callback Stripe | ✗ | ✗ | OK — validação interna |
+| stripe-webhook | Webhook Stripe | ✗ | ✓ | OK — signature validation |
+| **stripe-test** | **NENHUMA** | ✗ | ✓ | **🔴 ALTO — function de teste em prod** |
+| **send-athlete-email** | **NENHUMA** | ✗ | ✗ | **🔴 ALTO — envio de email sem auth** |
+
+### Functions CRON (protegidas por CRON_SECRET)
+
+| Function | CRON_SECRET | Tenant Boundary |
+|---|---|---|
+| check-membership-renewal | ✓ | ✗ |
+| check-trial-ending | ✓ | ✓ |
+| cleanup-abandoned-memberships | ✓ | ✗ |
+| cleanup-expired-tenants | ✓ | ✓ |
+| cleanup-pending-payment-memberships | ✓ | ✗ |
+| cleanup-tmp-documents | ✓ | ✗ |
+| expire-grace-period | ✓ | ✗ |
+| expire-memberships | ✓ | ✗ |
+| expire-trials | ✓ | ✓ |
+| mark-pending-delete | ✓ | ✓ |
+| pre-expiration-scheduler | ✓ | ✗ |
+| transition-youth-to-adult | ✓ | ✗ |
+
+### Functions que PRECISAM de assertTenantAccess (gap crítico)
+
+Estas functions fazem operações sensíveis mas não validam tenant boundary:
+
+| Function | Operação | Risco |
+|---|---|---|
+| admin-reset-password | Reset senha de outro user | ALTO — cross-tenant password reset possível |
+| approve-membership | Aprova membership | ALTO — depende apenas de membership.tenant_id |
+| reject-membership | Rejeita membership | ALTO — mesmo problema |
+| get-document | Busca documento | MÉDIO — sem cross-tenant validation |
+| import-athletes | Importação em lote | ALTO — bulk operation sem tenant check |
+| request-erasure | Requisição LGPD | MÉDIO — deveria validar tenant ownership |
+| retry-membership-payment | Retry pagamento | MÉDIO — operação financeira |
+| end-impersonation | Fim de impersonação | BAIXO — operação de superadmin |
+| start-impersonation | Início de impersonação | BAIXO — operação de superadmin |
+| validate-impersonation | Validação | BAIXO — read-only |
+| create-event-registration-checkout | Checkout de evento | MÉDIO — operação financeira |
+| audit-billing-consistency | Auditoria billing | BAIXO — read-only |
 
 ---
 
@@ -179,9 +243,9 @@ O Tatame Pro avançou significativamente em **segurança de infraestrutura** e *
 
 ---
 
-### B. Backend — Edge Functions — 8.5/10 (+0.5)
+### B. Backend — Edge Functions — 8.0/10 (sem alteração)
 
-**Melhorias:**
+**Melhorias implementadas:**
 - ✅ Circuit breaker para Stripe/email
 - ✅ Notify-critical-alert com Slack webhook
 - ✅ Impersonation cache com TTL de 5min
@@ -190,12 +254,16 @@ O Tatame Pro avançou significativamente em **segurança de infraestrutura** e *
 - ✅ CHECK constraints no banco
 - ✅ Missing indexes adicionados
 
-**Lacunas persistentes:**
-- CORS `*` em todas as functions (utility criada mas não adotada)
+**Lacunas persistentes (mais graves do que estimado):**
+- CORS `*` em todas as 68 functions (utility criada mas não adotada)
 - `stripe-test` em produção sem auth
 - `send-athlete-email` sem auth
-- assertTenantAccess em apenas 18% das functions
-- Rate limiting em apenas 21% das functions
+- assertTenantAccess em apenas **12/67** functions (18%)
+- Rate limiting em apenas **14/67** functions (21%)
+- Input validation ausente em **25** functions
+- Error envelope inconsistente em **23** functions
+- Apenas **3/67** functions têm TODOS os controles
+- Média de controles por function: **3.8/7**
 
 ---
 
