@@ -1,8 +1,9 @@
 /**
  * Centralized CORS configuration for all Edge Functions.
  *
- * Uses ALLOWED_ORIGIN env var to restrict origins in production.
- * Falls back to "*" only when the env var is not set (local dev).
+ * Uses ALLOWED_ORIGIN env var when available.
+ * Falls back to the production Lovable Cloud URL.
+ * Only uses "*" when explicitly set (local dev).
  *
  * Headers include the superset of all headers used across Edge Functions:
  * - x-impersonation-id: impersonation flows
@@ -10,7 +11,8 @@
  * - x-supabase-client-*: Supabase SDK metadata
  */
 
-const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*";
+const ALLOWED_ORIGIN =
+  Deno.env.get("ALLOWED_ORIGIN") || "https://tatame-pro.lovable.app";
 
 export const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
