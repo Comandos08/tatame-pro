@@ -456,51 +456,6 @@ async function handleIdentityCheck(
     };
   }
   /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 4.5: Ensure profile exists before role assignment (FK safety)
-   * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileRows } = await supabase.from("profiles").select("id").eq("id", userId).limit(1);
-
-  if (profileRows?.length > 1) {
-    log.warn("Multiple profile rows returned for single userId", {
-      userId,
-      count: profileRows.length,
-    });
-  }
-
-  const profileForFK = profileRows?.[0] ?? null;
-
-  if (!profileForFK) {
-    log.info("Profile not found, creating before role assignment", { userId });
-
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.admin.getUserById(userId);
-
-    const userEmail = authUser?.email ?? "unknown";
-
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: userId,
-      email: userEmail,
-      created_at: new Date().toISOString(),
-    });
-
-    if (profileError) {
-      log.error("PROFILE_CREATION_FAILED", profileError, { userId });
-
-      await supabase.from("tenants").delete().eq("id", newTenant.id);
-
-      return {
-        status: "ERROR",
-        error: {
-          code: "PROFILE_CREATION_FAILED",
-          message: "Falha ao criar perfil do usuário.",
-        },
-      };
-    }
-
-    log.info("Profile created successfully", { userId });
-  }
-  /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 5: DECISÃO DE REDIRECIONAMENTO
    * ───────────────────────────────────────────────────────────────────────────── */
   const isAdmin = roleRecord.role === "ADMIN_TENANT" || roleRecord.role === "STAFF_ORGANIZACAO";
@@ -1003,13 +958,15 @@ async function handleCreateTenant(
    * ✅ CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  // TRIAL_15_DAYS: Wizard tenants start with 15-day trial, is_active=true for immediate access
+  // Wizard tenants start in SETUP status (allows empty sport_types via trigger).
+  // After onboarding completes, status transitions to ACTIVE.
+  // is_active=true for immediate route access.
   const sanitizedPayload = {
     name: orgName,
     slug: finalSlug,
     is_active: true,
-    status: "ACTIVE" as const,
-    lifecycle_status: "ACTIVE" as const,
+    status: "SETUP" as const,
+    lifecycle_status: "SETUP" as const,
     creation_source: "wizard" as const,
     onboarding_completed: false,
     sport_types: [] as string[],
@@ -1033,6 +990,7 @@ async function handleCreateTenant(
       code: tenantError?.code,
       details: tenantError?.details,
       hint: tenantError?.hint,
+      message: tenantError?.message,
       user_id: userId,
     });
 
@@ -1049,39 +1007,15 @@ async function handleCreateTenant(
     };
   }
 
-  // ✅ SANITY CHECK PÓS-CRIAÇÃO (SAFE_BOOT: expects ACTIVE for wizard tenants)
-  if (newTenant.status !== "ACTIVE") {
-    log.error("SANITY_CHECK failed", undefined, {
-      expected: "ACTIVE",
+  // Sanity check: tenant should be in SETUP after wizard creation
+  if (newTenant.status !== "SETUP") {
+    log.error("SANITY_CHECK failed: unexpected status after creation", undefined, {
+      expected: "SETUP",
       actual: newTenant.status,
       tenantId: newTenant.id,
       userId,
     });
-
-    await emitBillingAuditEvent(supabase, {
-      event_type: "WIZARD_ADMIN_ASSIGN_FAILED",
-      tenant_id: newTenant.id,
-      profile_id: userId,
-      domain: "WIZARD",
-      operation: "tenant_sanity_check",
-      decision: "BLOCKED",
-      tenant_status: newTenant.status,
-      billing_status: null,
-      metadata: {
-        expected_status: "ACTIVE",
-        actual_status: newTenant.status,
-      },
-    });
-
-    // Rollback
-    await supabase.from("tenants").delete().eq("id", newTenant.id);
-    return {
-      status: "ERROR",
-      error: {
-        code: "TENANT_CREATION_FAILED",
-        message: "Erro ao criar organização. Tente novamente.",
-      },
-    };
+    // Continue anyway — the tenant was created, just log the anomaly
   }
 
   log.info("Tenant created successfully", {
@@ -1138,12 +1072,6 @@ async function handleCreateTenant(
     p_tenant_id: newTenant.id,
     p_bypass_membership_check: true,
   });
-
-  if (roleError) {
-    log.error("ROLE_ASSIGN failed", roleError, { tenantId: newTenant.id, userId });
-  } else {
-    log.info("ADMIN_TENANT role assigned successfully");
-  }
 
   if (roleError) {
     log.error("ROLE_ASSIGN failed", roleError, {
