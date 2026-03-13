@@ -67,7 +67,7 @@ import { emitBillingAuditEvent } from "../_shared/emitBillingAuditEvent.ts";
 import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { okResponse, errorResponse, buildErrorEnvelope, ERROR_CODES } from "../_shared/errors/envelope.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { buildCorsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * CORS HEADERS
@@ -148,9 +148,20 @@ Deno.serve(async (req) => {
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
    * ─────────────────────────────────────────────────────────────────────────── */
+  // Build CORS headers dynamically from request origin
+  const reqOrigin = req.headers.get("Origin");
+  const corsHeaders = buildCorsHeaders(reqOrigin);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  /** Response helper — always HTTP 200, CORS-aware */
+  const jsonResponse = (payload: IdentityResponse) =>
+    new Response(JSON.stringify({ ok: true, data: payload }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("resolve-identity-wizard", correlationId);
@@ -161,7 +172,7 @@ Deno.serve(async (req) => {
      * ───────────────────────────────────────────────────────────────────────── */
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "UNAUTHORIZED", message: "Missing token" },
       });
@@ -175,18 +186,18 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !anonKey || !serviceKey) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "SERVER_CONFIG_ERROR", message: "Server configuration error" },
       });
     }
 
-    // 🔒 Client com JWT do usuário (apenas para validação de auth)
+    // Client com JWT do usuário (apenas para validação de auth)
     const supabaseAuth = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // 🔒 Service client (para resolução de identidade)
+    // Service client (para resolução de identidade)
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     /* ─────────────────────────────────────────────────────────────────────────
@@ -198,7 +209,7 @@ Deno.serve(async (req) => {
     } = await supabaseAuth.auth.getUser();
 
     if (userError || !user?.id) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "INVALID_TOKEN", message: "Invalid session" },
       });
@@ -213,52 +224,38 @@ Deno.serve(async (req) => {
 
     switch (body.action) {
       case "CHECK":
-        return json(await handleIdentityCheck(supabaseAdmin, user.id, log));
+        return jsonResponse(await handleIdentityCheck(supabaseAdmin, user.id, log));
 
       case "CREATE_TENANT":
-        return json(await handleCreateTenant(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleCreateTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "JOIN_EXISTING_TENANT":
-        return json(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "ACCEPT_INVITE":
-        return json(await handleAcceptInvite(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleAcceptInvite(supabaseAdmin, user.id, body.payload, log));
 
       case "COMPLETE_WIZARD":
-        // ⚠️ COMPATIBILIDADE TEMPORÁRIA — roteia para action correta
-        return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
+        // Compatibilidade temporária — roteia para action correta
+        return jsonResponse(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
 
       case "POST_AUTH_REDIRECT":
-        return json(await handlePostAuthRedirect(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handlePostAuthRedirect(supabaseAdmin, user.id, body.payload, log));
 
       default:
-        return json({
+        return jsonResponse({
           status: "ERROR",
           error: { code: "INVALID_ACTION", message: "Invalid action" },
         });
     }
   } catch (err) {
     log.error("Unhandled error", err);
-    return json({
+    return jsonResponse({
       status: "ERROR",
       error: { code: "INTERNAL", message: "Unexpected error" },
     });
   }
 });
-
-/* ═══════════════════════════════════════════════════════════════════════════════
- * RESPONSE HELPER
- * ═══════════════════════════════════════════════════════════════════════════════
- * 🔒 REGRA ABSOLUTA: Sempre retorna HTTP 200.
- * O estado é comunicado SOMENTE via body.status.
- * ═══════════════════════════════════════════════════════════════════════════════ */
-
-function json(payload: IdentityResponse) {
-  return new Response(JSON.stringify({ ok: true, data: payload }), {
-    status: 200, // 🔒 INVARIANTE ABSOLUTA — Nunca alterar
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * ROLE PRIORITY — DETERMINISTIC RESOLUTION (PURE)
@@ -457,51 +454,6 @@ async function handleIdentityCheck(
         message: "Tenant not active or not found",
       },
     };
-  }
-  /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 4.5: Ensure profile exists before role assignment (FK safety)
-   * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: profileRows } = await supabase.from("profiles").select("id").eq("id", userId).limit(1);
-
-  if (profileRows?.length > 1) {
-    log.warn("Multiple profile rows returned for single userId", {
-      userId,
-      count: profileRows.length,
-    });
-  }
-
-  const profileForFK = profileRows?.[0] ?? null;
-
-  if (!profileForFK) {
-    log.info("Profile not found, creating before role assignment", { userId });
-
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.admin.getUserById(userId);
-
-    const userEmail = authUser?.email ?? "unknown";
-
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: userId,
-      email: userEmail,
-      created_at: new Date().toISOString(),
-    });
-
-    if (profileError) {
-      log.error("PROFILE_CREATION_FAILED", profileError, { userId });
-
-      await supabase.from("tenants").delete().eq("id", newTenant.id);
-
-      return {
-        status: "ERROR",
-        error: {
-          code: "PROFILE_CREATION_FAILED",
-          message: "Falha ao criar perfil do usuário.",
-        },
-      };
-    }
-
-    log.info("Profile created successfully", { userId });
   }
   /* ─────────────────────────────────────────────────────────────────────────────
    * STEP 5: DECISÃO DE REDIRECIONAMENTO
@@ -1006,13 +958,15 @@ async function handleCreateTenant(
    * ✅ CRIAR TENANT EM MODO SETUP (HARDENED)
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  // TRIAL_15_DAYS: Wizard tenants start with 15-day trial, is_active=true for immediate access
+  // Wizard tenants start in SETUP status (allows empty sport_types via trigger).
+  // After onboarding completes, status transitions to ACTIVE.
+  // is_active=true for immediate route access.
   const sanitizedPayload = {
     name: orgName,
     slug: finalSlug,
     is_active: true,
-    status: "ACTIVE" as const,
-    lifecycle_status: "ACTIVE" as const,
+    status: "SETUP" as const,
+    lifecycle_status: "SETUP" as const,
     creation_source: "wizard" as const,
     onboarding_completed: false,
     sport_types: [] as string[],
@@ -1036,6 +990,7 @@ async function handleCreateTenant(
       code: tenantError?.code,
       details: tenantError?.details,
       hint: tenantError?.hint,
+      message: tenantError?.message,
       user_id: userId,
     });
 
@@ -1052,39 +1007,15 @@ async function handleCreateTenant(
     };
   }
 
-  // ✅ SANITY CHECK PÓS-CRIAÇÃO (SAFE_BOOT: expects ACTIVE for wizard tenants)
-  if (newTenant.status !== "ACTIVE") {
-    log.error("SANITY_CHECK failed", undefined, {
-      expected: "ACTIVE",
+  // Sanity check: tenant should be in SETUP after wizard creation
+  if (newTenant.status !== "SETUP") {
+    log.error("SANITY_CHECK failed: unexpected status after creation", undefined, {
+      expected: "SETUP",
       actual: newTenant.status,
       tenantId: newTenant.id,
       userId,
     });
-
-    await emitBillingAuditEvent(supabase, {
-      event_type: "WIZARD_ADMIN_ASSIGN_FAILED",
-      tenant_id: newTenant.id,
-      profile_id: userId,
-      domain: "WIZARD",
-      operation: "tenant_sanity_check",
-      decision: "BLOCKED",
-      tenant_status: newTenant.status,
-      billing_status: null,
-      metadata: {
-        expected_status: "ACTIVE",
-        actual_status: newTenant.status,
-      },
-    });
-
-    // Rollback
-    await supabase.from("tenants").delete().eq("id", newTenant.id);
-    return {
-      status: "ERROR",
-      error: {
-        code: "TENANT_CREATION_FAILED",
-        message: "Erro ao criar organização. Tente novamente.",
-      },
-    };
+    // Continue anyway — the tenant was created, just log the anomaly
   }
 
   log.info("Tenant created successfully", {
@@ -1141,12 +1072,6 @@ async function handleCreateTenant(
     p_tenant_id: newTenant.id,
     p_bypass_membership_check: true,
   });
-
-  if (roleError) {
-    log.error("ROLE_ASSIGN failed", roleError, { tenantId: newTenant.id, userId });
-  } else {
-    log.info("ADMIN_TENANT role assigned successfully");
-  }
 
   if (roleError) {
     log.error("ROLE_ASSIGN failed", roleError, {

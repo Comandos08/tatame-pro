@@ -236,6 +236,10 @@ export default function IdentityWizard() {
         title: "Já é membro",
         description: "Você já faz parte desta organização.",
       },
+      MEMBERSHIP_EXISTS: {
+        title: "Solicitação existente",
+        description: "Você já possui uma solicitação ativa para esta organização.",
+      },
       ONBOARDING_FORBIDDEN: {
         title: "Acesso bloqueado",
         description: "Não foi possível solicitar entrada. Contate a administração.",
@@ -248,9 +252,33 @@ export default function IdentityWizard() {
         title: "Nome já utilizado",
         description: "Este nome de organização já está em uso. Escolha outro.",
       },
+      SLUG_CONFLICT: {
+        title: "Nome já utilizado",
+        description: "Este nome de organização já está em uso. Escolha outro nome.",
+      },
+      RESERVED_SLUG: {
+        title: "Nome reservado",
+        description: "Este nome de organização é reservado pelo sistema. Escolha outro.",
+      },
+      TENANT_CREATION_FAILED: {
+        title: "Erro ao criar organização",
+        description: "Não foi possível criar a organização. Tente novamente em alguns instantes.",
+      },
+      ROLE_ASSIGNMENT_FAILED: {
+        title: "Erro de permissão",
+        description: "A organização foi criada, mas houve um erro ao atribuir sua permissão. Contate o suporte.",
+      },
+      PROFILE_CREATION_FAILED: {
+        title: "Erro no perfil",
+        description: "Não foi possível criar seu perfil. Tente novamente.",
+      },
       UNSUPPORTED_JOIN_MODE: {
-        title: "Erro de configuração",
-        description: "Não foi possível concluir a solicitação. Tente novamente.",
+        title: "Modo não suportado",
+        description: "Este modo de entrada não está disponível no momento.",
+      },
+      UNKNOWN: {
+        title: "Erro de conexão",
+        description: "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
       },
       VALIDATION_ERROR: {
         title: "Dados inválidos",
@@ -258,10 +286,9 @@ export default function IdentityWizard() {
       },
     };
 
-    // PI-UX-003: Never expose raw error.message to user in fallback
     const msg = errorMessages[error.code] || {
       title: "Erro",
-      description: "Não foi possível concluir a solicitação. Tente novamente.",
+      description: `Não foi possível concluir a solicitação (${error.code || "desconhecido"}). Tente novamente.`,
     };
 
     toast({
