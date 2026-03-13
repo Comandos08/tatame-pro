@@ -67,7 +67,7 @@ import { emitBillingAuditEvent } from "../_shared/emitBillingAuditEvent.ts";
 import { createBackendLogger, type BackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { okResponse, errorResponse, buildErrorEnvelope, ERROR_CODES } from "../_shared/errors/envelope.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { buildCorsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * CORS HEADERS
@@ -148,9 +148,20 @@ Deno.serve(async (req) => {
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
    * ─────────────────────────────────────────────────────────────────────────── */
+  // Build CORS headers dynamically from request origin
+  const reqOrigin = req.headers.get("Origin");
+  const corsHeaders = buildCorsHeaders(reqOrigin);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  /** Response helper — always HTTP 200, CORS-aware */
+  const jsonResponse = (payload: IdentityResponse) =>
+    new Response(JSON.stringify({ ok: true, data: payload }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("resolve-identity-wizard", correlationId);
@@ -161,7 +172,7 @@ Deno.serve(async (req) => {
      * ───────────────────────────────────────────────────────────────────────── */
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "UNAUTHORIZED", message: "Missing token" },
       });
@@ -175,18 +186,18 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !anonKey || !serviceKey) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "SERVER_CONFIG_ERROR", message: "Server configuration error" },
       });
     }
 
-    // 🔒 Client com JWT do usuário (apenas para validação de auth)
+    // Client com JWT do usuário (apenas para validação de auth)
     const supabaseAuth = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // 🔒 Service client (para resolução de identidade)
+    // Service client (para resolução de identidade)
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     /* ─────────────────────────────────────────────────────────────────────────
@@ -198,7 +209,7 @@ Deno.serve(async (req) => {
     } = await supabaseAuth.auth.getUser();
 
     if (userError || !user?.id) {
-      return json({
+      return jsonResponse({
         status: "ERROR",
         error: { code: "INVALID_TOKEN", message: "Invalid session" },
       });
@@ -213,52 +224,38 @@ Deno.serve(async (req) => {
 
     switch (body.action) {
       case "CHECK":
-        return json(await handleIdentityCheck(supabaseAdmin, user.id, log));
+        return jsonResponse(await handleIdentityCheck(supabaseAdmin, user.id, log));
 
       case "CREATE_TENANT":
-        return json(await handleCreateTenant(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleCreateTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "JOIN_EXISTING_TENANT":
-        return json(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleJoinExistingTenant(supabaseAdmin, user.id, body.payload, log));
 
       case "ACCEPT_INVITE":
-        return json(await handleAcceptInvite(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handleAcceptInvite(supabaseAdmin, user.id, body.payload, log));
 
       case "COMPLETE_WIZARD":
-        // ⚠️ COMPATIBILIDADE TEMPORÁRIA — roteia para action correta
-        return json(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
+        // Compatibilidade temporária — roteia para action correta
+        return jsonResponse(await handleLegacyCompleteWizard(supabaseAdmin, user.id, body.payload, log));
 
       case "POST_AUTH_REDIRECT":
-        return json(await handlePostAuthRedirect(supabaseAdmin, user.id, body.payload, log));
+        return jsonResponse(await handlePostAuthRedirect(supabaseAdmin, user.id, body.payload, log));
 
       default:
-        return json({
+        return jsonResponse({
           status: "ERROR",
           error: { code: "INVALID_ACTION", message: "Invalid action" },
         });
     }
   } catch (err) {
     log.error("Unhandled error", err);
-    return json({
+    return jsonResponse({
       status: "ERROR",
       error: { code: "INTERNAL", message: "Unexpected error" },
     });
   }
 });
-
-/* ═══════════════════════════════════════════════════════════════════════════════
- * RESPONSE HELPER
- * ═══════════════════════════════════════════════════════════════════════════════
- * 🔒 REGRA ABSOLUTA: Sempre retorna HTTP 200.
- * O estado é comunicado SOMENTE via body.status.
- * ═══════════════════════════════════════════════════════════════════════════════ */
-
-function json(payload: IdentityResponse) {
-  return new Response(JSON.stringify({ ok: true, data: payload }), {
-    status: 200, // 🔒 INVARIANTE ABSOLUTA — Nunca alterar
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * ROLE PRIORITY — DETERMINISTIC RESOLUTION (PURE)
