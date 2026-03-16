@@ -245,3 +245,26 @@ serve(async (req) => {
     );
   }
 });
+
+    return new Response(
+      JSON.stringify({ 
+        ok: true, 
+      JSON.stringify({
+        ok: true,
+        status: 'LOGGED',
+        message: 'Alert processed. Check integrations for delivery status.',
+        integrations: {
+          slack: !!slackWebhookUrl,
+          email: emailEnabled,
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    log.error('[notify-critical-alert] Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'INTERNAL_ERROR' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
