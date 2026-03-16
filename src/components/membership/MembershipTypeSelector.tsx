@@ -65,7 +65,7 @@ export function MembershipTypeSelector() {
   const hasMembership = !!existingMembership;
 
   // Check if new memberships should be blocked — use resolver directly
-  const isMembershipBlocked = tenantStatus.billingState?.isBlocked || tenantStatus.billingState?.isReadOnly || tenantStatus.billingState?.isTrialExpired;
+  const isMembershipBlocked = tenantStatus.billingState?.isBlocked || tenantStatus.billingState?.isTrialExpired;
 
   const handleOpenPortal = async () => {
     if (!tenant?.id) return;
