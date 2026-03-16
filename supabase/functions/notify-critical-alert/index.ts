@@ -13,6 +13,9 @@
  * - Custom webhooks
  * 
  * SAFE GOLD: No external notifications are sent until explicitly enabled.
+ *
+ * Internal-only endpoint for external alert notifications.
+ * Requires explicit shared-secret authentication.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -21,6 +24,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
+import { buildCorsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 interface AlertPayload {
   event_id: string;
@@ -31,20 +35,31 @@ interface AlertPayload {
   timestamp: string;
 }
 
+function extractInternalSecret(req: Request): string {
+  return req.headers.get('x-internal-alert-secret')?.trim() || '';
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("notify-critical-alert", correlationId);
+  const corsHeaders = buildCorsHeaders(req.headers.get("Origin"));
 
   try {
     // Validate service role (internal only)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.includes('service_role')) {
       log.warn('[notify-critical-alert] Unauthorized attempt without service role');
+    const expectedSecret = Deno.env.get('INTERNAL_ALERT_SECRET')?.trim() || '';
+    const providedSecret = extractInternalSecret(req);
+
+    if (!expectedSecret || providedSecret !== expectedSecret) {
+      log.warn('[notify-critical-alert] Unauthorized attempt with invalid internal secret');
       return new Response(
         JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -57,6 +72,7 @@ serve(async (req) => {
     if (!payload.event_id || !payload.event_type || !payload.severity) {
       return new Response(
         JSON.stringify({ 
+        JSON.stringify({
           error: 'INVALID_PAYLOAD',
           required: ['event_id', 'event_type', 'severity'],
         }),
@@ -69,6 +85,7 @@ serve(async (req) => {
     if (!validSeverities.includes(payload.severity)) {
       return new Response(
         JSON.stringify({ 
+        JSON.stringify({
           error: 'INVALID_SEVERITY',
           valid: validSeverities,
         }),
@@ -139,6 +156,7 @@ serve(async (req) => {
                   `*Event ID:* \`${payload.event_id}\``,
                   payload.tenant_id ? `*Tenant:* \`${payload.tenant_id}\`` : '',
                   `*Time:* ${payload.timestamp || new Date().toISOString()}`,
+                  `*Time:* ${payload.timestamp}`,
                   payload.metadata?.source ? `*Source:* ${String(payload.metadata.source)}` : '',
                 ].filter(Boolean).join('\n'),
               },
@@ -185,6 +203,7 @@ serve(async (req) => {
                 <p><strong>Source:</strong> ${payload.metadata?.source || "unknown"}</p>
                 <p><strong>Event ID:</strong> ${payload.event_id}</p>
                 <p><strong>Time:</strong> ${payload.timestamp || new Date().toISOString()}</p>
+                <p><strong>Time:</strong> ${payload.timestamp}</p>
                 <hr>
                 <p>This is an automated alert from Tatame Pro infrastructure.</p>
               `,
@@ -207,6 +226,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         ok: true, 
+      JSON.stringify({
+        ok: true,
         status: 'LOGGED',
         message: 'Alert processed. Check integrations for delivery status.',
         integrations: {
