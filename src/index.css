@@ -221,8 +221,11 @@ h6 {
 
   /* Glass morphism */
   .glass {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50;
-  }
+  background-color: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
 
   /* Card hover effect */
   .card-hover {
