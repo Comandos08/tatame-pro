@@ -227,11 +227,16 @@ h6 {
   border: 1px solid hsl(var(--border) / 0.5);
 }
 
-  /* Card hover effect */
-  .card-hover {
-    @apply transition-all duration-300 hover:border-primary/30 hover:shadow-lg;
-  }
+ .card-hover {
+  transition: all 0.3s;
+}
 
+.card-hover:hover {
+  border-color: hsl(var(--primary) / 0.3);
+  box-shadow:
+    0 10px 15px -3px hsl(0 0% 0% / 0.5),
+    0 4px 6px -4px hsl(0 0% 0% / 0.4);
+}
   /* Focus ring */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
