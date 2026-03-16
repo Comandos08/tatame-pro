@@ -27,6 +27,7 @@ import { hardResetAuthClientState } from '@/lib/auth/clientReset';
 
 const STORAGE_KEY = 'tatame_impersonation_session';
 const VALIDATION_INTERVAL = 60000; // Validate every minute
+const MAX_CONSECUTIVE_VALIDATION_FAILURES = 3;
 
 /**
  * ✅ P-IMP-FIX — State machine for impersonation resolution
@@ -85,6 +86,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   
   const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const impersonationInFlightRef = useRef(false);
+  const consecutiveValidationFailures = useRef(0);
 
   // Load session from sessionStorage on mount
   useEffect(() => {
@@ -190,8 +192,18 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSession));
     } catch (err) {
       logger.error('[IMPERSONATION] Validation error:', err);
+      consecutiveValidationFailures.current += 1;
+      if (consecutiveValidationFailures.current >= MAX_CONSECUTIVE_VALIDATION_FAILURES) {
+        logger.warn('[IMPERSONATION] Too many consecutive validation failures, clearing session');
+        clearSession();
+        toast.warning(t('impersonation.sessionExpired'));
+        navigate('/admin', { replace: true });
+      }
+      return;
     }
-  }, [session, isGlobalSuperadmin, navigate, t, clearSession]);
+    // Reset failure counter on success
+    consecutiveValidationFailures.current = 0;
+  }, [session?.impersonationId, session?.status, isGlobalSuperadmin, navigate, t, clearSession]);
 
   // ==========================================================================
   // A02.T1.4.2 — Validation Cadence (Heartbeat Controlado) — SAFE GOLD
@@ -226,6 +238,9 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
+
+    // Clear previous expiration timeout before creating new one
+    if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
 
     // Set up local expiration timeout (fail-closed)
     const expiresIn = new Date(session.expiresAt).getTime() - Date.now();

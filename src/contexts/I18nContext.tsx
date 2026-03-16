@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useCallback, useMemo } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 import { logger } from '@/lib/logger';
 import { ptBR } from "@/locales/pt-BR";
 import { en } from "@/locales/en";
@@ -67,8 +67,8 @@ function getDefaultLocale(tenantSlug: string | null): Locale {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const tenantSlug = useMemo(() => getTenantSlugFromPath(), []);
-  const [locale, setLocaleState] = useState<Locale>(() => getDefaultLocale(tenantSlug));
+  // Compute tenantSlug at mount time — setLocale recalculates dynamically
+  const [locale, setLocaleState] = useState<Locale>(() => getDefaultLocale(getTenantSlugFromPath()));
 
   const setLocale = useCallback((newLocale: Locale) => {
     // Save to tenant-specific key if on a tenant page

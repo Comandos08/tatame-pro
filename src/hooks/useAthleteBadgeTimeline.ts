@@ -56,5 +56,6 @@ export function useAthleteBadgeTimeline(athleteId: string | undefined) {
       return events;
     },
     enabled: !!athleteId,
+    staleTime: 5 * 60 * 1000,
   });
 }

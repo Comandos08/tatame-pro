@@ -201,6 +201,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
     return () => {
       abortController.abort();
+      isFetchingRef.current = false;
     };
   }, [tenantSlug, refetchTrigger]);
 

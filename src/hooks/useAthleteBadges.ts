@@ -34,6 +34,7 @@ export function useAthleteBadges(athleteId: string | undefined) {
       }));
     },
     enabled: !!athleteId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const asyncState: AsyncState<AthleteBadgeDisplay[]> = normalizeAsyncState(query);

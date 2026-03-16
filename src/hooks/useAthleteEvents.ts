@@ -80,6 +80,7 @@ export function useAthleteEvents(athleteId?: string, options?: UseAthleteEventsO
       })).filter(item => item.event) as RegistrationWithEvent[];
     },
     enabled: !!athleteId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const {
@@ -116,6 +117,7 @@ export function useAthleteEvents(athleteId?: string, options?: UseAthleteEventsO
       })).filter(item => item.event) as ResultWithEvent[];
     },
     enabled: !!athleteId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLoading = registrationsLoading || resultsLoading;

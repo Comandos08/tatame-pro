@@ -42,7 +42,7 @@
 
 import { useRef, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, Home } from "lucide-react";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
@@ -416,7 +416,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
       // EDGE CASE: User at /portal but no redirect path resolved
       // INTENTIONAL: Show error UI with recovery options
       if (!redirectPath && pathname === '/portal') {
-        // P1.1: Uses BlockedStateCard for unified UX
+        // P1.1: Uses BlockedStateCard for unified UX with home escape hatch
         return (
           <BlockedStateCard
             icon={AlertCircle}
@@ -428,6 +428,11 @@ export function IdentityGate({ children }: IdentityGateProps) {
                 labelKey: 'common.retry',
                 onClick: refreshIdentity,
                 icon: RefreshCw,
+              },
+              {
+                labelKey: 'common.home',
+                onClick: () => window.location.assign('/'),
+                icon: Home,
               },
               {
                 labelKey: 'auth.logout',

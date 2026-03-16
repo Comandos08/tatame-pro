@@ -137,10 +137,8 @@ export default function IdentityWizard() {
 
           // P1-003: Set pending redirect BEFORE refreshIdentity so the effect
           // navigates only when identityState stabilizes to "resolved"
-          const targetPath = result.redirectPath || (result.tenant?.slug ? `/${result.tenant.slug}/app` : null);
-          if (targetPath) {
-            setPendingRedirect(targetPath);
-          }
+          const targetPath = result.redirectPath || (result.tenant?.slug ? `/${result.tenant.slug}/app` : '/portal');
+          setPendingRedirect(targetPath);
 
           await queryClient.invalidateQueries({ queryKey: ["identity"] });
           await queryClient.invalidateQueries({ queryKey: ["user-roles"] });
