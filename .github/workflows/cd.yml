@@ -1,6 +1,7 @@
 name: CD — Deploy
 
 on:
+  pull_request:
   push:
     branches: [main]
 
@@ -22,6 +23,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run build
 
       - name: Deploy to Vercel (Preview)
@@ -44,7 +46,79 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run build
+
+      - name: Deploy to Vercel (Production)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: --prod
+
+      - name: Notify deploy success
+        if: success()
+        run: echo "::notice::Production deploy successful — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Notify deploy failure
+        if: failure()
+        run: echo "::error::Production deploy FAILED — check logs"
+.github/workflows/ci.yml
+.github/workflows/ci.yml
++2
+-2
+
+name: CI — SAFE GOLD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        run: npm ci --legacy-peer-deps
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: E2E tests
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          CI: true
+        run: npx playwright test
+
 
       - name: Deploy to Vercel (Production)
         uses: amondnet/vercel-action@v25
