@@ -42,7 +42,6 @@ import {
   SecureRateLimitPresets,
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
-import {
 import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
