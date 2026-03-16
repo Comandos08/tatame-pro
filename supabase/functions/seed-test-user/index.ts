@@ -4,6 +4,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
+import { buildCorsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 interface SeedUserRequest {
   email: string;
@@ -12,18 +13,24 @@ interface SeedUserRequest {
   athleteId?: string;
   tenantId?: string;
   seedSecret: string;
+  seedSecret?: string;
 }
 
 // Internal seed function - uses service role key directly
 // Only for controlled test data seeding
+function getInternalSecret(req: Request, bodySecret?: string): string {
+  return req.headers.get("x-seed-secret")?.trim() || bodySecret?.trim() || "";
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("seed-test-user", correlationId);
+  const corsHeaders = buildCorsHeaders(req.headers.get("Origin"));
 
   try {
     // Basic rate limiting via checking origin (optional security layer)
@@ -32,9 +39,40 @@ serve(async (req: Request) => {
     const isAllowed = allowedOrigins.some(o => origin.startsWith(o)) || origin === "";
     
     if (!isAllowed) {
+    const seedEnabled = Deno.env.get("SEED_TEST_USER_ENABLED") === "true";
+    const expectedSecret = Deno.env.get("SEED_TEST_USER_SECRET")?.trim() || "";
+
+    if (!seedEnabled || !expectedSecret) {
+      log.warn("Seed endpoint disabled or missing secret");
+      return new Response(
+        JSON.stringify({ error: "SEED_ENDPOINT_DISABLED" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const payload: SeedUserRequest = await req.json();
+    const providedSecret = getInternalSecret(req, payload.seedSecret);
+
+    if (!providedSecret || providedSecret !== expectedSecret) {
+      log.warn("Invalid seed secret");
       return new Response(
         JSON.stringify({ error: "Origin not allowed" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "FORBIDDEN" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { email, password, name, athleteId, tenantId } = payload;
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      log.error("Server configuration missing", { hasUrl: !!supabaseUrl, hasServiceRole: !!serviceRoleKey });
+      return new Response(
+        JSON.stringify({ error: "SERVER_CONFIGURATION_ERROR" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
     const { email, password, name, athleteId, tenantId }: Omit<SeedUserRequest, 'seedSecret'> = await req.json();
@@ -43,12 +81,16 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { autoRefreshToken: false, persistSession: false } }
+      supabaseUrl,
+      serviceRoleKey,
+      { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
     if (!email || !password || !name) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: email, password, name" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -56,6 +98,8 @@ serve(async (req: Request) => {
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(u => u.email === email);
     
+    const existingUser = existingUsers?.users?.find((u) => u.email === email);
+
     if (existingUser) {
       // User exists, just link the athlete if needed
       if (athleteId) {
@@ -65,6 +109,7 @@ serve(async (req: Request) => {
           .eq("id", athleteId);
       }
       
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -73,6 +118,7 @@ serve(async (req: Request) => {
           message: "User already exists, athlete linked",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -89,6 +135,7 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: createError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -131,12 +178,15 @@ serve(async (req: Request) => {
         message: "User created and linked successfully",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     log.error("Error in seed-test-user", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
