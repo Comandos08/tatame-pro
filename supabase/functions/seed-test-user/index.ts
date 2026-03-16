@@ -190,3 +190,53 @@ serve(async (req: Request) => {
     );
   }
 });
+
+    // Update profile with tenant if provided
+    if (tenantId) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ tenant_id: tenantId, name })
+        .eq("id", userId);
+    }
+
+    // Link athlete to profile if provided
+    if (athleteId) {
+      await supabaseAdmin
+        .from("athletes")
+        .update({ profile_id: userId })
+        .eq("id", athleteId);
+
+      // Add ATLETA role
+      if (tenantId) {
+        await supabaseAdmin
+          .from("user_roles")
+          .insert({
+            user_id: userId,
+            role: "ATLETA",
+            tenant_id: tenantId,
+          });
+      }
+    }
+
+    log.info("Seed user created successfully", { userId, email, athleteId });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        userId,
+        email,
+        message: "User created and linked successfully",
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error) {
+    log.error("Error in seed-test-user", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+});
