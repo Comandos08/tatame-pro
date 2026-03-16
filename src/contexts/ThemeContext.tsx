@@ -25,10 +25,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = window.document.documentElement;
     
+    let transitionTimer: ReturnType<typeof setTimeout> | undefined;
+
     const applyTheme = (isDark: boolean) => {
       // Add transitioning class for smooth animation
       root.classList.add('theme-transitioning');
-      
+
       if (isDark) {
         root.classList.remove('light');
         root.classList.add('dark');
@@ -38,9 +40,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         root.classList.add('light');
         setResolvedTheme('light');
       }
-      
+
       // Remove transitioning class after animation completes
-      setTimeout(() => {
+      if (transitionTimer) clearTimeout(transitionTimer);
+      transitionTimer = setTimeout(() => {
         root.classList.remove('theme-transitioning');
       }, 300);
     };
@@ -51,11 +54,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
       const listener = (e: MediaQueryListEvent) => applyTheme(e.matches);
       mediaQuery.addEventListener('change', listener);
-      return () => mediaQuery.removeEventListener('change', listener);
+      return () => {
+        mediaQuery.removeEventListener('change', listener);
+        if (transitionTimer) clearTimeout(transitionTimer);
+      };
     }
-    
+
     applyTheme(theme === 'dark');
-    return undefined;
+    return () => {
+      if (transitionTimer) clearTimeout(transitionTimer);
+    };
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {

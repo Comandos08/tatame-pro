@@ -42,6 +42,7 @@ export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthle
       return !!data;
     },
     enabled: !!currentUser?.id && !!tenantId && isAuthenticated,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query 2: Verificar se tem athlete em QUALQUER tenant (para Ajuste B)
@@ -58,6 +59,7 @@ export function useHasAthleteInTenant(tenantId: string | undefined): UseHasAthle
       return (data?.length ?? 0) > 0;
     },
     enabled: !!currentUser?.id && isAuthenticated,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Loading composto (Ajuste C)

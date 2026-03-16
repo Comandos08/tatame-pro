@@ -228,7 +228,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       const abortPromise = new Promise<never>((_, reject) => {
         signal.addEventListener("abort", () => {
           reject(new DOMException("Aborted", "AbortError"));
-        });
+        }, { once: true });
       });
 
       const { data, error } = await Promise.race<InvokeResult>([invokePromise, abortPromise]);

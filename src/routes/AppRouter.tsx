@@ -287,8 +287,15 @@ export default function AppRouter() {
         }
       />
 
-      {/* ONBOARDING (SEM ROLE GATE) */}
-      <Route path="onboarding" element={<TenantOnboarding />} />
+      {/* ONBOARDING */}
+      <Route
+        path="onboarding"
+        element={
+          <RequireRoles allowed={["ADMIN_TENANT"]}>
+            <TenantOnboarding />
+          </RequireRoles>
+        }
+      />
 
       {/* HELP */}
       <Route

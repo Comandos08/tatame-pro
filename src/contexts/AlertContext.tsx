@@ -18,6 +18,7 @@ import { useCurrentUser } from '@/contexts/AuthContext';
 
 const POLLING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_REALTIME_ALERTS = 50;
+const MAX_SEEN_EVENT_IDS = 1000;
 
 export interface AlertContextValue {
   alerts: Alert[];
@@ -194,14 +195,17 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const [lastRealtimeEventAt, setLastRealtimeEventAt] = useState<string | null>(null);
   const [newEventsCount, setNewEventsCount] = useState(0);
   
-  // Track seen alert IDs to prevent counting same event twice
+  // Track seen alert IDs to prevent counting same event twice (bounded)
   const seenNewEventIds = useRef<Set<string>>(new Set());
+  // Ref-based dismissed IDs for stable realtime subscription deps
+  const dismissedIdsRef = useRef<Set<string>>(dismissedIds);
   
   // Load dismissed alerts from DB when user is available
   useEffect(() => {
     if (!currentUser?.id) return;
     fetchDismissedIds(currentUser.id).then(ids => {
       setDismissedIds(ids);
+      dismissedIdsRef.current = ids;
     });
   }, [currentUser?.id]);
   
@@ -226,30 +230,34 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     staleTime: POLLING_INTERVAL_MS / 2,
   });
   
-  // Realtime subscription
+  // Realtime subscription — uses ref for dismissed IDs to avoid re-subscribing on every dismiss
   useEffect(() => {
     const subscription = subscribeObservabilityRealtime({
       onEvent: (alert) => {
-        // Skip if already dismissed
-        if (dismissedIds.has(alert.id)) {
+        // Skip if already dismissed (read from ref to avoid re-subscription)
+        if (dismissedIdsRef.current.has(alert.id)) {
           return;
         }
-        
+
         // Add to realtime alerts
         setRealtimeAlerts(prev => {
           // Avoid duplicates
           if (prev.some(a => a.id === alert.id)) return prev;
           return [alert, ...prev].slice(0, MAX_REALTIME_ALERTS);
         });
-        
-        // Increment new events count (only once per event)
+
+        // Increment new events count (only once per event, bounded)
         if (!seenNewEventIds.current.has(alert.id)) {
+          // Prune if exceeding max to prevent unbounded growth
+          if (seenNewEventIds.current.size >= MAX_SEEN_EVENT_IDS) {
+            seenNewEventIds.current.clear();
+          }
           seenNewEventIds.current.add(alert.id);
           setNewEventsCount(prev => prev + 1);
         }
-        
+
         setLastRealtimeEventAt(new Date().toISOString());
-        
+
         // Mark as seen in realtime cache
         markAlertAsSeen(alert.id);
       },
@@ -260,11 +268,11 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         logger.error('[AlertContext] Realtime error:', error);
       },
     });
-    
+
     return () => {
       subscription.unsubscribe();
     };
-  }, [dismissedIds]);
+  }, []); // stable — uses refs for mutable state
   
   // Merge polling + realtime alerts
   const alerts = useMemo(() => {
@@ -288,15 +296,18 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     setDismissedIds(prev => {
       const next = new Set(prev);
       next.add(id);
+      dismissedIdsRef.current = next;
       return next;
     });
-    persistDismissToDb(id, currentUser.id); // fire-and-forget
+    persistDismissToDb(id, currentUser.id);
   }, [currentUser?.id]);
   
   const clearDismissed = useCallback(() => {
     if (!currentUser?.id) return;
-    setDismissedIds(new Set());
-    clearDismissedInDb(currentUser.id); // fire-and-forget
+    const empty = new Set<string>();
+    setDismissedIds(empty);
+    dismissedIdsRef.current = empty;
+    clearDismissedInDb(currentUser.id);
   }, [currentUser?.id]);
   
   const refreshAlerts = useCallback(() => {
