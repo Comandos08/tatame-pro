@@ -64,11 +64,27 @@ export function MembershipTypeSelector() {
 
   const hasMembership = !!existingMembership;
 
-  // Check if new memberships should be blocked — use resolver directly
-  const isMembershipBlocked = tenantStatus.billingState?.isBlocked || tenantStatus.billingState?.isTrialExpired;
+  // ✅ Fix: if manual override is active, Stripe gating should not block membership flow
+  const isManualOverride = tenantStatus.billingState?.isManualOverride === true;
+  const canUseStripePortal = tenantStatus.billingState?.canUseStripe !== false;
+
+  // Check if new memberships should be blocked
+  const isMembershipBlocked = isManualOverride
+    ? false
+    : Boolean(
+        tenantStatus.billingState?.isBlocked ||
+        tenantStatus.billingState?.isReadOnly ||
+        tenantStatus.billingState?.isTrialExpired
+      );
 
   const handleOpenPortal = async () => {
     if (!tenant?.id) return;
+
+    // ✅ Fix: manual mode should not try Stripe portal
+    if (!canUseStripePortal) {
+      toast.info('Este tenant está em modo manual. Não há portal Stripe para gerenciar assinatura.');
+      return;
+    }
 
     setIsOpeningPortal(true);
     try {
@@ -76,9 +92,20 @@ export function MembershipTypeSelector() {
         body: { tenant_id: tenant.id },
       });
 
-      if (error) throw error;
+      if (error) {
+        // common backend envelope case seen in your screenshot
+        const msg = (error as unknown as { message?: string })?.message ?? '';
+        if (msg.includes('billing.no_stripe_customer') || msg.includes('NOT_FOUND')) {
+          toast.info('Tenant sem cliente Stripe. Ajuste billing via Control Tower (modo manual).');
+          return;
+        }
+        throw error;
+      }
+
       if (data?.url) {
         window.open(data.url, '_blank');
+      } else {
+        toast.info('Portal de cobrança indisponível para este tenant.');
       }
     } catch (err) {
       logger.error('Error opening portal:', err);
@@ -192,20 +219,24 @@ export function MembershipTypeSelector() {
               <AlertTitle>{t('membership.billingBlockedTitle')}</AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>{t('membership.billingBlockedDesc')}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenPortal}
-                  disabled={isOpeningPortal}
-                  className="border-destructive-foreground/30"
-                >
-                  {isOpeningPortal ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4 mr-2" />
-                  )}
-                  {t('tenantStatus.manageBilling')}
-                </Button>
+
+                {/* only show Stripe portal button when Stripe is applicable */}
+                {canUseStripePortal && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPortal}
+                    disabled={isOpeningPortal}
+                    className="border-destructive-foreground/30"
+                  >
+                    {isOpeningPortal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    {t('tenantStatus.manageBilling')}
+                  </Button>
+                )}
               </AlertDescription>
             </Alert>
           </motion.div>
@@ -219,8 +250,8 @@ export function MembershipTypeSelector() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card 
-                className={`h-full card-hover cursor-pointer group ${isMembershipBlocked ? 'opacity-50 pointer-events-none' : ''}`} 
+              <Card
+                className={`h-full card-hover cursor-pointer group ${isMembershipBlocked ? 'opacity-50 pointer-events-none' : ''}`}
                 onClick={() => handleOptionClick(option.path, option.id)}
               >
                 <CardHeader>
