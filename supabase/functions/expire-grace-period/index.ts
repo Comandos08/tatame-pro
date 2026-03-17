@@ -22,13 +22,14 @@ import {
   ERROR_CODES,
 } from "../_shared/errors/envelope.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("expire-grace-period", correlationId);

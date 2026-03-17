@@ -41,7 +41,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RejectMembershipRequest {
@@ -73,8 +73,9 @@ function forbiddenResp(correlationId?: string): Response {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("reject-membership", correlationId);
@@ -95,7 +96,7 @@ serve(async (req) => {
       });
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
@@ -120,7 +121,7 @@ serve(async (req) => {
       });
       return errorResponse(401, buildErrorEnvelope(
         ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
@@ -132,7 +133,7 @@ serve(async (req) => {
       });
       return errorResponse(401, buildErrorEnvelope(
         ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const adminProfileId = user.id;
@@ -157,7 +158,7 @@ serve(async (req) => {
         limit: 10,
       });
       
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
@@ -344,7 +345,7 @@ serve(async (req) => {
       log.error("Gatekeeper RPC failed", rpcError);
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     log.info("Membership rejected", { newStatus: "REJECTED" });
@@ -562,6 +563,6 @@ serve(async (req) => {
     // Anti-enumeration: generic error response
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 });

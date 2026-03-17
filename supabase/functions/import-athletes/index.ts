@@ -18,7 +18,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface AthleteRow {
@@ -85,8 +85,9 @@ function validateRow(row: AthleteRow, index: number): string[] {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("import-athletes", correlationId);
@@ -95,7 +96,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -115,7 +116,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -125,7 +126,7 @@ serve(async (req) => {
     if (!contentType.includes("application/json")) {
       return new Response(
         JSON.stringify({ error: "Content-Type must be application/json. CSV parsing should be done client-side." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 415 },
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 415 },
       );
     }
 
@@ -138,21 +139,21 @@ serve(async (req) => {
 
     if (!tenant_id) {
       return new Response(JSON.stringify({ error: "tenant_id is required" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 400,
       });
     }
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       return new Response(JSON.stringify({ error: "rows array is required and must not be empty" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 400,
       });
     }
 
     if (rows.length > 500) {
       return new Response(JSON.stringify({ error: "Maximum 500 rows per import batch" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 400,
       });
     }
@@ -168,7 +169,7 @@ serve(async (req) => {
 
     if (!roleCheck) {
       return new Response(JSON.stringify({ error: "Access denied" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 403,
       });
     }
@@ -185,7 +186,7 @@ serve(async (req) => {
     if (allErrors.length > 0) {
       return new Response(
         JSON.stringify({ success: false, errors: allErrors, inserted: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 422 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 422 }
       );
     }
 
@@ -237,7 +238,7 @@ serve(async (req) => {
           duplicateRows,
           validationResults,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -263,7 +264,7 @@ serve(async (req) => {
     if (toInsert.length === 0) {
       return new Response(
         JSON.stringify({ success: true, mode: "confirm", inserted: 0, skipped: rows.length, message: "All rows were duplicates" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -275,7 +276,7 @@ serve(async (req) => {
       log.error("Insert failed", { error: insertError.message });
       return new Response(
         JSON.stringify({ success: false, error: insertError.message, inserted: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
       );
     }
 
@@ -288,13 +289,13 @@ serve(async (req) => {
         inserted: toInsert.length,
         skipped: duplicateRows.length,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     log.error("Import failed", { error: message });
     return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 500,
     });
   }

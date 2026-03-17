@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parsePublicPagination } from "../_shared/security/publicQueryLimits.ts";
 import {
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   buildErrorEnvelope,
   errorResponse,
   ERROR_CODES,
@@ -24,8 +24,10 @@ import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 
 export const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   try {
     const url = new URL(req.url);
@@ -40,7 +42,7 @@ export const handler = async (req: Request): Promise<Response> => {
           false,
           ["tenant_slug missing or invalid"],
         ),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -54,12 +56,12 @@ export const handler = async (req: Request): Promise<Response> => {
           false,
           ["tenant_slug must be alphanumeric with hyphens"],
         ),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
     // A08.H2 — Anti-enumeration: enforce institutional pagination limits
-    const pag = parsePublicPagination(req, corsHeaders);
+    const pag = parsePublicPagination(req, dynamicCors);
     if (!pag.ok) return pag.response;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -76,7 +78,7 @@ export const handler = async (req: Request): Promise<Response> => {
     if (tenantError || !tenant) {
       return new Response(
         JSON.stringify({ academies: [] }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -84,7 +86,7 @@ export const handler = async (req: Request): Promise<Response> => {
     if (tenant.lifecycle_status !== "ACTIVE") {
       return new Response(
         JSON.stringify({ academies: [] }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -106,13 +108,13 @@ export const handler = async (req: Request): Promise<Response> => {
           true,
           ["database error while fetching academies"],
         ),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
     return new Response(
       JSON.stringify({ academies: academies || [] }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     return errorResponse(
@@ -122,7 +124,7 @@ export const handler = async (req: Request): Promise<Response> => {
         "system.internal_error",
         true,
       ),
-      corsHeaders,
+      dynamicCors,
     );
   }
 };

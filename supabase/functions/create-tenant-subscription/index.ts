@@ -11,7 +11,7 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { mapStripeStatusToBilling } from "../_shared/billing-state-machine.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 // Trial period in days for new tenants (Growth Trial Strategy)
@@ -44,8 +44,9 @@ async function sendBillingEmail(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-tenant-subscription", correlationId);
@@ -147,7 +148,7 @@ serve(async (req) => {
           error_code: envValidation.error_code,
           message: envValidation.message
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -191,7 +192,7 @@ serve(async (req) => {
           error_code: priceResolution.error_code,
           message: priceResolution.message
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -254,7 +255,7 @@ serve(async (req) => {
             error_code: 'BILLING_STRIPE_PRICE_NOT_FOUND',
             message: 'Stripe price not found in current environment. Check billing configuration.'
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
         );
       }
     } else {
@@ -332,7 +333,7 @@ serve(async (req) => {
             subscriptionId: existingBilling.stripe_subscription_id,
             status: existingSub.status
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
         );
       }
     }
@@ -438,7 +439,7 @@ serve(async (req) => {
         clientSecret: paymentIntent?.client_secret,
         currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown billing error";
@@ -469,7 +470,7 @@ serve(async (req) => {
         message: "Unexpected billing error. Please contact support."
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200
       }
     );

@@ -23,7 +23,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 /**
@@ -57,8 +57,9 @@ interface TransitionResult {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("transition-youth-to-adult", correlationId);
@@ -73,7 +74,7 @@ serve(async (req) => {
     log.error("CRON_SECRET not configured");
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -81,7 +82,7 @@ serve(async (req) => {
     log.error("Invalid or missing x-cron-secret");
     return new Response(
       JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -167,7 +168,7 @@ serve(async (req) => {
           failed: 0,
           message: "No athletes with guardians found",
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -363,7 +364,7 @@ serve(async (req) => {
         failed,
         results,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
 
   } catch (error: unknown) {
@@ -376,7 +377,7 @@ serve(async (req) => {
         success: false,
         error: errorMessage,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

@@ -28,7 +28,7 @@ import {
 } from "../_shared/billing-state-machine.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 // Supported actions
@@ -637,8 +637,9 @@ async function resetToStripe(
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("admin-billing-control", correlationId);
@@ -650,7 +651,7 @@ Deno.serve(async (req) => {
   if (!_supabaseUrl || !_supabaseServiceKey || !_supabaseAnonKey) {
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 
   try {
@@ -659,7 +660,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return errorResponse(401, buildErrorEnvelope(
         ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const validation = await validateSuperadmin(authHeader);
@@ -667,7 +668,7 @@ Deno.serve(async (req) => {
       return errorResponse(403, buildErrorEnvelope(
         ERROR_CODES.FORBIDDEN, "auth.forbidden", false,
         [validation.error || "Access denied"], correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const userId = validation.userId!;
@@ -681,14 +682,14 @@ Deno.serve(async (req) => {
     } catch {
       return errorResponse(400, buildErrorEnvelope(
         ERROR_CODES.MALFORMED_JSON, "validation.malformed_json", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
     
     if (!payload.action || !payload.tenantId || !payload.reason) {
       return errorResponse(400, buildErrorEnvelope(
         ERROR_CODES.VALIDATION_ERROR, "validation.missing_fields", false,
         ["Missing required fields: action, tenantId, reason"], correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     log.setTenant(payload.tenantId);
@@ -703,7 +704,7 @@ Deno.serve(async (req) => {
     if (!tenant) {
       return errorResponse(404, buildErrorEnvelope(
         ERROR_CODES.NOT_FOUND, "tenant.not_found", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     // PI-BILL-HARD-002 — Check if billing exists before any action
@@ -744,7 +745,7 @@ Deno.serve(async (req) => {
           return errorResponse(400, buildErrorEnvelope(
             ERROR_CODES.VALIDATION_ERROR, "validation.invalid_days", false,
             ["Invalid days value (minimum 1)"], correlationId
-          ), corsHeaders);
+          ), dynamicCors);
         }
         result = await extendTrial(serviceClient, payload.tenantId, payload.days, payload.reason, userId);
         break;
@@ -754,7 +755,7 @@ Deno.serve(async (req) => {
           return errorResponse(400, buildErrorEnvelope(
             ERROR_CODES.VALIDATION_ERROR, "validation.missing_until_date", false,
             ["untilDate is required for mark-as-paid action"], correlationId
-          ), corsHeaders);
+          ), dynamicCors);
         }
         result = await markAsPaid(serviceClient, payload.tenantId, payload.untilDate, payload.reason, userId);
         break;
@@ -775,7 +776,7 @@ Deno.serve(async (req) => {
         return errorResponse(400, buildErrorEnvelope(
           ERROR_CODES.VALIDATION_ERROR, "validation.unknown_action", false,
           [`Unknown action: ${payload.action}`], correlationId
-        ), corsHeaders);
+        ), dynamicCors);
     }
 
     if (!result.success) {
@@ -784,7 +785,7 @@ Deno.serve(async (req) => {
         result.requiresConfirmation ? ERROR_CODES.CONFLICT : ERROR_CODES.VALIDATION_ERROR,
         "billing.action_failed", false,
         [result.error || "Unknown error"], correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     return okResponse({ 
@@ -796,6 +797,6 @@ Deno.serve(async (req) => {
     log.error("Admin billing control error", error);
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", true, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 });

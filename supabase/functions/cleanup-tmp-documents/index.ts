@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 // Constantes fixas (IMUTÁVEIS)
 const TTL_DAYS = 7;
@@ -20,8 +20,9 @@ const PROTECTED_STATUSES = ["PENDING_REVIEW", "APPROVED", "ACTIVE"];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("cleanup-tmp-documents", correlationId);
@@ -35,7 +36,7 @@ serve(async (req) => {
       log.error("Error: CRON_SECRET not configured");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -43,7 +44,7 @@ serve(async (req) => {
       log.error("Forbidden: Invalid or missing x-cron-secret header");
       return new Response(
         JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -239,7 +240,7 @@ serve(async (req) => {
         ttl_days: TTL_DAYS,
         results,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
@@ -247,7 +248,7 @@ serve(async (req) => {
     log.error("Fatal error", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

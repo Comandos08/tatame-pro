@@ -14,13 +14,14 @@ import { deriveTenantActive, isKnownBillingStatus } from "../_shared/billing-sta
 import type { BillingStatus } from "../_shared/billing-state-machine.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("audit-billing-consistency", correlationId);
@@ -37,7 +38,7 @@ serve(async (req) => {
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) {
         return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" },
         });
       }
       const { data: superadmin } = await supabase
@@ -46,7 +47,7 @@ serve(async (req) => {
         .is("tenant_id", null).maybeSingle();
       if (!superadmin) {
         return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" },
         });
       }
     }
@@ -157,13 +158,13 @@ serve(async (req) => {
         mismatches_found: mismatches.length,
         mismatches,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("Billing consistency scan failed", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Scan failed" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

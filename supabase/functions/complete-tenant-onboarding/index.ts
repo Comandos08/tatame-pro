@@ -49,7 +49,7 @@ import {
 } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface CompleteOnboardingRequest {
@@ -70,8 +70,9 @@ interface ActivationStatus {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("complete-tenant-onboarding", correlationId);
@@ -84,7 +85,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabase for DB ops, supabaseAuth for JWT validation
@@ -126,7 +127,7 @@ serve(async (req) => {
         count: rateLimitResult.count,
       });
       
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
@@ -138,7 +139,7 @@ serve(async (req) => {
     if (!tenantId) {
       return new Response(
         JSON.stringify({ ok: false, error: "Missing tenantId", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -157,7 +158,7 @@ serve(async (req) => {
         log.warn("Tenant boundary violation", { code: boundaryError.code, message: boundaryError.message });
         return new Response(
           JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       throw boundaryError;
@@ -229,7 +230,7 @@ serve(async (req) => {
       log.info("Tenant not found", { error: tenantError?.message });
       return new Response(
         JSON.stringify({ ok: false, error: "Tenant not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -272,7 +273,7 @@ serve(async (req) => {
             status: activationStatus,
             alreadyActive: true,
           }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       
@@ -283,7 +284,7 @@ serve(async (req) => {
           code: "INVALID_STATUS",
           currentStatus: currentState,
         }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -295,7 +296,7 @@ serve(async (req) => {
           error: "Onboarding already marked as complete",
           code: "ALREADY_COMPLETED",
         }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -314,7 +315,7 @@ serve(async (req) => {
           status: activationStatus,
           missingRequirements,
         }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -356,7 +357,7 @@ serve(async (req) => {
           error: "Failed to initialize billing",
           code: "BILLING_INIT_FAILED",
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -400,7 +401,7 @@ serve(async (req) => {
           error: `Failed to activate tenant: ${rpcError.message}`,
           code: "ACTIVATION_FAILED",
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -457,14 +458,14 @@ serve(async (req) => {
           trialExpiresAt: trialExpiresAt.toISOString(),
         },
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
     log.info("Unexpected error", { error: String(error) });
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

@@ -9,7 +9,7 @@ import {
 } from "../_shared/email-templates/index.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 
@@ -193,15 +193,16 @@ function getEmailContent(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return corsPreflightResponse();
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("send-athlete-email", correlationId);
 
   try {
     // =========================================================================
-    // AUTH VALIDATION — requires valid JWT (service-to-service or admin call)
+    // AUTH VALIDATION — service role bypass for internal calls, or JWT + role
     // =========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
@@ -209,34 +210,42 @@ serve(async (req) => {
       return errorResponse(
         401,
         buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
-    const supabaseAuth = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
-    );
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const isServiceRole = serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`;
 
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
-    if (userError || !user) {
-      log.warn("Auth failed - invalid token");
-      return errorResponse(
-        401,
-        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
-        corsHeaders,
+    if (!isServiceRole) {
+      // User JWT path — validate token
+      const supabaseAuth = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
       );
-    }
 
-    log.setUser(user.id);
-    log.info("Caller authenticated");
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+      if (userError || !user) {
+        log.warn("Auth failed - invalid token");
+        return errorResponse(
+          401,
+          buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+          dynamicCors,
+        );
+      }
+
+      log.setUser(user.id);
+      log.info("Caller authenticated as user", { userId: user.id });
+    } else {
+      log.info("Caller authenticated as internal service (service role)");
+    }
 
     if (!isEmailConfigured()) {
       log.info("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -324,7 +333,7 @@ serve(async (req) => {
       log.info("No recipients found, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No recipients" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -351,14 +360,14 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, recipients, email_type }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error sending email", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

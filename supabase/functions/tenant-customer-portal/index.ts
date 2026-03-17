@@ -42,7 +42,7 @@ import {
   SecureRateLimitPresets,
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -63,8 +63,9 @@ import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 serve(async (req) => {
   // --- CORS Preflight ---
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("tenant-customer-portal", correlationId);

@@ -14,7 +14,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { SecureRateLimitPresets, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 interface VerifyDiplomaRequest {
@@ -32,7 +33,16 @@ const maskName = (name: string): string => {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
+  }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
+
+  // Rate limit: 60 per minute per IP, fail-open for public endpoint
+  const rateLimiter = SecureRateLimitPresets.verifyDocument();
+  const rateLimitCtx = buildRateLimitContext(req);
+  const rateLimitResult = await rateLimiter.check(rateLimitCtx);
+  if (!rateLimitResult.allowed) {
+    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
   }
 
   try {
@@ -42,7 +52,7 @@ serve(async (req) => {
     if (!diplomaId || typeof diplomaId !== "string") {
       return new Response(
         JSON.stringify({ found: false, error: "Missing or invalid diplomaId" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -51,7 +61,7 @@ serve(async (req) => {
     if (!uuidRegex.test(diplomaId)) {
       return new Response(
         JSON.stringify({ found: false, error: "Invalid diploma ID format" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -73,7 +83,7 @@ serve(async (req) => {
     if (diplomaError || !diploma) {
       return new Response(
         JSON.stringify({ found: false, error: "Diploma not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -87,7 +97,7 @@ serve(async (req) => {
     if (tenantError || !tenant) {
       return new Response(
         JSON.stringify({ found: false, error: "Diploma data incomplete" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -95,7 +105,7 @@ serve(async (req) => {
     if (tenantSlug && tenant.slug !== tenantSlug) {
       return new Response(
         JSON.stringify({ found: false, error: "Diploma not found in this organization" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -109,7 +119,7 @@ serve(async (req) => {
     if (!athlete) {
       return new Response(
         JSON.stringify({ found: false, error: "Diploma data incomplete" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -197,12 +207,12 @@ serve(async (req) => {
         pdfUrl: diploma.pdf_url,
         issuedAt: diploma.issued_at ? diploma.issued_at.split("T")[0] : null,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     return new Response(
       JSON.stringify({ found: false, error: "Internal error" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

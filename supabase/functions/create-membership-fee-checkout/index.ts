@@ -25,7 +25,7 @@ import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requ
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -69,8 +69,9 @@ interface CreateFeeCheckoutRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-membership-fee-checkout", correlationId);

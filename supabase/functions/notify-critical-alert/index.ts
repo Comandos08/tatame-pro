@@ -2,16 +2,16 @@
 
 /**
  * 🔔 notify-critical-alert — P4.2.D
- * 
+ *
  * Stub for external alert notifications.
  * OFF by default — requires explicit enablement.
- * 
+ *
  * Future integrations:
  * - Slack webhook
  * - Email notifications (via Resend)
  * - PagerDuty
  * - Custom webhooks
- * 
+ *
  * SAFE GOLD: No external notifications are sent until explicitly enabled.
  *
  * Internal-only endpoint for external alert notifications.
@@ -22,9 +22,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
-
-import { buildCorsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 interface AlertPayload {
   event_id: string;
@@ -42,13 +40,12 @@ function extractInternalSecret(req: Request): string {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
     return corsPreflightResponse(req);
   }
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("notify-critical-alert", correlationId);
-  const corsHeaders = buildCorsHeaders(req.headers.get("Origin"));
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   try {
     // Validate service role (internal only)
@@ -62,7 +59,7 @@ serve(async (req) => {
       log.warn('[notify-critical-alert] Unauthorized attempt with invalid internal secret');
       return new Response(
         JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -71,12 +68,11 @@ serve(async (req) => {
     // Validate payload
     if (!payload.event_id || !payload.event_type || !payload.severity) {
       return new Response(
-        JSON.stringify({ 
         JSON.stringify({
           error: 'INVALID_PAYLOAD',
           required: ['event_id', 'event_type', 'severity'],
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -84,12 +80,11 @@ serve(async (req) => {
     const validSeverities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
     if (!validSeverities.includes(payload.severity)) {
       return new Response(
-        JSON.stringify({ 
         JSON.stringify({
           error: 'INVALID_SEVERITY',
           valid: validSeverities,
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -156,7 +151,6 @@ serve(async (req) => {
                   `*Event ID:* \`${payload.event_id}\``,
                   payload.tenant_id ? `*Tenant:* \`${payload.tenant_id}\`` : '',
                   `*Time:* ${payload.timestamp || new Date().toISOString()}`,
-                  `*Time:* ${payload.timestamp}`,
                   payload.metadata?.source ? `*Source:* ${String(payload.metadata.source)}` : '',
                 ].filter(Boolean).join('\n'),
               },
@@ -203,7 +197,6 @@ serve(async (req) => {
                 <p><strong>Source:</strong> ${payload.metadata?.source || "unknown"}</p>
                 <p><strong>Event ID:</strong> ${payload.event_id}</p>
                 <p><strong>Time:</strong> ${payload.timestamp || new Date().toISOString()}</p>
-                <p><strong>Time:</strong> ${payload.timestamp}</p>
                 <hr>
                 <p>This is an automated alert from Tatame Pro infrastructure.</p>
               `,
@@ -224,8 +217,6 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        ok: true, 
       JSON.stringify({
         ok: true,
         status: 'LOGGED',
@@ -235,36 +226,13 @@ serve(async (req) => {
           email: emailEnabled,
         },
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     log.error('[notify-critical-alert] Error:', error);
     return new Response(
       JSON.stringify({ error: 'INTERNAL_ERROR' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-});
-
-    return new Response(
-      JSON.stringify({ 
-        ok: true, 
-      JSON.stringify({
-        ok: true,
-        status: 'LOGGED',
-        message: 'Alert processed. Check integrations for delivery status.',
-        integrations: {
-          slack: !!slackWebhookUrl,
-          email: emailEnabled,
-        },
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    log.error('[notify-critical-alert] Error:', error);
-    return new Response(
-      JSON.stringify({ error: 'INTERNAL_ERROR' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
   }
 });

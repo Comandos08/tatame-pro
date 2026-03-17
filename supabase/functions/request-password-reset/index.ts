@@ -15,7 +15,7 @@ import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 const OPERATION_NAME = "request-password-reset";
@@ -154,8 +154,9 @@ function rateLimitResponse(): Response {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("request-password-reset", correlationId);
@@ -209,7 +210,7 @@ serve(async (req) => {
     if (captchaToken) {
       const captchaResult = await validateCaptcha(captchaToken, clientIP);
       if (!captchaResult.success) {
-        return captchaErrorResponse(captchaResult, corsHeaders);
+        return captchaErrorResponse(captchaResult, dynamicCors);
       }
     }
 
@@ -260,7 +261,7 @@ serve(async (req) => {
           success: true, 
           message: "Se este e-mail estiver cadastrado, você receberá um link de recuperação." 
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -281,7 +282,7 @@ serve(async (req) => {
           success: true, 
           message: "Se este e-mail estiver cadastrado, você receberá um link de recuperação." 
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -375,14 +376,14 @@ serve(async (req) => {
         success: true, 
         message: "Se este e-mail estiver cadastrado, você receberá um link de recuperação." 
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

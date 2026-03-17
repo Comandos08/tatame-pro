@@ -148,19 +148,18 @@ Deno.serve(async (req) => {
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
    * ─────────────────────────────────────────────────────────────────────────── */
-  // Build CORS headers dynamically from request origin
-  const reqOrigin = req.headers.get("Origin");
-  const corsHeaders = buildCorsHeaders(reqOrigin);
-
   if (req.method === "OPTIONS") {
     return corsPreflightResponse(req);
   }
+
+  // Build CORS headers dynamically from request origin
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   /** Response helper — always HTTP 200, CORS-aware */
   const jsonResponse = (payload: IdentityResponse) =>
     new Response(JSON.stringify({ ok: true, data: payload }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     });
 
   const correlationId = extractCorrelationId(req);

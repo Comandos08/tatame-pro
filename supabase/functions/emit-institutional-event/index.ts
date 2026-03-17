@@ -6,13 +6,14 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   try {
     // 1. Validate auth
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       });
     }
 
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       });
     }
 
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
     if (!domain || !type) {
       return new Response(JSON.stringify({ error: "Missing domain or type" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       });
     }
 
@@ -66,13 +67,13 @@ Deno.serve(async (req) => {
     // Always return success (fail-silent for caller)
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     });
   } catch (_err) {
     // Fail-silent: never break caller flow
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     });
   }
 });

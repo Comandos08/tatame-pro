@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.list-public-academies]
 verify_jwt = false
+
+[functions.generate-digital-card]
+verify_jwt = false

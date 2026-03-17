@@ -6,7 +6,7 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 const OPERATION_NAME = "retry-membership-payment";
@@ -148,8 +148,9 @@ function rateLimitResponse(): Response {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   log = createBackendLogger("retry-membership-payment", correlationId);
@@ -161,7 +162,7 @@ serve(async (req) => {
   if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
     return new Response(
       JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -226,7 +227,7 @@ serve(async (req) => {
     // Validate CAPTCHA
     const captchaResult = await validateCaptcha(captchaToken, clientIP);
     if (!captchaResult.success) {
-      return captchaErrorResponse(captchaResult, corsHeaders);
+      return captchaErrorResponse(captchaResult, dynamicCors);
     }
 
     // Get current user from auth header (optional - may not be logged in)
@@ -304,7 +305,7 @@ serve(async (req) => {
         JSON.stringify({ error: "FORBIDDEN_CROSS_TENANT" }),
         {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -330,7 +331,7 @@ serve(async (req) => {
       });
       return new Response(JSON.stringify({ error: "FORBIDDEN_NOT_OWNER" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       });
     }
 
@@ -350,7 +351,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -389,7 +390,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -415,7 +416,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -443,7 +444,7 @@ serve(async (req) => {
         }),
         {
           status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -547,7 +548,7 @@ serve(async (req) => {
         }),
         {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -585,7 +586,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ url: stripeSession.url, sessionId: stripeSession.id }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       }
     );
@@ -594,7 +595,7 @@ serve(async (req) => {
       error instanceof Error ? error.message : "Unknown error";
     log.info("Error in retry-membership-payment", { error: errorMessage });
     return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 500,
     });
   }

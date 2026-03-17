@@ -21,7 +21,7 @@ import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-bound
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RevokeBadgeRequest {
@@ -31,8 +31,9 @@ interface RevokeBadgeRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("revoke-athlete-badge", correlationId);
@@ -61,7 +62,7 @@ serve(async (req) => {
     if (!athleteId || !badgeId) {
       return new Response(
         JSON.stringify({ ok: false, error: "Missing athleteId or badgeId", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -75,7 +76,7 @@ serve(async (req) => {
     if (athleteError || !athlete) {
       return new Response(
         JSON.stringify({ ok: false, error: "Athlete not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -90,7 +91,7 @@ serve(async (req) => {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
         return new Response(
           JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       throw boundaryError;
@@ -114,7 +115,7 @@ serve(async (req) => {
     if (!existing) {
       return new Response(
         JSON.stringify({ ok: true, action: "NOOP", reason: "No assignment found" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -122,7 +123,7 @@ serve(async (req) => {
       log.info("Already revoked, no-op");
       return new Response(
         JSON.stringify({ ok: true, action: "NOOP", reason: "Already revoked" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -153,13 +154,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: true, action: "REVOKED", badgeCode: badgeInfo?.code }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("Unexpected error", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

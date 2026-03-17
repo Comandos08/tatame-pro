@@ -33,7 +33,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -56,8 +56,9 @@ interface ConfirmPaymentRequest {
 serve(async (req) => {
   // --- CORS Preflight ---
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("confirm-membership-payment", correlationId);
@@ -108,7 +109,7 @@ serve(async (req) => {
           status: stripeSession.payment_status 
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -207,7 +208,7 @@ serve(async (req) => {
         message: "Payment confirmed successfully" 
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       }
     );
@@ -217,7 +218,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 500,
       }
     );

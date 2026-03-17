@@ -12,13 +12,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("export-athlete-data", correlationId);
@@ -27,7 +28,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -48,7 +49,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -59,7 +60,7 @@ serve(async (req) => {
 
     if (!athleteId || !tenantId) {
       return new Response(JSON.stringify({ error: "athlete_id and tenant_id are required" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 400,
       });
     }
@@ -76,7 +77,7 @@ serve(async (req) => {
 
     if (athleteCheckError || !athleteRecord) {
       return new Response(JSON.stringify({ error: "Athlete not found" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 404,
       });
     }
@@ -95,7 +96,7 @@ serve(async (req) => {
 
       if (!roleCheck) {
         return new Response(JSON.stringify({ error: "Access denied" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 403,
         });
       }
@@ -193,7 +194,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(exportPayload, null, 2), {
       headers: {
-        ...corsHeaders,
+        ...dynamicCors,
         "Content-Type": "application/json",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
@@ -203,7 +204,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     log.error("Export failed", { error: message });
     return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 500,
     });
   }

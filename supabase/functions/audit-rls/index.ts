@@ -22,7 +22,7 @@ import {
 } from "../_shared/errors/envelope.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 // ============================================================================
@@ -359,8 +359,9 @@ function classifyDefinerRisk(f: DefinerRow): DefinerFinding {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("audit-rls", correlationId);
@@ -504,7 +505,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(report, null, 2), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     });
   } catch (error) {
     log.error("[AUDIT-RLS] Unexpected error:", error);

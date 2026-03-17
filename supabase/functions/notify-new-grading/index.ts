@@ -8,7 +8,7 @@ import {
 import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface NotifyGradingRequest {
@@ -17,8 +17,9 @@ interface NotifyGradingRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("notify-new-grading", correlationId);
@@ -70,7 +71,7 @@ serve(async (req) => {
       log.info("No athlete email found, skipping notification");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No athlete email" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -145,7 +146,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, grading_id, athlete_email: athlete.email }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
 
   } catch (error) {
@@ -153,7 +154,7 @@ serve(async (req) => {
     log.error("Error sending grading notification", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

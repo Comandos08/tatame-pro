@@ -42,7 +42,7 @@ import {
 import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface ApproveMembershipRequest {
@@ -161,8 +161,9 @@ function deny(gate: DenyGate, correlationId?: string): Response {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("approve-membership", correlationId);
@@ -302,7 +303,7 @@ serve(async (req) => {
         limit: 10,
       });
 
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
@@ -419,6 +420,7 @@ serve(async (req) => {
 
       return deny("MEMBERSHIP_FETCH", correlationId);
     }
+    previousStatus = membership.status as MembershipStatus;
     // ========================================================================
     // 5️⃣ AUTHORIZATION CHECK (Role + Impersonation)
     // ========================================================================
@@ -536,8 +538,8 @@ serve(async (req) => {
     // ========================================================================
     // 6️⃣ VALIDATE MEMBERSHIP STATUS & PAYMENT
     // ========================================================================
-    if (previousStatus !== "PENDING_REVIEW") {
-      log.warn("Invalid status for approval", { status: previousStatus });
+    if (membership.status !== "PENDING_REVIEW") {
+      log.warn("Invalid status for approval", { status: membership.status });
       await logDecision(supabaseAdmin, {
         decision_type: DECISION_TYPES.VALIDATION_FAILURE,
         severity: "LOW",
@@ -545,7 +547,7 @@ serve(async (req) => {
         user_id: user.id,
         tenant_id: targetTenantId,
         reason_code: "INVALID_STATUS",
-        metadata: { current_status: previousStatus },
+        metadata: { current_status: membership.status },
       });
       return deny("STATUS", correlationId);
     }

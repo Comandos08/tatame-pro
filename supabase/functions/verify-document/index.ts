@@ -6,7 +6,8 @@ import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { SecureRateLimitPresets, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 /**
  * PI-D3-DOCS1.0: Public Document Verification Endpoint
@@ -54,11 +55,21 @@ const maskName = (name: string): string => {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("verify-document", correlationId);
+
+  // Rate limit: 60 per minute per IP, fail-open for public endpoint
+  const rateLimiter = SecureRateLimitPresets.verifyDocument();
+  const rateLimitCtx = buildRateLimitContext(req);
+  const rateLimitResult = await rateLimiter.check(rateLimitCtx);
+  if (!rateLimitResult.allowed) {
+    log.warn("Rate limit exceeded", { count: rateLimitResult.count });
+    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
+  }
 
   try {
     const { token }: VerifyRequest = await req.json();
@@ -68,7 +79,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200, // Always 200 for public endpoints (SAFE GOLD)
         }
       );
@@ -80,7 +91,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -102,7 +113,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -112,7 +123,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -123,7 +134,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "REVOKED" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -141,7 +152,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -178,7 +189,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
           {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...dynamicCors, "Content-Type": "application/json" },
             status: 200,
           }
         );
@@ -234,7 +245,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
           {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...dynamicCors, "Content-Type": "application/json" },
             status: 200,
           }
         );
@@ -274,7 +285,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "REVOKED" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -285,7 +296,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ valid: false, status_label: "INVALID" } as VerifyResponse),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 200,
         }
       );
@@ -318,7 +329,7 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
@@ -327,7 +338,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ valid: false, status_label: "NOT_FOUND" } as VerifyResponse),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       }
     );

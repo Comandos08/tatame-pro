@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RequestBody {
@@ -15,8 +15,9 @@ interface RequestBody {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-tenant-admin", correlationId);
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") {
       return new Response(
         JSON.stringify({ error: "Method not allowed" }),
-        { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -33,7 +34,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
     if (!superadminRole) {
       return new Response(
         JSON.stringify({ error: "Forbidden - Only superadmins can create tenant admins" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
     if (!email || !tenantId) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: email, tenantId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -98,7 +99,7 @@ Deno.serve(async (req) => {
     if (tenantError || !tenant) {
       return new Response(
         JSON.stringify({ error: "Tenant not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -148,13 +149,13 @@ Deno.serve(async (req) => {
           } else {
             return new Response(
               JSON.stringify({ error: `Error creating user: ${createError.message}` }),
-              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
             );
           }
         } else {
           return new Response(
             JSON.stringify({ error: `Error creating user: ${createError.message}` }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
           );
         }
       } else {
@@ -180,7 +181,7 @@ Deno.serve(async (req) => {
           isNewUser: false,
           alreadyAdmin: true,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -193,7 +194,7 @@ Deno.serve(async (req) => {
     if (roleError) {
       return new Response(
         JSON.stringify({ error: `Error assigning role: ${roleError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -228,13 +229,13 @@ Deno.serve(async (req) => {
         tenantSlug: tenant.slug,
         tenantName: tenant.name,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("Error in create-tenant-admin:", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });
