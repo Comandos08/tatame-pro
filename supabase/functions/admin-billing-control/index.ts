@@ -733,7 +733,7 @@ Deno.serve(async (req) => {
         success: true,
         billing_state: "NOT_PROVISIONED",
         message: "Tenant has no billing record yet"
-      }, corsHeaders, correlationId);
+      }, dynamicCors, correlationId);
     }
 
     // Execute action
@@ -791,7 +791,7 @@ Deno.serve(async (req) => {
     return okResponse({ 
       success: true, 
       message: `Action '${payload.action}' completed successfully for tenant ${tenant.name}` 
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Admin billing control error", error);

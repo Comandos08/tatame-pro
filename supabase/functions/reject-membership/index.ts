@@ -65,10 +65,10 @@ function rejectMembershipRateLimiter() {
 /**
  * Generic error response (anti-enumeration)
  */
-function forbiddenResp(correlationId?: string): Response {
+function forbiddenResp(correlationId?: string, dynamicCors: Record<string, string> = {}): Response {
   return errorResponse(403, buildErrorEnvelope(
     ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false, undefined, correlationId
-  ), corsHeaders);
+  ), dynamicCors);
 }
 
 serve(async (req) => {
@@ -176,7 +176,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'INVALID_PAYLOAD',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     const membershipId = body.membershipId;
@@ -191,7 +191,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MISSING_MEMBERSHIP_ID',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -221,7 +221,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MEMBERSHIP_NOT_FOUND',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     const targetTenantId = membership.tenant_id;
@@ -255,7 +255,7 @@ serve(async (req) => {
         actual_roles: roles?.map(r => r.role) || [],
         reason: 'INSUFFICIENT_PERMISSIONS',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // 5.2 If superadmin, REQUIRE valid impersonation
@@ -280,7 +280,7 @@ serve(async (req) => {
           reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
         });
         
-        return forbiddenResp(correlationId);
+        return forbiddenResp(correlationId, dynamicCors);
       }
 
       log.info("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
@@ -324,7 +324,7 @@ serve(async (req) => {
         reason_code: 'INVALID_STATUS',
         metadata: { current_status: previousStatus },
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -555,7 +555,7 @@ serve(async (req) => {
       previousStatus,
       newStatus: "REJECTED",
       email: emailResult,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error: unknown) {
     log.error("Unexpected error", error);

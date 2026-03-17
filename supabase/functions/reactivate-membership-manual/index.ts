@@ -76,7 +76,7 @@ function forbiddenResponse(): Response {
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
     {
       status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     }
   );
 }

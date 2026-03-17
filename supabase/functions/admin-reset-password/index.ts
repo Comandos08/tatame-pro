@@ -54,7 +54,7 @@ function genericErrorResponse(): Response {
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
     { 
       status: 403, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      headers: { ...dynamicCors, "Content-Type": "application/json" } 
     }
   );
 }
@@ -65,7 +65,7 @@ function successResponse(): Response {
     JSON.stringify({ ok: true, message: "Password reset executed" }),
     { 
       status: 200, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      headers: { ...dynamicCors, "Content-Type": "application/json" } 
     }
   );
 }

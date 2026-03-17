@@ -90,7 +90,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
     if (!stripeSecretKey) {
@@ -98,7 +98,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["STRIPE_SECRET_KEY"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -115,7 +115,7 @@ serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.missing_fields", false, ["membership_id, tenant_id, success_url, cancel_url required"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -125,7 +125,7 @@ serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.url_not_allowed", false, ["success_url or cancel_url not in allowlist"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -137,7 +137,7 @@ serve(async (req) => {
       return errorResponse(
         401,
         buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.missing_header", false, ["Missing authorization header"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -149,7 +149,7 @@ serve(async (req) => {
       return errorResponse(
         401,
         buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.invalid_token", false, ["Invalid authentication"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -163,7 +163,7 @@ serve(async (req) => {
         return errorResponse(
           403,
           buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary_violation", false, [boundaryError.code], correlationId),
-          corsHeaders,
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -181,7 +181,7 @@ serve(async (req) => {
       return errorResponse(
         403,
         buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, [authResult.error || "Access denied"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -209,7 +209,7 @@ serve(async (req) => {
       return errorResponse(
         404,
         buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "membership.not_found", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -222,7 +222,7 @@ serve(async (req) => {
       return errorResponse(
         403,
         buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary_violation", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -231,7 +231,7 @@ serve(async (req) => {
       return errorResponse(
         409,
         buildErrorEnvelope(ERROR_CODES.CONFLICT, "membership.fee_already_paid", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -241,7 +241,7 @@ serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "membership.fee_amount_missing", false, ["fee_amount_cents must be a positive integer"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -271,7 +271,7 @@ serve(async (req) => {
               session_id: existingFee.stripe_checkout_session_id,
               idempotent: true,
             },
-            corsHeaders,
+            dynamicCors,
             correlationId,
           );
         }
@@ -287,7 +287,7 @@ serve(async (req) => {
       return errorResponse(
         409,
         buildErrorEnvelope(ERROR_CODES.CONFLICT, "membership.fee_already_paid", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -348,7 +348,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.db_write_failed", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -377,7 +377,7 @@ serve(async (req) => {
         checkout_url: session.url,
         session_id: session.id,
       },
-      corsHeaders,
+      dynamicCors,
       correlationId,
     );
   } catch (err) {
@@ -385,7 +385,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

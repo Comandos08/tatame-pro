@@ -45,7 +45,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 
@@ -54,7 +54,7 @@ serve(async (req) => {
     return errorResponse(
       403,
       buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 
@@ -80,7 +80,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.db_error", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -151,7 +151,7 @@ serve(async (req) => {
         transitioned,
         failed,
       },
-      corsHeaders,
+      dynamicCors,
       correlationId,
     );
   } catch (err) {
@@ -159,7 +159,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.unhandled", true, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

@@ -143,7 +143,7 @@ type DenyGate =
   | "APPLICANT_DATA"
   | "TENANT_FETCH";
 
-function deny(gate: DenyGate, correlationId?: string): Response {
+function deny(gate: DenyGate, correlationId?: string, dynamicCors: Record<string, string> = {}): Response {
   const tracing = Deno.env.get("GATE_TRACE") === "1";
   const envelope = buildErrorEnvelope(
     ERROR_CODES.FORBIDDEN,
@@ -152,7 +152,7 @@ function deny(gate: DenyGate, correlationId?: string): Response {
     tracing ? [gate] : undefined,
     correlationId,
   );
-  const headers: Record<string, string> = { ...corsHeaders };
+  const headers: Record<string, string> = { ...dynamicCors };
   if (tracing) {
     headers["x-deny-gate"] = gate;
   }
@@ -202,7 +202,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -212,7 +212,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -234,7 +234,7 @@ serve(async (req) => {
         return errorResponse(
           500,
           buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
-          corsHeaders,
+          dynamicCors,
         );
       }
     }
@@ -260,7 +260,7 @@ serve(async (req) => {
       return errorResponse(
         401,
         buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -277,7 +277,7 @@ serve(async (req) => {
       return errorResponse(
         401,
         buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -321,7 +321,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "INVALID_PAYLOAD",
       });
-      return deny("PAYLOAD", correlationId);
+      return deny("PAYLOAD", correlationId, dynamicCors);
     }
 
     membershipId = body.membershipId;
@@ -336,7 +336,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MISSING_MEMBERSHIP_ID",
       });
-      return deny("PAYLOAD", correlationId);
+      return deny("PAYLOAD", correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -357,7 +357,7 @@ serve(async (req) => {
         reason_code: "INVALID_MEMBERSHIP_ID_FORMAT",
       });
 
-      return deny("PAYLOAD", correlationId);
+      return deny("PAYLOAD", correlationId, dynamicCors);
     }
 
     // STRICT fetch (must exist and be unique)
@@ -404,7 +404,7 @@ serve(async (req) => {
       });
 
       // Anti-enumeration
-      return deny("MEMBERSHIP_FETCH", correlationId);
+      return deny("MEMBERSHIP_FETCH", correlationId, dynamicCors);
     }
 
     if (!membership) {
@@ -418,7 +418,7 @@ serve(async (req) => {
         reason_code: "MEMBERSHIP_NULL",
       });
 
-      return deny("MEMBERSHIP_FETCH", correlationId);
+      return deny("MEMBERSHIP_FETCH", correlationId, dynamicCors);
     }
     previousStatus = membership.status as MembershipStatus;
     // ========================================================================
@@ -468,7 +468,7 @@ serve(async (req) => {
         reason: "INSUFFICIENT_PERMISSIONS",
       });
 
-      return deny("ROLE", correlationId);
+      return deny("ROLE", correlationId, dynamicCors);
     }
 
     // 5.2 If superadmin → REQUIRE impersonation
@@ -496,7 +496,7 @@ serve(async (req) => {
           reason: impersonationCheck.error || "INVALID_IMPERSONATION",
         });
 
-        return deny("IMPERSONATION", correlationId);
+        return deny("IMPERSONATION", correlationId, dynamicCors);
       }
 
       log.info("Superadmin with valid impersonation", {
@@ -549,7 +549,7 @@ serve(async (req) => {
         reason_code: "INVALID_STATUS",
         metadata: { current_status: membership.status },
       });
-      return deny("STATUS", correlationId);
+      return deny("STATUS", correlationId, dynamicCors);
     }
 
     if (membership.payment_status !== "PAID" && membership.payment_status !== "WAIVED") {
@@ -562,7 +562,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "PAYMENT_INCOMPLETE",
       });
-      return deny("PAYMENT", correlationId);
+      return deny("PAYMENT", correlationId, dynamicCors);
     }
 
     const applicantData = membership.applicant_data as ApplicantData | null;
@@ -576,7 +576,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "MISSING_APPLICANT_DATA",
       });
-      return deny("APPLICANT_DATA", correlationId);
+      return deny("APPLICANT_DATA", correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -610,7 +610,7 @@ serve(async (req) => {
               undefined,
               correlationId,
             ),
-            corsHeaders,
+            dynamicCors,
           );
         }
         validatedRoles.push(role as ApprovalRole);
@@ -626,7 +626,7 @@ serve(async (req) => {
           tenant_id: targetTenantId,
           reason_code: "NO_VALID_ROLES",
         });
-        return deny("PAYLOAD", correlationId);
+        return deny("PAYLOAD", correlationId, dynamicCors);
       }
     }
 
@@ -651,7 +651,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: "TENANT_NOT_FOUND",
       });
-      return deny("TENANT_FETCH", correlationId);
+      return deny("TENANT_FETCH", correlationId, dynamicCors);
     }
 
     log.info("Tenant data fetched", { slug: tenant.slug });
@@ -677,7 +677,7 @@ serve(async (req) => {
         return errorResponse(
           500,
           buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-          corsHeaders,
+          dynamicCors,
         );
       }
 
@@ -707,7 +707,7 @@ serve(async (req) => {
           return errorResponse(
             500,
             buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-            corsHeaders,
+            dynamicCors,
           );
         }
 
@@ -744,7 +744,7 @@ serve(async (req) => {
         return errorResponse(
           500,
           buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-          corsHeaders,
+          dynamicCors,
         );
       }
 
@@ -772,7 +772,7 @@ serve(async (req) => {
     // Defensive validation: resolvedAthleteId must be set
     if (!resolvedAthleteId) {
       log.error("ATHLETE_RESOLUTION_FAILED: resolvedAthleteId is falsy after resolution block");
-      return deny("APPLICANT_DATA", correlationId);
+      return deny("APPLICANT_DATA", correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -898,7 +898,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -916,7 +916,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -1120,7 +1120,7 @@ serve(async (req) => {
         cardGenerated,
         email: emailResult,
       },
-      corsHeaders,
+      dynamicCors,
       correlationId,
     );
   } catch (error: unknown) {
@@ -1130,7 +1130,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

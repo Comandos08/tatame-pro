@@ -376,7 +376,7 @@ serve(async (req) => {
     // ====================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return unauthorizedResponse(corsHeaders, "auth.missing_token");
+      return unauthorizedResponse(dynamicCors, "auth.missing_token");
     }
 
     const {
@@ -384,7 +384,7 @@ serve(async (req) => {
       error: userError,
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userError || !user) {
-      return unauthorizedResponse(corsHeaders, "auth.invalid_token");
+      return unauthorizedResponse(dynamicCors, "auth.invalid_token");
     }
 
     const { data: superadminRole } = await supabase
@@ -396,7 +396,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!superadminRole) {
-      return forbiddenResponse(corsHeaders, "auth.superadmin_required");
+      return forbiddenResponse(dynamicCors, "auth.superadmin_required");
     }
 
     // ====================================================================
@@ -406,7 +406,7 @@ serve(async (req) => {
 
     if (policiesError) {
       log.error("[AUDIT-RLS] RPC audit_rls_snapshot_superadmin failed:", policiesError.message);
-      return rpcErrorResponse(corsHeaders, "audit_rls_snapshot_superadmin", policiesError.message);
+      return rpcErrorResponse(dynamicCors, "audit_rls_snapshot_superadmin", policiesError.message);
     }
 
     const policyFindings = (policies as PolicyRow[]).map(classifyPolicyRisk);
@@ -418,7 +418,7 @@ serve(async (req) => {
 
     if (definersError) {
       log.error("[AUDIT-RLS] RPC audit_security_definer_snapshot_superadmin failed:", definersError.message);
-      return rpcErrorResponse(corsHeaders, "audit_security_definer_snapshot_superadmin", definersError.message);
+      return rpcErrorResponse(dynamicCors, "audit_security_definer_snapshot_superadmin", definersError.message);
     }
 
     const definerFindings = (definers as DefinerRow[]).map(classifyDefinerRisk);
@@ -430,7 +430,7 @@ serve(async (req) => {
 
     if (tablesError) {
       log.error("[AUDIT-RLS] RPC audit_tables_without_rls_superadmin failed:", tablesError.message);
-      return rpcErrorResponse(corsHeaders, "audit_tables_without_rls_superadmin", tablesError.message);
+      return rpcErrorResponse(dynamicCors, "audit_tables_without_rls_superadmin", tablesError.message);
     }
 
     const tablesWithoutRls = (tablesNoRls as { tablename: string }[]).map((r) => r.tablename);
@@ -512,7 +512,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

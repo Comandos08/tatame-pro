@@ -347,7 +347,7 @@ serve(async (req) => {
       skippedRoles,
       rolesBefore,
       rolesAfter,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Unexpected error", error);

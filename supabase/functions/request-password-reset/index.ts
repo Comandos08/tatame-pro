@@ -132,7 +132,7 @@ function generateToken(): string {
 function genericErrorResponse(): Response {
   return new Response(
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
   );
 }
 
@@ -145,7 +145,7 @@ function rateLimitResponse(): Response {
     { 
       status: 429, 
       headers: { 
-        ...corsHeaders, 
+        ...dynamicCors, 
         "Content-Type": "application/json",
       } 
     }

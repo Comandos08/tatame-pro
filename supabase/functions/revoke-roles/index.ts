@@ -304,7 +304,7 @@ serve(async (req) => {
       notFoundRoles,
       rolesBefore,
       rolesAfter,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Unexpected error", error);

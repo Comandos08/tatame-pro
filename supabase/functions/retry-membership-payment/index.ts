@@ -139,7 +139,7 @@ function rateLimitResponse(): Response {
     {
       status: 429,
       headers: {
-        ...corsHeaders,
+        ...dynamicCors,
         "Content-Type": "application/json",
       },
     }
