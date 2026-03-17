@@ -122,3 +122,80 @@ verify_jwt = false
 
 [functions.generate-digital-card]
 verify_jwt = false
+
+# ── Functions registered in Phase 2 (were missing from config) ──────────────
+
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.assign-athlete-badge]
+verify_jwt = false
+
+[functions.audit-billing-consistency]
+verify_jwt = false
+
+[functions.audit-rls]
+verify_jwt = false
+
+[functions.create-event-registration-checkout]
+verify_jwt = false
+
+[functions.create-membership-fee-checkout]
+verify_jwt = false
+
+[functions.emit-institutional-event]
+verify_jwt = false
+
+[functions.expire-grace-period]
+verify_jwt = false
+
+[functions.export-athlete-data]
+verify_jwt = false
+
+[functions.generate-diploma]
+verify_jwt = false
+
+[functions.health-check]
+verify_jwt = false
+
+[functions.import-athletes]
+verify_jwt = false
+
+[functions.join-federation]
+verify_jwt = false
+
+[functions.leave-federation]
+verify_jwt = false
+
+[functions.notify-new-grading]
+verify_jwt = false
+
+[functions.pre-expiration-scheduler]
+verify_jwt = false
+
+[functions.request-erasure]
+verify_jwt = false
+
+[functions.resolve-feature-flags]
+verify_jwt = false
+
+[functions.revoke-athlete-badge]
+verify_jwt = false
+
+[functions.seed-test-user]
+verify_jwt = false
+
+[functions.send-athlete-email]
+verify_jwt = false
+
+[functions.toggle-badge-active]
+verify_jwt = false
+
+[functions.update-badge-metadata]
+verify_jwt = false
+
+[functions.verify-digital-card]
+verify_jwt = false
+
+[functions.verify-document]
+verify_jwt = false
