@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface CreateUserRequest {
@@ -15,8 +15,10 @@ interface CreateUserRequest {
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("admin-create-user", correlationId);
@@ -33,7 +35,7 @@ serve(async (req: Request) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -43,7 +45,7 @@ serve(async (req: Request) => {
     if (authError || !caller) {
       return new Response(
         JSON.stringify({ error: "Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -57,7 +59,7 @@ serve(async (req: Request) => {
     if (!roles || roles.length === 0) {
       return new Response(
         JSON.stringify({ error: "Forbidden: requires SUPERADMIN_GLOBAL role" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -66,7 +68,7 @@ serve(async (req: Request) => {
     if (!email || !password || !name) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: email, password, name" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -82,7 +84,7 @@ serve(async (req: Request) => {
       log.error("Error creating user", createError);
       return new Response(
         JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -137,13 +139,13 @@ serve(async (req: Request) => {
         email,
         message: "User created and linked successfully",
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("Error in admin-create-user", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { validatePasswordComplexity } from "../_shared/password-validation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 // ============================================
@@ -83,8 +83,9 @@ function getClientIP(req: Request): string {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("reset-password", correlationId);
@@ -104,7 +105,7 @@ serve(async (req) => {
         { 
           status: 429, 
           headers: { 
-            ...corsHeaders, 
+            ...dynamicCors, 
             "Content-Type": "application/json",
             "Retry-After": Math.ceil((ipRateLimit.reset - Date.now()) / 1000).toString()
           } 
@@ -129,7 +130,7 @@ serve(async (req) => {
       log.info("Rate limited by token");
       return new Response(
         JSON.stringify({ valid: false, message: "Muitas tentativas para este token." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -145,14 +146,14 @@ serve(async (req) => {
       if (!resetRecord) {
         return new Response(
           JSON.stringify({ valid: false, message: "Token inválido ou expirado." }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
         );
       }
 
       if (resetRecord.used_at) {
         return new Response(
           JSON.stringify({ valid: false, message: "Este link já foi utilizado." }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
         );
       }
 
@@ -160,7 +161,7 @@ serve(async (req) => {
       if (expiresAt < new Date()) {
         return new Response(
           JSON.stringify({ valid: false, message: "Este link expirou. Solicite um novo." }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
         );
       }
 
@@ -171,7 +172,7 @@ serve(async (req) => {
           valid: true, 
           email: resetRecord.email.replace(/(.{2}).*(@.*)/, "$1***$2")
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -244,14 +245,14 @@ serve(async (req) => {
         success: true, 
         message: "Senha alterada com sucesso! Você já pode fazer login." 
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.info("Error", { error: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

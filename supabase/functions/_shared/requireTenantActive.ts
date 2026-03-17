@@ -28,6 +28,7 @@
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "./backend-logger.ts";
+import { corsHeaders } from "./cors.ts";
 
 /**
  * Valid tenant lifecycle statuses (matches database enum)
@@ -43,14 +44,6 @@ export interface TenantActiveCheckResult {
   error?: string;
   code?: 'TENANT_NOT_FOUND' | 'TENANT_NOT_ACTIVE' | 'TENANT_BLOCKED' | 'TENANT_SETUP';
 }
-
-/**
- * CORS headers for responses
- */
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 /**
  * Validates that tenant is in ACTIVE lifecycle status.

@@ -16,7 +16,7 @@ import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_sh
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface PublishBracketRequest {
@@ -27,8 +27,10 @@ interface PublishBracketRequest {
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("publish-event-bracket", correlationId);
@@ -44,7 +46,7 @@ Deno.serve(async (req) => {
     if (!bracketId) {
       return new Response(
         JSON.stringify({ error: 'bracketId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
       log.error("Auth error", authError);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -94,21 +96,21 @@ Deno.serve(async (req) => {
       log.error("Bracket not found", bracketError);
       return new Response(
         JSON.stringify({ error: 'Bracket not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     if (bracket.deleted_at) {
       return new Response(
         JSON.stringify({ error: 'Cannot publish deleted bracket' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     if (bracket.status === 'PUBLISHED') {
       return new Response(
         JSON.stringify({ error: 'Bracket is already published' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -123,7 +125,7 @@ Deno.serve(async (req) => {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
         return new Response(
           JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       throw boundaryError;
@@ -141,7 +143,7 @@ Deno.serve(async (req) => {
       log.warn("Billing gate failed", { code: billingGate.code });
       return new Response(
         JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
-        { status: billingGate.httpStatus ?? 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: billingGate.httpStatus ?? 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
       log.warn("Role check failed", { error: roleCheck.error });
       return new Response(
         JSON.stringify({ error: roleCheck.error }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -172,7 +174,7 @@ Deno.serve(async (req) => {
       log.warn("Impersonation check failed", { error: impersonationCheck.error });
       return new Response(
         JSON.stringify({ error: impersonationCheck.error }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
       log.error("Update error", updateError);
       return new Response(
         JSON.stringify({ error: 'Failed to publish bracket' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -203,14 +205,14 @@ Deno.serve(async (req) => {
         status: 'PUBLISHED',
         publishedAt: new Date().toISOString(),
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
 
   } catch (err) {
     log.error("Unexpected error", err);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
   }
 });

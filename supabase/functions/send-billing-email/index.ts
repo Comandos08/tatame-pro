@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface BillingEmailRequest {
@@ -431,8 +431,9 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("send-billing-email", correlationId);
@@ -443,7 +444,7 @@ serve(async (req) => {
       log.info("RESEND_API_KEY not configured, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "RESEND_API_KEY not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -504,7 +505,7 @@ serve(async (req) => {
       log.info("No recipients found, skipping email");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "No recipients" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -540,14 +541,14 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, emailResponse: emailResult }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error sending email", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

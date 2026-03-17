@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RequestBody {
@@ -11,8 +11,9 @@ interface RequestBody {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("get-document", correlationId);
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") {
       return new Response(
         JSON.stringify({ error: "Method not allowed" }),
-        { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - Missing or invalid authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
     if (!userId) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - No user ID in token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
     if (!documentId) {
       return new Response(
         JSON.stringify({ error: "Missing documentId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -95,14 +96,14 @@ Deno.serve(async (req) => {
       log.error("Error fetching document", docError);
       return new Response(
         JSON.stringify({ error: "Error fetching document" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
     if (!document) {
       return new Response(
         JSON.stringify({ error: "Document not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -196,7 +197,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ error: "Forbidden - You do not have permission to access this document" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
     if (!filePath) {
       return new Response(
         JSON.stringify({ error: "Invalid file path in document record" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -229,7 +230,7 @@ Deno.serve(async (req) => {
       log.error("Error creating signed URL", signedUrlError);
       return new Response(
         JSON.stringify({ error: "Error generating download URL" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -254,13 +255,13 @@ Deno.serve(async (req) => {
         documentType: document.type,
         fileType: document.file_type,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("Unexpected error in get-document", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

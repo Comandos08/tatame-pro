@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { SecureRateLimitPresets, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 interface VerifyRequest {
@@ -42,11 +43,21 @@ const maskName = (name: string): string => {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("verify-digital-card", correlationId);
+
+  // Rate limit: 60 per minute per IP, fail-open for public endpoint
+  const rateLimiter = SecureRateLimitPresets.verifyDocument();
+  const rateLimitCtx = buildRateLimitContext(req);
+  const rateLimitResult = await rateLimiter.check(rateLimitCtx);
+  if (!rateLimitResult.allowed) {
+    log.warn("Rate limit exceeded", { count: rateLimitResult.count });
+    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
+  }
 
   try {
     const { cardId, tenantSlug }: VerifyRequest = await req.json();
@@ -56,7 +67,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Missing or invalid cardId" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -69,7 +80,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Invalid card ID format" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -93,7 +104,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Verification failed" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 500,
         }
       );
@@ -103,7 +114,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Card not found" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 404,
         }
       );
@@ -123,7 +134,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 404,
         }
       );
@@ -165,7 +176,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 404,
         }
       );
@@ -217,7 +228,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Card data incomplete" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 404,
         }
       );
@@ -228,7 +239,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ found: false, error: "Card not found in this organization" }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 404,
         }
       );
@@ -294,7 +305,7 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
@@ -302,7 +313,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ found: false, error: "Internal error" }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 500,
       }
     );

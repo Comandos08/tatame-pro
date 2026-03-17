@@ -47,13 +47,14 @@ import {
 } from "../_shared/validation/schemas/grant-roles.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("grant-roles", correlationId);
@@ -100,17 +101,17 @@ serve(async (req) => {
         count: rateLimitResult.count,
       });
       
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
     // PARSE & VALIDATE INPUT (PI-A05 — Institutional Validation Layer)
     // ========================================================================
-    const bodyResult = await parseRequestBody(req, corsHeaders);
+    const bodyResult = await parseRequestBody(req, dynamicCors);
     if (!bodyResult.success) return bodyResult.response;
 
     const parsed = validateInput(GrantRolesSchema, bodyResult.data);
-    if (!parsed.success) return validationErrorResponse(parsed.error, corsHeaders);
+    if (!parsed.success) return validationErrorResponse(parsed.error, dynamicCors);
 
     const { targetProfileId, tenantId, roles, reason } = parsed.data;
     const validatedRoles: ValidRole[] = [...roles];
@@ -213,7 +214,7 @@ serve(async (req) => {
           ERROR_CODES.FORBIDDEN,
           "Only SUPERADMIN_GLOBAL can grant ADMIN_TENANT role",
           false, undefined, correlationId
-        ), corsHeaders);
+        ), dynamicCors);
       }
     }
 
@@ -253,7 +254,7 @@ serve(async (req) => {
           ERROR_CODES.FORBIDDEN,
           "Tenant boundary violation",
           false, undefined, correlationId
-        ), corsHeaders);
+        ), dynamicCors);
       }
       throw boundaryError;
     }
@@ -346,12 +347,12 @@ serve(async (req) => {
       skippedRoles,
       rolesBefore,
       rolesAfter,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Unexpected error", error);
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 });

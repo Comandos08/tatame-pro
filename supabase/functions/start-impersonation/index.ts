@@ -40,7 +40,7 @@ import {
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
 import {
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -80,8 +80,10 @@ interface StartImpersonationRequest {
 Deno.serve(async (req) => {
   // --- CORS Preflight ---
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("start-impersonation", correlationId);
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       log.warn("Missing authorization header");
-      return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.missing_header", undefined, correlationId);
     }
 
     // ========================================================================
@@ -106,7 +108,7 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseUser for JWT validation
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       log.warn("Invalid or expired token");
-      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.invalid_token", undefined, correlationId);
     }
 
     log.setUser(user.id);
@@ -155,7 +157,7 @@ Deno.serve(async (req) => {
 
     if (!rateLimitResult.allowed) {
       log.warn("Rate limit exceeded");
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders, correlationId);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -173,7 +175,7 @@ Deno.serve(async (req) => {
     if (roleError || !superadmin) {
       log.setStep("actor_validated");
       log.warn("Non-superadmin attempted impersonation");
-      return forbiddenResponse(corsHeaders, "auth.superadmin_required", undefined, correlationId);
+      return forbiddenResponse(dynamicCors, "auth.superadmin_required", undefined, correlationId);
     }
 
     log.setStep("actor_validated");
@@ -190,7 +192,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.target_tenant_required", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -211,7 +213,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         404,
         buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "tenant.not_found", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -220,7 +222,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.TENANT_BLOCKED, "impersonation.tenant_inactive", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -289,7 +291,7 @@ Deno.serve(async (req) => {
           return errorResponse(
             500,
             buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.lock_recovery_failed", true, undefined, correlationId),
-            corsHeaders,
+            dynamicCors,
           );
         }
 
@@ -308,14 +310,14 @@ Deno.serve(async (req) => {
           expiresAt: existing.expires_at,
           status: 'ACTIVE',
           lock: 'CONCURRENT_ACTIVE_SESSION',
-        }, corsHeaders, correlationId);
+        }, dynamicCors, correlationId);
       }
 
       log.error("Failed to create impersonation session", insertError);
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.create_failed", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -324,7 +326,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "impersonation.create_failed", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -361,14 +363,14 @@ Deno.serve(async (req) => {
       targetTenantName: targetTenant.name,
       expiresAt: expiresAt.toISOString(),
       status: 'ACTIVE',
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (err) {
     log.error("Unhandled exception", err);
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

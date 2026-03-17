@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
 
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
   const startTime = Date.now();
   const checks: Record<string, { status: string; latencyMs?: number }> = {};
 
@@ -64,7 +65,7 @@ serve(async (req) => {
     }),
     {
       status: allHealthy ? 200 : 503,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     }
   );
 });

@@ -36,7 +36,7 @@ import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -65,8 +65,10 @@ interface ValidateImpersonationRequest {
 Deno.serve(async (req) => {
   // --- CORS Preflight ---
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("validate-impersonation", correlationId);
@@ -78,7 +80,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       log.warn("Missing authorization header");
-      return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.missing_header", undefined, correlationId);
     }
 
     // ========================================================================
@@ -91,7 +93,7 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseUser for JWT validation
@@ -106,7 +108,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       log.warn("Invalid or expired token");
-      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.invalid_token", undefined, correlationId);
     }
 
     log.setUser(user.id);
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
 
     if (roleError || !superadmin) {
       log.warn("Caller no longer has SUPERADMIN_GLOBAL role");
-      return forbiddenResponse(corsHeaders, "auth.superadmin_required", undefined, correlationId);
+      return forbiddenResponse(dynamicCors, "auth.superadmin_required", undefined, correlationId);
     }
 
     // ========================================================================
@@ -140,7 +142,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.impersonation_id_required", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -169,7 +171,7 @@ Deno.serve(async (req) => {
       return errorResponse(
         404,
         buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "impersonation.session_not_found", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -181,7 +183,7 @@ Deno.serve(async (req) => {
     // ========================================================================
     if (session.superadmin_user_id !== user.id) {
       log.warn("Attempted to validate session owned by another user", { impersonationId, owner: session.superadmin_user_id });
-      return forbiddenResponse(corsHeaders, "impersonation.not_owner", undefined, correlationId);
+      return forbiddenResponse(dynamicCors, "impersonation.not_owner", undefined, correlationId);
     }
 
     // ========================================================================
@@ -192,7 +194,7 @@ Deno.serve(async (req) => {
       return okResponse({
         valid: false,
         status: session.status,
-      }, corsHeaders, correlationId);
+      }, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -233,7 +235,7 @@ Deno.serve(async (req) => {
       return okResponse({
         valid: false,
         status: 'EXPIRED',
-      }, corsHeaders, correlationId);
+      }, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -248,7 +250,7 @@ Deno.serve(async (req) => {
       return okResponse({
         valid: false,
         status: 'TENANT_INACTIVE',
-      }, corsHeaders, correlationId);
+      }, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -267,14 +269,14 @@ Deno.serve(async (req) => {
       expiresAt: session.expires_at,
       status: 'ACTIVE',
       remainingMinutes,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (err) {
     log.error("Unhandled exception", err);
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

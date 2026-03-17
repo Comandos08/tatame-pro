@@ -21,6 +21,7 @@
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "./backend-logger.ts";
+import { corsHeaders as corsH } from "./cors.ts";
 
 export type EdgeAppRole =
   | 'SUPERADMIN_GLOBAL'
@@ -196,10 +197,6 @@ export async function requireGlobalSuperadmin(
  * Create a standardized 403 Forbidden response (Institutional Envelope).
  */
 export function forbiddenResponse(message: string = 'Forbidden'): Response {
-  const corsH = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-impersonation-id',
-  };
   return new Response(
     JSON.stringify({
       ok: false,
@@ -217,10 +214,6 @@ export function forbiddenResponse(message: string = 'Forbidden'): Response {
  * Create a standardized 401 Unauthorized response (Institutional Envelope).
  */
 export function unauthorizedResponse(message: string = 'Unauthorized'): Response {
-  const corsH = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-impersonation-id',
-  };
   return new Response(
     JSON.stringify({
       ok: false,

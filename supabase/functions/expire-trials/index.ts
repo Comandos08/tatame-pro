@@ -20,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import {
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -56,8 +56,9 @@ async function sendBillingEmail(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("expire-trials", correlationId);
@@ -73,7 +74,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.cron_secret_missing", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 
@@ -82,7 +83,7 @@ serve(async (req) => {
     return errorResponse(
       403,
       buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.cron_secret_invalid", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
   // ========================================
@@ -96,7 +97,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -120,7 +121,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.fetch_failed", true, [`fetch: ${fetchError.message}`], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -186,13 +187,13 @@ serve(async (req) => {
 
     log.info("Job completed", results);
 
-    return okResponse({ success: true, ...results }, corsHeaders, correlationId);
+    return okResponse({ success: true, ...results }, dynamicCors, correlationId);
   } catch (err) {
     log.error("Unhandled exception", err);
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

@@ -33,7 +33,7 @@ import {
 } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 // UUID regex for validation
@@ -54,7 +54,7 @@ function genericErrorResponse(): Response {
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
     { 
       status: 403, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      headers: { ...dynamicCors, "Content-Type": "application/json" } 
     }
   );
 }
@@ -65,7 +65,7 @@ function successResponse(): Response {
     JSON.stringify({ ok: true, message: "Password reset executed" }),
     { 
       status: 200, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      headers: { ...dynamicCors, "Content-Type": "application/json" } 
     }
   );
 }
@@ -73,8 +73,9 @@ function successResponse(): Response {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("admin-reset-password", correlationId);
@@ -83,7 +84,7 @@ serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ ok: false, error: "Method not allowed" }),
-      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -103,7 +104,7 @@ serve(async (req) => {
     log.warn("No auth header");
     return new Response(
       JSON.stringify({ ok: false, error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -146,7 +147,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: false, error: "Invalid request body" }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -259,7 +260,7 @@ serve(async (req) => {
       limit: 5,
     });
 
-    return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -286,7 +287,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: false, error: "Invalid payload" }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 
@@ -310,7 +311,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: false, error: "Invalid payload" }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 

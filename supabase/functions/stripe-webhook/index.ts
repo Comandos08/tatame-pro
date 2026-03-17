@@ -13,7 +13,7 @@ import {
   mapStripeStatusToBilling,
 } from "../_shared/billing-state-machine.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClientAny = SupabaseClient<any, any, any>;
@@ -128,8 +128,9 @@ async function sendBillingEmail(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   // Pre-verification logger (uses request correlation or UUID)
   const preCorrelationId = extractCorrelationId(req);
@@ -148,7 +149,7 @@ serve(async (req) => {
       log.error("Missing Supabase configuration");
       return new Response(
         JSON.stringify({ error: "Webhook not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
     if (!stripeSecretKey || !webhookSecret) {
@@ -156,7 +157,7 @@ serve(async (req) => {
       log.error("Missing Stripe configuration");
       return new Response(
         JSON.stringify({ error: "Webhook not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -175,7 +176,7 @@ serve(async (req) => {
       log.warn("Missing Stripe signature header");
       return new Response(
         JSON.stringify({ error: "Missing signature" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -190,7 +191,7 @@ serve(async (req) => {
       log.error("Webhook signature verification failed", err);
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -212,7 +213,7 @@ serve(async (req) => {
       log.info("Event already processed, skipping", { eventId: event.id });
       return new Response(
         JSON.stringify({ received: true, duplicate: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -293,7 +294,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ received: true }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: unknown) {
     // STEP 5 — Outer catch: return 200 (never 500) to prevent Stripe infinite retries
@@ -339,7 +340,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ received: true }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   }
 });

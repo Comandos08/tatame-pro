@@ -46,7 +46,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 const OPERATION_NAME = "reactivate-membership-manual";
@@ -76,15 +76,16 @@ function forbiddenResponse(): Response {
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
     {
       status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     }
   );
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("reactivate-membership-manual", correlationId);
@@ -108,7 +109,7 @@ serve(async (req) => {
         JSON.stringify({ ok: false, error: "Operation not permitted" }),
         {
           status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -127,7 +128,7 @@ serve(async (req) => {
         JSON.stringify({ ok: false, error: "Operation not permitted" }),
         {
           status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -153,7 +154,7 @@ serve(async (req) => {
         limit: 10,
       });
 
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
@@ -207,7 +208,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -355,7 +356,7 @@ serve(async (req) => {
         }),
         {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -380,7 +381,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -407,7 +408,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -451,7 +452,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -483,7 +484,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -513,7 +514,7 @@ serve(async (req) => {
           }),
           {
             status: 409,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...dynamicCors, "Content-Type": "application/json" },
           }
         );
       }
@@ -521,7 +522,7 @@ serve(async (req) => {
         JSON.stringify({ ok: false, error: "Operation failed" }),
         {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
         }
       );
     }
@@ -589,7 +590,7 @@ serve(async (req) => {
       }),
       {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       }
     );
   } catch (err) {
@@ -599,7 +600,7 @@ serve(async (req) => {
       JSON.stringify({ ok: false, error: "Internal server error" }),
       {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
       }
     );
   }

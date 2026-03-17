@@ -38,7 +38,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RevokeRolesRequest {
@@ -52,8 +52,9 @@ interface RevokeRolesRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("revoke-roles", correlationId);
@@ -100,7 +101,7 @@ serve(async (req) => {
         count: rateLimitResult.count,
       });
       
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
     // ========================================================================
     // PARSE INPUT
@@ -111,7 +112,7 @@ serve(async (req) => {
     } catch {
       return errorResponse(400, buildErrorEnvelope(
         ERROR_CODES.MALFORMED_JSON, "validation.malformed_json", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
     const { targetProfileId, tenantId, roles, reason, forceRemoveAll } = body;
 
@@ -119,7 +120,7 @@ serve(async (req) => {
       return errorResponse(400, buildErrorEnvelope(
         ERROR_CODES.VALIDATION_ERROR, "validation.missing_fields", false,
         ["Missing required fields: targetProfileId, tenantId, roles"], correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     log.setTenant(tenantId);
@@ -137,7 +138,7 @@ serve(async (req) => {
         return errorResponse(403, buildErrorEnvelope(
           ERROR_CODES.FORBIDDEN, "auth.tenant_boundary_violation", false,
           [boundaryError.code], correlationId
-        ), corsHeaders);
+        ), dynamicCors);
       }
       throw boundaryError;
     }
@@ -240,7 +241,7 @@ serve(async (req) => {
       return errorResponse(422, buildErrorEnvelope(
         ERROR_CODES.VALIDATION_ERROR, "validation.cannot_orphan_user", false,
         ["Cannot remove all roles. User would become orphaned. Use forceRemoveAll if ending membership."], correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     // ========================================================================
@@ -303,12 +304,12 @@ serve(async (req) => {
       notFoundRoles,
       rolesBefore,
       rolesAfter,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Unexpected error", error);
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 });

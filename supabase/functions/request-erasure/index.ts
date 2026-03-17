@@ -12,13 +12,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("request-erasure", correlationId);
@@ -28,7 +29,7 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
@@ -48,7 +49,7 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
@@ -57,7 +58,7 @@ serve(async (req) => {
     if (!athlete_id || !tenant_id) {
       return new Response(
         JSON.stringify({ error: "athlete_id and tenant_id are required" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -72,7 +73,7 @@ serve(async (req) => {
     if (!athlete) {
       return new Response(
         JSON.stringify({ error: "Athlete not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -91,7 +92,7 @@ serve(async (req) => {
       if (!roleMember) {
         return new Response(
           JSON.stringify({ error: "Forbidden: you may only request erasure for your own data" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 403 }
         );
       }
     }
@@ -109,7 +110,7 @@ serve(async (req) => {
     if (existing) {
       return new Response(
         JSON.stringify({ error: "Uma solicitação de exclusão já está em análise", request_id: existing.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
       );
     }
 
@@ -149,14 +150,14 @@ serve(async (req) => {
         status: "PENDING_ADMIN_REVIEW",
         message: "Sua solicitação foi registrada e será analisada pela equipe administrativa. Registros esportivos oficiais podem ter retenção legal obrigatória.",
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error creating erasure request", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

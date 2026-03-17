@@ -25,7 +25,7 @@ jobs:
 
       - name: Security audit
         run: npm audit --audit-level=high
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Lint
         run: npm run lint
@@ -43,6 +43,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           CI: true
         run: npx playwright test
 

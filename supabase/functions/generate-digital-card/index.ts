@@ -38,7 +38,7 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface GenerateCardRequest {
@@ -63,9 +63,10 @@ async function calculateContentHash(payload: Record<string, unknown>): Promise<s
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return corsPreflightResponse();
+    return corsPreflightResponse(req);
   }
 
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("generate-digital-card", correlationId);
 
@@ -84,7 +85,7 @@ serve(async (req) => {
     if (!authHeader) {
       log.warn("Auth failed - missing authorization header");
       return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -98,7 +99,7 @@ serve(async (req) => {
     if (userError || !user) {
       log.warn("Auth failed - invalid token");
       return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
       });
     }
@@ -113,7 +114,7 @@ serve(async (req) => {
     } catch {
       // Neutral error - no stack trace
       return new Response(JSON.stringify({ success: false, error: "Invalid request" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -124,7 +125,7 @@ serve(async (req) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!membershipId || typeof membershipId !== "string" || !uuidRegex.test(membershipId)) {
       return new Response(JSON.stringify({ success: false, error: "Invalid membership ID" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -168,7 +169,7 @@ serve(async (req) => {
       if (!hasAdminRole) {
         log.warn("Access denied - caller is not membership owner or tenant admin", { userId: user.id });
         return new Response(JSON.stringify({ success: false, error: "Forbidden" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
           status: 403,
         });
       }
@@ -202,7 +203,7 @@ serve(async (req) => {
 
     if (existingCard) {
       return new Response(JSON.stringify({ success: true, message: "Card already exists", cardId: existingCard.id }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -531,7 +532,7 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -541,7 +542,7 @@ serve(async (req) => {
     // Defensive assertion
     if (!publicToken) {
       return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -570,13 +571,13 @@ serve(async (req) => {
           publicToken: publicToken,
         },
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (error: unknown) {
     // PI-D5.B: Neutral error - no stack trace, no semantic info
     log.error("Error generating digital card:", error);
     return new Response(JSON.stringify({ success: false, error: "Card generation failed" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
       status: 200,
     });
   }

@@ -31,7 +31,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface LeaveFederationRequest {
@@ -42,8 +42,9 @@ interface LeaveFederationRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("leave-federation", correlationId);
@@ -60,7 +61,7 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -70,7 +71,7 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ success: false, error: "Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -83,7 +84,7 @@ serve(async (req) => {
     } catch {
       return new Response(
         JSON.stringify({ success: false, error: "Invalid request" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -94,7 +95,7 @@ serve(async (req) => {
     if (!tenantId || !federationId || !uuidRegex.test(tenantId) || !uuidRegex.test(federationId)) {
       return new Response(
         JSON.stringify({ success: false, error: "Invalid ID format" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -102,7 +103,7 @@ serve(async (req) => {
     if (!reason || typeof reason !== "string" || reason.trim().length < 5) {
       return new Response(
         JSON.stringify({ success: false, error: "Reason is required (min 5 characters)" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -132,7 +133,7 @@ serve(async (req) => {
     if (!isSuperadmin && !isTenantAdmin && !isFedAdmin) {
       return new Response(
         JSON.stringify({ success: false, error: "Insufficient permissions" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -150,21 +151,21 @@ serve(async (req) => {
       log.error("Membership lookup error", membershipError);
       return new Response(
         JSON.stringify({ success: false, error: "Membership lookup failed" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
     if (!membership) {
       return new Response(
         JSON.stringify({ success: false, error: "Tenant is not a member of this federation" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
     if (membership.left_at) {
       return new Response(
         JSON.stringify({ success: false, error: "Tenant has already left this federation" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -192,7 +193,7 @@ serve(async (req) => {
       log.error("Update error", updateError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to leave federation" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -221,14 +222,14 @@ serve(async (req) => {
         tenantId,
         leftAt: now,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
     log.error("Error", error);
     return new Response(
       JSON.stringify({ success: false, error: "Operation failed" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

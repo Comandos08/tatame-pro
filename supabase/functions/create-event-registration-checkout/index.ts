@@ -12,7 +12,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
@@ -27,8 +27,9 @@ interface EventRegistrationCheckoutRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-event-registration-checkout", correlationId);
@@ -38,7 +39,7 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
@@ -58,7 +59,7 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
@@ -68,7 +69,7 @@ serve(async (req) => {
     if (!event_id || !category_id || !athlete_id) {
       return new Response(
         JSON.stringify({ error: "event_id, category_id and athlete_id are required" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -90,7 +91,7 @@ serve(async (req) => {
     if (catError || !category) {
       return new Response(
         JSON.stringify({ error: "Category not found or inactive" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -102,14 +103,14 @@ serve(async (req) => {
     if (!event) {
       return new Response(
         JSON.stringify({ error: "Event not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
     if (event.status !== "PUBLISHED") {
       return new Response(
         JSON.stringify({ error: "Event is not open for registrations" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
@@ -125,7 +126,7 @@ serve(async (req) => {
     if (existing && existing.status !== "CANCELED") {
       return new Response(
         JSON.stringify({ error: "Athlete already registered in this category", registration_id: existing.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
       );
     }
 
@@ -141,7 +142,7 @@ serve(async (req) => {
       if ((count ?? 0) >= category.max_participants) {
         return new Response(
           JSON.stringify({ error: "Category is full" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
+          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
         );
       }
     }
@@ -176,7 +177,7 @@ serve(async (req) => {
       log.info("Free event registration created", { registration_id: registration.id });
       return new Response(
         JSON.stringify({ registration_id: registration.id, is_free: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -185,7 +186,7 @@ serve(async (req) => {
     if (!stripeKey) {
       return new Response(
         JSON.stringify({ error: "Payment not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 503 }
+        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 503 }
       );
     }
 
@@ -251,14 +252,14 @@ serve(async (req) => {
         registration_id: pendingReg.id,
         is_free: false,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error creating event registration checkout", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

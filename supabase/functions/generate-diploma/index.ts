@@ -50,7 +50,7 @@ import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-bound
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -85,8 +85,10 @@ interface GenerateDiplomaRequest {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("generate-diploma", correlationId);
@@ -100,7 +102,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
@@ -114,14 +116,14 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing authorization' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
     const { data: { user }, error: userErr } = await supabaseAuth.auth.getUser();
     if (userErr || !user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -132,7 +134,7 @@ serve(async (req) => {
     } catch {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid request' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -144,28 +146,28 @@ serve(async (req) => {
     if (!athleteId || !gradingLevelId || !promotionDate) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required fields' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!uuidRegex.test(athleteId) || !uuidRegex.test(gradingLevelId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid ID format' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     if (academyId && !uuidRegex.test(academyId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid academy ID format' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     if (coachId && !uuidRegex.test(coachId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid coach ID format' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -179,7 +181,7 @@ serve(async (req) => {
     if (athleteError || !athlete) {
       return new Response(
         JSON.stringify({ success: false, error: 'Athlete not found' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -196,7 +198,7 @@ serve(async (req) => {
     if (levelError || !gradingLevel) {
       return new Response(
         JSON.stringify({ success: false, error: 'Grading level not found' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -204,7 +206,7 @@ serve(async (req) => {
     if (athlete.tenant_id !== gradingLevel.tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid tenant context' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -219,7 +221,7 @@ serve(async (req) => {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
         return new Response(
           JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       throw boundaryError;
@@ -235,7 +237,7 @@ serve(async (req) => {
     if (tenantError || !tenant) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant not found' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -300,7 +302,7 @@ serve(async (req) => {
           error: 'MEMBERSHIP_REQUIRED',
           message: 'Official diploma requires ACTIVE membership.'
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -368,7 +370,7 @@ serve(async (req) => {
               error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
               message: 'Override requires valid reason (min 8 chars) and grantor ID.'
             }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -406,7 +408,7 @@ serve(async (req) => {
               error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
               message: 'Override requires ADMIN or SUPERADMIN permissions.'
             }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -439,7 +441,7 @@ serve(async (req) => {
             error: 'MEMBERSHIP_REQUIRED',
             message: 'Official diploma requires ACTIVE membership.'
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -479,7 +481,7 @@ serve(async (req) => {
       log.error('Error generating serial number:', serialError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -625,7 +627,7 @@ serve(async (req) => {
       log.error('PDF upload error:', pdfUploadError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -707,7 +709,7 @@ serve(async (req) => {
       log.info('Duplicate diploma prevented', { athlete_id: athleteId, grading_level_id: gradingLevelId, existing_id: existingDiploma.id });
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma já emitido para este atleta neste nível', diploma_id: existingDiploma.id, serial_number: existingDiploma.serial_number }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -738,7 +740,7 @@ serve(async (req) => {
       log.error('Diploma insert error:', diplomaError);
       return new Response(
         JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -809,7 +811,7 @@ serve(async (req) => {
         },
         grading: grading || null,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
@@ -817,7 +819,7 @@ serve(async (req) => {
     log.error('Error generating diploma:', error);
     return new Response(
       JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
     );
   }
 });

@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 const OPERATION_NAME = "create-membership-checkout";
@@ -182,7 +182,7 @@ interface MembershipCheckoutRequest {
 function genericErrorResponse(): Response {
   return new Response(
     JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
   );
 }
 
@@ -195,7 +195,7 @@ function rateLimitResponse(): Response {
     { 
       status: 429, 
       headers: { 
-        ...corsHeaders, 
+        ...dynamicCors, 
         "Content-Type": "application/json",
       } 
     }
@@ -204,8 +204,9 @@ function rateLimitResponse(): Response {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("create-membership-checkout", correlationId);
@@ -217,7 +218,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
         JSON.stringify({ error: "Operation not permitted" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -284,7 +285,7 @@ serve(async (req) => {
     if (!captchaResult.success) {
       return new Response(
         JSON.stringify({ error: captchaResult.error, captchaRequired: true }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -427,7 +428,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 200,
       }
     );
@@ -437,7 +438,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 500,
       }
     );

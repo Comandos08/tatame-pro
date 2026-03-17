@@ -41,7 +41,7 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 interface RejectMembershipRequest {
@@ -65,16 +65,17 @@ function rejectMembershipRateLimiter() {
 /**
  * Generic error response (anti-enumeration)
  */
-function forbiddenResp(correlationId?: string): Response {
+function forbiddenResp(correlationId?: string, dynamicCors: Record<string, string> = {}): Response {
   return errorResponse(403, buildErrorEnvelope(
     ERROR_CODES.FORBIDDEN, "auth.operation_not_permitted", false, undefined, correlationId
-  ), corsHeaders);
+  ), dynamicCors);
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("reject-membership", correlationId);
@@ -95,7 +96,7 @@ serve(async (req) => {
       });
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     // PI-AUTH-CLIENT-SPLIT-001: Two-client architecture
@@ -120,7 +121,7 @@ serve(async (req) => {
       });
       return errorResponse(401, buildErrorEnvelope(
         ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
@@ -132,7 +133,7 @@ serve(async (req) => {
       });
       return errorResponse(401, buildErrorEnvelope(
         ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     const adminProfileId = user.id;
@@ -157,7 +158,7 @@ serve(async (req) => {
         limit: 10,
       });
       
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
     }
 
     // ========================================================================
@@ -175,7 +176,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'INVALID_PAYLOAD',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     const membershipId = body.membershipId;
@@ -190,7 +191,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MISSING_MEMBERSHIP_ID',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -220,7 +221,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: 'MEMBERSHIP_NOT_FOUND',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     const targetTenantId = membership.tenant_id;
@@ -254,7 +255,7 @@ serve(async (req) => {
         actual_roles: roles?.map(r => r.role) || [],
         reason: 'INSUFFICIENT_PERMISSIONS',
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // 5.2 If superadmin, REQUIRE valid impersonation
@@ -279,7 +280,7 @@ serve(async (req) => {
           reason: impersonationCheck.error || 'INVALID_IMPERSONATION',
         });
         
-        return forbiddenResp(correlationId);
+        return forbiddenResp(correlationId, dynamicCors);
       }
 
       log.info("Superadmin with valid impersonation", { impersonationId: impersonationCheck.impersonationId });
@@ -323,7 +324,7 @@ serve(async (req) => {
         reason_code: 'INVALID_STATUS',
         metadata: { current_status: previousStatus },
       });
-      return forbiddenResp(correlationId);
+      return forbiddenResp(correlationId, dynamicCors);
     }
 
     // ========================================================================
@@ -344,7 +345,7 @@ serve(async (req) => {
       log.error("Gatekeeper RPC failed", rpcError);
       return errorResponse(500, buildErrorEnvelope(
         ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-      ), corsHeaders);
+      ), dynamicCors);
     }
 
     log.info("Membership rejected", { newStatus: "REJECTED" });
@@ -554,7 +555,7 @@ serve(async (req) => {
       previousStatus,
       newStatus: "REJECTED",
       email: emailResult,
-    }, corsHeaders, correlationId);
+    }, dynamicCors, correlationId);
 
   } catch (error: unknown) {
     log.error("Unexpected error", error);
@@ -562,6 +563,6 @@ serve(async (req) => {
     // Anti-enumeration: generic error response
     return errorResponse(500, buildErrorEnvelope(
       ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId
-    ), corsHeaders);
+    ), dynamicCors);
   }
 });

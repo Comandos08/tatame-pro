@@ -42,7 +42,7 @@ import {
   SecureRateLimitPresets,
   buildRateLimitContext,
 } from "../_shared/secure-rate-limiter.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
   okResponse,
   errorResponse,
   buildErrorEnvelope,
@@ -63,8 +63,9 @@ import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
 serve(async (req) => {
   // --- CORS Preflight ---
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("tenant-customer-portal", correlationId);
@@ -82,7 +83,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["STRIPE_SECRET_KEY"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -97,7 +98,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.config_missing", false, ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"], correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseClient for DB ops, supabaseAuth for JWT validation
@@ -109,7 +110,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       log.warn("Missing authorization header");
-      return unauthorizedResponse(corsHeaders, "auth.missing_header", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.missing_header", undefined, correlationId);
     }
 
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
@@ -118,12 +119,12 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseAuth.auth.getUser();
     if (userError) {
       log.warn("Authentication error", { error: userError.message });
-      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.invalid_token", undefined, correlationId);
     }
     const user = userData.user;
     if (!user?.id) {
       log.warn("User not authenticated");
-      return unauthorizedResponse(corsHeaders, "auth.invalid_token", undefined, correlationId);
+      return unauthorizedResponse(dynamicCors, "auth.invalid_token", undefined, correlationId);
     }
 
     log.setUser(user.id);
@@ -138,7 +139,7 @@ serve(async (req) => {
 
     if (!rateLimitResult.allowed) {
       log.warn("Rate limit exceeded");
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, corsHeaders, correlationId);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -150,7 +151,7 @@ serve(async (req) => {
       return errorResponse(
         400,
         buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.tenant_id_required", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -180,7 +181,7 @@ serve(async (req) => {
     const isAuthorized = (tenantRoles && tenantRoles.length > 0) || (globalRoles && globalRoles.length > 0);
     if (!isAuthorized) {
       log.warn("User not authorized for billing portal");
-      return forbiddenResponse(corsHeaders, "auth.billing_access_denied", undefined, correlationId);
+      return forbiddenResponse(dynamicCors, "auth.billing_access_denied", undefined, correlationId);
     }
 
     log.setStep("fetch_stripe");
@@ -200,7 +201,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "billing.fetch_failed", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
     
@@ -209,7 +210,7 @@ serve(async (req) => {
       return errorResponse(
         404,
         buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "billing.no_stripe_customer", false, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -234,13 +235,13 @@ serve(async (req) => {
     // STEP 9: Success Response
     // Returns URL only; customer interacts with Stripe, not us
     // ========================================================================
-    return okResponse({ url: portalSession.url }, corsHeaders, correlationId);
+    return okResponse({ url: portalSession.url }, dynamicCors, correlationId);
   } catch (err) {
     log.error("Unhandled exception", err);
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

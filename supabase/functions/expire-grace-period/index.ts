@@ -22,13 +22,14 @@ import {
   ERROR_CODES,
 } from "../_shared/errors/envelope.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("expire-grace-period", correlationId);
@@ -44,7 +45,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 
@@ -53,7 +54,7 @@ serve(async (req) => {
     return errorResponse(
       403,
       buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 
@@ -79,7 +80,7 @@ serve(async (req) => {
       return errorResponse(
         500,
         buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.db_error", true, undefined, correlationId),
-        corsHeaders,
+        dynamicCors,
       );
     }
 
@@ -150,7 +151,7 @@ serve(async (req) => {
         transitioned,
         failed,
       },
-      corsHeaders,
+      dynamicCors,
       correlationId,
     );
   } catch (err) {
@@ -158,7 +159,7 @@ serve(async (req) => {
     return errorResponse(
       500,
       buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.unhandled", true, undefined, correlationId),
-      corsHeaders,
+      dynamicCors,
     );
   }
 });

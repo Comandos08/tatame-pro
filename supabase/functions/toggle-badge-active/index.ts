@@ -24,13 +24,14 @@ import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requ
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse } from "../_shared/cors.ts";
+import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse(req);
   }
+  const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
 
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("toggle-badge-active", correlationId);
@@ -55,7 +56,7 @@ serve(async (req) => {
     if (!badgeId || typeof isActive !== "boolean") {
       return new Response(
         JSON.stringify({ ok: false, error: "badgeId and isActive (boolean) are required", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -69,7 +70,7 @@ serve(async (req) => {
     if (badgeError || !badge) {
       return new Response(
         JSON.stringify({ ok: false, error: "Badge not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -84,7 +85,7 @@ serve(async (req) => {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
         return new Response(
           JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
       throw boundaryError;
@@ -105,7 +106,7 @@ serve(async (req) => {
     if (badge.is_active === isActive) {
       return new Response(
         JSON.stringify({ ok: true, action: "NOOP", badgeCode: badge.code }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
     }
 
@@ -134,13 +135,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: true, action: eventType, badgeCode: badge.code }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     log.error("[TOGGLE-BADGE-ACTIVE] Error:", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   }
 });

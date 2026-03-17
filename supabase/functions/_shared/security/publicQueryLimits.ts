@@ -21,16 +21,7 @@ import {
   ERROR_CODES,
 } from '../errors/envelope.ts';
 import { createBackendLogger } from '../backend-logger.ts';
-
-// ============================================================================
-// CORS — Default for public endpoints
-// ============================================================================
-
-const DEFAULT_CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-impersonation-id",
-};
+import { corsHeaders as DEFAULT_CORS } from '../cors.ts';
 
 // ============================================================================
 // TYPES
