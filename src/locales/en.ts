@@ -1,5 +1,6 @@
 export const en: Record<string, string> = {
   // Navigation
+  'nav.onboarding': 'Setup Organization',
   'nav.dashboard': 'Admin Panel',
   'nav.athletes': 'Athletes',
   'nav.memberships': 'Memberships',

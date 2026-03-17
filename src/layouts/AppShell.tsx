@@ -116,9 +116,12 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   const tenantSlug = tenant?.slug || "";
+  const isSetupMode = tenant?.status === "SETUP";
 
   // 🔐 Navigation items with feature-based access control
   const allNavigation: NavItem[] = [
+    // Show onboarding link when tenant is in SETUP mode so admins can always navigate back
+    ...(isSetupMode ? [{ name: t("nav.onboarding"), href: `/${tenantSlug}/app/onboarding`, icon: Settings }] : []),
     { name: t("nav.athleteArea"), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: "TENANT_MY_AREA" },
     { name: t("nav.dashboard"), href: `/${tenantSlug}/app`, icon: Home, feature: "TENANT_APP" },
     { name: t("nav.athletes"), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: "TENANT_ATHLETES" },

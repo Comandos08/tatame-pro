@@ -198,6 +198,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Mark wizard_completed = true so the admin can log in directly to the tenant
+    // app without being redirected to the identity wizard.
+    // Also set tenant_id if not already set (for new users).
+    await serviceClient
+      .from("profiles")
+      .update({ wizard_completed: true })
+      .eq("id", userId);
+
     // Update profile tenant_id if not set
     await serviceClient
       .from("profiles")
