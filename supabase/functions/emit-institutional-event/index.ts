@@ -7,6 +7,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { SecureRateLimiter, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 Deno.serve(async (req) => {
@@ -39,6 +40,23 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...dynamicCors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Rate limiting: 200 events per hour per user (frontend telemetry, generous but bounded)
+    // fail-open: telemetry must never block the app
+    const rateLimiter = new SecureRateLimiter({
+      operation: "emit-institutional-event",
+      limit: 200,
+      windowSeconds: 3600,
+      failClosed: false,
+    });
+    const rlContext = buildRateLimitContext(req, user.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+        status: 429,
+        headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
       });
     }
 
