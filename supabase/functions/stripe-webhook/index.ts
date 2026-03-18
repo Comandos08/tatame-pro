@@ -270,6 +270,23 @@ serve(async (req) => {
           await handleInvoicePaymentFailed(supabase, supabaseUrl, supabaseServiceKey, invoice, log);
           break;
         }
+        // Refund: set payment_status=REFUNDED and cancel membership
+        case "charge.refunded": {
+          const charge = event.data.object as Stripe.Charge;
+          await handleChargeRefunded(supabase, supabaseUrl, supabaseServiceKey, charge, log);
+          break;
+        }
+        // Disputes: notify admin; mark as cancelled if lost
+        case "charge.dispute.created": {
+          const dispute = event.data.object as Stripe.Dispute;
+          await handleDisputeCreated(supabase, supabaseUrl, supabaseServiceKey, dispute, log);
+          break;
+        }
+        case "charge.dispute.closed": {
+          const dispute = event.data.object as Stripe.Dispute;
+          await handleDisputeClosed(supabase, supabaseUrl, supabaseServiceKey, dispute, log);
+          break;
+        }
         default:
           log.info("Unhandled event type", { type: event.type });
       }
@@ -1307,6 +1324,273 @@ async function handleInvoicePaymentFailed(
 
   // Send payment failed email
   sendBillingEmail(supabaseUrl, supabaseServiceKey, "PAYMENT_FAILED", billing.tenant_id, log);
+}
+
+// ── Charge Refunded Handler ──
+async function handleChargeRefunded(
+  supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  charge: Stripe.Charge,
+  log: BackendLogger
+) {
+  log.setStep("charge_refunded");
+  log.info("Processing charge.refunded", {
+    chargeId: charge.id,
+    paymentIntent: charge.payment_intent,
+    amountRefunded: charge.amount_refunded,
+  });
+
+  // Look up membership by stripe_payment_intent_id
+  const paymentIntentId = typeof charge.payment_intent === "string"
+    ? charge.payment_intent
+    : charge.payment_intent?.id;
+
+  if (!paymentIntentId) {
+    log.info("charge.refunded: no payment_intent on charge, skipping", { chargeId: charge.id });
+    return;
+  }
+
+  const { data: membership, error: lookupError } = await supabase
+    .from("memberships")
+    .select("id, tenant_id, athlete_id, status, payment_status")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+
+  if (lookupError) {
+    log.warn("charge.refunded: membership lookup failed", { error: lookupError.message, paymentIntentId });
+    return;
+  }
+
+  if (!membership) {
+    log.info("charge.refunded: no membership found for payment_intent — may be a tenant billing refund", {
+      paymentIntentId,
+    });
+    return;
+  }
+
+  // Idempotency: already cancelled/refunded
+  if (membership.status === "CANCELLED" || membership.payment_status === "REFUNDED") {
+    log.info("charge.refunded: membership already cancelled/refunded — idempotent skip", {
+      membershipId: membership.id,
+      status: membership.status,
+      paymentStatus: membership.payment_status,
+    });
+    return;
+  }
+
+  // Step 1: Mark payment_status = REFUNDED via gatekeeper
+  const { error: paymentRpcError } = await supabase.rpc("set_membership_payment_status", {
+    p_membership_id: membership.id,
+    p_payment_status: "REFUNDED",
+    p_reason: "stripe_charge_refunded",
+  });
+
+  if (paymentRpcError) {
+    log.error("charge.refunded: set_membership_payment_status failed", paymentRpcError, {
+      membershipId: membership.id,
+    });
+    // Continue anyway — still try to cancel the membership
+  }
+
+  // Step 2: Cancel the membership via gatekeeper
+  // Only if it's in a cancellable state (not already EXPIRED/REJECTED/CANCELLED)
+  const cancellableStatuses = ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW", "APPROVED"];
+  if (cancellableStatuses.includes(membership.status)) {
+    const { error: cancelRpcError } = await supabase.rpc("change_membership_state", {
+      p_membership_id: membership.id,
+      p_new_status: "CANCELLED",
+      p_reason: "stripe_charge_refunded",
+      p_actor_profile_id: null,
+      p_notes: `Stripe charge ${charge.id} refunded — amount: ${charge.amount_refunded}`,
+    });
+
+    if (cancelRpcError) {
+      log.error("charge.refunded: change_membership_state to CANCELLED failed", cancelRpcError, {
+        membershipId: membership.id,
+        previousStatus: membership.status,
+      });
+    } else {
+      log.info("charge.refunded: membership cancelled", { membershipId: membership.id });
+    }
+  } else {
+    log.info("charge.refunded: membership not in cancellable state, skipping cancel", {
+      membershipId: membership.id,
+      status: membership.status,
+    });
+  }
+
+  // Step 3: Audit log
+  await createAuditLog(supabase, {
+    event_type: "MEMBERSHIP_REFUNDED",
+    tenant_id: membership.tenant_id,
+    metadata: {
+      membership_id: membership.id,
+      athlete_id: membership.athlete_id,
+      charge_id: charge.id,
+      payment_intent_id: paymentIntentId,
+      amount_refunded: charge.amount_refunded,
+      currency: charge.currency?.toUpperCase() || "BRL",
+      previous_status: membership.status,
+      previous_payment_status: membership.payment_status,
+      source: "stripe_webhook",
+    },
+  });
+
+  // Step 4: Notify tenant admin via billing email
+  sendBillingEmail(supabaseUrl, supabaseServiceKey, "REFUND_PROCESSED", membership.tenant_id, log, {
+    membership_id: membership.id,
+    athlete_id: membership.athlete_id,
+    charge_id: charge.id,
+    amount_refunded: charge.amount_refunded,
+    currency: charge.currency?.toUpperCase() || "BRL",
+  });
+}
+
+// ── Dispute Created Handler ──
+async function handleDisputeCreated(
+  supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  dispute: Stripe.Dispute,
+  log: BackendLogger
+) {
+  log.setStep("dispute_created");
+
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+
+  log.info("Processing charge.dispute.created", {
+    disputeId: dispute.id,
+    chargeId,
+    amount: dispute.amount,
+    reason: dispute.reason,
+  });
+
+  // Look up membership by charge → payment_intent
+  const paymentIntentId = typeof dispute.payment_intent === "string"
+    ? dispute.payment_intent
+    : (dispute.payment_intent as Stripe.PaymentIntent | null)?.id;
+
+  if (!paymentIntentId) {
+    log.info("dispute.created: no payment_intent on dispute, skipping membership lookup", {
+      disputeId: dispute.id,
+    });
+    return;
+  }
+
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("id, tenant_id, athlete_id, status")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+
+  const tenantId = membership?.tenant_id ?? null;
+
+  // Audit log regardless of whether membership is found
+  await createAuditLog(supabase, {
+    event_type: "MEMBERSHIP_DISPUTE_OPENED",
+    tenant_id: tenantId,
+    metadata: {
+      membership_id: membership?.id ?? null,
+      dispute_id: dispute.id,
+      charge_id: chargeId,
+      payment_intent_id: paymentIntentId,
+      amount: dispute.amount,
+      reason: dispute.reason,
+      status: dispute.status,
+      source: "stripe_webhook",
+    },
+  });
+
+  // Notify admin via critical alert so they can respond in Stripe Dashboard
+  if (tenantId) {
+    await callEdgeFunctionWithRetry(supabaseUrl, supabaseServiceKey, "notify-critical-alert", {
+      event_type: "STRIPE_DISPUTE_OPENED",
+      severity: "HIGH",
+      tenant_id: tenantId,
+      message: `Dispute opened for membership ${membership?.id ?? "unknown"}. Reason: ${dispute.reason}. Amount: ${dispute.amount}. Respond in Stripe Dashboard within 7 days.`,
+      metadata: {
+        dispute_id: dispute.id,
+        charge_id: chargeId,
+        membership_id: membership?.id ?? null,
+        amount: dispute.amount,
+        reason: dispute.reason,
+      },
+    }, log);
+  }
+}
+
+// ── Dispute Closed Handler ──
+async function handleDisputeClosed(
+  supabase: SupabaseClientAny,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  dispute: Stripe.Dispute,
+  log: BackendLogger
+) {
+  log.setStep("dispute_closed");
+  log.info("Processing charge.dispute.closed", {
+    disputeId: dispute.id,
+    status: dispute.status,
+    amount: dispute.amount,
+  });
+
+  const paymentIntentId = typeof dispute.payment_intent === "string"
+    ? dispute.payment_intent
+    : (dispute.payment_intent as Stripe.PaymentIntent | null)?.id;
+
+  if (!paymentIntentId) {
+    log.info("dispute.closed: no payment_intent, skipping", { disputeId: dispute.id });
+    return;
+  }
+
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("id, tenant_id, athlete_id, status, payment_status")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+
+  // dispute.status: 'won' | 'lost' | 'warning_closed'
+  // If we lost the dispute: funds were taken back → treat as refund
+  if (dispute.status === "lost" && membership) {
+    const cancellableStatuses = ["DRAFT", "PENDING_PAYMENT", "PENDING_REVIEW", "APPROVED"];
+
+    await supabase.rpc("set_membership_payment_status", {
+      p_membership_id: membership.id,
+      p_payment_status: "REFUNDED",
+      p_reason: "stripe_dispute_lost",
+    });
+
+    if (cancellableStatuses.includes(membership.status)) {
+      await supabase.rpc("change_membership_state", {
+        p_membership_id: membership.id,
+        p_new_status: "CANCELLED",
+        p_reason: "stripe_dispute_lost",
+        p_actor_profile_id: null,
+        p_notes: `Stripe dispute ${dispute.id} lost — membership cancelled.`,
+      });
+    }
+
+    log.info("dispute.closed(lost): membership cancelled", { membershipId: membership.id });
+  } else if (dispute.status === "won") {
+    log.info("dispute.closed(won): no membership change needed", {
+      membershipId: membership?.id,
+    });
+  }
+
+  if (membership?.tenant_id) {
+    await createAuditLog(supabase, {
+      event_type: dispute.status === "won" ? "MEMBERSHIP_DISPUTE_WON" : "MEMBERSHIP_DISPUTE_LOST",
+      tenant_id: membership.tenant_id,
+      metadata: {
+        membership_id: membership.id,
+        dispute_id: dispute.id,
+        dispute_status: dispute.status,
+        amount: dispute.amount,
+        source: "stripe_webhook",
+      },
+    });
+  }
 }
 
 // ── Membership Fee Checkout Handler ──
