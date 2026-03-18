@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 interface CreateUserRequest {
@@ -60,6 +61,18 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Forbidden: requires SUPERADMIN_GLOBAL role" }),
         { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Rate limiting: 10 user creations per hour per superadmin
+    const rateLimiter = RATE_LIMIT_PRESETS.adminCreateUser();
+    const rlContext = buildRateLimitContext(req, caller.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for admin-create-user", { userId: caller.id });
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded. Try again later." }),
+        { status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 60) } }
       );
     }
 

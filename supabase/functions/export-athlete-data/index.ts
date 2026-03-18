@@ -13,6 +13,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 serve(async (req) => {
@@ -51,6 +52,18 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         headers: { ...dynamicCors, "Content-Type": "application/json" },
         status: 401,
+      });
+    }
+
+    // Rate limiting: 5 exports per hour per user — PII data, strict limit
+    const rateLimiter = RATE_LIMIT_PRESETS.exportAthleteData();
+    const rlContext = buildRateLimitContext(req, user.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for export-athlete-data", { userId: user.id });
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again later." }), {
+        headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
+        status: 429,
       });
     }
 

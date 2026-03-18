@@ -19,6 +19,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 import {
   type BillingStatus,
   isKnownBillingStatus,
@@ -674,6 +675,17 @@ Deno.serve(async (req) => {
     const userId = validation.userId!;
     log.setUser(userId);
     const serviceClient = getServiceClient();
+
+    // Rate limiting: 10 billing control actions per hour per superadmin
+    const rateLimiter = RATE_LIMIT_PRESETS.billingControl();
+    const rlContext = buildRateLimitContext(req, userId, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for admin-billing-control", { userId });
+      return errorResponse(429, buildErrorEnvelope(
+        ERROR_CODES.RATE_LIMITED, "rate_limit.exceeded", true, undefined, correlationId
+      ), dynamicCors);
+    }
 
     // Parse request
     let payload: RequestPayload;
