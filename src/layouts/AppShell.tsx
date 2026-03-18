@@ -41,6 +41,7 @@ import { useIdentity } from "@/contexts/IdentityContext";
 
 import { useAccessContract } from "@/hooks/useAccessContract";
 import type { FeatureKey } from "@/hooks/useAccessContract";
+import { useTenantFlags } from "@/contexts/TenantFlagsContext";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,6 +87,7 @@ export function AppShell({ children }: AppShellProps) {
   const { t } = useI18n();
   const { isImpersonating, session: impersonationSession } = useImpersonation();
   const { can } = useAccessContract(tenant?.id);
+  const { contract: tenantFlags } = useTenantFlags();
 
   // Keep hooks (their internal effects matter)
   useIdentity();
@@ -116,9 +118,15 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   const tenantSlug = tenant?.slug || "";
+  const isSetupMode = tenant?.status === "SETUP";
+  // Also show onboarding nav for ACTIVE tenants whose onboarding was never completed
+  // (superadmin-created tenants); TenantOnboardingGate will redirect them there anyway.
+  const showOnboardingNav = isSetupMode || (tenant?.status === "ACTIVE" && tenantFlags?.onboarding_completed === false);
 
   // 🔐 Navigation items with feature-based access control
   const allNavigation: NavItem[] = [
+    // Show onboarding link when tenant is in SETUP mode or onboarding is incomplete
+    ...(showOnboardingNav ? [{ name: t("nav.onboarding"), href: `/${tenantSlug}/app/onboarding`, icon: Settings }] : []),
     { name: t("nav.athleteArea"), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: "TENANT_MY_AREA" },
     { name: t("nav.dashboard"), href: `/${tenantSlug}/app`, icon: Home, feature: "TENANT_APP" },
     { name: t("nav.athletes"), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: "TENANT_ATHLETES" },

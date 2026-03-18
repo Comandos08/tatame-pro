@@ -90,11 +90,17 @@ serve(async (req: Request) => {
 
     const userId = newUser.user.id;
 
-    // Update profile with tenant if provided
+    // Update profile with tenant if provided, and always mark wizard_completed = true
+    // so the created user can log in directly without being sent to the identity wizard.
     if (tenantId) {
       await supabaseAdmin
         .from("profiles")
-        .update({ tenant_id: tenantId, name })
+        .update({ tenant_id: tenantId, name, wizard_completed: true })
+        .eq("id", userId);
+    } else {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ name, wizard_completed: true })
         .eq("id", userId);
     }
 

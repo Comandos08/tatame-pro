@@ -261,14 +261,17 @@ serve(async (req) => {
     // ========================================================================
     const currentState = tenant.lifecycle_status || tenant.status;
 
-    // 1. Status must be SETUP
+    // 1. Status must be SETUP or ACTIVE-with-incomplete-onboarding
+    //    ACTIVE + onboarding_completed=false: superadmin created the tenant
+    //    directly as ACTIVE (skipping SETUP flow). We allow these through so
+    //    the tenant admin can complete the onboarding wizard.
     if (currentState !== "SETUP") {
-      // Idempotent: if already ACTIVE, return success
+      // Idempotent: if already ACTIVE and onboarding done, return success
       if (currentState === "ACTIVE" && tenant.onboarding_completed) {
         log.info("Already activated (idempotent)", { status: currentState });
         return new Response(
-          JSON.stringify({ 
-            ok: true, 
+          JSON.stringify({
+            ok: true,
             message: "Tenant already active",
             status: activationStatus,
             alreadyActive: true,
@@ -276,23 +279,29 @@ serve(async (req) => {
           { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
         );
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: "Tenant must be in SETUP status to complete onboarding",
-          code: "INVALID_STATUS",
-          currentStatus: currentState,
-        }),
-        { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-      );
+
+      // Allow ACTIVE tenants whose onboarding was never completed to proceed
+      if (currentState === "ACTIVE" && !tenant.onboarding_completed) {
+        log.info("ACTIVE tenant with incomplete onboarding — proceeding", { tenant_id: tenantId });
+        // fall through to prerequisites + billing + RPC
+      } else {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "Tenant must be in SETUP status to complete onboarding",
+            code: "INVALID_STATUS",
+            currentStatus: currentState,
+          }),
+          { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // 2. onboarding_completed must be false
     if (tenant.onboarding_completed === true) {
       return new Response(
-        JSON.stringify({ 
-          ok: false, 
+        JSON.stringify({
+          ok: false,
           error: "Onboarding already marked as complete",
           code: "ALREADY_COMPLETED",
         }),
@@ -327,15 +336,21 @@ serve(async (req) => {
     const trialExpiresAt = new Date();
     trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_PERIOD_DAYS);
 
+    // Use upsert to safely handle ACTIVE tenants that may already have billing.
+    // onConflict: 'tenant_id' — if a row already exists, leave it untouched
+    // (ignoreDuplicates: true) so we never downgrade an existing billing status.
     const { error: billingError } = await supabase
       .from("tenant_billing")
-      .insert({
-        tenant_id: tenantId,
-        status: "TRIALING",
-        trial_started_at: now.toISOString(),
-        trial_expires_at: trialExpiresAt.toISOString(),
-        plan_name: "Growth Trial",
-      });
+      .upsert(
+        {
+          tenant_id: tenantId,
+          status: "TRIALING",
+          trial_started_at: now.toISOString(),
+          trial_expires_at: trialExpiresAt.toISOString(),
+          plan_name: "Growth Trial",
+        },
+        { onConflict: "tenant_id", ignoreDuplicates: true }
+      );
 
     if (billingError) {
       log.info("Billing bootstrap failed", { error: billingError.message });
@@ -405,9 +420,9 @@ serve(async (req) => {
       );
     }
 
-    log.info("Tenant activated via gatekeeper", { 
+    log.info("Tenant activated via gatekeeper", {
       tenant_id: tenantId,
-      previous_status: "SETUP",
+      previous_status: currentState,
       new_status: rpcResult,
     });
 
@@ -422,7 +437,7 @@ serve(async (req) => {
         metadata: {
           completed_by: user.id,
           completed_at: now.toISOString(),
-          previous_status: "SETUP",
+          previous_status: currentState,
           new_status: "ACTIVE",
           activation_status: activationStatus,
           impersonation_id: impersonationCheck.impersonationId || null,

@@ -1,5 +1,6 @@
 export const ptBR = {
   // Navigation
+  'nav.onboarding': 'Configurar Organização',
   'nav.dashboard': 'Painel Administrativo',
   'nav.athletes': 'Atletas',
   'nav.memberships': 'Filiações',

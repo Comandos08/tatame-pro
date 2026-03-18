@@ -15,9 +15,11 @@ interface BillingEmailRequest {
     | "TENANT_DELETED"
     | "SUBSCRIPTION_REACTIVATED"
     | "INVOICE_PAYMENT_SUCCEEDED" 
-    | "PAYMENT_FAILED" 
+    | "PAYMENT_FAILED"
     | "TENANT_WILL_BE_BLOCKED"
-    | "TENANT_BLOCKED";
+    | "TENANT_BLOCKED"
+    | "REFUND_PROCESSED"
+    | "MEMBERSHIP_FEE_PAID";
   tenant_id: string;
   data?: {
     trial_end_date?: string;
@@ -421,6 +423,59 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
           </a>
         </div>
         
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  REFUND_PROCESSED: {
+    subject: "💸 Reembolso processado - TATAME",
+    getHtml: (tenantName, data) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #16a34a; margin: 0;">TATAME</h1>
+        </div>
+
+        <h2 style="color: #374151;">Reembolso processado</h2>
+
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, um reembolso foi processado pelo Stripe para uma das filiações da sua organização.
+        </p>
+
+        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0 0 8px 0; color: #166534; font-weight: 600;">Detalhes do reembolso:</p>
+          ${data?.charge_id ? `<p style="margin: 4px 0; color: #555;">ID da cobrança: <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px;">${data.charge_id}</code></p>` : ""}
+          ${data?.membership_id ? `<p style="margin: 4px 0; color: #555;">ID da filiação: <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px;">${data.membership_id}</code></p>` : ""}
+          ${data?.amount_refunded ? `<p style="margin: 4px 0; color: #555;">Valor reembolsado: <strong>${(Number(data.amount_refunded) / 100).toFixed(2)} ${data?.currency || "BRL"}</strong></p>` : ""}
+        </div>
+
+        <p style="color: #555; line-height: 1.6;">
+          A filiação correspondente foi cancelada automaticamente. Se isso foi um erro, entre em contato com o suporte.
+        </p>
+
+        <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
+          TATAME - Plataforma de Gestão para Federações de Esportes de Combate
+        </p>
+      </div>
+    `,
+  },
+  MEMBERSHIP_FEE_PAID: {
+    subject: "✅ Taxa de filiação confirmada - TATAME",
+    getHtml: (tenantName, data) => `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #16a34a; margin: 0;">TATAME</h1>
+        </div>
+
+        <h2 style="color: #374151;">Taxa de filiação confirmada</h2>
+
+        <p style="color: #555; line-height: 1.6;">
+          Olá ${tenantName}, a taxa de filiação foi paga com sucesso.
+        </p>
+
+        ${data?.membership_id ? `<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 20px; margin: 20px 0;"><p style="margin: 0; color: #166534;">Filiação: <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px;">${data.membership_id}</code></p></div>` : ""}
+
         <p style="color: #888; font-size: 12px; text-align: center; margin-top: 40px;">
           TATAME - Plataforma de Gestão para Federações de Esportes de Combate
         </p>
