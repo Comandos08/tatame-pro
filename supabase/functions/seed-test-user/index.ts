@@ -119,11 +119,16 @@ serve(async (req: Request) => {
 
     const userId = newUser.user.id;
 
-    // Update profile with tenant if provided
+    // Update profile with tenant if provided, always mark wizard_completed = true
     if (tenantId) {
       await supabaseAdmin
         .from("profiles")
-        .update({ tenant_id: tenantId, name })
+        .update({ tenant_id: tenantId, name, wizard_completed: true })
+        .eq("id", userId);
+    } else {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ name, wizard_completed: true })
         .eq("id", userId);
     }
 
