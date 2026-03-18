@@ -23,6 +23,7 @@ import {
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 // ============================================================================
@@ -397,6 +398,18 @@ serve(async (req) => {
 
     if (!superadminRole) {
       return forbiddenResponse(dynamicCors, "auth.superadmin_required");
+    }
+
+    // Rate limiting: 10 audit scans per hour per superadmin (expensive RPC calls)
+    const rateLimiter = RATE_LIMIT_PRESETS.auditTool();
+    const rlContext = buildRateLimitContext(req, user.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for audit-rls", { userId: user.id });
+      return new Response(
+        JSON.stringify(buildErrorEnvelope(ERROR_CODES.RATE_LIMITED, "rate_limit.exceeded", true, undefined, correlationId)),
+        { status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) } }
+      );
     }
 
     // ====================================================================

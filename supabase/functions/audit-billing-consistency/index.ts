@@ -15,6 +15,7 @@ import type { BillingStatus } from "../_shared/billing-state-machine.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 serve(async (req) => {
@@ -48,6 +49,17 @@ serve(async (req) => {
       if (!superadmin) {
         return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
           status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" },
+        });
+      }
+
+      // Rate limiting for human callers: 10 scans per hour (expensive full-table scan)
+      const rateLimiter = RATE_LIMIT_PRESETS.auditTool();
+      const rlContext = buildRateLimitContext(req, user.id, null);
+      const rlResult = await rateLimiter.check(rlContext);
+      if (!rlResult.allowed) {
+        log.warn("Rate limit exceeded for audit-billing-consistency", { userId: user.id });
+        return new Response(JSON.stringify({ ok: false, error: "Rate limit exceeded" }), {
+          status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
         });
       }
     }
