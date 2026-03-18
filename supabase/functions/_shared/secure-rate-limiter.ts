@@ -399,6 +399,34 @@ export const SecureRateLimitPresets = {
     limit: 10,
     windowSeconds: 3600,
   }),
+
+  /** Export athlete data (LGPD): 5 per hour per user — PII data, strict */
+  exportAthleteData: () => new SecureRateLimiter({
+    operation: "export-athlete-data",
+    limit: 5,
+    windowSeconds: 3600,
+  }),
+
+  /** Import athletes (bulk): 5 per hour per admin — expensive operation */
+  importAthletes: () => new SecureRateLimiter({
+    operation: "import-athletes",
+    limit: 5,
+    windowSeconds: 3600,
+  }),
+
+  /** Assign/revoke athlete badge: 100 per hour per admin */
+  assignRevokeBadge: () => new SecureRateLimiter({
+    operation: "assign-revoke-badge",
+    limit: 100,
+    windowSeconds: 3600,
+  }),
+
+  /** Audit tools (RLS, billing consistency): 10 per hour per superadmin */
+  auditTool: () => new SecureRateLimiter({
+    operation: "audit-tool",
+    limit: 10,
+    windowSeconds: 3600,
+  }),
 };
 
 /**
