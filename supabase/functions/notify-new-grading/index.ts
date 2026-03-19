@@ -9,6 +9,7 @@ import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 
 interface NotifyGradingRequest {
@@ -27,6 +28,19 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    // =========================================================================
+    // AUTH VALIDATION — internal-only endpoint, service role required
+    // =========================================================================
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
+      log.warn("Auth failed - missing or invalid service role key");
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.service_role_required", false, undefined, correlationId),
+        dynamicCors,
+      );
+    }
 
     if (!supabaseServiceKey) {
       throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
