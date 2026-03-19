@@ -132,7 +132,7 @@ export default function SystemHealth() {
           }
           actions={[{
             labelKey: 'common.goBack',
-            onClick: () => navigate('/portal'),
+            onClick: () => navigate('/admin'),
           }]}
         />
       </div>

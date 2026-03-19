@@ -247,7 +247,7 @@ export default function SecurityDashboard() {
           iconVariant="destructive"
           titleKey="errors.accessDenied"
           descriptionKey="errors.insufficientRole"
-          actions={[{ labelKey: 'common.goBack', onClick: () => navigate('/portal') }]}
+          actions={[{ labelKey: 'common.goBack', onClick: () => navigate('/admin') }]}
         />
       </div>
     );

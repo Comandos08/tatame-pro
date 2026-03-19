@@ -27,7 +27,7 @@ export function HeaderUserMenu() {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/portal');
+    navigate('/login');
   };
 
   const getInitials = (name: string | null | undefined) => {

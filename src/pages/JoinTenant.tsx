@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useI18n } from '@/contexts/I18nContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { isValidTenantSlug } from '@/lib/onboarding-storage';
 import { logger } from '@/lib/logger';
@@ -23,26 +23,17 @@ export default function JoinTenant() {
   const [isValidating, setIsValidating] = useState(false);
   const navigate = useNavigate();
   useI18n();
-  const { toast } = useToast();
 
   const handleContinue = async () => {
     const code = tenantCode.trim().toLowerCase();
 
     if (!code) {
-      toast({
-        title: 'Código obrigatório',
-        description: 'Digite o código da organização para continuar.',
-        variant: 'destructive',
-      });
+      toast.error('Código obrigatório', { description: 'Digite o código da organização para continuar.' });
       return;
     }
 
     if (!isValidTenantSlug(code)) {
-      toast({
-        title: 'Código inválido',
-        description: 'O código deve conter entre 3 e 64 caracteres (letras minúsculas, números e hífens).',
-        variant: 'destructive',
-      });
+      toast.error('Código inválido', { description: 'O código deve conter entre 3 e 64 caracteres (letras minúsculas, números e hífens).' });
       return;
     }
 
@@ -60,11 +51,7 @@ export default function JoinTenant() {
       if (error) throw error;
 
       if (!tenant) {
-        toast({
-          title: 'Organização não encontrada',
-          description: 'Verifique o código e tente novamente. A organização pode estar inativa.',
-          variant: 'destructive',
-        });
+        toast.error('Organização não encontrada', { description: 'Verifique o código e tente novamente. A organização pode estar inativa.' });
         setIsValidating(false);
         return;
       }
@@ -73,11 +60,7 @@ export default function JoinTenant() {
       navigate(`/signup?mode=join&tenantCode=${encodeURIComponent(code)}`);
     } catch (err) {
       logger.error('[JoinTenant] Validation error:', err);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível verificar a organização. Tente novamente.',
-        variant: 'destructive',
-      });
+      toast.error('Erro', { description: 'Não foi possível verificar a organização. Tente novamente.' });
     } finally {
       setIsValidating(false);
     }

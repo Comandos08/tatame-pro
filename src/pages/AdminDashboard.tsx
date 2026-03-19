@@ -87,10 +87,9 @@ export default function AdminDashboard() {
 
   // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
 
-  // 🔐 HARDENED: Logout goes to /portal which will redirect to /login if needed
   const handleSignOut = async () => {
     await signOut();
-    navigate('/portal');
+    navigate('/login');
   };
 
   // Fetch all tenants

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ShieldCheck, Copy, Check, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useI18n } from '@/contexts/I18nContext';
 import {
   Tooltip,
@@ -17,7 +17,6 @@ interface AuthenticityBadgeProps {
 
 export function AuthenticityBadge({ hash, verificationUrl }: AuthenticityBadgeProps) {
   const { t } = useI18n();
-  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
   const truncatedHash = hash
@@ -30,16 +29,10 @@ export function AuthenticityBadge({ hash, verificationUrl }: AuthenticityBadgePr
     try {
       await navigator.clipboard.writeText(hash);
       setCopied(true);
-      toast({
-        title: t('portal.hashCopied'),
-        duration: 2000,
-      });
+      toast(t('portal.hashCopied'), { duration: 2000 });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast({
-        title: 'Erro ao copiar',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao copiar');
     }
   };
 

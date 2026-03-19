@@ -137,12 +137,12 @@ export function deriveSystemAwarenessState(input: SystemAwarenessInput): SystemA
   if (reasons.includes('BILLING_BLOCKED') || reasons.includes('BILLING_PAST_DUE')) {
     cta = {
       labelKey: 'selfAware.cta.billing',
-      href: input.tenantSlug ? `/${input.tenantSlug}/app/billing` : '/portal',
+      href: input.tenantSlug ? `/${input.tenantSlug}/app/billing` : '/login',
     };
   } else if (reasons.includes('TENANT_SETUP')) {
     cta = {
       labelKey: 'selfAware.cta.completeSetup',
-      href: input.tenantSlug ? `/${input.tenantSlug}/app/settings` : '/portal',
+      href: input.tenantSlug ? `/${input.tenantSlug}/app/settings` : '/login',
     };
   }
 

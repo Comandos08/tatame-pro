@@ -64,8 +64,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    // Use /portal as the decision hub
-    window.location.href = "/portal";
+    window.location.href = "/login";
   };
 
   private handleRetry = () => {

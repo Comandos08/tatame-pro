@@ -30,7 +30,7 @@ const ALLOWED_ROUTES = [
 export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const { tenant, isLoading: isTenantLoading } = useTenant();
   const { isImpersonating, resolutionStatus } = useImpersonation();
-  const { contract: _contract, isLoading: isContractLoading } = useTenantFlags();
+  const { contract: _contract, isLoading: isContractLoading, isError: isContractError } = useTenantFlags();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -43,9 +43,13 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
 
     // P0-02: Check BOTH tenant.status === 'SETUP' AND onboarding_completed === false
     // Tenants created via wizard arrive as ACTIVE with onboarding_completed: false
-    // The contract (TenantFlagsContract) is the source of truth for onboarding_completed
+    // The contract (TenantFlagsContract) is the source of truth for onboarding_completed.
+    // Fallback: when contract fails to load, use tenant.status === 'SETUP' only —
+    // this prevents falsely redirecting ACTIVE+complete tenants on RPC errors.
     const isSetupMode = tenant.status === 'SETUP';
-    const isOnboardingIncomplete = _contract?.onboarding_completed !== true;
+    const isOnboardingIncomplete = _contract !== null
+      ? _contract.onboarding_completed !== true
+      : isSetupMode;
     
     // Only enforce onboarding gate if tenant is in SETUP or onboarding is explicitly incomplete
     if (!isSetupMode && !isOnboardingIncomplete) return;
@@ -77,8 +81,8 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     );
   }
 
-  // B2 fail-closed: block while tenant OR contract loads
-  if (isTenantLoading || isContractLoading) {
+  // B2 fail-closed: block while tenant OR contract loads (or errors)
+  if (isTenantLoading || isContractLoading || isContractError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
