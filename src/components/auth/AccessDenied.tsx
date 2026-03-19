@@ -41,18 +41,19 @@ function useAccessDeniedContext() {
       suggestionKey: 'accessDenied.superadminSuggestion',
       showContactAdmin: false,
       showMembership: false,
-      homeRoute: '/portal',
+      homeRoute: '/admin',
     };
   }
 
   // Tenant admin area (/:slug/app/*)
   if (pathname.includes('/app/') && !pathname.includes('/portal')) {
+    const slug = pathname.split('/')[1];
     return {
       descriptionKey: 'accessDenied.adminArea',
       suggestionKey: 'accessDenied.adminSuggestion',
       showContactAdmin: true,
       showMembership: false,
-      homeRoute: '/portal',
+      homeRoute: slug ? `/${slug}/app` : '/',
     };
   }
 

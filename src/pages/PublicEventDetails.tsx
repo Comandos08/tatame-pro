@@ -164,7 +164,7 @@ export default function PublicEventDetails() {
                 {t('events.notAvailableForYourOrganization')}
               </p>
               <Button asChild variant="outline" className="mt-6">
-                <Link to="/portal">
+                <Link to={`/${tenant.slug}/portal`}>
                   {t('portal.title')}
                 </Link>
               </Button>

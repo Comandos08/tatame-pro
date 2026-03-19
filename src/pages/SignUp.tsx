@@ -61,7 +61,7 @@ export default function SignUp() {
         navigate("/identity/wizard", { replace: true });
         return;
       }
-      const destination = redirectPath || "/portal";
+      const destination = redirectPath || "/";
       navigate(destination, { replace: true });
     }
   }, [isAuthenticated, identityState, redirectPath, navigate]);

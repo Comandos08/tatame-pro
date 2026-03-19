@@ -86,7 +86,7 @@ export default function IdentityWizard() {
         navigate(pendingRedirect, { replace: true });
         setPendingRedirect(null);
       } else {
-        navigate("/portal", { replace: true });
+        navigate("/", { replace: true });
       }
     }
   }, [identityState, navigate, pendingRedirect]);

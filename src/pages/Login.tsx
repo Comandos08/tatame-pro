@@ -51,7 +51,7 @@ export default function Login() {
       }
       
       // Use redirectPath from backend (more precise than hardcoded /portal)
-      const destination = redirectPath || "/portal";
+      const destination = redirectPath || "/";
       navigate(destination, { replace: true });
     }
   }, [isAuthenticated, identityState, redirectPath, navigate]);
