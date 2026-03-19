@@ -292,7 +292,9 @@ export default function AppRouter() {
           path="diagnostics"
           element={
             <RequireRoles allowed={["ADMIN_TENANT"]}>
-              <TenantDiagnostics />
+              <RequireFeature featureKey="TENANT_DIAGNOSTICS">
+                <TenantDiagnostics />
+              </RequireFeature>
             </RequireRoles>
           }
         />
