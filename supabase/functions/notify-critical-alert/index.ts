@@ -23,6 +23,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 interface AlertPayload {
   event_id: string;
@@ -49,18 +50,23 @@ serve(async (req) => {
 
   try {
     // Validate service role (internal only)
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.includes('service_role')) {
-      log.warn('[notify-critical-alert] Unauthorized attempt without service role');
-    const expectedSecret = Deno.env.get('INTERNAL_ALERT_SECRET')?.trim() || '';
-    const providedSecret = extractInternalSecret(req);
+    const isServiceRole = serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`;
 
-    if (!expectedSecret || providedSecret !== expectedSecret) {
-      log.warn('[notify-critical-alert] Unauthorized attempt with invalid internal secret');
-      return new Response(
-        JSON.stringify({ error: 'SERVICE_ROLE_REQUIRED' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
-      );
+    if (!isServiceRole) {
+      // Fallback: check internal alert secret (for external monitoring integrations)
+      const expectedSecret = Deno.env.get('INTERNAL_ALERT_SECRET')?.trim() || '';
+      const providedSecret = extractInternalSecret(req);
+
+      if (!expectedSecret || providedSecret !== expectedSecret) {
+        log.warn('[notify-critical-alert] Unauthorized attempt - invalid credentials');
+        return errorResponse(
+          401,
+          buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.service_role_required", false, undefined, correlationId),
+          dynamicCors,
+        );
+      }
     }
 
     const payload: AlertPayload = await req.json();

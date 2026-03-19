@@ -4,6 +4,7 @@ import { isEmailConfigured, DEFAULT_EMAIL_FROM } from "../_shared/emailClient.ts
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 
 interface BillingEmailRequest {
@@ -494,6 +495,21 @@ serve(async (req) => {
   const log = createBackendLogger("send-billing-email", correlationId);
 
   try {
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    // =========================================================================
+    // AUTH VALIDATION — internal-only endpoint, service role required
+    // =========================================================================
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+      log.warn("Auth failed - missing or invalid service role key");
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.service_role_required", false, undefined, correlationId),
+        dynamicCors,
+      );
+    }
+
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!isEmailConfigured()) {
       log.info("RESEND_API_KEY not configured, skipping email");
