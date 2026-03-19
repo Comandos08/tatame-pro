@@ -2044,6 +2044,10 @@ export const en: Record<string, string> = {
   'errors.rateLimit.reassurance': 'This helps keep the system stable.',
   'errors.generic.title': 'Something didn\'t go as expected',
   'errors.generic.desc': 'An unexpected error occurred.',
+  'errors.accessDenied': 'Access Denied',
+  'errors.insufficientRole': 'You do not have permission to access this area.',
+  'errors.notAuthenticated': 'You must be authenticated to access this area.',
+  'errors.impersonationForbidden': 'Impersonation is not allowed in this context.',
 
   // Institutional Error Contract (PI E2)
   'institutionalErrors.AUTH-001': 'Your session has expired. Please log in again.',

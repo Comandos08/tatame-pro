@@ -1977,6 +1977,10 @@ export const ptBR = {
   'errors.rateLimit.reassurance': 'Isso ajuda a manter o sistema estável.',
   'errors.generic.title': 'Algo não saiu como esperado',
   'errors.generic.desc': 'Ocorreu um erro inesperado.',
+  'errors.accessDenied': 'Acesso Negado',
+  'errors.insufficientRole': 'Você não tem permissão para acessar esta área.',
+  'errors.notAuthenticated': 'Você precisa estar autenticado para acessar esta área.',
+  'errors.impersonationForbidden': 'Impersonation não é permitida neste contexto.',
 
   // Institutional Error Contract (PI E2)
   'institutionalErrors.AUTH-001': 'Sua sessão expirou. Faça login novamente.',
