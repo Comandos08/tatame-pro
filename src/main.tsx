@@ -5,6 +5,21 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppProviders } from "@/contexts/AppProviders";
 
+// Critical env var validation — fail fast with a clear message rather than
+// a cryptic Supabase client error buried deep in the call stack.
+const REQUIRED_ENV_VARS = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY'] as const;
+const missingEnvVars = REQUIRED_ENV_VARS.filter(
+  key => !import.meta.env[key]
+);
+if (missingEnvVars.length > 0) {
+  document.body.innerHTML = `<pre style="padding:2rem;color:red;font-family:monospace">
+[Tatame Pro] Missing required environment variables:\n${missingEnvVars.join('\n')}
+
+Set these in your .env file or hosting environment and restart.
+  </pre>`;
+  throw new Error(`Missing required env vars: ${missingEnvVars.join(', ')}`);
+}
+
 // Sentry — initialize if DSN is configured via VITE_SENTRY_DSN env var.
 // Loaded from CDN in index.html; defer to "load" event to avoid race with async script.
 if (import.meta.env.VITE_SENTRY_DSN && typeof window !== "undefined") {
