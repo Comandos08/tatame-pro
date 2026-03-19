@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExportCsvButton } from '@/components/export/ExportCsvButton';
@@ -303,10 +303,8 @@ export default function ApprovalsList() {
     await queryClient.invalidateQueries({ queryKey: ['pending-approvals-counts', tenant?.id] });
     setSelectedIds(new Set());
     setIsBulkProcessing(false);
-    toast({
-      title: `${succeeded} aprovação(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`,
-      variant: failed ? 'destructive' : 'default',
-    });
+    const approveMsg = `${succeeded} aprovação(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`;
+    failed ? toast.error(approveMsg) : toast.success(approveMsg);
   };
 
   // P2.3 — Bulk reject handler
@@ -325,10 +323,8 @@ export default function ApprovalsList() {
     setBulkRejectOpen(false);
     setBulkRejectReason('');
     setIsBulkProcessing(false);
-    toast({
-      title: `${succeeded} rejeição(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`,
-      variant: failed ? 'destructive' : 'default',
-    });
+    const rejectMsg = `${succeeded} rejeição(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`;
+    failed ? toast.error(rejectMsg) : toast.success(rejectMsg);
   };
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {

@@ -46,7 +46,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 
 interface AthleteData {
@@ -402,16 +402,9 @@ export default function AthleteArea() {
         body: { athlete_id: athlete.id, tenant_id: tenant.id },
       });
       if (error) throw error;
-      toast({
-        title: 'Solicitação enviada',
-        description: 'Sua solicitação de exclusão foi registrada e será analisada pela equipe administrativa.',
-      });
+      toast.success('Solicitação enviada', { description: 'Sua solicitação de exclusão foi registrada e será analisada pela equipe administrativa.' });
     } catch {
-      toast({
-        title: 'Erro ao solicitar exclusão',
-        description: 'Tente novamente ou entre em contato com o suporte.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao solicitar exclusão', { description: 'Tente novamente ou entre em contato com o suporte.' });
     } finally {
       setIsRequestingErasure(false);
     }
