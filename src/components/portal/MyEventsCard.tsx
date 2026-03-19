@@ -219,7 +219,7 @@ export function MyEventsCard({ athleteId, tenantSlug, showFullHistoryLink = fals
                   <Trophy className="h-4 w-4" />
                   {t('portal.myResults')}
                 </h4>
-                {results.map((result: any) => (
+                {results.map((result) => (
                   <div 
                     key={result.id}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card"

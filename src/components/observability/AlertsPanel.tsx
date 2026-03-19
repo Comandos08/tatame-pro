@@ -101,6 +101,7 @@ function AlertItem({
           className="h-6 w-6 opacity-50 hover:opacity-100"
           onClick={() => onDismiss(alert.id)}
           data-dismiss-alert={alert.id}
+          aria-label={t('common.close')}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -143,7 +144,7 @@ export function AlertsPanel({
     <Sheet>
       <SheetTrigger asChild>
         {trigger || (
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative" aria-label={t('observability.alerts.title')}>
             <Bell className="h-5 w-5" />
             {activeCount > 0 && (
               <span className={cn(

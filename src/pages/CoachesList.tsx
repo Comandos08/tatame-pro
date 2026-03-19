@@ -216,7 +216,7 @@ export default function CoachesList() {
       setLinkingCoach(null);
       toast.success(t('admin.coaches.linkSuccess'));
     },
-    onError: (error: any) => {
+    onError: (error: Error & { code?: string }) => {
       if (error.code === '23505') {
         toast.error(t('admin.coaches.alreadyLinked'));
       } else {

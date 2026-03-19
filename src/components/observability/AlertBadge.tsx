@@ -48,6 +48,7 @@ export function AlertBadge({ onClick, showZero = false, className }: AlertBadgeP
           size="icon"
           onClick={onClick}
           className={cn('relative', className)}
+          aria-label={t('observability.alerts.title')}
         >
           {hasCritical ? (
             <AlertTriangle className="h-5 w-5 text-destructive" />

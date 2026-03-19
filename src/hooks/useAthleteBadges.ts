@@ -27,7 +27,8 @@ export function useAthleteBadges(athleteId: string | undefined) {
 
       if (error) throw error;
 
-      return (data || []).map((row: any) => ({
+      type BadgeRow = { badges: { code: string; name: string; description: string | null } | null };
+      return (data as BadgeRow[] || []).map((row) => ({
         code: row.badges?.code ?? "",
         name: row.badges?.name ?? "",
         description: row.badges?.description ?? null,
