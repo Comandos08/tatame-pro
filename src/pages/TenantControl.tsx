@@ -45,7 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDateTime } from '@/lib/i18n/formatters';
@@ -106,7 +106,6 @@ export default function TenantControl() {
   const { tenantId } = useParams<{ tenantId: string }>();
   
   const { t, locale } = useI18n();
-  const { toast } = useToast();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
 
   const [loading, setLoading] = useState(true);
@@ -180,11 +179,7 @@ export default function TenantControl() {
 
     } catch (error) {
       logger.error('Error fetching tenant data:', error);
-      toast({
-        title: t('common.error'),
-        description: t('controlTower.loadError'),
-        variant: 'destructive',
-      });
+      toast.error(t('common.error'), { description: t('controlTower.loadError') });
     } finally {
       setLoading(false);
     }
@@ -214,11 +209,7 @@ export default function TenantControl() {
   // Execute action (with optional double confirmation)
   const executeAction = async (forceConfirm: boolean = false) => {
     if (!currentAction || !tenantId || !reason.trim()) {
-      toast({
-        title: t('common.error'),
-        description: t('controlTower.reasonIsRequired'),
-        variant: 'destructive',
-      });
+      toast.error(t('common.error'), { description: t('controlTower.reasonIsRequired') });
       return;
     }
 
@@ -273,10 +264,7 @@ export default function TenantControl() {
         throw new Error(response.data.error);
       }
 
-      toast({
-        title: t('common.success'),
-        description: t('controlTower.actionSuccess'),
-      });
+      toast.success(t('common.success'), { description: t('controlTower.actionSuccess') });
 
       setDialogOpen(false);
       setConfirmDialogOpen(false);
@@ -285,11 +273,7 @@ export default function TenantControl() {
 
     } catch (error) {
       logger.error('Action error:', error);
-      toast({
-        title: t('common.error'),
-        description: error instanceof Error ? error.message : t('controlTower.actionFailed'),
-        variant: 'destructive',
-      });
+      toast.error(t('common.error'), { description: error instanceof Error ? error.message : t('controlTower.actionFailed') });
     } finally {
       setActionLoading(false);
     }

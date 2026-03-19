@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
@@ -19,7 +19,6 @@ export default function ForgotPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
-  const { toast } = useToast();
   const { t } = useI18n();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,22 +28,14 @@ export default function ForgotPassword() {
     // Validar email vazio
     if (!email.trim()) {
       setEmailError(t('auth.emailRequired'));
-      toast({
-        title: t('auth.formError'),
-        description: t('auth.emailRequired'),
-        variant: "destructive",
-      });
+      toast.error(t('auth.formError'), { description: t('auth.emailRequired') });
       return;
     }
 
     // Validar formato de email
     if (!EMAIL_REGEX.test(email.trim())) {
       setEmailError(t('auth.invalidEmail'));
-      toast({
-        title: t('auth.formError'),
-        description: t('auth.invalidEmail'),
-        variant: "destructive",
-      });
+      toast.error(t('auth.formError'), { description: t('auth.invalidEmail') });
       return;
     }
 
@@ -58,18 +49,11 @@ export default function ForgotPassword() {
       if (error) throw error;
 
       setIsSuccess(true);
-      toast({
-        title: t('auth.forgot.emailSent'),
-        description: data.message,
-      });
+      toast.success(t('auth.forgot.emailSent'), { description: data.message });
     } catch (error) {
       logger.error("Password reset error:", error);
       const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t('auth.forgot.error'),
-        description: t(errorKey),
-        variant: "destructive",
-      });
+      toast.error(t('auth.forgot.error'), { description: t(errorKey) });
     } finally {
       setIsLoading(false);
     }

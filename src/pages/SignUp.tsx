@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useIdentity } from "@/contexts/IdentityContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -39,7 +39,6 @@ export default function SignUp() {
   const { signUp, isAuthenticated } = useCurrentUser();
   const { identityState, redirectPath } = useIdentity();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { t } = useI18n();
 
   // PI-ONB-001: Gate — redirect to /join if no valid mode
@@ -102,11 +101,7 @@ export default function SignUp() {
 
     setFormErrors({});
     if (!validateForm()) {
-      toast({
-        title: t('auth.formError'),
-        description: t('auth.correctErrors'),
-        variant: 'destructive',
-      });
+      toast.error(t('auth.formError'), { description: t('auth.correctErrors') });
       return;
     }
 
@@ -115,11 +110,7 @@ export default function SignUp() {
     // Safety net: reset loading after 20s if nothing happens
     const timeoutId = setTimeout(() => {
       setIsSubmitting(false);
-      toast({
-        title: "Timeout",
-        description: "A requisição demorou demais. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Timeout", { description: "A requisição demorou demais. Tente novamente." });
     }, 20000);
 
     try {
@@ -132,20 +123,13 @@ export default function SignUp() {
       await signUp(email, password, name);
       clearTimeout(timeoutId);
       setIsSubmitting(false);
-      toast({
-        title: t("auth.accountCreated"),
-        description: t("auth.accountCreatedDesc"),
-      });
+      toast.success(t("auth.accountCreated"), { description: t("auth.accountCreatedDesc") });
       navigate("/verify-email", { state: { email } });
     } catch (error) {
       clearTimeout(timeoutId);
       logger.error("SignUp error:", error);
       const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t("auth.error"),
-        description: t(errorKey),
-        variant: "destructive",
-      });
+      toast.error(t("auth.error"), { description: t(errorKey) });
       setIsSubmitting(false);
     }
   };

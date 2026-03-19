@@ -24,7 +24,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { AuthenticatedHeader } from "@/components/auth/AuthenticatedHeader";
 import { logger } from "@/lib/logger";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { getOnboardingIntent, clearOnboardingIntent } from "@/lib/onboarding-storage";
@@ -36,7 +36,6 @@ type ProfileType = "admin" | "athlete" | null;
 export default function IdentityWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState, createTenant, joinExistingTenant, refreshIdentity } = useIdentity();
 
@@ -94,30 +93,18 @@ export default function IdentityWizard() {
   // Complete wizard via backend — PI-ONB-001: Use explicit methods
   const handleComplete = async () => {
     if (!joinMode || !profileType) {
-      toast({
-        title: "Configuração incompleta",
-        description: "Complete todas as etapas antes de continuar.",
-        variant: "destructive",
-      });
+      toast.error("Configuração incompleta", { description: "Complete todas as etapas antes de continuar." });
       return;
     }
 
     // Validate required fields
     if (joinMode === "existing" && !inviteCode.trim()) {
-      toast({
-        title: "Código obrigatório",
-        description: "Digite o código de convite da organização.",
-        variant: "destructive",
-      });
+      toast.error("Código obrigatório", { description: "Digite o código de convite da organização." });
       return;
     }
 
     if (joinMode === "new" && !newOrgName.trim()) {
-      toast({
-        title: "Nome obrigatório",
-        description: "Digite o nome da organização.",
-        variant: "destructive",
-      });
+      toast.error("Nome obrigatório", { description: "Digite o nome da organização." });
       return;
     }
 
@@ -130,14 +117,11 @@ export default function IdentityWizard() {
 
         if (result.success) {
           clearOnboardingIntent();
-          toast({
-            title: "Organização criada!",
-            description: "Sua organização foi criada com sucesso.",
-          });
+          toast.success("Organização criada!", { description: "Sua organização foi criada com sucesso." });
 
           // P1-003: Set pending redirect BEFORE refreshIdentity so the effect
           // navigates only when identityState stabilizes to "resolved"
-          const targetPath = result.redirectPath || (result.tenant?.slug ? `/${result.tenant.slug}/app` : '/portal');
+          const targetPath = result.redirectPath || (result.tenant?.slug ? `/${result.tenant.slug}/app` : '/');
           setPendingRedirect(targetPath);
 
           await queryClient.invalidateQueries({ queryKey: ["identity"] });
@@ -169,10 +153,7 @@ export default function IdentityWizard() {
 
         if (result.success) {
           clearOnboardingIntent();
-          toast({
-            title: "Solicitação enviada!",
-            description: "Sua solicitação foi enviada para análise.",
-          });
+          toast.success("Solicitação enviada!", { description: "Sua solicitação foi enviada para análise." });
 
           // P1-003: Set pending redirect BEFORE refreshIdentity
           if (result.redirectPath) {
@@ -190,11 +171,7 @@ export default function IdentityWizard() {
       }
     } catch (err) {
       logger.error("Wizard completion failed:", err);
-      toast({
-        title: "Erro",
-        description: "Falha ao finalizar configuração. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: "Falha ao finalizar configuração. Tente novamente." });
     } finally {
       setIsSubmitting(false);
     }
@@ -209,11 +186,7 @@ export default function IdentityWizard() {
   const handleWizardError = (error: { code: string; message: string }) => {
     // PI-UX-003: Block legacy technical messages from reaching the user
     if (error?.message && LEGACY_BLOCKED_MESSAGES.includes(error.message)) {
-      toast({
-        title: "Erro de configuração",
-        description: "Não foi possível concluir a solicitação. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Erro de configuração", { description: "Não foi possível concluir a solicitação. Tente novamente." });
       return;
     }
 
@@ -289,41 +262,25 @@ export default function IdentityWizard() {
       description: `Não foi possível concluir a solicitação (${error.code || "desconhecido"}). Tente novamente.`,
     };
 
-    toast({
-      title: msg.title,
-      description: msg.description,
-      variant: "destructive",
-    });
+    toast.error(msg.title, { description: msg.description });
   };
 
   // Step navigation
   const handleNextStep = () => {
     if (step === 1) {
       if (!joinMode) {
-        toast({
-          title: "Seleção obrigatória",
-          description: "Escolha como deseja prosseguir.",
-          variant: "destructive",
-        });
+        toast.error("Seleção obrigatória", { description: "Escolha como deseja prosseguir." });
         return;
       }
 
       // Validate inputs before advancing
       if (joinMode === "existing" && !inviteCode.trim()) {
-        toast({
-          title: "Código obrigatório",
-          description: "Digite o código de convite da organização.",
-          variant: "destructive",
-        });
+        toast.error("Código obrigatório", { description: "Digite o código de convite da organização." });
         return;
       }
 
       if (joinMode === "new" && !newOrgName.trim()) {
-        toast({
-          title: "Nome obrigatório",
-          description: "Digite o nome da organização.",
-          variant: "destructive",
-        });
+        toast.error("Nome obrigatório", { description: "Digite o nome da organização." });
         return;
       }
 
@@ -335,11 +292,7 @@ export default function IdentityWizard() {
       setStep(2);
     } else if (step === 2) {
       if (!profileType) {
-        toast({
-          title: "Perfil obrigatório",
-          description: "Selecione seu tipo de perfil.",
-          variant: "destructive",
-        });
+        toast.error("Perfil obrigatório", { description: "Selecione seu tipo de perfil." });
         return;
       }
       setStep(3);

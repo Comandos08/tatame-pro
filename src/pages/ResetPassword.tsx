@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
 import { Loader2, Lock, ArrowLeft, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
@@ -29,7 +29,6 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   
-  const { toast } = useToast();
 
   useEffect(() => {
     async function validateToken() {
@@ -67,20 +66,12 @@ export default function ResetPassword() {
     e.preventDefault();
 
     if (password.length < 8) {
-      toast({
-        title: t('auth.passwordTooShort'),
-        description: t('auth.passwordTooShortDesc'),
-        variant: "destructive",
-      });
+      toast.error(t('auth.passwordTooShort'), { description: t('auth.passwordTooShortDesc') });
       return;
     }
 
     if (password !== confirmPassword) {
-      toast({
-        title: t('auth.passwordsDontMatch'),
-        description: t('auth.passwordsDontMatchDesc'),
-        variant: "destructive",
-      });
+      toast.error(t('auth.passwordsDontMatch'), { description: t('auth.passwordsDontMatchDesc') });
       return;
     }
 
@@ -98,20 +89,13 @@ export default function ResetPassword() {
       }
 
       setIsSuccess(true);
-      toast({
-        title: t('auth.passwordChanged'),
-        description: t('auth.passwordChangedDesc'),
-      });
+      toast.success(t('auth.passwordChanged'), { description: t('auth.passwordChangedDesc') });
 
       // PI Z0.4: Deterministic redirect — navigate immediately after confirmed success
       navigate("/login");
     } catch (error) {
       logger.error("Password reset error:", error);
-      toast({
-        title: t('auth.resetError'),
-        description: error instanceof Error ? error.message : t('auth.genericError'),
-        variant: "destructive",
-      });
+      toast.error(t('auth.resetError'), { description: error instanceof Error ? error.message : t('auth.genericError') });
     } finally {
       setIsLoading(false);
     }

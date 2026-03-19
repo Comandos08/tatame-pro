@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { useIdentity } from "@/contexts/IdentityContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
 import { getAuthErrorKey } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -30,7 +30,6 @@ export default function Login() {
   const { signIn, isAuthenticated } = useCurrentUser();
   const { identityState, redirectPath } = useIdentity();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { t } = useI18n();
 
   // ✅ Wait for auth AND identity to be resolved before navigating
@@ -87,11 +86,7 @@ export default function Login() {
 
     setFormErrors({});
     if (!validateForm()) {
-      toast({
-        title: t('auth.formError'),
-        description: t('auth.correctErrors'),
-        variant: 'destructive',
-      });
+      toast.error(t('auth.formError'), { description: t('auth.correctErrors') });
       return;
     }
 
@@ -100,19 +95,12 @@ export default function Login() {
     try {
       await signIn(email, password);
       setIsSubmitting(false);
-      toast({
-        title: t("auth.welcome"),
-        description: t("auth.loginSuccess"),
-      });
+      toast.success(t("auth.welcome"), { description: t("auth.loginSuccess") });
       // DO NOT navigate here. Wait for isAuthenticated and then go to destination.
     } catch (error) {
       logger.error("Auth error:", error);
       const errorKey = getAuthErrorKey(error);
-      toast({
-        title: t("auth.error"),
-        description: t(errorKey),
-        variant: "destructive",
-      });
+      toast.error(t("auth.error"), { description: t(errorKey) });
       setIsSubmitting(false);
     }
   };
