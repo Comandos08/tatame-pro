@@ -14,7 +14,7 @@
  * @contract TG.C — Tenant Lifecycle Guard
  */
 
-import { test, expect, describe } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { 
   invokeEdgeFunction,
   createTestSession,
@@ -47,7 +47,7 @@ const TEST_CONFIG = {
   testUserPassword: 'test-password-123',
 };
 
-describe('TG.C — Tenant Lifecycle Guard Contract', () => {
+test.describe('TG.C — Tenant Lifecycle Guard Contract', () => {
   
   /**
    * TG.C.1: generate-digital-card BLOCKS for tenant SETUP

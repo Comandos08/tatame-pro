@@ -12,7 +12,7 @@
  * @contract FG.C — Federation Lifecycle
  */
 
-import { test, expect, describe } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { 
   invokeEdgeFunction,
   createTestSession,
@@ -44,7 +44,7 @@ const TEST_CONFIG = {
   noRoleUserPassword: 'test-password-123',
 };
 
-describe('FG.C — Federation Lifecycle Contract', () => {
+test.describe('FG.C — Federation Lifecycle Contract', () => {
 
   /**
    * FG.C.1: join-federation BLOCKS for tenant SETUP
