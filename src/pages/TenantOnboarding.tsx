@@ -33,6 +33,8 @@ import { AppShell } from '@/layouts/AppShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { useTenantFlags } from '@/contexts/TenantFlagsContext';
+import { invalidateTenantState } from '@/lib/invalidate-tenant-state';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SportType } from '@/types/tenant';
@@ -71,6 +73,7 @@ export default function TenantOnboarding() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { tenant, refetchTenant } = useTenant();
+  const { refetch: refetchTenantFlags } = useTenantFlags();
   const { session } = useImpersonation();
   const impersonationId = session?.impersonationId;
   const queryClient = useQueryClient();
@@ -165,13 +168,18 @@ export default function TenantOnboarding() {
     },
     onSuccess: () => {
       toast.success(t('onboarding.activatedSuccess'));
-      
+
       // Force TenantContext to reload data
       refetchTenant();
-      
-      // Invalidate React Query caches
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status', tenant?.id] });
-      
+
+      // P0-FIX: Invalidate ALL tenant state caches (flags contract, onboarding, access).
+      // Without this, TenantOnboardingGate and AppShell continue reading stale
+      // onboarding_completed: false for up to 5 minutes, blocking the main nav.
+      invalidateTenantState(tenant?.id, queryClient);
+
+      // Immediately refetch the contract so the gate unblocks before navigation
+      refetchTenantFlags();
+
       // Navigate with replace to prevent back-button loop
       navigate(`/${tenant?.slug}/app`, { replace: true });
     },

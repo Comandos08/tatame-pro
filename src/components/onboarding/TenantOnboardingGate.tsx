@@ -39,17 +39,20 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     // Don't run during impersonation resolution
     if (isImpersonating && resolutionStatus !== 'RESOLVED') return;
     
-    if (isTenantLoading || isContractLoading || !tenant) return;
+    // P0-FIX: also guard on contract error — when contract errored, _contract is null
+    // but isContractError is true; we must not proceed with stale/absent data.
+    if (isTenantLoading || isContractLoading || isContractError || !tenant) return;
 
     // P0-02: Check BOTH tenant.status === 'SETUP' AND onboarding_completed === false
     // Tenants created via wizard arrive as ACTIVE with onboarding_completed: false
     // The contract (TenantFlagsContract) is the source of truth for onboarding_completed.
-    // Fallback: when contract fails to load, use tenant.status === 'SETUP' only —
-    // this prevents falsely redirecting ACTIVE+complete tenants on RPC errors.
+    // P0-FIX: Fail-closed fallback — if contract is null (invalid RPC payload or disabled
+    // query), treat onboarding as incomplete. An active+complete tenant will never have
+    // a null contract under normal operation; assuming incomplete is the safe choice.
     const isSetupMode = tenant.status === 'SETUP';
     const isOnboardingIncomplete = _contract !== null
       ? _contract.onboarding_completed !== true
-      : isSetupMode;
+      : true; // fail-closed: unknown contract state = assume incomplete
     
     // Only enforce onboarding gate if tenant is in SETUP or onboarding is explicitly incomplete
     if (!isSetupMode && !isOnboardingIncomplete) return;
@@ -70,7 +73,7 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
       });
       navigate(`/${tenant.slug}/app/onboarding`, { replace: true });
     }
-  }, [tenant, isTenantLoading, isContractLoading, _contract, location.pathname, navigate, isImpersonating, resolutionStatus]);
+  }, [tenant, isTenantLoading, isContractLoading, isContractError, _contract, location.pathname, navigate, isImpersonating, resolutionStatus]);
 
   // Block rendering during impersonation resolution
   if (isImpersonating && resolutionStatus !== 'RESOLVED') {
