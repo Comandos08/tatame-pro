@@ -166,19 +166,19 @@ export default function TenantOnboarding() {
 
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(t('onboarding.activatedSuccess'));
-
-      // Force TenantContext to reload data
-      refetchTenant();
 
       // P0-FIX: Invalidate ALL tenant state caches (flags contract, onboarding, access).
       // Without this, TenantOnboardingGate and AppShell continue reading stale
       // onboarding_completed: false for up to 5 minutes, blocking the main nav.
       invalidateTenantState(tenant?.id, queryClient);
 
-      // Immediately refetch the contract so the gate unblocks before navigation
-      refetchTenantFlags();
+      // P0-FIX: Await both refetches before navigating so TenantOnboardingGate reads
+      // onboarding_completed: true and does NOT redirect back to /onboarding.
+      // Previously, navigate() fired before the async refetches settled, causing
+      // a stale-gate redirect loop (SETUP → /app → back to /onboarding).
+      await Promise.all([refetchTenant(), refetchTenantFlags()]);
 
       // Navigate with replace to prevent back-button loop
       navigate(`/${tenant?.slug}/app`, { replace: true });

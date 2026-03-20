@@ -145,7 +145,7 @@ export default function EventDetails() {
     onSuccess: () => {
       toast.success(t('events.statusUpdated'));
       queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['events', tenant?.id] });
     },
     onError: () => {
       toast.error(t('events.statusUpdateError'));
