@@ -56,7 +56,7 @@ export function emitIdentityTelemetry(payload: IdentityTelemetryPayload): void {
     // 🚫 NEVER block render
     queueMicrotask(() => {
       try {
-        // eslint-disable-next-line no-console
+         
         logger.info('[IdentityTelemetry]', payload);
 
         // FUTURE EXPANSION:

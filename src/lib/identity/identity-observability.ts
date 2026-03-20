@@ -82,7 +82,7 @@ export function devLogIdentityObservation(payload: {
 
   const { event, violations } = payload;
 
-  // eslint-disable-next-line no-console
+   
   console.groupCollapsed(
     `[IdentityObs] ${event.from ?? '∅'} → ${event.to} @ ${event.pathname}`
   );
@@ -90,6 +90,6 @@ export function devLogIdentityObservation(payload: {
   if (violations.length) {
     logger.warn('violations', violations);
   }
-  // eslint-disable-next-line no-console
+   
   console.groupEnd();
 }

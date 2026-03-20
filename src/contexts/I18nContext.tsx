@@ -27,7 +27,7 @@ const GLOBAL_STORAGE_KEY = "tatame-locale";
 function getTenantSlugFromPath(): string | null {
   if (typeof window === "undefined") return null;
   const path = window.location.pathname;
-  const match = path.match(/^\/([^\/]+)/);
+  const match = path.match(/^\/([^/]+)/);
   if (match && match[1] && !["admin", "login", "forgot-password", "reset-password"].includes(match[1])) {
     return match[1];
   }

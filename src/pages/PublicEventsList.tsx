@@ -23,18 +23,16 @@ export default function PublicEventsList() {
   const { t } = useI18n();
   const [search, setSearch] = React.useState('');
 
-  // Guard clause - tenant required
-  if (!tenant) return <LoadingState titleKey="common.loading" />;
-
+  // All hooks must be called before any early returns (Rules of Hooks).
   const { isAuthenticated } = useCurrentUser();
-  const { 
-    hasAthleteInTenant, 
-    hasAthleteAnywhere, 
-    isLoading: athleteCheckLoading 
+  const {
+    hasAthleteInTenant,
+    hasAthleteAnywhere,
+    isLoading: athleteCheckLoading
   } = useHasAthleteInTenant(tenant?.id);
 
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ['public-events', tenant.slug],
+    queryKey: ['public-events', tenant?.slug],
     queryFn: async () => {
       // Query with proper filters - RLS handles tenant isolation
       const { data, error } = await supabase
@@ -43,12 +41,15 @@ export default function PublicEventsList() {
         .eq('is_public', true)
         .not('status', 'in', '(DRAFT,ARCHIVED)')
         .order('start_date', { ascending: true });
-      
+
       if (error) throw error;
       return data as Event[];
     },
-    enabled: !!tenant.id,
+    enabled: !!tenant?.id,
   });
+
+  // Guard clause - tenant required (after all hooks)
+  if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   // Loading composto: aguardar auth + athlete check (Ajuste C)
   const isPageLoading = isLoading || (isAuthenticated && athleteCheckLoading);
