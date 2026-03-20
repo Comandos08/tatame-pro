@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FileCheck, Calendar, DollarSign } from "lucide-react";
+import { Users, FileCheck, Calendar, DollarSign, AlertCircle } from "lucide-react";
 import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +18,7 @@ interface TenantDashboardCardsProps {
 }
 
 export function TenantDashboardCards({ tenantId }: TenantDashboardCardsProps) {
-  const { data: metrics, isLoading } = useQuery({
+  const { data: metrics, isLoading, isError } = useQuery({
     queryKey: ["dashboard-metrics", tenantId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
@@ -46,6 +46,21 @@ export function TenantDashboardCards({ tenantId }: TenantDashboardCardsProps) {
             </CardHeader>
             <CardContent>
               <Skeleton className="h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-2 pt-6 text-sm text-muted-foreground">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <span>Erro ao carregar métricas</span>
             </CardContent>
           </Card>
         ))}
