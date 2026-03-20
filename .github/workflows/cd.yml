@@ -11,7 +11,12 @@ concurrency:
 
 jobs:
   deploy-preview:
-    if: github.event_name == 'pull_request'
+    # The native Vercel GitHub integration handles preview deployments automatically.
+    # This CI-driven job is an optional alternative that only runs when the
+    # repository variable VERCEL_DEPLOY_ENABLED is set to 'true'.
+    # To enable: Settings → Variables → New repository variable → VERCEL_DEPLOY_ENABLED=true
+    # and add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID as repository secrets.
+    if: github.event_name == 'pull_request' && vars.VERCEL_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
