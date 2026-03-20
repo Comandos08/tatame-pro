@@ -17,10 +17,10 @@ const IdentityRpcSchema = z.object({
   status: z.enum(["RESOLVED", "WIZARD_REQUIRED", "ERROR"]),
   role: z.enum(["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "ATLETA"]).optional(),
   tenant: z.object({
-    id: z.string().uuid(),
+    id: z.string(),
     slug: z.string(),
     name: z.string(),
-  }).optional(),
+  }).nullish(),
   redirectPath: z.string().nullable().optional(),
   error: z.object({
     code: z.string(),

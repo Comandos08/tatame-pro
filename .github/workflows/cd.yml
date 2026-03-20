@@ -38,7 +38,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
 
   deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.VERCEL_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
