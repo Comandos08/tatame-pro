@@ -114,6 +114,17 @@ export default function AuthCallback() {
         }
 
         const result = data?.data ?? data;
+
+        // P1-FIX: Handle WIZARD_REQUIRED returned by POST_AUTH_REDIRECT.
+        // This happens for new users who verified email but haven't completed
+        // the identity wizard yet (e.g. joined via /join but has no role/membership).
+        // Without this check, result.redirectPath is undefined → destination = '/'
+        // and the user lands on the homepage instead of the wizard.
+        if (result?.status === 'WIZARD_REQUIRED') {
+          navigate('/identity/wizard', { replace: true });
+          return;
+        }
+
         let destination = result?.redirectPath || '/';
 
         // 🔐 Validação defensiva de path
