@@ -150,6 +150,7 @@ export function TenantStatusBanner() {
                 size="icon"
                 className="h-6 w-6 shrink-0"
                 onClick={() => setDismissed(true)}
+                aria-label={t('common.close')}
               >
                 <X className="h-4 w-4" />
               </Button>

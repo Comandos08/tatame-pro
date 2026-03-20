@@ -239,8 +239,8 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
       const unwrapped = unwrapInvoke<IdentityResult>(data);
       applyResult(unwrapped);
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if ((err as Error)?.name === "AbortError") {
         setIdentityState("ERROR");
         setError({
           code: "IDENTITY_TIMEOUT",

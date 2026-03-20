@@ -572,7 +572,7 @@ export default function MembershipDetailsPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {gradings.map((grading: any) => {
+                      {gradings?.map((grading) => {
                         const level = grading.grading_levels;
                         const scheme = level?.grading_schemes;
                         const diploma = grading.diplomas;

@@ -120,7 +120,7 @@ export function EventRegistrationButton({
       queryClient.invalidateQueries({ queryKey: ['event-registrations'] });
       setSelectedCategory('');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       logger.error('Registration error:', error);
       if (error.message?.includes('already registered') || error.message?.includes('unique constraint')) {
         toast.error(t('events.alreadyRegistered'));

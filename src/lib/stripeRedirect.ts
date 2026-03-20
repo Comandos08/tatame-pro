@@ -1,3 +1,5 @@
+import { logger } from '@/lib/logger';
+
 /**
  * Validates and performs a safe redirect to a Stripe URL.
  * Blocks redirects to non-Stripe domains to prevent open redirect attacks.
@@ -15,19 +17,19 @@ export function safeStripeRedirect(url: string | undefined | null): boolean {
       || parsed.hostname.endsWith(".stripe.com");
 
     if (!isStripe) {
-      console.error("[SECURITY] Blocked non-Stripe redirect:", parsed.hostname);
+      logger.error("[SECURITY] Blocked non-Stripe redirect:", parsed.hostname);
       return false;
     }
 
     if (parsed.protocol !== "https:") {
-      console.error("[SECURITY] Blocked non-HTTPS Stripe redirect");
+      logger.error("[SECURITY] Blocked non-HTTPS Stripe redirect");
       return false;
     }
 
     window.location.href = url;
     return true;
   } catch {
-    console.error("[SECURITY] Invalid redirect URL");
+    logger.error("[SECURITY] Invalid redirect URL");
     return false;
   }
 }

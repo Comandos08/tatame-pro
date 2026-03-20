@@ -350,7 +350,7 @@ export default function EventDetails() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {registrations.map((reg: any) => {
+                      {registrations?.map((reg) => {
                         const statusConfig = EVENT_REGISTRATION_STATUS_CONFIG[reg.status as keyof typeof EVENT_REGISTRATION_STATUS_CONFIG];
                         return (
                           <TableRow key={reg.id}>
