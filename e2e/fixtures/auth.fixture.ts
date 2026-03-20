@@ -1,5 +1,5 @@
-import { Page, expect } from '@playwright/test';
-import { createTestSupabaseClient } from './supabaseTestClient';
+import { Page, expect, test } from '@playwright/test';
+import { createTestSupabaseClient, SUPABASE_URL } from './supabaseTestClient';
 import { TEST_USERS, TestUser, validateTestUser, TEST_TENANT_SLUG } from './users.seed';
 import { 
   injectSessionCookies, 
@@ -24,14 +24,20 @@ import {
  * ❌ Never redirect manually
  */
 
-const supabase = createTestSupabaseClient();
+const hasSupabaseCredentials = !!SUPABASE_URL;
+const supabase = hasSupabaseCredentials ? createTestSupabaseClient() : null;
 
 /**
  * Core login function - authenticates and validates routing
  */
 async function loginAsUser(page: Page, user: TestUser): Promise<void> {
+  if (!hasSupabaseCredentials || !supabase) {
+    test.skip(true, 'Supabase credentials not configured (VITE_SUPABASE_URL missing). Skipping auth-dependent test.');
+    return;
+  }
+
   console.log(`🔐 Logging in as ${user.role}: ${user.email}`);
-  
+
   // 1. Authenticate with Supabase
   const { data, error } = await supabase.auth.signInWithPassword({
     email: user.email,
@@ -238,3 +244,4 @@ export async function quickLogin(page: Page, userKey: keyof typeof TEST_USERS): 
 
 // Export test users for reference
 export { TEST_USERS, TEST_TENANT_SLUG };
+export { TEST_TENANT_SLUG as TENANT_SLUG };
