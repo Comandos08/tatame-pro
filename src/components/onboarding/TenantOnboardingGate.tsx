@@ -18,14 +18,22 @@ interface TenantOnboardingGateProps {
   children: ReactNode;
 }
 
-// Routes that are allowed during onboarding (SETUP status)
-const ALLOWED_ROUTES = [
+/**
+ * Routes accessible during tenant onboarding (SETUP status or onboarding_completed=false).
+ * All other /app/* routes redirect to /app/onboarding until the tenant is fully activated.
+ *
+ * P2-FIX: Exported so callers (sidebar nav, breadcrumbs, tests) can reference the
+ * same source of truth. When adding a new route that must be reachable during setup,
+ * add it here — prefix matching is used, so '/app/grading-schemes' also covers
+ * '/app/grading-schemes/:id/levels'.
+ */
+export const ONBOARDING_ALLOWED_ROUTES = [
   '/app/onboarding',
   '/app/academies',
   '/app/coaches',
   '/app/grading-schemes',
   '/app/settings',
-];
+] as const;
 
 export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
   const { tenant, isLoading: isTenantLoading } = useTenant();
@@ -62,7 +70,7 @@ export function TenantOnboardingGate({ children }: TenantOnboardingGateProps) {
     const tenantPrefix = `/${tenant.slug}`;
     const relativePath = currentPath.replace(tenantPrefix, '');
     
-    const isAllowed = ALLOWED_ROUTES.some(route => 
+    const isAllowed = ONBOARDING_ALLOWED_ROUTES.some(route =>
       relativePath === route || relativePath.startsWith(route + '/')
     );
 

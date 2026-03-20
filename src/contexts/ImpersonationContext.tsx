@@ -85,6 +85,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>('IDLE');
   
   const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const impersonationInFlightRef = useRef(false);
   const consecutiveValidationFailures = useRef(0);
 
@@ -239,11 +240,14 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Clear previous expiration timeout before creating new one
+    // Clear previous expiration and warning timeouts before creating new ones
     if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
+    if (warningTimeout.current) clearTimeout(warningTimeout.current);
 
     // Set up local expiration timeout (fail-closed)
     const expiresIn = new Date(session.expiresAt).getTime() - Date.now();
+    const WARNING_BEFORE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
     if (expiresIn > 0) {
       expirationTimeout.current = setTimeout(() => {
         if (cancelled) return;
@@ -251,6 +255,15 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         toast.warning(t('impersonation.sessionExpired'));
         navigate('/admin', { replace: true });
       }, expiresIn);
+
+      // P2-FIX: Warn the user 5 minutes before the session expires so they
+      // can save their work or explicitly extend the session.
+      if (expiresIn > WARNING_BEFORE_EXPIRY_MS) {
+        warningTimeout.current = setTimeout(() => {
+          if (cancelled) return;
+          toast.warning(t('impersonation.sessionExpiringSoon'));
+        }, expiresIn - WARNING_BEFORE_EXPIRY_MS);
+      }
     }
 
     return () => {
@@ -258,6 +271,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibility);
       if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
+      if (warningTimeout.current) clearTimeout(warningTimeout.current);
     };
   }, [session?.impersonationId, session?.status, isGlobalSuperadmin, validateSession, navigate, t, clearSession]);
 

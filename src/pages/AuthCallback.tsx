@@ -10,6 +10,7 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { detectMembershipResume } from '@/lib/membership/membershipSessionPersistence';
@@ -40,6 +41,7 @@ function extractTenantSlug(path: string | null): string | null {
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { currentUser, isAuthenticated, isLoading } = useCurrentUser();
   const [redirecting, setRedirecting] = useState(false);
   
@@ -139,6 +141,14 @@ export default function AuthCallback() {
           return;
         }
 
+        // P2-FIX: Invalidate tenant-scoped caches before navigating.
+        // A previous login session may have left stale 'tenant-flags-contract'
+        // or 'access-contract' entries that would cause gates to read stale data
+        // on the first render after the callback redirect.
+        queryClient.invalidateQueries({ queryKey: ['tenant-flags-contract'] });
+        queryClient.invalidateQueries({ queryKey: ['access-contract'] });
+        queryClient.invalidateQueries({ queryKey: ['onboarding-status'] });
+
         navigate(destination, { replace: true });
         return;
 
@@ -160,7 +170,8 @@ export default function AuthCallback() {
     isAuthenticated,
     currentUser,
     nextRaw,
-    navigate
+    navigate,
+    queryClient,
   ]);
 
   return (

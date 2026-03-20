@@ -1,11 +1,32 @@
 // src/contexts/IdentityContext.tsx
 
 import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
+import { z } from "zod";
 import { logger } from "@/lib/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/contexts/AuthContext";
 import { emitInstitutionalEvent } from "@/lib/institutional";
 import { type IdentityState } from "@/lib/identity/identity-state-machine";
+
+// ============================================================================
+// P2-FIX: Zod schema for resolve-identity-wizard RPC response.
+// Validates the envelope before applyResult() processes it, catching any
+// backend contract drift at the boundary instead of via runtime type errors.
+// ============================================================================
+const IdentityRpcSchema = z.object({
+  status: z.enum(["RESOLVED", "WIZARD_REQUIRED", "ERROR"]),
+  role: z.enum(["SUPERADMIN_GLOBAL", "ADMIN_TENANT", "ATLETA"]).optional(),
+  tenant: z.object({
+    id: z.string().uuid(),
+    slug: z.string(),
+    name: z.string(),
+  }).optional(),
+  redirectPath: z.string().nullable().optional(),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }).optional(),
+});
 
 export type { IdentityState };
 
@@ -238,7 +259,17 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       if (currentRequestId !== requestIdRef.current) return;
 
       const unwrapped = unwrapInvoke<IdentityResult>(data);
-      applyResult(unwrapped);
+
+      // P2-FIX: Validate RPC response shape before processing
+      const parseResult = IdentityRpcSchema.safeParse(unwrapped);
+      if (!parseResult.success) {
+        logger.error("[IdentityContext] RPC schema validation failed:", parseResult.error.issues);
+        setIdentityState("ERROR");
+        setError({ code: "UNKNOWN", message: "Resposta inesperada do servidor de identidade." });
+        return;
+      }
+
+      applyResult(parseResult.data);
     } catch (err: unknown) {
       if ((err as Error)?.name === "AbortError") {
         setIdentityState("ERROR");
@@ -304,19 +335,28 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
     const unwrapped = unwrapInvoke<IdentityResult>(data);
 
-    if (unwrapped?.status === "RESOLVED") {
-      applyResult(unwrapped);
+    // P2-FIX: Validate action response shape before processing
+    const parseResult = IdentityRpcSchema.safeParse(unwrapped);
+    if (!parseResult.success) {
+      logger.error("[IdentityContext] Action RPC schema validation failed:", parseResult.error.issues);
+      return { success: false, error: { code: "UNKNOWN" as const, message: "Resposta inesperada do servidor." } };
+    }
+
+    const validated = parseResult.data;
+
+    if (validated?.status === "RESOLVED") {
+      applyResult(validated);
       return {
         success: true,
-        tenant: unwrapped.tenant,
-        role: unwrapped.role,
-        redirectPath: unwrapped.redirectPath ?? undefined,
+        tenant: validated.tenant,
+        role: validated.role,
+        redirectPath: validated.redirectPath ?? undefined,
       };
     }
 
     return {
       success: false,
-      error: unwrapped?.error,
+      error: validated?.error as IdentityError | undefined,
     };
   };
 

@@ -1783,6 +1783,7 @@ export const ptBR = {
   'impersonation.started': 'Impersonation iniciada',
   'impersonation.ended': 'Impersonation encerrada',
   'impersonation.sessionExpired': 'Sessão de impersonation expirou',
+  'impersonation.sessionExpiringSoon': 'Sessão de impersonation expira em 5 minutos',
   'impersonation.startFailed': 'Falha ao iniciar impersonation',
   'impersonation.startButton': 'Impersonar Tenant',
   'impersonation.confirmStart': 'Iniciar impersonation para este tenant?',
