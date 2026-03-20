@@ -160,8 +160,9 @@ function isPublicPath(pathname: string) {
     /^\/[^/]+\/academies\/?$/,         // /{tenant}/academies - public academy list
     /^\/[^/]+\/rankings\/?$/,          // /{tenant}/rankings - public rankings
     /^\/[^/]+\/events\/?$/,            // /{tenant}/events - public events list
-    /^\/[^/]+\/events\/[^/]+\/?$/,     // /{tenant}/events/{id} - public event details
-    /^\/[^/]+\/membership\/?.*$/,      // /{tenant}/membership/* - public membership flow
+    /^\/[^/]+\/events\/[^/]+\/?$/,           // /{tenant}/events/{id} - public event details
+    /^\/[^/]+\/events\/[^/]+\/brackets\/?$/, // /{tenant}/events/{id}/brackets - public brackets
+    /^\/[^/]+\/membership\/?.*$/,            // /{tenant}/membership/* - public membership flow
   ];
 
   return tenantPublicPatterns.some((re) => re.test(pathname));
