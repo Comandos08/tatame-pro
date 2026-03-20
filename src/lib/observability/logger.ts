@@ -28,8 +28,14 @@ interface Logger {
   error: (message: string, context?: LogContext, error?: unknown) => void;
 }
 
-const isDev = import.meta.env.DEV;
-const isTest = import.meta.env.MODE === 'test';
+const isDev =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? import.meta.env.DEV
+    : process.env.NODE_ENV === 'development';
+const isTest =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? import.meta.env.MODE === 'test'
+    : process.env.NODE_ENV === 'test';
 
 /**
  * Format log entry with timestamp and context.
