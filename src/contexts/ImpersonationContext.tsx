@@ -407,10 +407,15 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
       setSession(newSession);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
-      
+
       // ✅ P-IMP-FIX — Mark as RESOLVED only after session is set
       logger.log('[IMPERSONATION] Success, status → RESOLVED');
       setResolutionStatus('RESOLVED');
+
+      // P1-FIX: Reset all tenant-scoped caches so the impersonated tenant's
+      // data is fetched fresh. Without this, stale caches from the previous
+      // context (superadmin's own session) persist until TTL expires.
+      hardResetAuthClientState(queryClient);
 
       toast.success(`${t('impersonation.started')}: ${payload.targetTenantName}`);
       return true;

@@ -1135,54 +1135,17 @@ async function handleCreateTenant(
       tenant_name: orgName,
       tenant_slug: finalSlug,
       creation_source: "wizard",
-      status: "ACTIVE",
-      billing_status: "TRIALING",
-      trial_days: 15,
+      status: "SETUP",
     },
   });
 
-  /* ─────────────────────────────────────────────────────────────────────────────
-   * STEP 7.5: TRIAL_15_DAYS — Criar tenant_billing com status TRIALING (idempotente)
-   * ───────────────────────────────────────────────────────────────────────────── */
-  const { data: existingBilling } = await supabase
-    .from("tenant_billing")
-    .select("id")
-    .eq("tenant_id", newTenant.id)
-    .limit(1);
+  // P1-FIX: Billing is NOT created here. The wizard only creates the tenant in
+  // SETUP status. Billing (TRIALING) is bootstrapped exclusively by
+  // complete-tenant-onboarding when the admin finishes the onboarding wizard.
+  // This ensures the trial period starts at activation, not at tenant creation,
+  // and avoids duplicate billing records with conflicting trial windows.
 
-  if (!existingBilling || existingBilling.length === 0) {
-    // TRIAL_15_DAYS: Create billing with TRIALING status and 15-day trial window
-    const now = new Date();
-    const trialExpiresAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // +15 days
-
-    const { error: billingError } = await supabase.from("tenant_billing").upsert(
-      {
-        tenant_id: newTenant.id,
-        status: "TRIALING",
-        plan_name: "Plano Federação Anual",
-        plan_price_id: "price_1Spz03HH533PC5DdDUbCe7fS",
-        trial_started_at: now.toISOString(),
-        trial_expires_at: trialExpiresAt.toISOString(),
-        current_period_start: now.toISOString(),
-        current_period_end: trialExpiresAt.toISOString(),
-      },
-      { onConflict: "tenant_id", ignoreDuplicates: true },
-    );
-
-    if (billingError) {
-      log.error("TRIAL_15_DAYS: Failed to create tenant_billing", billingError);
-      // Non-blocking — tenant already created and functional
-    } else {
-      log.info("TRIAL_15_DAYS: tenant_billing created with TRIALING status", {
-        tenantId: newTenant.id,
-        trialExpiresAt: trialExpiresAt.toISOString(),
-      });
-    }
-  } else {
-    log.info("TRIAL_15_DAYS: tenant_billing already exists, skipping", { tenantId: newTenant.id });
-  }
-
-  log.info("Success - redirecting to onboarding");
+  log.info("Success - tenant created in SETUP, redirecting to onboarding");
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * RETORNO: RESOLVED com redirecionamento para /app (SAFE_BOOT: tenant ACTIVE)

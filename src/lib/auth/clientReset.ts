@@ -32,6 +32,11 @@ export function hardResetAuthClientState(queryClient?: QueryClient): void {
       'memberships',
       'tenant-admins',
       'current-user',
+      // P1-FIX: also clear tenant-scoped caches so gates and sidebar
+      // reflect the correct state immediately after impersonation start/end.
+      'tenant-flags-contract',
+      'onboarding-status',
+      'access-contract',
     ];
     keysToInvalidate.forEach((key) => {
       queryClient.invalidateQueries({ queryKey: [key] });
