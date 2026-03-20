@@ -330,11 +330,23 @@ serve(async (req) => {
 
     // ========================================================================
     // P3.2.2 — BILLING BOOTSTRAP (BEFORE ACTIVATION per PI-GOV-001)
+    // P1-FIX: Check if billing pre-existed before the upsert so the rollback
+    // only deletes the record if WE created it. Without this, a pre-existing
+    // billing row (from a previous attempt or superadmin action) would be
+    // deleted on RPC failure, leaving the tenant in an inconsistent state.
     // ========================================================================
     const TRIAL_PERIOD_DAYS = 7;
     const now = new Date();
     const trialExpiresAt = new Date();
     trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_PERIOD_DAYS);
+
+    // P1-FIX: Snapshot pre-existing billing state BEFORE the upsert
+    const { data: preExistingBillingRow } = await supabase
+      .from("tenant_billing")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const billingPreExisted = !!preExistingBillingRow;
 
     // Use upsert to safely handle ACTIVE tenants that may already have billing.
     // onConflict: 'tenant_id' — if a row already exists, leave it untouched
@@ -380,6 +392,7 @@ serve(async (req) => {
       tenant_id: tenantId,
       status: "TRIALING",
       trial_expires_at: trialExpiresAt.toISOString(),
+      billing_pre_existed: billingPreExisted,
     });
 
     // ========================================================================
@@ -401,14 +414,21 @@ serve(async (req) => {
       });
 
     if (rpcError) {
-      log.info("Gatekeeper RPC failed, rolling back billing", { error: rpcError.message });
+      log.info("Gatekeeper RPC failed", { error: rpcError.message, billing_pre_existed: billingPreExisted });
 
-      // ROLLBACK: Delete billing record if activation fails
-      await supabase
-        .from("tenant_billing")
-        .delete()
-        .eq("tenant_id", tenantId)
-        .eq("status", "TRIALING");
+      // P1-FIX: Only rollback (delete) the billing row if WE created it in this
+      // request. If it pre-existed, deleting it would corrupt the tenant's billing
+      // history and could cause a broken state on a subsequent retry.
+      if (!billingPreExisted) {
+        log.info("Rolling back billing record created by this request");
+        await supabase
+          .from("tenant_billing")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("status", "TRIALING");
+      } else {
+        log.info("Skipping billing rollback — row pre-existed before this request");
+      }
 
       return new Response(
         JSON.stringify({

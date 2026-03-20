@@ -1,9 +1,41 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
+import { z } from "zod";
 import { logger } from "@/lib/logger";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tenant, TenantContext as TenantContextType } from "@/types/tenant";
 import { useCurrentUser } from "@/contexts/AuthContext";
+
+// ============================================================================
+// P2-FIX: Zod schemas for get_tenant_with_billing RPC response.
+// Validates the payload shape before any cast, catching backend schema
+// changes at the boundary rather than silently propagating bad data.
+// ============================================================================
+const TenantRpcSchema = z.object({
+  id: z.string().uuid(),
+  slug: z.string(),
+  name: z.string(),
+  logo_url: z.string().nullable().optional(),
+  primary_color: z.string().nullable().optional(),
+  sport_types: z.array(z.string()).nullable().optional(),
+  stripe_customer_id: z.string().nullable().optional(),
+  is_active: z.boolean().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  onboarding_completed: z.boolean().nullable().optional(),
+  status: z.enum(['SETUP', 'ACTIVE', 'SUSPENDED']).nullable().optional(),
+});
+
+const BillingRpcSchema = z.object({
+  status: z.string(),
+  stripe_customer_id: z.string().nullable().optional(),
+  scheduled_delete_at: z.string().nullable().optional(),
+  trial_expires_at: z.string().nullable().optional(),
+}).nullable();
+
+const TenantWithBillingRpcSchema = z.object({
+  tenant: TenantRpcSchema.nullable().optional(),
+  billing: BillingRpcSchema.optional(),
+}).nullable();
 
 interface ExtendedTenantContext extends TenantContextType {
   billingInfo: TenantBillingInfo | null;
@@ -154,7 +186,18 @@ export function TenantProvider({ children }: TenantProviderProps) {
         if (fetchError) throw fetchError;
         if (!isMountedRef.current) return;
 
-        const rpcData = rpcResult as { tenant: Record<string, unknown> | null; billing: Record<string, unknown> | null } | null;
+        // P2-FIX: Validate RPC payload with Zod before any field access.
+        // safeParse avoids throwing so fetch errors remain distinct from schema errors.
+        const parseResult = TenantWithBillingRpcSchema.safeParse(rpcResult);
+        if (!parseResult.success) {
+          logger.error("[TENANT] RPC schema validation failed:", parseResult.error.issues);
+          setError(new Error("TENANT_SCHEMA_ERROR"));
+          setTenant(null);
+          setBillingInfo(null);
+          return;
+        }
+
+        const rpcData = parseResult.data;
         const tenantRaw = rpcData?.tenant;
 
         if (!tenantRaw) {
@@ -167,15 +210,15 @@ export function TenantProvider({ children }: TenantProviderProps) {
             slug: tenantRaw.slug,
             name: tenantRaw.name,
             description: null,
-            logoUrl: tenantRaw.logo_url,
-            primaryColor: tenantRaw.primary_color || "#dc2626",
-            sportTypes: (tenantRaw.sport_types || []) as Tenant["sportTypes"],
-            stripeCustomerId: tenantRaw.stripe_customer_id,
+            logoUrl: tenantRaw.logo_url ?? null,
+            primaryColor: tenantRaw.primary_color ?? "#dc2626",
+            sportTypes: (tenantRaw.sport_types ?? []) as Tenant["sportTypes"],
+            stripeCustomerId: tenantRaw.stripe_customer_id ?? null,
             isActive: tenantRaw.is_active ?? true,
             createdAt: tenantRaw.created_at ?? "",
             updatedAt: "",
             onboardingCompleted: tenantRaw.onboarding_completed ?? undefined,
-            status: (tenantRaw.status as Tenant["status"]) ?? undefined,
+            status: tenantRaw.status ?? undefined,
             creationSource: undefined,
           };
           setTenant(tenantData);
