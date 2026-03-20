@@ -125,7 +125,7 @@ export default function AuthCallback() {
           return;
         }
 
-        let destination = result?.redirectPath || '/';
+        const destination = result?.redirectPath || '/';
 
         // 🔐 Validação defensiva de path
         if (

@@ -338,6 +338,24 @@ export default function AthleteArea() {
     };
   }, [activeMembership]);
 
+  // All hooks must be declared before any early returns (Rules of Hooks).
+  // P2.8 — LGPD: request data erasure
+  const handleRequestErasure = useCallback(async () => {
+    if (!athlete || !tenant) return;
+    setIsRequestingErasure(true);
+    try {
+      const { error } = await supabase.functions.invoke('request-erasure', {
+        body: { athlete_id: athlete.id, tenant_id: tenant.id },
+      });
+      if (error) throw error;
+      toast.success('Solicitação enviada', { description: 'Sua solicitação de exclusão foi registrada e será analisada pela equipe administrativa.' });
+    } catch {
+      toast.error('Erro ao solicitar exclusão', { description: 'Tente novamente ou entre em contato com o suporte.' });
+    } finally {
+      setIsRequestingErasure(false);
+    }
+  }, [athlete, tenant]);
+
   if (!tenant) return <LoadingState titleKey="common.loading" />;
 
   // Show message for admins
@@ -392,23 +410,6 @@ export default function AthleteArea() {
       setIsExporting(false);
     }
   };
-
-  // P2.8 — LGPD: request data erasure
-  const handleRequestErasure = useCallback(async () => {
-    if (!athlete || !tenant) return;
-    setIsRequestingErasure(true);
-    try {
-      const { error } = await supabase.functions.invoke('request-erasure', {
-        body: { athlete_id: athlete.id, tenant_id: tenant.id },
-      });
-      if (error) throw error;
-      toast.success('Solicitação enviada', { description: 'Sua solicitação de exclusão foi registrada e será analisada pela equipe administrativa.' });
-    } catch {
-      toast.error('Erro ao solicitar exclusão', { description: 'Tente novamente ou entre em contato com o suporte.' });
-    } finally {
-      setIsRequestingErasure(false);
-    }
-  }, [athlete, tenant]);
 
   if (athleteLoading) {
     return (
