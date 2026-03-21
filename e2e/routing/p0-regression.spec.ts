@@ -104,7 +104,9 @@ test.describe('🛡️ P0 Routing Regression Shield', () => {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
     
-    const loginElement = page.locator('input[type="email"], input[type="password"], button:has-text(/entrar|login|sign in/i)');
+    const loginElement = page.locator('input[type="email"]')
+      .or(page.locator('input[type="password"]'))
+      .or(page.getByRole('button', { name: /entrar|login|sign in/i }));
     await expect(loginElement.first()).toBeVisible({ timeout: 10000 });
     
     await expectNoWizardRedirect(page, 'T2');
