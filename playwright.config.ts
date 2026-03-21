@@ -47,6 +47,20 @@ export default defineConfig({
   },
   
   projects: [
+    // CI: runs only frontend tests that do not require a live backend/auth
+    {
+      name: 'ci',
+      testMatch: [
+        '**/smoke-test.spec.ts',
+        '**/public-verification.spec.ts',
+        '**/ui/**/*.spec.ts',
+        '**/routing/**/*.spec.ts',
+        '**/auth/login-form.spec.ts',
+        '**/auth/forgot-password.spec.ts',
+      ],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Full suite: run locally or on push to main with real credentials
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
