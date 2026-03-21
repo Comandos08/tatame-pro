@@ -71,17 +71,23 @@ export async function clearAuthSession(page: Page): Promise<void> {
   // Clear cookies
   await page.context().clearCookies();
   
-  // Clear localStorage
-  await page.evaluate((key) => {
-    localStorage.removeItem(key);
-    // Also clear any other Supabase-related items
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const storageKey = localStorage.key(i);
-      if (storageKey?.startsWith('sb-')) {
-        localStorage.removeItem(storageKey);
+  // Clear localStorage only when on a navigable page (not about:blank)
+  const currentUrl = page.url();
+  if (currentUrl && !currentUrl.startsWith('about:')) {
+    await page.evaluate((key) => {
+      try {
+        localStorage.removeItem(key);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const storageKey = localStorage.key(i);
+          if (storageKey?.startsWith('sb-')) {
+            localStorage.removeItem(storageKey);
+          }
+        }
+      } catch {
+        // localStorage not accessible in this context — skip
       }
-    }
-  }, cookieName);
+    }, cookieName);
+  }
 }
 
 /**
