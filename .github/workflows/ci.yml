@@ -54,7 +54,7 @@ jobs:
           VITE_APP_URL: http://127.0.0.1:5173
           VITE_SENTRY_DSN: ''
           CI: true
-        run: npx playwright test --project=chromium
+        run: npx playwright test --project=ci
 
       - name: Build
         run: npm run build
