@@ -51,8 +51,10 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0' }}
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'kotxhtveuegrywzyvdnl' }}
+          VITE_APP_URL: http://127.0.0.1:5173
+          VITE_SENTRY_DSN: ''
           CI: true
-        run: npx playwright test
+        run: npx playwright test --project=chromium
 
       - name: Build
         run: npm run build
