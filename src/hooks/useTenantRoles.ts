@@ -37,12 +37,20 @@ interface TenantRolesResult {
 /**
  * Hook to get user roles for a specific tenant.
  * Uses React Query for caching.
- * 
+ *
+ * KEY DESIGN: uses `session?.user?.id` (available immediately after auth)
+ * instead of `currentUser?.id` (requires a separate DB profile fetch).
+ * This prevents a race condition where `useTenantRoles` stays disabled while
+ * the profile is loading, causing `RequireRoles` to flash AccessDenied.
+ *
  * @param tenantId - The tenant ID to check roles for
  * @returns TenantRolesResult with roles and helper functions
  */
 export function useTenantRoles(tenantId: string | null | undefined): TenantRolesResult {
-  const { currentUser, isAuthenticated } = useCurrentUser();
+  const { session, isAuthenticated } = useCurrentUser();
+  // Use session user ID — available immediately when the session is established,
+  // before the profile (currentUser) finishes loading from the DB.
+  const userId = session?.user?.id;
 
   const {
     data: roles = [],
@@ -50,16 +58,16 @@ export function useTenantRoles(tenantId: string | null | undefined): TenantRoles
     error,
     isFetched,
   } = useQuery({
-    queryKey: ['tenant-roles', currentUser?.id, tenantId],
+    queryKey: ['tenant-roles', userId, tenantId],
     queryFn: async (): Promise<AppRole[]> => {
-      if (!currentUser?.id || !tenantId) {
+      if (!userId || !tenantId) {
         return [];
       }
 
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', currentUser.id)
+        .eq('user_id', userId)
         .eq('tenant_id', tenantId);
 
       if (error) {
@@ -69,7 +77,7 @@ export function useTenantRoles(tenantId: string | null | undefined): TenantRoles
 
       return (data || []).map(r => r.role as AppRole);
     },
-    enabled: !!currentUser?.id && !!tenantId && isAuthenticated,
+    enabled: !!userId && !!tenantId && isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5 minutes - roles don't change often
     gcTime: 10 * 60 * 1000, // 10 minutes in cache
     retry: 1, // Only retry once on failure
