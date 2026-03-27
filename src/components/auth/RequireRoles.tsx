@@ -42,10 +42,16 @@ export function RequireRoles({ allowed, children }: RequireRolesProps) {
   const { tenant, isLoading: tenantLoading } = useTenant();
   const { roles, isLoading: rolesLoading, isFetched } = useTenantRoles(tenant?.id);
   const { isImpersonating, impersonatedTenantId, isLoading: impersonationLoading } = useImpersonation();
-  const { isGlobalSuperadmin } = useCurrentUser();
+  const { isGlobalSuperadmin, isAuthenticated, currentUser } = useCurrentUser();
   const { t } = useI18n();
 
-  const isLoading = tenantLoading || impersonationLoading || (!isFetched && rolesLoading);
+  // Safety net: if the session is established but the profile hasn't loaded yet,
+  // treat it as a loading state to prevent a premature AccessDenied flash.
+  // The primary fix lives in useTenantRoles (uses session ID instead of profile ID),
+  // but this guard is a belt-and-suspenders for any edge case where profile lags.
+  const isProfileLoading = isAuthenticated && !currentUser;
+
+  const isLoading = tenantLoading || impersonationLoading || isProfileLoading || (!isFetched && rolesLoading);
   
   if (isLoading) {
     return (
