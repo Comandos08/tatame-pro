@@ -87,6 +87,7 @@ export default function AdminMembershipAnalytics() {
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

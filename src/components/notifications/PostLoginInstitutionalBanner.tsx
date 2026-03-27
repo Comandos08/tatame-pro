@@ -1,22 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 
 const STORAGE_KEY = 'tatame:postlogin_institutional_seen';
 
 export function PostLoginInstitutionalBanner() {
   const { t } = useI18n();
-  const [shouldShow, setShouldShow] = useState(false);
-
-  useEffect(() => {
-    // Check if already seen this session
+  const [shouldShow] = useState(() => {
     const alreadySeen = sessionStorage.getItem(STORAGE_KEY) === 'true';
-    
     if (!alreadySeen) {
-      setShouldShow(true);
-      // Mark as seen
       sessionStorage.setItem(STORAGE_KEY, 'true');
+      return true;
     }
-  }, []);
+    return false;
+  });
 
   if (!shouldShow) {
     return null;

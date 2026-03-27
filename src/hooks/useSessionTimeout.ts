@@ -39,7 +39,7 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
   const { signOut, session } = useAuth();
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const warningRef = useRef<ReturnType<typeof setTimeout>>();
-  const lastActivityRef = useRef(Date.now());
+  const lastActivityRef = useRef(0);
 
   const resetTimers = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -63,6 +63,11 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
 
   useEffect(() => {
     if (disabled || !session) return;
+
+    // Initialize activity timestamp on first run
+    if (lastActivityRef.current === 0) {
+      lastActivityRef.current = Date.now();
+    }
 
     // Set initial timers
     resetTimers();

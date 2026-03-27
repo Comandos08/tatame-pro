@@ -61,6 +61,7 @@ export function EditablePersonalData({ athlete, tenantId }: EditablePersonalData
   // Reset form when athlete changes or editing is cancelled
   useEffect(() => {
     if (!isEditing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         phone: athlete.phone || '',
         address_line1: athlete.address_line1 || '',

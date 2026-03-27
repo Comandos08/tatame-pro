@@ -15,5 +15,5 @@ export function useTrustNarrative(ctx: BlockReasonContext): TrustNarrative | nul
   return useMemo(() => {
     const blockReason = deriveBlockReason(ctx);
     return deriveTrustNarrative(blockReason);
-  }, [ctx.isLoading, ctx.canAccess, ctx.tenantLifecycle, ctx.billingStatus, ctx.featureEnabled, ctx.hasData]);
+  }, [ctx]);
 }

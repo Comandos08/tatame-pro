@@ -19,5 +19,5 @@ export function useManifestoMode(
   return useMemo(() => {
     const blockReason = deriveBlockReason(ctx);
     return deriveManifestoMode(blockReason, isLoading, isError);
-  }, [ctx.isLoading, ctx.canAccess, ctx.tenantLifecycle, ctx.billingStatus, ctx.featureEnabled, ctx.hasData, isLoading, isError]);
+  }, [ctx, isLoading, isError]);
 }
