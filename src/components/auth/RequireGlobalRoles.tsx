@@ -44,6 +44,7 @@ export function RequireGlobalRoles({ allowed, children }: RequireGlobalRolesProp
   // ═══════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isAuthenticated || currentUser || isLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTimedOut(false);
       return;
     }

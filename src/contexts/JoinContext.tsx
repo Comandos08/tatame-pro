@@ -41,35 +41,30 @@ interface StoredState {
 // Wizard state expires after 1 hour
 const STATE_TTL_MS = 60 * 60 * 1000;
 
-export function JoinProvider({ children }: { children: ReactNode }) {
-  const [selectedTenant, setSelectedTenantState] = useState<SelectedTenant | null>(null);
-  const [isWizardComplete, setWizardComplete] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Load persisted state on mount
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed: StoredState = JSON.parse(stored);
-        const isExpired = Date.now() - parsed.timestamp > STATE_TTL_MS;
-        
-        if (!isExpired && parsed.selectedTenant) {
-          setSelectedTenantState(parsed.selectedTenant);
-        } else {
-          sessionStorage.removeItem(STORAGE_KEY);
-        }
+function loadPersistedTenant(): SelectedTenant | null {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed: StoredState = JSON.parse(stored);
+      const isExpired = Date.now() - parsed.timestamp > STATE_TTL_MS;
+      if (!isExpired && parsed.selectedTenant) {
+        return parsed.selectedTenant;
       }
-    } catch (error) {
-      logger.error('JoinContext: Failed to load persisted state', error);
       sessionStorage.removeItem(STORAGE_KEY);
     }
-    setIsInitialized(true);
-  }, []);
+  } catch (error) {
+    logger.error('JoinContext: Failed to load persisted state', error);
+    sessionStorage.removeItem(STORAGE_KEY);
+  }
+  return null;
+}
+
+export function JoinProvider({ children }: { children: ReactNode }) {
+  const [selectedTenant, setSelectedTenantState] = useState<SelectedTenant | null>(loadPersistedTenant);
+  const [isWizardComplete, setWizardComplete] = useState(false);
 
   // Persist state changes
   useEffect(() => {
-    if (!isInitialized) return;
     
     if (selectedTenant) {
       const state: StoredState = {
@@ -80,7 +75,7 @@ export function JoinProvider({ children }: { children: ReactNode }) {
     } else {
       sessionStorage.removeItem(STORAGE_KEY);
     }
-  }, [selectedTenant, isInitialized]);
+  }, [selectedTenant]);
 
   const setSelectedTenant = (tenant: SelectedTenant | null) => {
     setSelectedTenantState(tenant);

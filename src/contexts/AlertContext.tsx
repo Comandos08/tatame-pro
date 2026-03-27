@@ -300,15 +300,15 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
     persistDismissToDb(id, currentUser.id);
-  }, [currentUser?.id]);
-  
+  }, [currentUser]);
+
   const clearDismissed = useCallback(() => {
     if (!currentUser?.id) return;
     const empty = new Set<string>();
     setDismissedIds(empty);
     dismissedIdsRef.current = empty;
     clearDismissedInDb(currentUser.id);
-  }, [currentUser?.id]);
+  }, [currentUser]);
   
   const refreshAlerts = useCallback(() => {
     refetch();

@@ -14,6 +14,7 @@ export function usePendingApprovalsCount(tenantId: string | undefined): number {
 
   useEffect(() => {
     if (!tenantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCount(0);
       return;
     }

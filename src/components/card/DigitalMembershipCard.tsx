@@ -88,6 +88,15 @@ export function DigitalMembershipCard({
     return formatDate(dateStr, locale);
   };
 
+  const fallbackCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(verificationUrl);
+      toast.success(t('common.copied'));
+    } catch {
+      toast.error(t('common.error'));
+    }
+  }, [verificationUrl, t]);
+
   const handleShare = useCallback(async () => {
     const shareData = {
       title: t('portal.myCard'),
@@ -107,16 +116,7 @@ export function DigitalMembershipCard({
     } else {
       fallbackCopy();
     }
-  }, [verificationUrl, athleteName, tenantName, t]);
-
-  const fallbackCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(verificationUrl);
-      toast.success(t('common.copied'));
-    } catch {
-      toast.error(t('common.error'));
-    }
-  };
+  }, [verificationUrl, athleteName, tenantName, t, fallbackCopy]);
 
   const handleDownload = () => {
     if (pdfUrl) {

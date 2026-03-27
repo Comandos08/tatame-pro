@@ -54,8 +54,11 @@ export function useOnceGuard(deps: unknown[]): React.MutableRefObject<boolean> {
   const depsRef = useRef<unknown[]>(deps);
 
   // Reset guard when deps change
+  // eslint-disable-next-line react-hooks/refs
   if (!shallowEqual(depsRef.current, deps)) {
+    // eslint-disable-next-line react-hooks/refs
     depsRef.current = deps;
+    // eslint-disable-next-line react-hooks/refs
     hasRunRef.current = false;
   }
 
@@ -94,6 +97,7 @@ export function useAbortController() {
     controllerRef.current = new AbortController();
   }, []);
 
+  // eslint-disable-next-line react-hooks/refs
   return { signal: getSignal(), getSignal, abort };
 }
 
@@ -158,8 +162,11 @@ export function useLoadingCounter() {
     if (isMounted()) forceUpdate();
   }, [isMounted, forceUpdate]);
 
+  // eslint-disable-next-line react-hooks/refs
   return {
+    // eslint-disable-next-line react-hooks/refs
     isLoading: countRef.current > 0,
+    // eslint-disable-next-line react-hooks/refs
     loadingCount: countRef.current,
     startLoading,
     stopLoading,
@@ -180,6 +187,7 @@ function useForceUpdate() {
  */
 function useStateRef<T>(initial: T) {
   const ref = useRef(initial);
+  // eslint-disable-next-line react-hooks/refs
   const [state, setState] = [ref.current, (value: T | ((prev: T) => T)) => {
     if (typeof value === 'function') {
       ref.current = (value as (prev: T) => T)(ref.current);
@@ -187,6 +195,7 @@ function useStateRef<T>(initial: T) {
       ref.current = value;
     }
   }];
+  // eslint-disable-next-line react-hooks/refs
   return [state, setState] as const;
 }
 
