@@ -133,6 +133,7 @@ function isPublicPath(pathname: string) {
     "/",
     "/about",
     "/join",
+    "/join/org",
     "/login",
     "/signup",
     "/forgot-password",
@@ -150,6 +151,12 @@ function isPublicPath(pathname: string) {
     /^\/verify\/[^/]+\/?$/,             // /verify/{token} - public document verification
   ];
   if (rootPublicPatterns.some((re) => re.test(pathname))) return true;
+
+  // STEP 1.75: Reserved segments are NEVER treated as tenant landing pages.
+  // BY DESIGN: /admin, /portal, /login, etc. are global routes, not org slugs.
+  // FAIL-CLOSED: If first segment is reserved, require authentication.
+  const firstSegment = pathname.split("/").filter(Boolean)[0];
+  if (firstSegment && RESERVED_ROUTE_SEGMENTS.has(firstSegment)) return false;
 
   // STEP 2: Tenant-scoped public routes (institutional pages, verification, etc.)
   // INTENTIONAL: These allow public access to organization landing pages
