@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import IdentityGate from "@/components/identity/IdentityGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RequireGlobalRoles } from "@/components/auth/RequireGlobalRoles";
@@ -61,7 +61,10 @@ const PublicEventBrackets = lazy(() => import("@/pages/PublicEventBrackets"));
 function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="flex flex-col items-center gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <p className="text-sm text-muted-foreground">Carregando a aplicação...</p>
+      </div>
     </div>
   );
 }
@@ -73,7 +76,8 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/" element={<Landing />} />
-          <Route path="/join" element={<JoinTenant />} />
+          <Route path="/join" element={<Navigate to="/join/org" replace />} />
+          <Route path="/join/org" element={<JoinTenant />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
