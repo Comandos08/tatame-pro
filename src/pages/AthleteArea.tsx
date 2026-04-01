@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
+import { PortalLayout } from '@/layouts/PortalLayout';
 import { useTenant } from '@/contexts/TenantContext';
 import { LoadingState } from '@/components/ux/LoadingState';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -157,6 +158,14 @@ export default function AthleteArea() {
     isGlobalSuperadmin ||
     hasRole('ADMIN_TENANT', tenant.id)
   );
+
+  // ATLETA users (pure athletes with no admin/staff overlap) use PortalLayout
+  // so the experience is consistent with the /portal/* routes after segregation.
+  // Admin and staff roles keep AppShell (admin workspace with full sidebar).
+  const isAtleta = Boolean(tenant) &&
+    hasRole('ATLETA', tenant!.id) &&
+    !isAdmin &&
+    !hasRole('STAFF_ORGANIZACAO', tenant!.id);
 
   // Fetch athlete data linked to current user's profile
   const { data: athlete, isLoading: athleteLoading, error: athleteError } = useQuery({
@@ -411,35 +420,45 @@ export default function AthleteArea() {
     }
   };
 
+  // Shared props for PortalLayout (used by ATLETA in all render paths below)
+  const portalProps = {
+    athleteName: currentUser?.name || '',
+    tenantName: tenant!.name,
+    tenantLogo: tenant!.logoUrl ?? null,
+    tenantSlug: tenant!.slug,
+  };
+
   if (athleteLoading) {
-    return (
-      <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppShell>
+    const content = (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
+    return isAtleta
+      ? <PortalLayout {...portalProps}>{content}</PortalLayout>
+      : <AppShell>{content}</AppShell>;
   }
 
   if (athleteError || !athlete) {
-    return (
-      <AppShell>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
-            <AlertCircle className="h-10 w-10 text-destructive" />
-          </div>
-          <h1 className="text-2xl font-display font-bold mb-2">{t('athleteArea.noAthleteFound')}</h1>
-          <p className="text-muted-foreground max-w-md">
-            {t('athleteArea.noAthleteFoundDesc')}
-          </p>
+    const content = (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+          <AlertCircle className="h-10 w-10 text-destructive" />
         </div>
-      </AppShell>
+        <h1 className="text-2xl font-display font-bold mb-2">{t('athleteArea.noAthleteFound')}</h1>
+        <p className="text-muted-foreground max-w-md">
+          {t('athleteArea.noAthleteFoundDesc')}
+        </p>
+      </div>
     );
+    return isAtleta
+      ? <PortalLayout {...portalProps}>{content}</PortalLayout>
+      : <AppShell>{content}</AppShell>;
   }
 
-  return (
-    <AppShell>
-      <div className="space-y-6 max-w-5xl mx-auto">
+  // Main content node — shared between PortalLayout (ATLETA) and AppShell (admin/staff)
+  const mainPageContent = (
+    <div className="space-y-6 max-w-5xl mx-auto">
         {/* Renewal Banner - Shows when membership is expiring soon */}
         {renewalInfo && (
           <RenewalBanner
@@ -977,6 +996,10 @@ export default function AthleteArea() {
           </Card>
         </motion.div>
       </div>
-    </AppShell>
   );
+
+  if (isAtleta) {
+    return <PortalLayout {...portalProps}>{mainPageContent}</PortalLayout>;
+  }
+  return <AppShell>{mainPageContent}</AppShell>;
 }
