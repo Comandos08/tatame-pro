@@ -304,7 +304,7 @@ export default function ApprovalsList() {
     setSelectedIds(new Set());
     setIsBulkProcessing(false);
     const approveMsg = `${succeeded} aprovação(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`;
-    failed ? toast.error(approveMsg) : toast.success(approveMsg);
+    if (failed) toast.error(approveMsg); else toast.success(approveMsg);
   };
 
   // P2.3 — Bulk reject handler
@@ -324,7 +324,7 @@ export default function ApprovalsList() {
     setBulkRejectReason('');
     setIsBulkProcessing(false);
     const rejectMsg = `${succeeded} rejeição(ões) concluída(s)${failed ? `, ${failed} falhou` : ''}`;
-    failed ? toast.error(rejectMsg) : toast.success(rejectMsg);
+    if (failed) toast.error(rejectMsg); else toast.success(rejectMsg);
   };
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {

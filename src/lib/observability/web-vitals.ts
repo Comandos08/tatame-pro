@@ -174,17 +174,10 @@ export function initWebVitals(): void {
   if (typeof PerformanceObserver === 'undefined') return;
 
   // Defer to avoid blocking initial render
-  requestIdleCallback?.(() => {
-    observePaint();
-    observeLCP();
-    observeCLS();
-    observeINP();
-    observeTTFB();
-  }) ?? setTimeout(() => {
-    observePaint();
-    observeLCP();
-    observeCLS();
-    observeINP();
-    observeTTFB();
-  }, 3000);
+  const observe = () => { observePaint(); observeLCP(); observeCLS(); observeINP(); observeTTFB(); };
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(observe);
+  } else {
+    setTimeout(observe, 3000);
+  }
 }
