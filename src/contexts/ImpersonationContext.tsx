@@ -204,6 +204,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
     // Reset failure counter on success
     consecutiveValidationFailures.current = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps use specific session fields intentionally; subscribing to the full session object would cause re-runs on unrelated state changes
   }, [session?.impersonationId, session?.status, isGlobalSuperadmin, navigate, t, clearSession]);
 
   // ==========================================================================
@@ -273,6 +274,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
       if (warningTimeout.current) clearTimeout(warningTimeout.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps use specific session fields intentionally; subscribing to the full session object would cause re-runs on unrelated state changes
   }, [session?.impersonationId, session?.status, isGlobalSuperadmin, validateSession, navigate, t, clearSession]);
 
   // ==========================================================================
@@ -368,6 +370,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       cancelled = true;
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps use specific session fields intentionally; subscribing to the full session object would cause re-runs on unrelated state changes
   }, [session?.impersonationId, session?.status, isGlobalSuperadmin, clearSession, navigate, t]);
 
   // Start impersonation
@@ -441,6 +444,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     } finally {
       impersonationInFlightRef.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient from useQueryClient() is a stable singleton per TanStack Query design
   }, [isGlobalSuperadmin, t]);
 
   // End impersonation

@@ -95,6 +95,7 @@ export function AdultMembershipForm() {
         postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
         country: z.string().default('BR'),
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is stable within a locale; `locale` in deps already captures locale changes
     [locale]
   );
 

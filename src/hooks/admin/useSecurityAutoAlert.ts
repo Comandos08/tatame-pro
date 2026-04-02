@@ -40,6 +40,7 @@ export function useSecurityAutoAlert() {
     } catch {
       // Silent fail — never break UI
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- alert intentionally fires only on critical policy count; adding .ok/.high would trigger redundant alerts on non-critical posture changes
   }, [
     postureState,
     isGlobalSuperadmin,

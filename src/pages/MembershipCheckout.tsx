@@ -21,6 +21,7 @@ export default function MembershipCheckout() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `loadData` is defined inside the component and would be recreated on every render, causing an infinite fetch loop
   }, [membershipId]);
 
   async function loadData() {

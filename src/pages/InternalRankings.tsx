@@ -198,6 +198,7 @@ export default function InternalRankings() {
     }
 
     fetchRankings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when tenant ID changes; full `tenant` object reference changes on every render would cause infinite fetch loops
   }, [tenant?.id]);
 
   // Memoized filtered results for better performance

@@ -190,6 +190,7 @@ export default function TenantControl() {
     if (tenantId && isGlobalSuperadmin) {
       fetchData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchData` is an internal function; adding it would cause an infinite fetch loop
   }, [tenantId, isGlobalSuperadmin]);
 
   // Open action dialog
