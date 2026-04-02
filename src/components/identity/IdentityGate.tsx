@@ -245,6 +245,7 @@ export function IdentityGate({ children }: IdentityGateProps) {
 
     devLogIdentityObservation({ event, violations });
     prevStateRef.current = resolvedState;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- impersonation/redirect vars change during the effect itself; adding them would cause redirect loops
   }, [resolvedState, pathname, isPublic]);
 
   // ===== P4: PRODUCTION TELEMETRY (fire-and-forget) =====

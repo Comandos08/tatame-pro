@@ -41,6 +41,7 @@ export default function TenantSettings() {
       setLogoUrl(tenant.logoUrl || null);
       fetchTenantDetails();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchTenantDetails` is an internal function; full `tenant` object would cause infinite re-fetch loops — only re-run when ID changes
   }, [tenant?.id]);
 
   async function fetchTenantDetails() {

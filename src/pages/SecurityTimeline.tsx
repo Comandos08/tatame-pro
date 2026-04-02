@@ -160,6 +160,7 @@ export default function SecurityTimeline() {
 
   useEffect(() => {
     fetchEvents(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchEvents` is defined inside the component; adding it would cause an infinite fetch loop
   }, [tenant?.id, severityFilter, sourceFilter, operationSearch]);
 
   const handleRefresh = () => {

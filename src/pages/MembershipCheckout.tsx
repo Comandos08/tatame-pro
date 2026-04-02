@@ -12,6 +12,7 @@ export default function MembershipCheckout() {
   const { membershipId, tenantSlug } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase JOIN shape not in generated types
   const [membership, setMembership] = useState<any>(null);
   const [feePaidAt, setFeePaidAt] = useState<string | null>(null);
   const [feeAmountCents, setFeeAmountCents] = useState<number | null>(null);
@@ -20,6 +21,7 @@ export default function MembershipCheckout() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `loadData` is defined inside the component and would be recreated on every render, causing an infinite fetch loop
   }, [membershipId]);
 
   async function loadData() {

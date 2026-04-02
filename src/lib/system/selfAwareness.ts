@@ -68,7 +68,7 @@ export interface SystemAwarenessInput {
 
 export function deriveSystemAwarenessState(input: SystemAwarenessInput): SystemAwarenessState {
   const reasons: SystemLimitReason[] = [];
-  let level: SystemAwarenessLevel = 'OK';
+  let level: SystemAwarenessLevel;
 
   // 1. Identity checks (highest priority — system can't function without identity)
   if (input.identityState === 'LOADING') {

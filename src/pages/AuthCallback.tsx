@@ -176,6 +176,7 @@ export default function AuthCallback() {
     return () => {
       abortController.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `redirecting` is state set by this effect; adding it would cause an infinite redirect loop
   }, [
     isLoading,
     isAuthenticated,

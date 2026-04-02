@@ -139,6 +139,7 @@ export function MembershipSuccess() {
       setStatus('pending_confirmation');
       setMessage(t('membershipSuccess.processError'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tenantSlug from useParams is stable for the component lifetime; confirmation runs once per membershipId+sessionId
   }, [membershipId, sessionId, t]);
 
   useEffect(() => {
