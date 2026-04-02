@@ -124,7 +124,7 @@ function TenantContent() {
   // FAIL-CLOSED: User has no membership in this tenant
   // SUPERADMIN is excluded (IdentityGate handles impersonation scope)
   // =========================================================================
-  // STEP 3.5: Route Classification (used by boundary + billing checks)
+  // STEP 3.5: Route Classification
   // =========================================================================
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const isProtectedRoute = pathSegments.includes('app') || pathSegments.includes('portal');
@@ -156,18 +156,34 @@ function TenantContent() {
   // =========================================================================
   // STEP 4: Protected Route Rendering
   // =========================================================================
-  // BY DESIGN: Protected routes are wrapped with BillingGate → TenantOnboardingGate
-  // BillingGate consumes TenantFlagsContract for billing decisions (single source of truth)
-  // TenantOnboardingGate ensures onboarding is complete before accessing tenant features
-  // Public routes bypass both gates
+  // BY DESIGN: Gate application differs by route type.
+  //
+  // /app/*    → BillingGate + TenantOnboardingGate (admin workspace)
+  // /portal/* → BillingGate ONLY (athlete portal — onboarding is an admin concern,
+  //             ATLETA must not be redirected to /app/onboarding)
+  // others    → no gates (public tenant pages: landing, events, membership checkout)
+  //
+  // INTENTIONAL: TenantOnboardingGate is intentionally excluded from /portal/* so that
+  // athletes can always reach their portal regardless of the admin's onboarding progress.
+  const isAppRoute = pathSegments.includes('app');
+  const isPortalRoute = pathSegments.includes('portal');
+
   return (
     <TenantFlagsProvider tenantId={tenant?.id}>
-      {isProtectedRoute ? (
+      {isAppRoute ? (
         <ErrorBoundary>
           <BillingGate>
             <TenantOnboardingGate>
               <Outlet />
             </TenantOnboardingGate>
+          </BillingGate>
+        </ErrorBoundary>
+      ) : isPortalRoute ? (
+        // Portal: billing gate applies, but onboarding gate does NOT.
+        // ATLETA must never be redirected to /app/onboarding (requires ADMIN_TENANT).
+        <ErrorBoundary>
+          <BillingGate>
+            <Outlet />
           </BillingGate>
         </ErrorBoundary>
       ) : (

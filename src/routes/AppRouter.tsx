@@ -1,10 +1,12 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import { BillingGate } from "@/components/billing/BillingGate";
 import { RequireFeature } from "@/components/auth/RequireFeature";
 import { RequireRoles } from "@/components/auth/RequireRoles";
+import { useTenant } from "@/contexts/TenantContext";
+import { useTenantRoles } from "@/hooks/useTenantRoles";
 
 const TenantDashboard     = lazy(() => import("@/pages/TenantDashboard"));
 const AthleteArea         = lazy(() => import("@/pages/AthleteArea"));
@@ -39,22 +41,48 @@ function PageLoader() {
   );
 }
 
+/**
+ * Smart index route for /:tenantSlug/app.
+ *
+ * ATLETA users who land here (e.g. from a bookmark or stale redirect) are sent
+ * to their portal instead of seeing AccessDenied. Admin/staff users proceed to
+ * the normal dashboard with RequireRoles enforcement.
+ *
+ * BY DESIGN: The role check is lightweight (cached via useTenantRoles) and only
+ * redirects pure ATLETA users — any overlap with ADMIN_TENANT or STAFF_ORGANIZACAO
+ * keeps the admin path.
+ */
+function AppIndexRoute() {
+  const { tenant } = useTenant();
+  const { roles, isLoading } = useTenantRoles(tenant?.id);
+
+  if (isLoading) return <PageLoader />;
+
+  const isAtleta =
+    roles.includes('ATLETA') &&
+    !roles.includes('ADMIN_TENANT') &&
+    !roles.includes('STAFF_ORGANIZACAO');
+
+  if (isAtleta) {
+    return <Navigate to={`/${tenant?.slug}/portal`} replace />;
+  }
+
+  return (
+    <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
+      <RequireFeature featureKey="TENANT_DASHBOARD">
+        <TenantDashboard />
+      </RequireFeature>
+    </RequireRoles>
+  );
+}
+
 export default function AppRouter() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-        {/* DASHBOARD */}
-        <Route
-          index
-          element={
-            <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
-              <RequireFeature featureKey="TENANT_DASHBOARD">
-                <TenantDashboard />
-              </RequireFeature>
-            </RequireRoles>
-          }
-        />
+        {/* DASHBOARD — AppIndexRoute handles ATLETA redirect to portal */}
+        <Route index element={<AppIndexRoute />} />
 
         {/* MY AREA (ATLETA + STAFF + ADMIN) */}
         <Route

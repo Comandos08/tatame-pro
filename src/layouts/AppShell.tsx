@@ -90,7 +90,7 @@ export function AppShell({ children }: AppShellProps) {
   const { contract: tenantFlags } = useTenantFlags();
 
   // Keep hooks (their internal effects matter)
-  useIdentity();
+  const { role } = useIdentity();
   useTenantStatus();
   useRouteFocusReset();
 
@@ -122,11 +122,14 @@ export function AppShell({ children }: AppShellProps) {
   // Also show onboarding nav for ACTIVE tenants whose onboarding was never completed
   // (superadmin-created tenants); TenantOnboardingGate will redirect them there anyway.
   const showOnboardingNav = isSetupMode || (tenant?.status === "ACTIVE" && tenantFlags?.onboarding_completed === false);
+  // Only admin/superadmin roles can access the onboarding route — ATLETA must never see
+  // this nav item because /app/onboarding is RequireRoles(["ADMIN_TENANT"]) only.
+  const isAdminUser = role === "ADMIN_TENANT" || role === "SUPERADMIN_GLOBAL";
 
   // 🔐 Navigation items with feature-based access control
   const allNavigation: NavItem[] = [
-    // Show onboarding link when tenant is in SETUP mode or onboarding is incomplete
-    ...(showOnboardingNav ? [{ name: t("nav.onboarding"), href: `/${tenantSlug}/app/onboarding`, icon: Settings }] : []),
+    // Show onboarding link only for admin users when tenant is in SETUP mode or onboarding is incomplete
+    ...(showOnboardingNav && isAdminUser ? [{ name: t("nav.onboarding"), href: `/${tenantSlug}/app/onboarding`, icon: Settings }] : []),
     { name: t("nav.athleteArea"), href: `/${tenantSlug}/app/me`, icon: UserCircle, feature: "TENANT_MY_AREA" },
     { name: t("nav.dashboard"), href: `/${tenantSlug}/app`, icon: Home, feature: "TENANT_DASHBOARD" },
     { name: t("nav.athletes"), href: `/${tenantSlug}/app/athletes`, icon: Users, feature: "TENANT_ATHLETES" },
