@@ -50,6 +50,9 @@ export function TenantStatusBanner() {
   // Don't show if dismissed, loading, or user can't see
   if (dismissed || status.isLoading || !status.canSeeBanner) return null;
 
+  // Don't show billing banner during onboarding — no billing record exists yet
+  if (tenant?.status === 'SETUP') return null;
+
   // Determine what to show
   let variant: 'default' | 'destructive';
   let icon: React.ElementType;

@@ -54,20 +54,26 @@ export function RequireFeature({ featureKey, children }: RequireFeatureProps) {
     return <AccessDenied />;
   }
 
-  // STEP 3: Superadmin impersonation check
+  // STEP 3: During onboarding (SETUP), bypass feature gate.
+  // Route access is already restricted by TenantOnboardingGate.
+  if (tenant?.status === 'SETUP') {
+    return <>{children}</>;
+  }
+
+  // STEP 4: Superadmin impersonation check
   const isSuperadminWithImpersonation =
     isGlobalSuperadmin &&
     tenant &&
     isImpersonating &&
     impersonatedTenantId === tenant.id;
 
-  // STEP 4: Access decision (backend contract OR valid impersonation)
+  // STEP 5: Access decision (backend contract OR valid impersonation)
   const hasAccess = isSuperadminWithImpersonation || can(featureKey);
 
   if (!hasAccess) {
     return <AccessDenied />;
   }
 
-  // STEP 5: Access granted
+  // STEP 6: Access granted
   return <>{children}</>;
 }
