@@ -51,10 +51,10 @@ export function TenantStatusBanner() {
   if (dismissed || status.isLoading || !status.canSeeBanner) return null;
 
   // Determine what to show
-  let variant: 'default' | 'destructive' = 'default';
-  let icon: React.ElementType = Clock;
-  let message = '';
-  let showCTA = false;
+  let variant: 'default' | 'destructive';
+  let icon: React.ElementType;
+  let message: string;
+  let showCTA: boolean;
   let canDismiss = true;
 
   if (status.billingState?.isBlocked) {

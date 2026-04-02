@@ -58,11 +58,11 @@ export function TrialStatusBanner() {
   const daysRemaining = status.daysToTrialEnd;
 
   // Determine what to show based on billing status
-  let variant: 'default' | 'destructive' = 'default';
-  let icon: React.ElementType = Clock;
-  let message = '';
-  let showCTA = false;
-  let canDismiss = true;
+  let variant: 'default' | 'destructive';
+  let icon: React.ElementType;
+  let message: string;
+  let showCTA: boolean;
+  let canDismiss: boolean;
   let isUrgent = false;
 
   if (billingStatus === 'TRIAL_EXPIRED') {
