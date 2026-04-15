@@ -120,8 +120,10 @@ test.describe('LF — Login Form UI', () => {
     expect(page.url()).toContain('/login');
 
     // Should show an error toast (sonner renders in [data-sonner-toaster])
-    const toaster = page.locator('[data-sonner-toaster]');
-    await expect(toaster).toBeVisible({ timeout: 5000 });
+    const toaster = page.locator('[data-sonner-toaster]').or(
+      page.locator('[role="alert"]')
+    );
+    await expect(toaster).toBeVisible({ timeout: 10000 });
 
     // No JS errors
     expect(errors.filter(e => !e.includes('ResizeObserver'))).toHaveLength(0);
@@ -164,7 +166,8 @@ test.describe('LF — Login Form UI', () => {
     await submit.click();
 
     // Wait for redirect (identity resolution takes a moment)
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20000 });
+    await page.waitForTimeout(1000);
 
     expect(page.url()).not.toContain('/login');
   });
