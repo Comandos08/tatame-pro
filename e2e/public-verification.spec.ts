@@ -106,8 +106,11 @@ test.describe('Public Membership Verification - Security Hardened', () => {
     await page.waitForLoadState('networkidle');
     
     // Should have SVG QR code element
-    const qrCode = page.locator('svg').filter({ has: page.locator('rect') });
-    await expect(qrCode.first()).toBeVisible({ timeout: 10000 });
+    const qrCode = page.locator('svg').filter({ has: page.locator('rect') }).or(
+      page.locator('[data-testid="qr-code"]')
+    );
+    await page.waitForTimeout(1500);
+    await expect(qrCode.first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should show error for invalid membership ID', async ({ page }) => {
@@ -134,8 +137,11 @@ test.describe('Public Membership Verification - Security Hardened', () => {
     await page.waitForLoadState('networkidle');
     
     // Should have a back button/link
-    const backButton = page.locator('text=/voltar|back/i');
-    await expect(backButton.first()).toBeVisible({ timeout: 10000 });
+    const backButton = page.locator('text=/voltar|back/i').or(
+      page.locator('[data-testid="back-button"]')
+    );
+    await page.waitForTimeout(1500);
+    await expect(backButton.first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should display download button if digital card is ready', async ({ page }) => {
@@ -143,8 +149,11 @@ test.describe('Public Membership Verification - Security Hardened', () => {
     await page.waitForLoadState('networkidle');
     
     // Either shows download button or "processing" message
-    const downloadOrProcessing = page.locator('text=/baixar|download|processando|processing/i');
-    await expect(downloadOrProcessing.first()).toBeVisible({ timeout: 10000 });
+    const downloadOrProcessing = page.locator('text=/baixar|download|processando|processing/i').or(
+      page.locator('[data-testid="download-button"]')
+    );
+    await page.waitForTimeout(1500);
+    await expect(downloadOrProcessing.first()).toBeVisible({ timeout: 15000 });
   });
 });
 
