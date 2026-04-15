@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -7,6 +7,27 @@ import { RequireFeature } from "@/components/auth/RequireFeature";
 import { RequireRoles } from "@/components/auth/RequireRoles";
 import { useTenant } from "@/contexts/TenantContext";
 import { useTenantRoles } from "@/hooks/useTenantRoles";
+import { useOnboardingStatus } from "@/components/onboarding/TenantOnboardingGate";
+
+/**
+ * OnboardingBypassFeature — durante o wizard de onboarding (tenant em SETUP),
+ * bypassa o RequireFeature para as rotas de configuração obrigatórias.
+ * RequireRoles permanece intacto em todas as rotas.
+ */
+function OnboardingBypassFeature({
+  featureKey,
+  children,
+}: {
+  featureKey: string;
+  children: ReactNode;
+}) {
+  const { isComplete, isSetupMode, isLoading } = useOnboardingStatus();
+  // Durante loading, não bypassar — aguardar resolução
+  if (!isLoading && !isComplete && isSetupMode) {
+    return <>{children}</>;
+  }
+  return <RequireFeature featureKey={featureKey}>{children}</RequireFeature>;
+}
 
 const TenantDashboard     = lazy(() => import("@/pages/TenantDashboard"));
 const AthleteArea         = lazy(() => import("@/pages/AthleteArea"));
@@ -162,38 +183,38 @@ export default function AppRouter() {
           }
         />
 
-        {/* ACADEMIES */}
+        {/* ACADEMIES — OnboardingBypassFeature permite acesso durante wizard de setup */}
         <Route
           path="academies"
           element={
             <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
-              <RequireFeature featureKey="TENANT_ACADEMIES">
+              <OnboardingBypassFeature featureKey="TENANT_ACADEMIES">
                 <AcademiesList />
-              </RequireFeature>
+              </OnboardingBypassFeature>
             </RequireRoles>
           }
         />
 
-        {/* COACHES */}
+        {/* COACHES — OnboardingBypassFeature permite acesso durante wizard de setup */}
         <Route
           path="coaches"
           element={
             <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
-              <RequireFeature featureKey="TENANT_COACHES">
+              <OnboardingBypassFeature featureKey="TENANT_COACHES">
                 <CoachesList />
-              </RequireFeature>
+              </OnboardingBypassFeature>
             </RequireRoles>
           }
         />
 
-        {/* GRADINGS */}
+        {/* GRADINGS — OnboardingBypassFeature permite acesso durante wizard de setup */}
         <Route
           path="grading-schemes"
           element={
             <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
-              <RequireFeature featureKey="TENANT_GRADINGS">
+              <OnboardingBypassFeature featureKey="TENANT_GRADINGS">
                 <GradingSchemesList />
-              </RequireFeature>
+              </OnboardingBypassFeature>
             </RequireRoles>
           }
         />
@@ -202,9 +223,9 @@ export default function AppRouter() {
           path="grading-schemes/:schemeId/levels"
           element={
             <RequireRoles allowed={["ADMIN_TENANT", "STAFF_ORGANIZACAO"]}>
-              <RequireFeature featureKey="TENANT_GRADINGS">
+              <OnboardingBypassFeature featureKey="TENANT_GRADINGS">
                 <GradingLevelsList />
-              </RequireFeature>
+              </OnboardingBypassFeature>
             </RequireRoles>
           }
         />
