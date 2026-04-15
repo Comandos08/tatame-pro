@@ -71,7 +71,7 @@ test.describe('Loading Contract', () => {
     
     // Either 404 page or redirected to landing
     const url = page.url();
-    const is404 = await page.locator('text=404, text=não encontrada, text=not found').count();
+    const is404 = await page.locator('text=/404|não encontrada|not found/i').count();
     const isLanding = url.endsWith('/');
     
     expect(is404 > 0 || isLanding).toBe(true);
