@@ -1,8 +1,24 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /app
+Disallow: /identity
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /portal
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin
+Disallow: /app
+Disallow: /identity
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /portal
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +28,13 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /app
+Disallow: /identity
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /portal
+
+Sitemap: https://app.tatamepro.com.br/sitemap.xml

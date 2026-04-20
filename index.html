@@ -1,21 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tatame Pro - Combat Sports Management</title>
+    <meta name="theme-color" content="#dc2626" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Tatame Pro — Gestão Completa para Federações e Academias de Artes Marciais</title>
     <meta
       name="description"
-      content="Multi-tenant SaaS platform for combat sports federations and organizations. Manage athletes, academies, gradings and memberships."
+      content="Plataforma SaaS para federações, academias e organizações de Jiu-Jitsu e artes marciais. Gestão de atletas, filiações, graduações, eventos e credenciais digitais com conformidade LGPD."
     />
     <meta name="author" content="TATAME" />
     <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="canonical" href="%VITE_APP_URL%/" />
+    <link rel="alternate" hreflang="pt-BR" href="%VITE_APP_URL%/" />
+    <link rel="alternate" hreflang="en" href="%VITE_APP_URL%/?lang=en" />
+    <link rel="alternate" hreflang="es" href="%VITE_APP_URL%/?lang=es" />
+    <link rel="alternate" hreflang="x-default" href="%VITE_APP_URL%/" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:site_name" content="Tatame Pro" />
+    <meta property="og:url" content="%VITE_APP_URL%/" />
     <meta
       property="og:image"
       content="%VITE_APP_URL%/og-image.png"
     />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Tatame Pro — Gestão de Artes Marciais" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@TatamePro" />
@@ -23,15 +38,15 @@
       name="twitter:image"
       content="%VITE_APP_URL%/og-image.png"
     />
-    <meta property="og:title" content="Tatame Pro - Combat Sports Management" />
-    <meta name="twitter:title" content="Tatame Pro - Combat Sports Management" />
+    <meta property="og:title" content="Tatame Pro — Gestão Completa para Federações e Academias" />
+    <meta name="twitter:title" content="Tatame Pro — Gestão Completa para Federações e Academias" />
     <meta
       property="og:description"
-      content="Multi-tenant SaaS platform for combat sports federations and organizations. Manage athletes, academies, gradings and memberships."
+      content="Plataforma SaaS para federações, academias e organizações de Jiu-Jitsu e artes marciais. Gestão de atletas, filiações, graduações, eventos e credenciais digitais."
     />
     <meta
       name="twitter:description"
-      content="Multi-tenant SaaS platform for combat sports federations and organizations. Manage athletes, academies, gradings and memberships."
+      content="Plataforma SaaS para federações, academias e organizações de Jiu-Jitsu e artes marciais. Gestão de atletas, filiações, graduações, eventos e credenciais digitais."
     />
 
     <!-- Security: Content Security Policy -->
@@ -55,6 +70,53 @@
       content="strict-origin-when-cross-origin"
     />
 
+    <!-- Structured data: Organization + SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "%VITE_APP_URL%/#organization",
+          "name": "Tatame Pro",
+          "url": "%VITE_APP_URL%/",
+          "logo": "%VITE_APP_URL%/favicon.png",
+          "sameAs": [
+            "https://twitter.com/TatamePro"
+          ],
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "suporte@tatamepro.com.br",
+            "contactType": "customer support",
+            "areaServed": "BR",
+            "availableLanguage": ["Portuguese", "English", "Spanish"]
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "Tatame Pro",
+          "operatingSystem": "Web",
+          "applicationCategory": "BusinessApplication",
+          "description": "Plataforma SaaS para gestão de federações, academias e organizações de artes marciais.",
+          "url": "%VITE_APP_URL%/",
+          "publisher": { "@id": "%VITE_APP_URL%/#organization" },
+          "offers": {
+            "@type": "Offer",
+            "priceCurrency": "BRL",
+            "availability": "https://schema.org/InStock"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "%VITE_APP_URL%/#website",
+          "url": "%VITE_APP_URL%/",
+          "name": "Tatame Pro",
+          "inLanguage": "pt-BR",
+          "publisher": { "@id": "%VITE_APP_URL%/#organization" }
+        }
+      ]
+    }
+    </script>
   </head>
 
   <body>
