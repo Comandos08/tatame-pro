@@ -122,7 +122,7 @@ export default function AthletePortal() {
   useEffect(() => {
     if (portalAccessedRef.current || !tenantSlug) return;
     portalAccessedRef.current = true;
-    logMembershipEvent('MEMBERSHIP_PORTAL_ACCESSED', { tenantSlug, timestamp: Date.now() });
+    logMembershipEvent('MEMBERSHIP_PORTAL_ACCESSED', { tenantSlug });
   }, [tenantSlug]);
 
   const {

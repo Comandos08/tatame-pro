@@ -27,16 +27,19 @@ export function TenantBlockedScreen({
   const { hasRole, currentUser } = useCurrentUser();
   const { t } = useI18n();
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  // Capture "now" once per mount — React Compiler flags Date.now() during
+  // render. Staleness of a few hours is fine for a day-granularity countdown.
+  const [nowMs] = useState(() => Date.now());
 
   // Check if user is admin or staff
   const isAdmin = currentUser && (
-    hasRole('ADMIN_TENANT', tenantId) || 
+    hasRole('ADMIN_TENANT', tenantId) ||
     hasRole('SUPERADMIN_GLOBAL')
   );
 
   // Calculate days until deletion
-  const daysUntilDeletion = scheduledDeleteAt 
-    ? Math.max(0, Math.ceil((new Date(scheduledDeleteAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+  const daysUntilDeletion = scheduledDeleteAt
+    ? Math.max(0, Math.ceil((new Date(scheduledDeleteAt).getTime() - nowMs) / (1000 * 60 * 60 * 24)))
     : null;
 
   const isPendingDelete = billingStatus === 'PENDING_DELETE';

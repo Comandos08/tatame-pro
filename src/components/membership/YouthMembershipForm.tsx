@@ -72,7 +72,6 @@ export function YouthMembershipForm() {
       tenantSlug,
       membershipType: 'youth',
       step: 1,
-      timestamp: Date.now(),
     });
   }, [tenantSlug]);
 
@@ -200,7 +199,7 @@ export function YouthMembershipForm() {
     // R-01: Log step completion
     if (tenantSlug && lastStepLoggedRef.current < 1) {
       lastStepLoggedRef.current = 1;
-      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 1, timestamp: Date.now() });
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 1 });
     }
   };
 
@@ -239,7 +238,7 @@ export function YouthMembershipForm() {
     // R-01: Log step completion
     if (tenantSlug && lastStepLoggedRef.current < 2) {
       lastStepLoggedRef.current = 2;
-      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 2, timestamp: Date.now() });
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 2 });
     }
   };
 
@@ -258,7 +257,7 @@ export function YouthMembershipForm() {
     // R-01: Log step completion
     if (tenantSlug && lastStepLoggedRef.current < 3) {
       lastStepLoggedRef.current = 3;
-      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 3, timestamp: Date.now() });
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'youth', step: 3 });
     }
   };
 
@@ -496,7 +495,7 @@ export function YouthMembershipForm() {
 
       // R-01: Log payment initiation
       if (tenantSlug) {
-        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'youth', timestamp: Date.now() });
+        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'youth' });
       }
 
       // 3. Create Stripe checkout session (identical to adult flow)

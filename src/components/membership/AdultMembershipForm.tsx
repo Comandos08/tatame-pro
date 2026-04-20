@@ -75,7 +75,6 @@ export function AdultMembershipForm() {
       tenantSlug,
       membershipType: 'adult',
       step: 1,
-      timestamp: Date.now(),
     });
   }, [tenantSlug]);
 
@@ -201,7 +200,7 @@ export function AdultMembershipForm() {
     // R-01: Log step completion
     if (tenantSlug && lastStepLoggedRef.current < 1) {
       lastStepLoggedRef.current = 1;
-      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 1, timestamp: Date.now() });
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 1 });
     }
   };
 
@@ -220,7 +219,7 @@ export function AdultMembershipForm() {
     // R-01: Log step completion
     if (tenantSlug && lastStepLoggedRef.current < 2) {
       lastStepLoggedRef.current = 2;
-      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 2, timestamp: Date.now() });
+      logMembershipEvent('MEMBERSHIP_STEP_COMPLETED', { tenantSlug, membershipType: 'adult', step: 2 });
     }
   };
 
@@ -413,7 +412,7 @@ export function AdultMembershipForm() {
 
       // R-01: Log payment initiation
       if (tenantSlug) {
-        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'adult', timestamp: Date.now() });
+        logMembershipEvent('MEMBERSHIP_PAYMENT_INITIATED', { tenantSlug, membershipType: 'adult' });
       }
 
       // 3. Criar Stripe checkout session

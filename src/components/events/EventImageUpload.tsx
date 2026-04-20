@@ -28,8 +28,12 @@ export function EventImageUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
 
-  // Generate a temporary ID for new events
-  const uploadId = eventId || `temp-${Date.now()}`;
+  // Generate a temporary ID once per mount. Date.now() is impure, so the
+  // useState initializer (runs exactly once) is the safe place for it —
+  // useMemo's callback can re-run and the React Compiler flags impure calls
+  // inside it.
+  const [fallbackId] = useState(() => `temp-${Date.now()}`);
+  const uploadId = eventId || fallbackId;
   const uploadPath = `${tenantId}/${uploadId}/cover.jpg`;
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
