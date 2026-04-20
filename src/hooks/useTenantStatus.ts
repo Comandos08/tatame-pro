@@ -22,6 +22,12 @@ export interface TenantStatusInfo {
   planName: string | null;
   canSeeBanner: boolean;
   billingState: TenantBillingState | null;
+  /** True when tenant_billing row has a non-null stripe_customer_id. Callers
+   * must gate `tenant-customer-portal` invokes on this flag — without a
+   * Stripe customer the portal endpoint returns 404 billing.no_stripe_customer,
+   * which still counts against the 10/hour rate limit and can trap users
+   * in a 429 after a few clicks. */
+  hasStripeCustomer: boolean;
   asyncState: AsyncState<TenantBillingData>;
 }
 
@@ -112,6 +118,7 @@ export function useTenantStatus(): TenantStatusInfo & { isLoading: boolean } {
     planName: billing?.plan_name || null,
     canSeeBanner,
     billingState,
+    hasStripeCustomer: Boolean(billing?.stripe_customer_id),
     isLoading,
     asyncState,
   };

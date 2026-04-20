@@ -444,6 +444,7 @@ export const es: Record<string, string> = {
   'billing.env.priceNotFound.title': 'Precio no encontrado en Stripe',
   'billing.env.priceNotFound.desc': 'El precio configurado no existe en el entorno Stripe actual.',
   'billing.openPortalError': 'Error al abrir el portal de pago',
+  'billing.invalidCheckoutUrl': 'URL de pago inválida',
   'billing.totalPaid': 'Total Pagado',
   'billing.totalPending': 'Total Pendiente',
   'billing.nextInvoice': 'Próxima Factura',
@@ -867,6 +868,7 @@ export const es: Record<string, string> = {
   'tenantStatus.trialEndingSoon': '¡Tu prueba expira en {days} días!',
   'tenantStatus.onTrial': 'Período de prueba hasta {date}',
   'tenantStatus.manageBilling': 'Gestionar Suscripción',
+  'tenantStatus.activateBilling': 'Activar Suscripción',
   'tenantStatus.viewDetails': 'Ver Detalles',
   'tenantStatus.pendingDelete': '¡La organización será eliminada en {days} días. Activa ahora!',
   
