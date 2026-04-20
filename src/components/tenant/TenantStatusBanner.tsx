@@ -118,10 +118,18 @@ export function TenantStatusBanner() {
 
   return (
     <AnimatePresence>
+      {/*
+        Use opacity-only transitions — animating `height` from 0 to auto causes
+        a visible layout shift on first paint (banner snaps in after
+        useTenantStatus resolves, pushing the page title below the sticky
+        header). Keeping the element in flow with its natural height removes
+        the jump without sacrificing the fade entrance.
+      */}
       <motion.div
-        initial={{ opacity: 0, height: 0 }}
-        animate={{ opacity: 1, height: 'auto' }}
-        exit={{ opacity: 0, height: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
         className="mb-4"
       >
         <Alert variant={variant} className="relative">

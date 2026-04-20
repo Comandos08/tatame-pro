@@ -128,8 +128,17 @@ export function useSecurityPosture() {
       );
 
       if (!response.ok) {
+        // 401/403 are expected when the caller isn't a SUPERADMIN_GLOBAL (the
+        // frontend gate `canAccess` prevents this in the happy path, but race
+        // conditions between session refresh and role hydration can briefly
+        // fire the request before isGlobalSuperadmin stabilizes). Throw a
+        // typed error so the hook can surface them as "not authorized"
+        // instead of a noisy ERROR state that spams the console on every
+        // mount of SecurityPostureBanner / useTenantOnboarding.
         const body = await response.json().catch(() => ({}));
-        throw new Error(body.messageKey || `HTTP_${response.status}`);
+        const error = new Error(body.messageKey || `HTTP_${response.status}`);
+        (error as Error & { status?: number }).status = response.status;
+        throw error;
       }
 
       const report: SecurityPostureReport = await response.json();
@@ -138,7 +147,13 @@ export function useSecurityPosture() {
     enabled: canAccess,
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
-    retry: 1,
+    // Don't retry auth/authorization failures — retrying won't change the
+    // outcome and each retry logs another 403 to the console.
+    retry: (failureCount, error) => {
+      const status = (error as Error & { status?: number }).status;
+      if (status === 401 || status === 403) return false;
+      return failureCount < 1;
+    },
   });
 
   const postureState: SecurityPostureState = (() => {

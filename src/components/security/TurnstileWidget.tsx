@@ -5,6 +5,23 @@ import { logger } from '@/lib/logger';
 
 // Turnstile site key - will be read from env or use empty for development
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+const IS_PROD = import.meta.env.PROD;
+
+// Log the missing-key warning exactly once per page load. Without this, every
+// mount of the widget (checkout page has several) floods the console.
+let missingKeyWarned = false;
+function warnMissingKeyOnce() {
+  if (missingKeyWarned) return;
+  missingKeyWarned = true;
+  if (IS_PROD) {
+    logger.error(
+      '[Turnstile] VITE_TURNSTILE_SITE_KEY is missing in production — ' +
+        'CAPTCHA is bypassed. Set it in the Lovable Cloud / Vercel env vars.',
+    );
+  } else {
+    logger.warn('[Turnstile] No site key configured, widget disabled (dev only)');
+  }
+}
 
 interface TurnstileWidgetProps {
   onSuccess: (token: string) => void;
@@ -67,8 +84,10 @@ export function TurnstileWidget({
   useEffect(() => {
     // If no site key configured, skip loading
     if (!TURNSTILE_SITE_KEY) {
-      logger.warn('[Turnstile] No site key configured, widget disabled');
-      // In development, auto-generate a fake token
+      warnMissingKeyOnce();
+      // Auto-grant a placeholder token so the form can proceed. In production
+      // this is a visibility gap (surface it via Sentry via the logger.error
+      // above); in development this is the expected fast path.
       onSuccess('dev-mode-token');
       return;
     }
@@ -113,8 +132,19 @@ export function TurnstileWidget({
     };
   }, [initWidget, onSuccess, onError]);
 
-  // If no site key, show development mode notice
+  // If no site key configured:
+  //   - Dev: show the dev-mode notice so contributors know the CAPTCHA is off.
+  //   - Prod: never expose "modo desenvolvimento" copy to end users. Render
+  //     a neutral verification chip while the operator wires the real key.
   if (!TURNSTILE_SITE_KEY) {
+    if (IS_PROD) {
+      return (
+        <div className={cn("flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground", className)}>
+          <ShieldCheck className="h-4 w-4" />
+          <span>Verificação de segurança</span>
+        </div>
+      );
+    }
     return (
       <div className={cn("flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground", className)}>
         <ShieldCheck className="h-4 w-4" />
