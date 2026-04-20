@@ -228,9 +228,9 @@ export default function IdentityWizard() {
           toast.success("Solicitação enviada!", { description: "Sua solicitação foi enviada para análise." });
 
           // P1-003: Set pending redirect BEFORE refreshIdentity
-          if (result.redirectPath) {
-            setPendingRedirect(result.redirectPath);
-          }
+          // Fallback to /portal if backend omitted redirectPath, so applicants
+          // pending admin approval are never left stranded on the wizard.
+          setPendingRedirect(result.redirectPath || "/portal");
 
           await queryClient.invalidateQueries({ queryKey: ["identity"] });
           await queryClient.invalidateQueries({ queryKey: ["user-roles"] });
