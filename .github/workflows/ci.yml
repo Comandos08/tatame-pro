@@ -24,10 +24,9 @@ jobs:
         run: npm ci
 
       - name: Security audit
-        # Block only on critical vulnerabilities. High-severity audits are tracked
-        # but may have no available fix (transitive deps). Upgrade to 'high' once
-        # the dependency tree is clean.
-        run: npm audit --audit-level=critical
+        # Dependency tree is clean (0 vulns as of 2026-04-20 after picomatch +
+        # brace-expansion bumps). Block on high so regressions surface in CI.
+        run: npm audit --audit-level=high
         continue-on-error: false
 
       - name: Lint

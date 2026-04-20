@@ -9,6 +9,7 @@
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "./backend-logger.ts";
+import { sanitizeAuditMetadata } from "./security/sanitizeAuditMetadata.ts";
 
 /**
  * Standard audit event types for the TATAME platform.
@@ -298,9 +299,16 @@ export async function createAuditLog(
       return { success: false, error: `PI-D5.A: ${entry.event_type} requires metadata.federation_id AND metadata.council_id` };
     }
     
+    // P1.3 — LGPD: mask PII (emails, names) in metadata before insert.
+    // sanitizeAuditMetadata walks the object and masks values under known
+    // PII keys; non-PII fields pass through untouched.
+    const sanitized = sanitizeAuditMetadata(
+      (entry.metadata ?? {}) as Record<string, unknown>,
+    ) as AuditMetadata;
+
     // Ensure metadata includes a timestamp if not provided
     const metadata: AuditMetadata = {
-      ...entry.metadata,
+      ...sanitized,
       category,
       occurred_at: entry.metadata?.occurred_at || new Date().toISOString(),
     };

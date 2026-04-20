@@ -10,7 +10,7 @@
  * - Must complete to access any protected route
  * - All writes via resolve-identity-wizard Edge Function
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Building2, UserCheck, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
@@ -52,6 +52,20 @@ export default function IdentityWizard() {
   const [inviteCode, setInviteCode] = useState("");
   const [newOrgName, setNewOrgName] = useState("");
 
+  // A11y — focus trap + step-transition focus management (WCAG 2.1 Level A).
+  // The wizard is a blocking full-screen flow by design: without a trap, Tab
+  // leaks into browser chrome and the user loses the mental model of being
+  // inside a modal-like surface. The step effect moves focus to the first
+  // interactive element of the newly-mounted step after framer-motion's
+  // AnimatePresence transition, so screen readers start from the right place.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const isFirstStepRender = useRef(true);
+  const stepLabels: Record<WizardStep, string> = {
+    1: "Organização",
+    2: "Perfil",
+    3: "Confirmação",
+  };
+
   // PI-ONB-ENDTOEND-HARDEN-001: Read localStorage onboarding intent on mount
   useEffect(() => {
     const intent = getOnboardingIntent();
@@ -76,6 +90,64 @@ export default function IdentityWizard() {
       navigate("/login", { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate]);
+
+  // A11y — focus trap: cycle Tab within the wizard Card. Runs once per mount;
+  // the keydown handler queries focusables live so it picks up dynamically
+  // rendered inputs per step.
+  useEffect(() => {
+    const container = cardRef.current;
+    if (!container) return;
+
+    const FOCUSABLE_SELECTOR =
+      'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[role="radio"]:not([aria-disabled="true"]),[tabindex]:not([tabindex="-1"])';
+
+    const getVisibleFocusables = () =>
+      Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+        .filter((el) => el.offsetParent !== null);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const focusables = getVisibleFocusables();
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const activeInside = active ? container.contains(active) : false;
+
+      if (e.shiftKey && (!activeInside || active === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!activeInside || active === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    container.addEventListener("keydown", handleKeyDown);
+    return () => container.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // A11y — move focus to the first interactive element of the new step after
+  // the AnimatePresence transition settles. Skips the initial render so the
+  // page doesn't steal focus on mount.
+  useEffect(() => {
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+      return;
+    }
+    // Framer-motion's default mode="wait" exit+enter runs ~200-300ms. 250ms
+    // lands after the enter animation in practice.
+    const timer = setTimeout(() => {
+      const container = cardRef.current;
+      if (!container) return;
+      const stepContent = container.querySelector<HTMLElement>(`[data-wizard-step="${step}"]`);
+      const firstFocusable = stepContent?.querySelector<HTMLElement>(
+        'input:not([disabled]),[role="radio"]:not([aria-disabled="true"]),button:not([disabled]),textarea:not([disabled])',
+      );
+      firstFocusable?.focus();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   // Redirect if already resolved (or after wizard completes)
   // P1-003: pendingRedirect takes priority over /portal fallback
@@ -329,9 +401,18 @@ export default function IdentityWizard() {
     <div className="min-h-screen flex flex-col bg-background">
       <AuthenticatedHeader />
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg">
+        <Card
+          ref={cardRef}
+          role="region"
+          aria-labelledby="wizard-title"
+          className="w-full max-w-lg"
+        >
+          {/* A11y — screen readers announce step transitions */}
+          <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            Etapa {step} de 3: {stepLabels[step]}
+          </div>
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl">Configuração de Conta</CardTitle>
+            <CardTitle id="wizard-title" className="text-2xl">Configuração de Conta</CardTitle>
             <CardDescription>Complete as etapas abaixo para acessar o sistema</CardDescription>
 
             {/* Progress Steps */}
@@ -364,6 +445,7 @@ export default function IdentityWizard() {
               {step === 1 && (
                 <motion.div
                   key="step1"
+                  data-wizard-step="1"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
@@ -445,6 +527,7 @@ export default function IdentityWizard() {
               {step === 2 && (
                 <motion.div
                   key="step2"
+                  data-wizard-step="2"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
@@ -501,6 +584,7 @@ export default function IdentityWizard() {
               {step === 3 && (
                 <motion.div
                   key="step3"
+                  data-wizard-step="3"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}

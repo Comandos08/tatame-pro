@@ -109,7 +109,7 @@ test.describe('Session Expiry Contract', () => {
     expect(hasContent).toBe(true);
     
     // Should not show error boundary
-    const errorBoundary = page.locator('text=Algo deu errado');
+    const errorBoundary = page.getByTestId('error-boundary-fallback');
     const hasError = await errorBoundary.isVisible().catch(() => false);
     expect(hasError).toBe(false);
   });

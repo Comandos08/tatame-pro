@@ -146,7 +146,7 @@ test.describe('Auth Boundary Edge Cases', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Page should not crash
-    const errorBoundary = page.locator('text=Algo deu errado');
+    const errorBoundary = page.getByTestId('error-boundary-fallback');
     const hasError = await errorBoundary.isVisible().catch(() => false);
     expect(hasError).toBe(false);
   });

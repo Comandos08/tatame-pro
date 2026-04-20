@@ -16,6 +16,7 @@
  */
 
 import { createBackendLogger } from "./backend-logger.ts";
+import { sanitizeAuditMetadata } from "./security/sanitizeAuditMetadata.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -74,6 +75,13 @@ export async function emitBillingAuditEvent(
   log.setTenant(payload.tenant_id);
 
   try {
+    // P1.3 — LGPD: mask PII in metadata before insert. Only the freeform
+    // `payload.metadata` can contain arbitrary keys from callers; the
+    // billing-scoped fields above are well-known non-PII enums/strings.
+    const sanitizedExtras = sanitizeAuditMetadata(
+      (payload.metadata ?? {}) as Record<string, unknown>,
+    );
+
     const { error } = await supabase
       .from('audit_logs')
       .insert({
@@ -87,7 +95,7 @@ export async function emitBillingAuditEvent(
           tenant_status: payload.tenant_status,
           billing_status: payload.billing_status,
           billing_block_reason: payload.billing_block_reason ?? null,
-          ...payload.metadata,
+          ...sanitizedExtras,
         },
       });
 

@@ -2859,4 +2859,12 @@ export const en: Record<string, string> = {
   'privacy.contact.text': 'For privacy-related questions, contact the sports organization you are affiliated with or use the data management tools available in the athlete portal.',
   'privacy.lastUpdated': 'Last updated: March 2026',
 
+  // ErrorBoundary — global fallback UI for uncaught render errors
+  'errorBoundary.title': 'Something went wrong',
+  'errorBoundary.description': 'An unexpected error occurred. Try reloading the page or going back home.',
+  'errorBoundary.errorIdLabel': 'Error code',
+  'errorBoundary.retry': 'Try Again',
+  'errorBoundary.reload': 'Reload Page',
+  'errorBoundary.goHome': 'Back to Portal',
+
 };
