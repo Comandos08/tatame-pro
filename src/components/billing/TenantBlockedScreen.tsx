@@ -8,6 +8,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface TenantBlockedScreenProps {
   tenantName: string;
@@ -53,7 +54,7 @@ export function TenantBlockedScreen({
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, '_blank');
+        safeOpen(data.url);
       } else {
         throw new Error('URL do portal não retornada');
       }

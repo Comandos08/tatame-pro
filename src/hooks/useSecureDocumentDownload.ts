@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface DownloadState {
   isLoading: boolean;
@@ -36,7 +37,7 @@ export function useSecureDocumentDownload() {
       }
 
       // Open the signed URL in a new tab
-      window.open(data.signedUrl, '_blank');
+      safeOpen(data.signedUrl);
 
       setDownloadState((prev) => ({
         ...prev,

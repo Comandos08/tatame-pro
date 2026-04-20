@@ -154,6 +154,7 @@ export function EventCategories({
                           size="icon"
                           variant="ghost"
                           onClick={() => setEditingCategory(category)}
+                          aria-label={t('common.edit')}
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -161,6 +162,7 @@ export function EventCategories({
                           size="icon"
                           variant="ghost"
                           onClick={() => handleDelete(category.id)}
+                          aria-label={t('common.delete')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

@@ -47,7 +47,7 @@ const DOCUMENT_ICONS: Record<string, React.ReactNode> = {
 };
 
 export function DocumentsSection({ athleteId, tenantId }: DocumentsSectionProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const { downloadDocument, isDownloading } = useSecureDocumentDownload();
 
   const { data: documents, isLoading } = useQuery({
@@ -200,11 +200,12 @@ export function DocumentsSection({ athleteId, tenantId }: DocumentsSectionProps)
                   </div>
                   <div className="flex items-center gap-3">
                     {getStatusBadge(status)}
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="icon"
                       onClick={() => handleDownload(doc)}
                       disabled={isDownloading(doc.id)}
+                      aria-label={t('common.download')}
                     >
                       {isDownloading(doc.id) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

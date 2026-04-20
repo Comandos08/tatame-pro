@@ -72,6 +72,8 @@ export const ptBR = {
   'common.delete': 'Excluir',
   'common.edit': 'Editar',
   'common.view': 'Ver',
+  'common.download': 'Baixar',
+  'common.toggleTheme': 'Alternar tema',
   'common.search': 'Buscar',
   'common.filter': 'Filtrar',
   'common.noResults': 'Nenhum resultado encontrado',

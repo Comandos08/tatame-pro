@@ -72,6 +72,8 @@ export const en: Record<string, string> = {
   'common.delete': 'Delete',
   'common.edit': 'Edit',
   'common.view': 'View',
+  'common.download': 'Download',
+  'common.toggleTheme': 'Toggle theme',
   'common.search': 'Search',
   'common.filter': 'Filter',
   'common.noResults': 'No results found',

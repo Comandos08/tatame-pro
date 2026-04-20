@@ -53,6 +53,7 @@ import {
 import { ProvisionalCard } from '@/components/athlete/ProvisionalCard';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface MembershipDetails {
   id: string;
@@ -508,7 +509,7 @@ export default function MembershipDetailsPage() {
                         </p>
                         <Button 
                           className="w-full"
-                          onClick={() => window.open(digitalCard.pdf_url, '_blank')}
+                          onClick={() => safeOpen(digitalCard.pdf_url)}
                         >
                           <Download className="h-4 w-4 mr-2" />
                           {t('memberships.downloadPdf')}
@@ -609,7 +610,7 @@ export default function MembershipDetailsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(diploma.pdf_url, '_blank')}
+                                onClick={() => safeOpen(diploma.pdf_url)}
                               >
                                 <FileText className="h-4 w-4 mr-1" />
                                 Diploma

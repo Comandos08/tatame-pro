@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { BillingState, BillingViewState } from '@/types/billing-view-state';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface BillingUxBannerProps {
   billingState: BillingState;
@@ -78,7 +79,7 @@ export function BillingUxBanner({ billingState, billingViewState }: BillingUxBan
   const handleCta = async () => {
     if (config.ctaAction === 'contact') {
       // Open mailto or support page
-      window.open('mailto:suporte@tatame.pro', '_blank');
+      safeOpen('mailto:suporte@tatame.pro');
       return;
     }
 
@@ -93,7 +94,7 @@ export function BillingUxBanner({ billingState, billingViewState }: BillingUxBan
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, '_blank');
+        safeOpen(data.url);
       } else {
         throw new Error('Portal URL not returned');
       }

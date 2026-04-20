@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface TenantBillingDialogProps {
   tenant: {
@@ -127,7 +128,7 @@ export function TenantBillingDialog({ tenant, open, onOpenChange }: TenantBillin
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, '_blank');
+        safeOpen(data.url);
       } else {
         throw new Error('URL do portal não retornada');
       }
