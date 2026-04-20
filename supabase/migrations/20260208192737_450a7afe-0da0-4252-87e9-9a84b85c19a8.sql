@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_subscription_plans_code ON public.subscription_pl
 -- Seed initial plans with known price IDs (LIVE only, TEST null)
 INSERT INTO public.subscription_plans (code, name, billing_interval, stripe_price_id_test, stripe_price_id_live) VALUES
   ('FEDERATION_MONTHLY', 'Plano Federação Mensal', 'monthly', NULL, 'price_1SrOU8HH533PC5Ddq3h54ooX'),
-  ('FEDERATION_ANNUAL', 'Plano Federação Anual', 'annual', NULL, 'price_1SrPnhHH533PC5DdmXxmsrRk')
+  ('FEDERATION_ANNUAL', 'Plano Federação Anual', 'annual', NULL, 'price_1TOGrVHH533PC5Dd5J8QhqzW')
 ON CONFLICT (code) DO NOTHING;
 
 -- RLS: Service role only

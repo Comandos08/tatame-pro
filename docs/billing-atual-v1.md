@@ -18,7 +18,7 @@ Os seguintes identificadores estão configurados como secrets no ambiente:
 |--------|-------|-----------|
 | `STRIPE_PRODUCT_ID` | `prod_TnaAE6ZdWWsMPp` | Produto principal |
 | `STRIPE_PRICE_MONTHLY` | `price_1SrOU8HH533PC5Ddq3h54ooX` | Preço mensal |
-| `STRIPE_PRICE_YEARLY` | `price_1SrPnhHH533PC5DdmXxmsrRk` | Preço anual |
+| `STRIPE_PRICE_YEARLY` | `price_1TOGrVHH533PC5Dd5J8QhqzW` | Preço anual |
 | `STRIPE_SECRET_KEY` | Configurado via connector | Chave API |
 | `STRIPE_WEBHOOK_SECRET` | Configurado | Validação de webhooks |
 
@@ -63,7 +63,7 @@ Quando status é `PAST_DUE`, `CANCELED`, `UNPAID` ou `INCOMPLETE`:
 - stripe_customer_id: TEXT (obrigatório para subscription)
 - stripe_subscription_id: TEXT
 - plan_name: TEXT ("Plano Federação Mensal" ou "Plano Federação Anual")
-- plan_price_id: TEXT (price_1SrOU8HH533PC5Ddq3h54ooX ou price_1SrPnhHH533PC5DdmXxmsrRk)
+- plan_price_id: TEXT (price_1SrOU8HH533PC5Ddq3h54ooX ou price_1TOGrVHH533PC5Dd5J8QhqzW)
 - status: billing_status ENUM
 - current_period_start: TIMESTAMP
 - current_period_end: TIMESTAMP
