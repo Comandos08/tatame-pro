@@ -8,6 +8,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentUser } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 
 // ============================================
 // TYPES
@@ -93,6 +95,17 @@ export function deriveSecurityPosture(report: SecurityPostureReport): SecurityPo
 // ============================================
 
 export function useSecurityPosture() {
+  const { isGlobalSuperadmin } = useCurrentUser();
+  const { isImpersonating } = useImpersonation();
+
+  // The audit-rls edge function is SUPERADMIN_GLOBAL-only; tenant admins and
+  // superadmins inside an impersonation context both get 403. Previously this
+  // hook fired unconditionally and surfaced the 403 as a console error on
+  // every tenant-context page load. Gate the query so it only runs when the
+  // effective caller is a real (non-impersonated) superadmin. The
+  // tenant-scoped fallback in useTenantSecurityHealth handles other cases.
+  const canAccess = isGlobalSuperadmin && !isImpersonating;
+
   const query = useQuery<SecurityPostureReport>({
     queryKey: ['security-posture-audit'],
     queryFn: async ({ signal }): Promise<SecurityPostureReport> => {
@@ -122,6 +135,7 @@ export function useSecurityPosture() {
       const report: SecurityPostureReport = await response.json();
       return report;
     },
+    enabled: canAccess,
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     retry: 1,

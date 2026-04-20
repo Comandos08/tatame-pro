@@ -430,6 +430,7 @@ export const ptBR = {
   'billing.unpaidDesc': 'Sua assinatura está suspensa por falta de pagamento. Entre em contato para regularizar.',
   'billing.validUntil': 'Válido até: {date}',
   'billing.openPortalError': 'Erro ao abrir portal de pagamento',
+  'billing.invalidCheckoutUrl': 'URL de pagamento inválida',
   'billing.totalPaid': 'Total Pago',
   'billing.totalPending': 'Total Pendente',
 
@@ -865,6 +866,7 @@ export const ptBR = {
   'tenantStatus.trialEndingSoon': 'Seu trial expira em {days} dias!',
   'tenantStatus.onTrial': 'Período de avaliação até {date}',
   'tenantStatus.manageBilling': 'Gerenciar Assinatura',
+  'tenantStatus.activateBilling': 'Ativar Assinatura',
   'tenantStatus.viewDetails': 'Ver Detalhes',
   'tenantStatus.pendingDelete': 'Organização será removida em {days} dias. Ative agora!',
   

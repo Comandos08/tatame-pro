@@ -18,6 +18,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { supabase } from '@/integrations/supabase/client';
+import { safeStripeRedirect } from '@/lib/stripeRedirect';
 import { toast } from 'sonner';
 
 export function TrialStatusBanner() {
@@ -28,24 +29,38 @@ export function TrialStatusBanner() {
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  const handleOpenPortal = async () => {
+  const { hasStripeCustomer } = status;
+
+  // Smart CTA: route trial tenants without a Stripe customer to the
+  // checkout flow (create-tenant-subscription) instead of the portal,
+  // which would 404 and still consume the 10/hour rate-limit budget.
+  const handleBillingCTA = async () => {
     if (!tenant?.id) return;
 
     setIsOpeningPortal(true);
     try {
-      const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
-        body: { tenant_id: tenant.id },
-      });
-
-      if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, '_blank');
+      if (hasStripeCustomer) {
+        const { data, error } = await supabase.functions.invoke('tenant-customer-portal', {
+          body: { tenant_id: tenant.id },
+        });
+        if (error) throw error;
+        if (data?.url) {
+          window.open(data.url, '_blank');
+        } else {
+          throw new Error('Portal URL not returned');
+        }
       } else {
-        throw new Error('Portal URL not returned');
+        const { data, error } = await supabase.functions.invoke('create-tenant-subscription', {
+          body: { tenantId: tenant.id },
+        });
+        if (error) throw error;
+        if (data?.url && !safeStripeRedirect(data.url)) {
+          toast.error(t('billing.invalidCheckoutUrl'));
+        }
       }
     } catch (err) {
-      logger.error('Error opening portal:', err);
-      toast.error(t('billing.openPortalError'));
+      logger.error('[TrialStatusBanner] Billing CTA failed:', err);
+      toast.error(hasStripeCustomer ? t('billing.openPortalError') : t('billing.error.checkoutFailed'));
     } finally {
       setIsOpeningPortal(false);
     }
@@ -130,7 +145,7 @@ export function TrialStatusBanner() {
                   <Button
                     variant={variant === 'destructive' ? 'outline' : 'default'}
                     size="sm"
-                    onClick={handleOpenPortal}
+                    onClick={handleBillingCTA}
                     disabled={isOpeningPortal}
                     className={variant === 'destructive' ? 'border-destructive-foreground/30 hover:bg-destructive-foreground/10' : ''}
                   >

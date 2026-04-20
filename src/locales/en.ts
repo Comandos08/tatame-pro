@@ -432,6 +432,7 @@ export const en: Record<string, string> = {
   'billing.unpaidDesc': 'Your subscription is suspended due to non-payment. Contact us to resolve.',
   'billing.validUntil': 'Valid until: {date}',
   'billing.openPortalError': 'Error opening payment portal',
+  'billing.invalidCheckoutUrl': 'Invalid checkout URL',
   'billing.totalPaid': 'Total Paid',
   'billing.totalPending': 'Total Pending',
 
@@ -867,6 +868,7 @@ export const en: Record<string, string> = {
   'tenantStatus.trialEndingSoon': 'Your trial expires in {days} days!',
   'tenantStatus.onTrial': 'Trial period until {date}',
   'tenantStatus.manageBilling': 'Manage Subscription',
+  'tenantStatus.activateBilling': 'Activate Subscription',
   'tenantStatus.viewDetails': 'View Details',
   'tenantStatus.pendingDelete': 'Organization will be removed in {days} days. Activate now!',
   
