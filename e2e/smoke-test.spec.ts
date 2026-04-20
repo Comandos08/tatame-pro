@@ -145,22 +145,35 @@ test.describe('Smoke Tests - Core Functionality', () => {
 
   test('10. Form validation is active', async ({ page }) => {
     await page.goto('/login');
-    
-    // Try to submit empty form
+    await page.waitForLoadState('domcontentloaded');
+
     const submitButton = page.locator('button[type="submit"]').first();
-    
-    if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await submitButton.click();
-      
-      // Should show validation or prevent submission
-      await page.waitForTimeout(500);
-      
-      // Either still on login page or showing errors
-      const url = page.url();
-      const hasErrors = await page.locator('[role="alert"], .text-destructive').isVisible().catch(() => false);
-      
-      expect(url.includes('login') || hasErrors).toBe(true);
+    if (!(await submitButton.isVisible({ timeout: 3000 }).catch(() => false))) {
+      // No form on this page; nothing to validate.
+      return;
     }
+
+    // The login form wires `disabled={isSubmitting || !isFormValid()}`, so the
+    // canonical "validation is active" signal is the submit button starting
+    // disabled. Clicking a disabled element waits for enablement and times out
+    // the whole test (reported as the CI flake we're fixing here).
+    const startsDisabled = await submitButton.isDisabled().catch(() => false);
+    if (startsDisabled) {
+      expect(startsDisabled).toBe(true);
+      return;
+    }
+
+    // Fallback path (forms that rely on HTML5/required instead of a disabled
+    // submit): click with `force` to bypass actionability waits and confirm
+    // we stayed on /login (or an explicit error surfaced).
+    await submitButton.click({ force: true });
+    await page.waitForTimeout(500);
+    const url = page.url();
+    const hasErrors = await page
+      .locator('[role="alert"], .text-destructive')
+      .isVisible()
+      .catch(() => false);
+    expect(url.includes('login') || hasErrors).toBe(true);
   });
 });
 

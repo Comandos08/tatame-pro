@@ -138,14 +138,20 @@ test.describe('LF — Login Form UI', () => {
     // Initially password type (hidden)
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Click show button
-    await page.locator('button[type="button"]').filter({ has: page.locator('svg') }).click();
+    // The toggle is the button[type="button"] that sits absolutely positioned
+    // inside the password input's wrapper. Scoping by the parent and taking
+    // `.first()` keeps the locator stable if an icon button ever joins the
+    // page outside the form (e.g. a theme toggle in the public layout).
+    const toggle = page
+      .locator('#password')
+      .locator('xpath=..')
+      .locator('button[type="button"]')
+      .first();
 
-    // Should now be text type (visible)
+    await toggle.click();
     await expect(passwordInput).toHaveAttribute('type', 'text');
 
-    // Click again to hide
-    await page.locator('button[type="button"]').filter({ has: page.locator('svg') }).click();
+    await toggle.click();
     await expect(passwordInput).toHaveAttribute('type', 'password');
   });
 
