@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { reportErrorBoundary } from "@/lib/observability/error-report";
+import { useI18n } from "@/contexts/I18nContext";
 
 interface Props {
   children: ReactNode;
@@ -78,61 +79,78 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      const isDev = import.meta.env.DEV;
-
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-destructive/10 rounded-full p-4 w-fit mb-4">
-                <AlertTriangle className="h-12 w-12 text-destructive" />
-              </div>
-              <CardTitle className="text-2xl">Algo deu errado</CardTitle>
-              <CardDescription className="text-base">
-                Ocorreu um erro inesperado. Tente recarregar a página ou voltar ao início.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-              {/* Error ID for support */}
-              {this.state.errorId && (
-                <div className="bg-muted rounded-lg p-3 text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Código do erro</p>
-                  <code className="text-sm font-mono">{this.state.errorId}</code>
-                </div>
-              )}
-
-              {/* Dev-only error details */}
-              {isDev && this.state.error && (
-                <div className="bg-muted rounded-lg p-3 text-xs font-mono overflow-auto max-h-32">
-                  <p className="text-destructive font-semibold mb-1">{this.state.error.name}</p>
-                  <p className="text-muted-foreground">{this.state.error.message}</p>
-                </div>
-              )}
-            </CardContent>
-
-            <CardFooter className="flex flex-col gap-2">
-              <Button onClick={this.handleRetry} variant="outline" className="w-full">
-                Tentar Novamente
-              </Button>
-
-              <Button onClick={this.handleReload} className="w-full">
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Recarregar Página
-              </Button>
-
-              <Button variant="ghost" onClick={this.handleGoHome} className="w-full">
-                <Home className="mr-2 h-4 w-4" />
-                Voltar ao Portal
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+        <DefaultErrorFallback
+          error={this.state.error}
+          errorId={this.state.errorId}
+          onRetry={this.handleRetry}
+          onReload={this.handleReload}
+          onGoHome={this.handleGoHome}
+        />
       );
     }
 
     return this.props.children;
   }
+}
+
+interface DefaultErrorFallbackProps {
+  error: Error | null;
+  errorId: string | null;
+  onRetry: () => void;
+  onReload: () => void;
+  onGoHome: () => void;
+}
+
+function DefaultErrorFallback({ error, errorId, onRetry, onReload, onGoHome }: DefaultErrorFallbackProps) {
+  const { t } = useI18n();
+  const isDev = import.meta.env.DEV;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4" data-testid="error-boundary-fallback">
+      <Card className="max-w-md w-full">
+        <CardHeader className="text-center">
+          <div className="mx-auto bg-destructive/10 rounded-full p-4 w-fit mb-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+          </div>
+          <CardTitle className="text-2xl">{t("errorBoundary.title")}</CardTitle>
+          <CardDescription className="text-base">{t("errorBoundary.description")}</CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {errorId && (
+            <div className="bg-muted rounded-lg p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">{t("errorBoundary.errorIdLabel")}</p>
+              <code className="text-sm font-mono">{errorId}</code>
+            </div>
+          )}
+
+          {isDev && error && (
+            <div className="bg-muted rounded-lg p-3 text-xs font-mono overflow-auto max-h-32">
+              <p className="text-destructive font-semibold mb-1">{error.name}</p>
+              <p className="text-muted-foreground">{error.message}</p>
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex flex-col gap-2">
+          <Button onClick={onRetry} variant="outline" className="w-full">
+            {t("errorBoundary.retry")}
+          </Button>
+
+          <Button onClick={onReload} className="w-full">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {t("errorBoundary.reload")}
+          </Button>
+
+          <Button variant="ghost" onClick={onGoHome} className="w-full">
+            <Home className="mr-2 h-4 w-4" />
+            {t("errorBoundary.goHome")}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
 }
 
 /**

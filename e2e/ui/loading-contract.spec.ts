@@ -31,7 +31,7 @@ test.describe('Loading Contract', () => {
     expect(bodyText?.trim().length).toBeGreaterThan(10);
     
     // Should not show error boundary by default
-    const errorBoundary = page.locator('text=Algo deu errado');
+    const errorBoundary = page.getByTestId('error-boundary-fallback');
     await expect(errorBoundary).not.toBeVisible();
   });
 

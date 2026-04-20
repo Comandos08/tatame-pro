@@ -166,7 +166,7 @@ test.describe('Guard Behavior - Edge Cases', () => {
       expect(url).toBeTruthy();
       
       // Should not show error boundary for these cases
-      const errorBoundary = page.locator('text=Algo deu errado');
+      const errorBoundary = page.getByTestId('error-boundary-fallback');
       const isErrorVisible = await errorBoundary.isVisible().catch(() => false);
       expect(isErrorVisible).toBe(false);
     }

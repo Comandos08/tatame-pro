@@ -2850,6 +2850,14 @@ export const ptBR = {
   'privacy.contact.text': 'Para questões relacionadas à privacidade, entre em contato com a organização esportiva à qual você é filiado ou utilize as ferramentas de gestão de dados disponíveis no portal do atleta.',
   'privacy.lastUpdated': 'Última atualização: Março de 2026',
 
+  // ErrorBoundary — global fallback UI for uncaught render errors
+  'errorBoundary.title': 'Algo deu errado',
+  'errorBoundary.description': 'Ocorreu um erro inesperado. Tente recarregar a página ou voltar ao início.',
+  'errorBoundary.errorIdLabel': 'Código do erro',
+  'errorBoundary.retry': 'Tentar Novamente',
+  'errorBoundary.reload': 'Recarregar Página',
+  'errorBoundary.goHome': 'Voltar ao Portal',
+
 } as const;
 
 export type TranslationKey = keyof typeof ptBR;

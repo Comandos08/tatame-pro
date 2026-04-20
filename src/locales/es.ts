@@ -2859,4 +2859,12 @@ export const es: Record<string, string> = {
   'privacy.contact.text': 'Para consultas relacionadas con la privacidad, contacte a la organización deportiva a la que está afiliado o utilice las herramientas de gestión de datos disponibles en el portal del atleta.',
   'privacy.lastUpdated': 'Última actualización: Marzo de 2026',
 
+  // ErrorBoundary — global fallback UI for uncaught render errors
+  'errorBoundary.title': 'Algo salió mal',
+  'errorBoundary.description': 'Ocurrió un error inesperado. Intente recargar la página o volver al inicio.',
+  'errorBoundary.errorIdLabel': 'Código de error',
+  'errorBoundary.retry': 'Intentar de nuevo',
+  'errorBoundary.reload': 'Recargar página',
+  'errorBoundary.goHome': 'Volver al portal',
+
 };
