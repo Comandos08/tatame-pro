@@ -112,26 +112,6 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setIsLoading(false);
   }, []);
 
-  // Calculate remaining time
-  useEffect(() => {
-    if (!session) {
-      setRemainingMinutes(null);
-      return;
-    }
-
-    const updateRemaining = () => {
-      const now = new Date();
-      const expires = new Date(session.expiresAt);
-      const remaining = Math.floor((expires.getTime() - now.getTime()) / 60000);
-      setRemainingMinutes(Math.max(0, remaining));
-    };
-
-    updateRemaining();
-    const interval = setInterval(updateRemaining, 10000); // Update every 10 seconds
-
-    return () => clearInterval(interval);
-  }, [session]);
-
   // Clear session state and storage
   // IMPORTANT: Defined before validateSession to avoid hoisting issues
   const clearSession = useCallback(() => {
@@ -139,11 +119,55 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setSession(null);
     setRemainingMinutes(null);
     setResolutionStatus('IDLE'); // ✅ P-IMP-FIX — Reset to IDLE on clear
-    sessionStorage.removeItem(STORAGE_KEY);
+    // Storage ops can throw in sandboxed iframes / strict CSP / private mode.
+    // In-memory state above is already reset; swallow storage errors so we
+    // never leave the UI in a half-cleared state.
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      logger.warn('[IMPERSONATION] sessionStorage.removeItem failed during clearSession', err);
+    }
     if (expirationTimeout.current) clearTimeout(expirationTimeout.current);
+    if (warningTimeout.current) clearTimeout(warningTimeout.current);
     // AJUSTE A2: Limpar cache de clients Supabase ao encerrar impersonation
     clearImpersonationClientCache();
   }, []);
+
+  // Calculate remaining time + wall-clock expiry fail-safe.
+  //
+  // The heartbeat effect below schedules a single setTimeout for the full
+  // remaining TTL. Browsers throttle setTimeout aggressively in backgrounded
+  // tabs, so when the tab regains focus the timer may fire late — or, in
+  // extreme throttling cases, the user could interact with stale impersonated
+  // state briefly before the timer catches up.
+  //
+  // This interval runs every 10s regardless and checks wall-clock time
+  // directly. If expiresAt has passed, force-clear. After clearSession the
+  // effect re-runs with session=null and short-circuits, so cleanup fires
+  // exactly once.
+  useEffect(() => {
+    if (!session) {
+      setRemainingMinutes(null);
+      return;
+    }
+
+    const checkExpiry = () => {
+      const remainingMs = new Date(session.expiresAt).getTime() - Date.now();
+      setRemainingMinutes(Math.max(0, Math.floor(remainingMs / 60000)));
+
+      if (remainingMs <= 0) {
+        logger.warn('[IMPERSONATION] Wall-clock expiry detected, forcing cleanup');
+        clearSession();
+        toast.warning(t('impersonation.sessionExpired'));
+        navigate('/admin', { replace: true });
+      }
+    };
+
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 10000);
+
+    return () => clearInterval(interval);
+  }, [session, clearSession, navigate, t]);
 
   // Validate session with backend (cross-verification)
   // BY DESIGN: Updates local session with server-authoritative data
