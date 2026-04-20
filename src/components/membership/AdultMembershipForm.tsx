@@ -492,9 +492,25 @@ export function AdultMembershipForm() {
 
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-8">
-          {STEPS.map((s, _index) => (
+          {STEPS.map((s, index) => (
             <React.Fragment key={s.id}>
-...
+              <div className="flex flex-col items-center">
+                <div
+                  className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    step >= s.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {step > s.id ? <Check className="h-5 w-5" /> : s.id}
+                </div>
+                <span className="text-xs mt-2 text-muted-foreground hidden sm:block">
+                  {s.title}
+                </span>
+              </div>
+              {index < STEPS.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-2 ${step > s.id ? 'bg-primary' : 'bg-muted'}`} />
+              )}
             </React.Fragment>
           ))}
         </div>

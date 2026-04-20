@@ -102,6 +102,18 @@ function AppIndexRoute() {
   );
 }
 
+/**
+ * Redirect /:tenantSlug/app/graduations → /:tenantSlug/app/grading-schemes.
+ * Reads the slug from the current tenant context instead of relying on a
+ * relative `../grading-schemes` path, which behaves inconsistently under
+ * splat routes in React Router v7.
+ */
+function GraduationsRedirect() {
+  const { tenant } = useTenant();
+  if (!tenant?.slug) return <PageLoader />;
+  return <Navigate to={`/${tenant.slug}/app/grading-schemes`} replace />;
+}
+
 export default function AppRouter() {
   return (
     <ErrorBoundary>
@@ -223,6 +235,11 @@ export default function AppRouter() {
             </RequireRoles>
           }
         />
+
+        {/* LEGACY REDIRECT — /graduations was the prior slug; some bookmarks and
+            internal references still hit it. Redirect instead of 404. */}
+        <Route path="graduations" element={<GraduationsRedirect />} />
+        <Route path="graduations/*" element={<GraduationsRedirect />} />
 
         <Route
           path="grading-schemes/:schemeId/levels"

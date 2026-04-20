@@ -343,8 +343,12 @@ export default function AcademiesList() {
                       </div>
                       {canManage && (
                         <Switch
-                          checked={academy.is_active}
-                          onCheckedChange={(checked) => 
+                          // Coerce nullable/undefined API values to boolean so
+                          // the Switch stays controlled across the first
+                          // render (otherwise React logs the
+                          // "changing from uncontrolled to controlled" warning).
+                          checked={!!academy.is_active}
+                          onCheckedChange={(checked) =>
                             toggleActiveMutation.mutate({ id: academy.id, isActive: checked })
                           }
                         />
