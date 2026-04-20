@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,12 +19,12 @@ export default function MembershipCheckout() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [boundaryError, setBoundaryError] = useState(false);
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `loadData` is defined inside the component and would be recreated on every render, causing an infinite fetch loop
-  }, [membershipId]);
-
-  async function loadData() {
+  // Declared via useCallback (stable until deps change) and defined BEFORE the
+  // effect that consumes it — the React Compiler flags function-declaration
+  // hoisting across a useEffect boundary as "Cannot access variable before it
+  // is declared". Also adds tenantSlug to deps so a slug change re-triggers
+  // the boundary check (previously silenced by eslint-disable).
+  const loadData = useCallback(async () => {
     try {
       const [membershipRes, feeRes] = await Promise.all([
         supabase
@@ -63,7 +63,11 @@ export default function MembershipCheckout() {
     } finally {
       setIsLoadingData(false);
     }
-  }
+  }, [membershipId, tenantSlug]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function handlePayment() {
     setIsLoading(true);
