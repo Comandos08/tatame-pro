@@ -6,6 +6,7 @@ import { Award, Download, ExternalLink } from "lucide-react";
 import { PortalEmptyState } from "@/components/portal/PortalEmptyState";
 import { useI18n } from "@/contexts/I18nContext";
 import { formatDate as formatDateUtil } from "@/lib/i18n/formatters";
+import { safeOpen } from '@/lib/safeOpen';
 
 interface DiplomaData {
   id: string;
@@ -33,11 +34,11 @@ export function DiplomasListCard({ diplomas, tenantSlug }: DiplomasListCardProps
   /* ---------------- Actions ---------------- */
 
   const handleDownload = (pdfUrl: string) => {
-    window.open(pdfUrl, "_blank");
+    safeOpen(pdfUrl);
   };
 
   const handleVerify = (diplomaId: string) => {
-    window.open(`/${tenantSlug}/verify/diploma/${diplomaId}`, "_blank");
+    safeOpen(`/${tenantSlug}/verify/diploma/${diplomaId}`);
   };
 
   /* ---------------- Empty State (retorno antecipado) ---------------- */

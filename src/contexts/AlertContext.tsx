@@ -203,10 +203,16 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   // Load dismissed alerts from DB when user is available
   useEffect(() => {
     if (!currentUser?.id) return;
-    fetchDismissedIds(currentUser.id).then(ids => {
-      setDismissedIds(ids);
-      dismissedIdsRef.current = ids;
-    });
+    fetchDismissedIds(currentUser.id)
+      .then(ids => {
+        setDismissedIds(ids);
+        dismissedIdsRef.current = ids;
+      })
+      .catch(() => {
+        // fetchDismissedIds already logs via logger; leave the dismissed set
+        // empty so the user still sees alerts (fail-open is acceptable here —
+        // the only downside is that a previously-dismissed alert may reappear).
+      });
   }, [currentUser?.id]);
   
   // Polling query for critical events

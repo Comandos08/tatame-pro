@@ -34,6 +34,7 @@ import { TenantBillingDialog } from '@/components/admin/TenantBillingDialog';
 import { StartImpersonationDialog } from '@/components/impersonation/StartImpersonationDialog';
 import { PostLoginInstitutionalBanner } from '@/components/notifications/PostLoginInstitutionalBanner';
 import { InstitutionalEnvironmentStatus } from '@/components/institutional';
+import { safeOpen } from '@/lib/safeOpen';
 
 const AVAILABLE_LOCALES: { code: Locale; label: string }[] = [
   { code: 'pt-BR', label: 'Português (BR)' },
@@ -757,7 +758,7 @@ export default function AdminDashboard() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => window.open(`/${tenant.slug}`, '_blank')}>
+                                <DropdownMenuItem onClick={() => safeOpen(`/${tenant.slug}`)}>
                                   <ExternalLink className="h-4 w-4 mr-2" />
                                   {t('admin.actions.openPortal')}
                                 </DropdownMenuItem>

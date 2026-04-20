@@ -165,6 +165,7 @@ export function AdminBadgeCatalog({ tenantId }: AdminBadgeCatalogProps) {
                     className="h-8 w-8"
                     onClick={() => openEdit(badge)}
                     title="Editar nome/descrição"
+                    aria-label="Editar nome/descrição"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -174,6 +175,7 @@ export function AdminBadgeCatalog({ tenantId }: AdminBadgeCatalogProps) {
                     className="h-8 w-8"
                     onClick={() => setToggleTarget(badge)}
                     title={badge.is_active ? "Desativar" : "Ativar"}
+                    aria-label={badge.is_active ? "Desativar" : "Ativar"}
                   >
                     {badge.is_active ? (
                       <ToggleRight className="h-4 w-4 text-primary" />

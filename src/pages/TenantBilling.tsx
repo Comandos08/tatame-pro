@@ -26,6 +26,7 @@ import { BillingOverviewCard } from '@/components/billing/BillingOverviewCard';
 import { BillingTimeline } from '@/components/billing/BillingTimeline';
 import { assertInvoiceStatus } from '@/domain/payments/normalize';
 import { formatDate, formatCurrency } from '@/lib/i18n/formatters';
+import { safeOpen } from '@/lib/safeOpen';
 
 // Map invoice status to StatusBadge status type
 const invoiceStatusMap: Record<string, StatusType> = {
@@ -242,7 +243,7 @@ export default function TenantBilling() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(invoice.hosted_invoice_url!, '_blank')}
+                              onClick={() => safeOpen(invoice.hosted_invoice_url!)}
                               data-testid="invoice-view-stripe"
                             >
                               <ExternalLink className="h-4 w-4 mr-1" />

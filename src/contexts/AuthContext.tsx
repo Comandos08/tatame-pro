@@ -124,11 +124,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
-    fetchProfile(session.user).then((profile) => {
-      if (!cancelled && mountedRef.current) {
-        setCurrentUser(profile);
-      }
-    });
+    fetchProfile(session.user)
+      .then((profile) => {
+        if (!cancelled && mountedRef.current) {
+          setCurrentUser(profile);
+        }
+      })
+      .catch(() => {
+        // fetchProfile logs via logger; clear currentUser so downstream gates
+        // see an unauthenticated state instead of hanging on a stale session.
+        if (!cancelled && mountedRef.current) {
+          setCurrentUser(null);
+        }
+      });
 
     return () => {
       cancelled = true;

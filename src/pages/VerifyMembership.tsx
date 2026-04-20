@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
 import PublicHeader from '@/components/PublicHeader';
+import { safeOpen } from '@/lib/safeOpen';
 
 // Public verification data from the hardened database view
 // This view ONLY returns safe, public data with masked athlete name
@@ -184,7 +185,7 @@ export default function VerifyMembership() {
 
   const handleDownload = () => {
     if (data?.pdf_url) {
-      window.open(data.pdf_url, '_blank');
+      safeOpen(data.pdf_url);
     }
   };
 

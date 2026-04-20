@@ -8,6 +8,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
+import { safeOpen } from '@/lib/safeOpen';
 // FX-02: Auth check at entry point
 import { useTenantStatus } from '@/hooks/useTenantStatus';
 import { useI18n } from '@/contexts/I18nContext';
@@ -103,7 +104,7 @@ export function MembershipTypeSelector() {
       }
 
       if (data?.url) {
-        window.open(data.url, '_blank');
+        safeOpen(data.url);
       } else {
         toast.info('Portal de cobrança indisponível para este tenant.');
       }

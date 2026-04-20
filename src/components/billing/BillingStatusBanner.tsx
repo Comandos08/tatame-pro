@@ -12,6 +12,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/i18n/formatters";
 import { toast } from "sonner";
+import { safeOpen } from '@/lib/safeOpen';
 
 // Map billing status to StatusBadge status type
 const billingStatusMap: Record<string, StatusType> = {
@@ -70,7 +71,7 @@ export function BillingStatusBanner() {
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, "_blank");
+        safeOpen(data.url);
       } else {
         throw new Error("URL do portal não retornada");
       }

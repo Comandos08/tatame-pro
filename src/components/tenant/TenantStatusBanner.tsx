@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/i18n/formatters';
 import { safeStripeRedirect } from '@/lib/stripeRedirect';
 import { toast } from 'sonner';
+import { safeOpen } from '@/lib/safeOpen';
 
 export function TenantStatusBanner() {
   const status = useTenantStatus();
@@ -37,7 +38,7 @@ export function TenantStatusBanner() {
         });
         if (error) throw error;
         if (data?.url) {
-          window.open(data.url, '_blank');
+          safeOpen(data.url);
         } else {
           throw new Error('Portal URL not returned');
         }

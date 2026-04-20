@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Share2, Download, CheckCircle, AlertCircle, Clock, Shield } from 'lucide-react';
+import { safeOpen } from '@/lib/safeOpen';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -120,7 +121,7 @@ export function DigitalMembershipCard({
 
   const handleDownload = () => {
     if (pdfUrl) {
-      window.open(pdfUrl, '_blank');
+      safeOpen(pdfUrl);
     }
   };
 

@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
+import { safeOpen } from '@/lib/safeOpen';
 
 interface AthleteData {
   id: string;
@@ -585,7 +586,7 @@ export default function AthleteArea() {
                       {activeDigitalCard.pdf_url && (
                         <Button 
                           className="flex-1"
-                          onClick={() => window.open(activeDigitalCard.pdf_url!, '_blank')}
+                          onClick={() => safeOpen(activeDigitalCard.pdf_url!)}
                         >
                           <Download className="h-4 w-4 mr-2" />
                           {t('verification.downloadCard')}
@@ -766,7 +767,7 @@ export default function AthleteArea() {
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            onClick={() => window.open(diploma.pdf_url!, '_blank')}
+                            onClick={() => safeOpen(diploma.pdf_url!)}
                           >
                             <Download className="h-4 w-4" />
                           </Button>

@@ -9,6 +9,7 @@ import { CheckCircle, XCircle, AlertCircle, Loader2, Shield, ShieldCheck, Shield
 import { motion } from "framer-motion";
 import { useI18n } from "@/contexts/I18nContext";
 import { formatDate } from "@/lib/i18n/formatters";
+import { safeOpen } from '@/lib/safeOpen';
 
 interface CardVerification {
   isValid: boolean;
@@ -106,7 +107,7 @@ export default function VerifyCard() {
 
   const handleDownload = () => {
     if (verification?.pdfUrl) {
-      window.open(verification.pdfUrl, '_blank');
+      safeOpen(verification.pdfUrl);
     }
   };
 
