@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { useI18n } from './I18nContext';
 import { hardResetAuthClientState } from '@/lib/auth/clientReset';
 
-const STORAGE_KEY = 'tatame_impersonation_session';
+export const IMPERSONATION_STORAGE_KEY = 'tatame_impersonation_session';
 const VALIDATION_INTERVAL = 60000; // Validate every minute
 const MAX_CONSECUTIVE_VALIDATION_FAILURES = 3;
 
@@ -91,7 +91,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
   // Load session from sessionStorage on mount
   useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const stored = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as ImpersonationSession;
@@ -103,10 +103,10 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         } else {
           // Already expired locally, clear it
           logger.log('[IMPERSONATION] Session expired in storage, clearing');
-          sessionStorage.removeItem(STORAGE_KEY);
+          sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
         }
       } catch {
-        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       }
     }
     setIsLoading(false);
@@ -123,7 +123,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     // In-memory state above is already reset; swallow storage errors so we
     // never leave the UI in a half-cleared state.
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
     } catch (err) {
       logger.warn('[IMPERSONATION] sessionStorage.removeItem failed during clearSession', err);
     }
@@ -214,7 +214,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       };
 
       setSession(updatedSession);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSession));
+      sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify(updatedSession));
     } catch (err) {
       logger.error('[IMPERSONATION] Validation error:', err);
       consecutiveValidationFailures.current += 1;
@@ -328,7 +328,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
       // 2️⃣ Redundant storage clear (belt-and-suspenders)
       try {
-        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       } catch {
         // Ignore storage errors
       }
@@ -447,7 +447,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       };
 
       setSession(newSession);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+      sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify(newSession));
 
       // ✅ P-IMP-FIX — Mark as RESOLVED only after session is set
       logger.log('[IMPERSONATION] Success, status → RESOLVED');
