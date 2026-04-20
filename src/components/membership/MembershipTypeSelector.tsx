@@ -30,7 +30,7 @@ export function MembershipTypeSelector() {
   useEffect(() => {
     if (viewedRef.current || !tenantSlug) return;
     viewedRef.current = true;
-    logMembershipEvent('MEMBERSHIP_TYPE_VIEWED', { tenantSlug, timestamp: Date.now() });
+    logMembershipEvent('MEMBERSHIP_TYPE_VIEWED', { tenantSlug });
   }, [tenantSlug]);
 
   // Query to detect existing membership (P4B-3 UX Informational - read-only)
@@ -148,7 +148,6 @@ export function MembershipTypeSelector() {
       logMembershipEvent('MEMBERSHIP_TYPE_SELECTED', {
         tenantSlug,
         membershipType: optionId as 'adult' | 'youth',
-        timestamp: Date.now(),
       });
     }
 

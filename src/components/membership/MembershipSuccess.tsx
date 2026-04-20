@@ -122,11 +122,11 @@ export function MembershipSuccess() {
         // R-01: Log success/approved analytics
         if (tenantSlug && !successViewedRef.current) {
           successViewedRef.current = true;
-          logMembershipEvent('MEMBERSHIP_SUCCESS_VIEWED', { tenantSlug, timestamp: Date.now() });
+          logMembershipEvent('MEMBERSHIP_SUCCESS_VIEWED', { tenantSlug });
         }
         if (normalized === 'approved' && tenantSlug && !approvedLoggedRef.current) {
           approvedLoggedRef.current = true;
-          logMembershipEvent('MEMBERSHIP_APPROVED', { tenantSlug, timestamp: Date.now() });
+          logMembershipEvent('MEMBERSHIP_APPROVED', { tenantSlug });
         }
       } else {
         // FX-05A: Non-success but payment may exist — pending confirmation, not error
@@ -161,7 +161,7 @@ export function MembershipSuccess() {
   useEffect(() => {
     if (successPageLoggedRef.current || status === 'loading' || !tenantSlug) return;
     successPageLoggedRef.current = true;
-    logMembershipEvent('MEMBERSHIP_SUCCESS_PAGE_LOADED', { tenantSlug, timestamp: Date.now() });
+    logMembershipEvent('MEMBERSHIP_SUCCESS_PAGE_LOADED', { tenantSlug });
   }, [status, tenantSlug]);
 
   // FX-05A: Retry only available for pending_confirmation

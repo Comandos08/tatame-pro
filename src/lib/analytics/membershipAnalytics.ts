@@ -26,7 +26,10 @@ export interface MembershipEventPayload {
   tenantSlug: string;
   membershipType?: 'adult' | 'youth';
   step?: number;
-  timestamp: number;
+  /** Optional — defaults to Date.now() inside logMembershipEvent. Callers
+   * should omit unless they need a specific upstream timestamp; calling
+   * Date.now() at a component render site triggers React Compiler purity. */
+  timestamp?: number;
 }
 
 /**
@@ -40,9 +43,12 @@ export function logMembershipEvent(
   eventName: MembershipEventName,
   payload: MembershipEventPayload
 ): void {
+  // Default timestamp inside this pure analytics function so component-side
+  // callers don't have to call Date.now() during render.
+  const resolved = { ...payload, timestamp: payload.timestamp ?? Date.now() };
   logger.info(`[ANALYTICS] ${eventName}`, {
     event: eventName,
-    ...payload,
+    ...resolved,
   });
 
   // R-01C: Fire-and-forget DB persistence — never blocks, never throws
