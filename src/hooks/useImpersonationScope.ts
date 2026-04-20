@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { useImpersonation, IMPERSONATION_STORAGE_KEY } from '@/contexts/ImpersonationContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { logger } from '@/lib/logger';
 
@@ -174,8 +174,11 @@ export function useImpersonationScope() {
       }
 
       // 2️⃣ Clear persisted storage (redundant with clearSession but explicit guarantee)
+      // Was previously using the wrong key 'impersonation_session' — a no-op that
+      // silently defeated the belt-and-suspenders intent. Now uses the canonical
+      // key that ImpersonationContext writes to.
       try {
-        sessionStorage.removeItem('impersonation_session');
+        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       } catch {
         // BY DESIGN: Storage access may fail in restricted contexts — ignore
       }

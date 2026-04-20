@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { IMPERSONATION_STORAGE_KEY } from '@/contexts/ImpersonationContext';
 
 const APP_STORAGE_PREFIX = 'tatame_';
 
@@ -10,7 +11,7 @@ const APP_STORAGE_PREFIX = 'tatame_';
  */
 export function hardResetAuthClientState(queryClient?: QueryClient): void {
   // 1) Clear sessionStorage keys
-  sessionStorage.removeItem('tatame_impersonation_session');
+  sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
   sessionStorage.removeItem('tatame_identity_cache');
 
   // 2) Clear localStorage app keys only

@@ -19,6 +19,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { auditLogger } from '@/lib/observability/logger';
 import type { Json } from '@/integrations/supabase/types';
+import { IMPERSONATION_STORAGE_KEY } from '@/contexts/ImpersonationContext';
 
 /** Canonical audit categories (mirrors backend detectCategory) */
 export type AuditCategory =
@@ -54,8 +55,6 @@ export interface AuditEventInput {
   metadata?: Record<string, unknown>;
 }
 
-const STORAGE_KEY = 'tatame_impersonation_session';
-
 /**
  * Detect category from event_type prefix.
  * Mirrors backend `_shared/audit-logger.ts → detectCategory()`.
@@ -82,7 +81,7 @@ function detectCategory(eventType: string): AuditCategory {
  */
 function resolveImpersonation(): { impersonated: boolean; impersonation_id?: string } {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
     if (!raw) return { impersonated: false };
     const session = JSON.parse(raw);
     if (session?.status === 'ACTIVE' && session?.impersonationId) {

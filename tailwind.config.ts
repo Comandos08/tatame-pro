@@ -8,7 +8,15 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      // Responsive padding — 2rem was too aggressive on <640px screens
+      // (eats ~17% of a 375px viewport). Most usages already override via
+      // `px-*` utilities; this default only applies where the class is
+      // used bare (ImpersonationBanner, CookieConsent).
+      padding: {
+        DEFAULT: "1rem",
+        sm: "1.5rem",
+        lg: "2rem",
+      },
       screens: {
         "2xl": "1400px",
       },
