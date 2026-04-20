@@ -20,26 +20,27 @@ Set these in your .env file or hosting environment and restart.
   throw new Error(`Missing required env vars: ${missingEnvVars.join(', ')}`);
 }
 
-// Sentry — initialize if DSN is configured via VITE_SENTRY_DSN env var.
-// Loaded from CDN in index.html; defer to "load" event to avoid race with async script.
+// Sentry — initialize if DSN is configured via VITE_SENTRY_DSN.
+// Bundled as an npm dep but imported dynamically so the ~50KB gzipped chunk
+// is only fetched when there is a DSN to send events to. Consumers
+// (error-report.ts, web-vitals.ts) read window.Sentry, which we populate
+// after the SDK resolves.
 if (import.meta.env.VITE_SENTRY_DSN && typeof window !== "undefined") {
-  window.addEventListener("load", () => {
-    const sentry = (window as unknown as Record<string, unknown>)["Sentry"] as
-      | { init: (opts: Record<string, unknown>) => void }
-      | undefined;
-    if (sentry?.init) {
-      sentry.init({
+  import("@sentry/react")
+    .then((Sentry) => {
+      Sentry.init({
         dsn: import.meta.env.VITE_SENTRY_DSN,
         environment: import.meta.env.MODE,
         release: (import.meta.env.VITE_APP_VERSION as string) || "unknown",
         tracesSampleRate: 0.1,
       });
-    } else {
-      // Sentry SDK not available — CDN may have been blocked or failed to load.
-      // App continues normally; errors will not be reported to Sentry.
-      console.warn("[Sentry] SDK not available after page load — error tracking disabled.");
-    }
-  });
+      (window as unknown as Record<string, unknown>)["Sentry"] = Sentry;
+    })
+    .catch((err) => {
+      // Chunk fetch failed (network error, blocked by extension, etc.).
+      // App continues normally; in-memory error buffer still collects.
+      console.warn("[Sentry] Failed to load SDK — error tracking disabled.", err);
+    });
 }
 
 import { initWebVitals } from "@/lib/observability/web-vitals";

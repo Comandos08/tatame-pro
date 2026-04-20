@@ -39,11 +39,11 @@
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
-        script-src 'self' 'unsafe-inline' https://browser.sentry-cdn.com https://js.stripe.com;
+        script-src 'self' 'unsafe-inline' https://js.stripe.com;
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' https://fonts.gstatic.com;
         img-src 'self' data: blob: https://*.supabase.co https://*.stripe.com;
-        connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://browser.sentry-cdn.com;
+        connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.sentry.io;
         frame-src https://js.stripe.com https://*.supabase.co;
         object-src 'none';
         base-uri 'self';
@@ -55,21 +55,6 @@
       content="strict-origin-when-cross-origin"
     />
 
-    <!-- Sentry Browser SDK — load only when VITE_SENTRY_DSN is defined -->
-    <script>
-      (function () {
-        var dsn = "%VITE_SENTRY_DSN%";
-        if (dsn && dsn !== "" && dsn !== "%VITE_SENTRY_DSN%") {
-          window.__SENTRY_DSN__ = dsn;
-
-          var s = document.createElement("script");
-          s.src = "https://browser.sentry-cdn.com/7.119.0/bundle.min.js";
-          s.crossOrigin = "anonymous";
-          s.setAttribute("data-lazy", "true");
-          document.head.appendChild(s);
-        }
-      })();
-    </script>
   </head>
 
   <body>
