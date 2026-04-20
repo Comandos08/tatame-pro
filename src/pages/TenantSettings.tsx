@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Palette, Globe, Building2, Loader2, Check, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,26 +34,21 @@ export default function TenantSettings() {
   const [cardTemplateUrl, setCardTemplateUrl] = useState<string | null>(null);
   const [diplomaTemplateUrl, setDiplomaTemplateUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (tenant) {
-      setDescription(tenant.description || '');
-      setPrimaryColor(tenant.primaryColor || '#dc2626');
-      setLogoUrl(tenant.logoUrl || null);
-      fetchTenantDetails();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchTenantDetails` is an internal function; full `tenant` object would cause infinite re-fetch loops — only re-run when ID changes
-  }, [tenant?.id]);
-
-  async function fetchTenantDetails() {
-    if (!tenant?.id) return;
+  // Declared via useCallback (stable) and before the consuming effect — the
+  // React Compiler flags function-declaration hoisting across the useEffect
+  // boundary as "Cannot access variable before it is declared". Capturing
+  // `tenant?.id` into a primitive keeps the inferred and declared deps aligned.
+  const tenantId = tenant?.id;
+  const fetchTenantDetails = useCallback(async () => {
+    if (!tenantId) return;
     setLoading(true);
-    
+
     const { data } = await supabase
       .from('tenants')
       .select('default_locale, billing_email, logo_url, card_template_url, diploma_template_url')
-      .eq('id', tenant.id)
+      .eq('id', tenantId)
       .single();
-    
+
     if (data) {
       setDefaultLocale(data.default_locale || 'pt-BR');
       setBillingEmail(data.billing_email || '');
@@ -62,7 +57,16 @@ export default function TenantSettings() {
       setDiplomaTemplateUrl(data.diploma_template_url);
     }
     setLoading(false);
-  }
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (tenant) {
+      setDescription(tenant.description || '');
+      setPrimaryColor(tenant.primaryColor || '#dc2626');
+      setLogoUrl(tenant.logoUrl || null);
+      fetchTenantDetails();
+    }
+  }, [tenant, fetchTenantDetails]);
 
   async function handleSave() {
     if (!tenant?.id) return;
