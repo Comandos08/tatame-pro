@@ -2,18 +2,35 @@ import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+/**
+ * Subscribe to the mobile-width media query. Returns an unsubscribe fn so
+ * useSyncExternalStore can wire up and tear down the listener deterministically.
+ */
+function subscribeMobile(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
-    mql.addEventListener("change", onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
+function getMobileSnapshot(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < MOBILE_BREAKPOINT;
+}
 
-  return !!isMobile;
+function getMobileServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * Read the current mobile-viewport state. Backed by useSyncExternalStore so
+ * render never reads `window.innerWidth` directly, and React concurrent
+ * features stay consistent across tearing boundaries.
+ */
+export function useIsMobile(): boolean {
+  return React.useSyncExternalStore(
+    subscribeMobile,
+    getMobileSnapshot,
+    getMobileServerSnapshot,
+  );
 }
