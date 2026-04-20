@@ -152,7 +152,14 @@ export function TenantProvider({ children }: TenantProviderProps) {
       // Symmetric with creation-time validation in slugify.ts
       // =====================================================================
       if (RESERVED_SLUGS.has(tenantSlug)) {
-        logger.warn("[TENANT] Reserved slug detected at resolution:", tenantSlug);
+        // Include the full pathname so future occurrences can be traced back
+        // to the originating navigation (bookmark, stale redirect, broken
+        // Link, etc.). Just logging the slug loses that context.
+        logger.warn("[TENANT] Reserved slug detected at resolution", {
+          slug: tenantSlug,
+          pathname: typeof window !== "undefined" ? window.location.pathname : null,
+          search: typeof window !== "undefined" ? window.location.search : null,
+        });
         if (isMountedRef.current) {
           setError(new Error("TENANT_NOT_FOUND"));
           setTenant(null);

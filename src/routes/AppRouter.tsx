@@ -74,18 +74,23 @@ function PageLoader() {
  * keeps the admin path.
  */
 function AppIndexRoute() {
-  const { tenant } = useTenant();
-  const { roles, isLoading } = useTenantRoles(tenant?.id);
+  const { tenant, isLoading: isTenantLoading } = useTenant();
+  const { roles, isLoading: isRolesLoading } = useTenantRoles(tenant?.id);
 
-  if (isLoading) return <PageLoader />;
+  // Wait for BOTH tenant and roles to resolve before deciding. Previously only
+  // roles were awaited; if roles came back while tenant was still loading, the
+  // ATLETA branch below fired <Navigate to={`/${undefined}/portal`}> which ends
+  // up at /undefined/portal and later trips the RESERVED_SLUGS guard inside
+  // TenantContext for subsequent route resolutions.
+  if (isTenantLoading || isRolesLoading) return <PageLoader />;
 
   const isAtleta =
     roles.includes('ATLETA') &&
     !roles.includes('ADMIN_TENANT') &&
     !roles.includes('STAFF_ORGANIZACAO');
 
-  if (isAtleta) {
-    return <Navigate to={`/${tenant?.slug}/portal`} replace />;
+  if (isAtleta && tenant?.slug) {
+    return <Navigate to={`/${tenant.slug}/portal`} replace />;
   }
 
   return (
