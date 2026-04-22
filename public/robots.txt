@@ -37,4 +37,4 @@ Disallow: /forgot-password
 Disallow: /verify-email
 Disallow: /portal
 
-Sitemap: https://app.tatamepro.com.br/sitemap.xml
+Sitemap: https://tatame.pro/sitemap.xml

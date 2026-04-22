@@ -251,7 +251,7 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="mailto:suporte@tatamepro.com.br" 
+          <a href="mailto:suporte@tatame.pro" 
              style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
             Contatar suporte
           </a>
@@ -374,7 +374,7 @@ const emailTemplates: Record<string, { subject: string; getHtml: (tenantName: st
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="mailto:suporte@tatamepro.com.br" 
+          <a href="mailto:suporte@tatame.pro" 
              style="background: #6b7280; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
             Falar com Suporte
           </a>
