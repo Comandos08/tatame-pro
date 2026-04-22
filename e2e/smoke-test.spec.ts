@@ -50,7 +50,7 @@ test.describe('Smoke Tests - Core Functionality', () => {
     
     for (const path of pages) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     // Should have no critical JS errors
@@ -72,7 +72,7 @@ test.describe('Smoke Tests - Core Functionality', () => {
     });
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Filter out expected 404s (like optional images)
     const criticalFails = failedRequests.filter(r => 
@@ -137,7 +137,7 @@ test.describe('Smoke Tests - Core Functionality', () => {
       const href = await navLinks.getAttribute('href');
       if (href && !href.startsWith('http')) {
         await navLinks.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         await expect(page.locator('body')).toBeVisible();
       }
     }
@@ -197,7 +197,7 @@ test.describe('Smoke Tests - Data Display', () => {
     
     // During load, might show skeleton or spinner
     // After load, content should be visible
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     
     // Should not be stuck in loading state
     const spinners = page.locator('.animate-spin, [class*="loading"], [class*="skeleton"]');

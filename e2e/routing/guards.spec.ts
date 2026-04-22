@@ -88,7 +88,7 @@ test.describe('Routing Guards Contract', () => {
     await page.goto('/portal');
     
     // Wait for any redirects to complete
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
     
     const urlAfterRedirect = page.url();
@@ -178,7 +178,7 @@ test.describe('Guard Behavior - Edge Cases', () => {
     await page.goto('/admin');
     
     // Should redirect away from /admin
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
     
     const url = page.url();

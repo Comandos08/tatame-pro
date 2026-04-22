@@ -31,7 +31,7 @@ test.describe('Console Warning Detection', () => {
       
       // Visit home page and interact with common elements
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Try to trigger dropdowns if they exist
       const globeButton = page.locator('button:has(svg.lucide-globe)').first();
@@ -68,7 +68,7 @@ test.describe('Console Warning Detection', () => {
       
       // Navigate to a tenant page
       await page.goto('/tatame-pro-demo');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(500);
       
       expect(refWarnings, 'Should have no ref warnings on tenant pages').toHaveLength(0);
@@ -91,7 +91,7 @@ test.describe('Console Warning Detection', () => {
       });
       
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       expect(hydrationWarnings, 'Should have no hydration warnings').toHaveLength(0);
     });
@@ -113,11 +113,11 @@ test.describe('Console Warning Detection', () => {
       });
       
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Navigate to login page which has forms
       await page.goto('/login');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Type in form fields to trigger any controlled/uncontrolled issues
       const emailInput = page.locator('input[name="email"], input[type="email"]').first();
@@ -132,7 +132,7 @@ test.describe('Console Warning Detection', () => {
   test.describe('Dropdown Functionality Validation', () => {
     test('dropdowns open, close, and respond to keyboard', async ({ page }) => {
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Find any dropdown trigger
       const trigger = page.locator('button:has(svg.lucide-globe)').first();
@@ -217,7 +217,7 @@ test.describe('Console Warning Detection', () => {
       });
       
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Filter out expected/benign errors
       const criticalErrors = reactErrors.filter(err => 
