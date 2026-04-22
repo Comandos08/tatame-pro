@@ -1,0 +1,59 @@
+name: DB types drift
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/integrations/supabase/types.ts'
+      - 'scripts/supabase-types/**'
+      - '.github/workflows/db-types-drift.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/integrations/supabase/types.ts'
+      - 'scripts/supabase-types/**'
+
+jobs:
+  check:
+    name: Regenerate types offline and diff against committed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tatame_gen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/tatame_gen
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Check types match migrations
+        # Rebuilds the schema from supabase/migrations against a clean Postgres,
+        # regenerates types.ts via @supabase/postgres-meta (same template the
+        # Supabase CLI uses), and fails if the output differs from what's in
+        # the repo. Catches schema drift between prod and migrations without
+        # needing Lovable Cloud credentials.
+        run: npm run db:check-types-drift
