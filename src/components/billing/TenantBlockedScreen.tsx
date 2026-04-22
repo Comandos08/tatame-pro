@@ -148,7 +148,7 @@ export function TenantBlockedScreen({
                   className="w-full"
                   asChild
                 >
-                  <a href="mailto:suporte@tatamepro.com.br">
+                  <a href="mailto:suporte@tatame.pro">
                     <Mail className="h-4 w-4 mr-2" />
                     {t('blocked.contactSupportBtn')}
                   </a>
@@ -232,7 +232,7 @@ export function TenantBlockedScreen({
                   className="w-full"
                   asChild
                 >
-                  <a href="mailto:suporte@tatamepro.com.br">
+                  <a href="mailto:suporte@tatame.pro">
                     <Mail className="h-4 w-4 mr-2" />
                     {t('blocked.contactSupportBtn')}
                   </a>

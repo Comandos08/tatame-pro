@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://app.tatamepro.com.br/</loc>
+    <loc>https://tatame.pro/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/about</loc>
+    <loc>https://tatame.pro/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/help</loc>
+    <loc>https://tatame.pro/help</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/privacy</loc>
+    <loc>https://tatame.pro/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/signup</loc>
+    <loc>https://tatame.pro/signup</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/login</loc>
+    <loc>https://tatame.pro/login</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://app.tatamepro.com.br/join/org</loc>
+    <loc>https://tatame.pro/join/org</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
