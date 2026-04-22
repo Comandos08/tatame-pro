@@ -23,13 +23,13 @@ export async function freezeTime(
 
     // Override new Date() for current time
     const OriginalDate = Date;
-    // @ts-ignore
+    // @ts-expect-error overriding global Date with a subclass for test determinism
     window.Date = class extends OriginalDate {
       constructor(...args: any[]) {
         if (args.length === 0) {
           super(frozenNow);
         } else {
-          // @ts-ignore
+          // @ts-expect-error spreading Date constructor args is not typed in lib.d.ts
           super(...args);
         }
       }

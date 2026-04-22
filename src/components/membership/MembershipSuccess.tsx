@@ -85,12 +85,19 @@ export function MembershipSuccess() {
   const { tenant } = useTenant();
   const { t } = useI18n();
 
-  const [status, setStatus] = useState<ConfirmationStatus>('loading');
-  const [message, setMessage] = useState('');
-  const [retrying, setRetrying] = useState(false);
-
   const membershipId = searchParams.get('membership_id');
   const sessionId = searchParams.get('session_id');
+
+  // Derive the initial status from URL params once. This lets the
+  // missing-params branch be represented at render time instead of via a
+  // setState-in-effect round-trip.
+  const [status, setStatus] = useState<ConfirmationStatus>(() =>
+    !membershipId || !sessionId ? 'missing_params' : 'loading'
+  );
+  const [message, setMessage] = useState(() =>
+    !membershipId || !sessionId ? t('membershipSuccess.invalidParams') : ''
+  );
+  const [retrying, setRetrying] = useState(false);
 
   // FX-03A: Single-shot guard — prevent double invocation (StrictMode)
   const confirmCalledRef = useRef(false);
@@ -144,15 +151,13 @@ export function MembershipSuccess() {
 
   useEffect(() => {
     if (confirmCalledRef.current) return;
-
-    // FX-05: Missing params — user returned to stale URL or Stripe redirect failed
-    if (!membershipId || !sessionId) {
-      setStatus('missing_params');
-      setMessage(t('membershipSuccess.invalidParams'));
-      return;
-    }
+    // Missing-params case is handled by lazy useState init above.
+    if (!membershipId || !sessionId) return;
 
     confirmCalledRef.current = true;
+    // Fetch-then-setState is intrinsic to confirming the Stripe session; the
+    // rule can't see through the async function boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     runConfirmation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membershipId, sessionId]);

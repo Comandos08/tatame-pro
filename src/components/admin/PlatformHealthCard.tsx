@@ -15,6 +15,9 @@ import { useI18n } from "@/contexts/I18nContext";
 import { format, subHours, subDays } from "date-fns";
 
 interface PlatformMetrics {
+  // Fetch-time reference timestamp so render-time freshness checks remain pure.
+  fetchedAtMs: number;
+
   // Job execution metrics (from JOB_*_RUN events)
   lastExpireMembershipsRun: string | null;
   lastCleanupAbandonedRun: string | null;
@@ -217,6 +220,7 @@ export function PlatformHealthCard() {
       });
 
       return {
+        fetchedAtMs: now.getTime(),
         lastExpireMembershipsRun,
         lastCleanupAbandonedRun,
         lastTrialCheckRun,
@@ -244,31 +248,34 @@ export function PlatformHealthCard() {
     refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
   });
 
+  // Wall-clock reference is captured at fetch time so helpers below stay pure
+  // during render. Falls back to 0 when metrics aren't loaded yet (guarded upstream).
+  const nowMs = metrics?.fetchedAtMs ?? 0;
+
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return t('platformHealth.neverRan');
     const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = nowMs - date.getTime();
     const diffHours = Math.floor(diffMs / 3600000);
-    
+
     if (diffHours < 1) return t('platformHealth.lessThan1h');
     if (diffHours < 24) return t('platformHealth.hoursAgo').replace('{h}', String(diffHours));
     return format(date, 'dd/MM HH:mm');
   };
 
   const getJobStatus = (
-    lastRun: string | null, 
+    lastRun: string | null,
     hadEvents: boolean = true
   ): { status: string; color: 'default' | 'secondary' | 'destructive'; label: string; tooltip: string } => {
-    if (!lastRun) return { 
-      status: 'unknown', 
-      color: 'secondary', 
+    if (!lastRun) return {
+      status: 'unknown',
+      color: 'secondary',
       label: t('platformHealth.noData'),
       tooltip: t('platformHealth.noDataTooltip')
     };
-    
-    const hoursSinceRun = (Date.now() - new Date(lastRun).getTime()) / 3600000;
-    
+
+    const hoursSinceRun = (nowMs - new Date(lastRun).getTime()) / 3600000;
+
     if (hoursSinceRun < 25) {
       return { 
         status: 'ok', 

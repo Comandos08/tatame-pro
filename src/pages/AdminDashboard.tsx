@@ -799,9 +799,11 @@ export default function AdminDashboard() {
         </motion.div>
       </main>
 
-      {/* Edit tenant dialog */}
+      {/* Edit tenant dialog. Keyed by id so local form state is freshly
+          initialised per tenant instead of relying on a sync effect. */}
       {editingTenant && (
         <EditTenantDialog
+          key={editingTenant.id}
           tenant={editingTenant}
           open={!!editingTenant}
           onOpenChange={(open) => !open && setEditingTenant(null)}

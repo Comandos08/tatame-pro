@@ -73,9 +73,21 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const { currentUser, isAuthenticated, isGlobalSuperadmin, currentRolesByTenant } = useCurrentUser();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [billingInfo, setBillingInfo] = useState<TenantBillingInfo | null>(null);
-  const [boundaryViolation, setBoundaryViolation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Derived directly from inputs: no need to mirror into state via an effect.
+  // Rules:
+  //  - No tenant → no violation (nothing to compare against yet).
+  //  - Profile still loading (authenticated but no currentUser) → no violation yet.
+  //  - SUPERADMIN_GLOBAL handled by IdentityGate, unauthenticated handled by RLS.
+  //  - Otherwise, violation iff the user has no role in this tenant.
+  const boundaryViolation =
+    !!tenant &&
+    isAuthenticated &&
+    !!currentUser &&
+    !isGlobalSuperadmin &&
+    !currentRolesByTenant.has(tenant.id);
 
   // ✅ UX/02 — Refetch trigger for forcing context reload
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -98,28 +110,6 @@ export function TenantProvider({ children }: TenantProviderProps) {
       isMountedRef.current = false;
     };
   }, []);
-
-  // =========================================================================
-  // BOUNDARY VIOLATION — Separated from fetch to avoid currentUser in deps
-  // Runs when tenant or auth state changes, but does NOT re-trigger fetch
-  // =========================================================================
-  useEffect(() => {
-    if (!tenant) {
-      setBoundaryViolation(false);
-      return;
-    }
-
-    if (isAuthenticated && currentUser && !isGlobalSuperadmin) {
-      const hasAccess = currentRolesByTenant.has(tenant.id);
-      setBoundaryViolation(!hasAccess);
-    } else if (isAuthenticated && !currentUser) {
-      // Profile still loading — do not set boundary violation yet
-      setBoundaryViolation(false);
-    } else {
-      // SUPERADMIN handled by IdentityGate, unauthenticated handled by RLS
-      setBoundaryViolation(false);
-    }
-  }, [tenant, isAuthenticated, currentUser, isGlobalSuperadmin, currentRolesByTenant]);
 
   // =========================================================================
   // FETCH EFFECT — Stable dependencies only

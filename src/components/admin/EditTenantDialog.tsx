@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,15 +61,8 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
   
   const queryClient = useQueryClient();
 
-  // Reset form when tenant changes
-  React.useEffect(() => {
-    setName(tenant.name);
-    setDescription(tenant.description || '');
-    setSelectedSports(tenant.sport_types || []);
-    setDefaultLocale(tenant.default_locale || 'pt-BR');
-    setPrimaryColor(tenant.primary_color || '#dc2626');
-    setIsActive(tenant.is_active);
-  }, [tenant]);
+  // Parent remounts this dialog with a `key={tenant.id}` so local form state is
+  // freshly initialised from props instead of being synced via an effect.
 
   const toggleSport = (sport: string) => {
     setSelectedSports((prev) =>

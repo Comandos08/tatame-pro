@@ -59,11 +59,17 @@ export default function TenantSettings() {
     setLoading(false);
   }, [tenantId]);
 
+  // Sync the editable form state from tenant context whenever the tenant changes.
+  // This is a legitimate "reset when prop changes" pattern — swapping tenants
+  // from context must discard the previous form edits and re-fetch detail fields
+  // that TenantContext doesn't carry (billing_email, card/diploma template urls).
   useEffect(() => {
     if (tenant) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setDescription(tenant.description || '');
       setPrimaryColor(tenant.primaryColor || '#dc2626');
       setLogoUrl(tenant.logoUrl || null);
+      /* eslint-enable react-hooks/set-state-in-effect */
       fetchTenantDetails();
     }
   }, [tenant, fetchTenantDetails]);

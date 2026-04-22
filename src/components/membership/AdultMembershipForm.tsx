@@ -128,8 +128,10 @@ export function AdultMembershipForm() {
     },
   });
 
-  // ✅ FX-01A — Restore form state from unified persistence on mount
-  // Legacy keys cleaned AFTER restore attempt (never before)
+  // ✅ FX-01A — Restore form state from unified persistence on mount.
+  // Effect wraps storage read, resume analytics, legacy cleanup, and an
+  // optional fail-closed redirect. The setState calls are the intentional
+  // rehydration of form state from storage.
   useEffect(() => {
     if (!tenantSlug) return;
 
@@ -155,6 +157,7 @@ export function AdultMembershipForm() {
 
     if (result.outcome !== 'success' || !result.data) return;
 
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional rehydration from persisted storage */
     // Restore step
     if (result.data.step > 1) {
       setStep(result.data.step);
@@ -166,6 +169,7 @@ export function AdultMembershipForm() {
       setAthleteData(restoredAthleteData);
       form.reset(restoredAthleteData);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ✅ FX-01 — Persist form state on step/data changes
@@ -533,6 +537,9 @@ export function AdultMembershipForm() {
                 </CardHeader>
                 <CardContent>
                   <Form {...form}>
+                    {/* react-hook-form's form.handleSubmit/form.control are not React refs —
+                        React Compiler's heuristic flags them incorrectly. */}
+                    {/* eslint-disable-next-line react-hooks/refs */}
                     <form onSubmit={form.handleSubmit(handleStepOneSubmit)} className="space-y-4">
                       <div className="grid sm:grid-cols-2 gap-4">
                         <FormField

@@ -296,12 +296,17 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
 
+    // reset()/checkIdentity() are the two entry points that rehydrate identity
+    // when the auth state changes. They internally setState to drive the wizard
+    // state machine — the rule can't see through those function boundaries.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!isAuthenticated || !session?.user?.id) {
       reset();
       return;
     }
 
     checkIdentity();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [authLoading, isAuthenticated, session?.user?.id, checkIdentity, reset]);
 
   const refreshIdentity = async () => {

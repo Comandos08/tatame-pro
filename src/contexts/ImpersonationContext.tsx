@@ -77,39 +77,45 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   const queryClient = useQueryClient();
   const { isGlobalSuperadmin, isLoading: authLoading } = useCurrentUser();
   
-  const [session, setSession] = useState<ImpersonationSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Hydrate the session from sessionStorage at construction time so the initial
+  // render already reflects any restored impersonation without a setState-in-effect
+  // round-trip. Side effects (logging, expired-cleanup) still happen below.
+  const initialRestoredSession: ImpersonationSession | null = (() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as ImpersonationSession;
+      if (new Date(parsed.expiresAt) > new Date()) return parsed;
+      sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+      return null;
+    } catch {
+      try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch { /* ignore */ }
+      return null;
+    }
+  })();
+
+  const [session, setSession] = useState<ImpersonationSession | null>(initialRestoredSession);
+  const [isLoading, setIsLoading] = useState(false);
   const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
-  
+
   // ✅ P-IMP-FIX — Explicit resolution status state machine
-  const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>('IDLE');
-  
+  const [resolutionStatus, setResolutionStatus] = useState<ImpersonationResolutionStatus>(
+    initialRestoredSession ? 'RESOLVED' : 'IDLE'
+  );
+
   const expirationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const impersonationInFlightRef = useRef(false);
   const consecutiveValidationFailures = useRef(0);
 
-  // Load session from sessionStorage on mount
+  // One-time log for the restored session — kept as an effect so the log only
+  // fires on first mount, not on each re-render.
   useEffect(() => {
-    const stored = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as ImpersonationSession;
-        // Quick local expiration check before validation
-        if (new Date(parsed.expiresAt) > new Date()) {
-          logger.log('[IMPERSONATION] Restored session from storage, status → RESOLVED');
-          setSession(parsed);
-          setResolutionStatus('RESOLVED'); // ✅ P-IMP-FIX — Restored sessions are already resolved
-        } else {
-          // Already expired locally, clear it
-          logger.log('[IMPERSONATION] Session expired in storage, clearing');
-          sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
-        }
-      } catch {
-        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
-      }
+    if (initialRestoredSession) {
+      logger.log('[IMPERSONATION] Restored session from storage, status → RESOLVED');
     }
-    setIsLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: runs once on mount
   }, []);
 
   // Clear session state and storage
@@ -147,6 +153,9 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // exactly once.
   useEffect(() => {
     if (!session) {
+      // Reset derived minute counter when the session is cleared. This is a
+      // bookkeeping setState tied to the effect's lifecycle, not cascading state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRemainingMinutes(null);
       return;
     }

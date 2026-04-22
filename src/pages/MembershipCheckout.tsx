@@ -66,6 +66,9 @@ export default function MembershipCheckout() {
   }, [membershipId, tenantSlug]);
 
   useEffect(() => {
+    // loadData fetches membership + tenant detail and setState-s the results.
+    // Standard "fetch on mount" pattern; the rule flags the function call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 

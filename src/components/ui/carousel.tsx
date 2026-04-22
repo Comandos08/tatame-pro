@@ -93,6 +93,10 @@ const Carousel = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
         return;
       }
 
+      // shadcn/ui carousel pattern: seed selection state from embla then
+      // subscribe to its events. Adapting this upstream would diverge from the
+      // shared shadcn template; the setState is bounded and necessary.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       onSelect(api);
       api.on("reInit", onSelect);
       api.on("select", onSelect);

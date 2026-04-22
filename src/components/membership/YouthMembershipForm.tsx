@@ -75,8 +75,10 @@ export function YouthMembershipForm() {
     });
   }, [tenantSlug]);
 
-  // ✅ FX-01A — Deterministic restore from unified persistence
-  // Legacy keys cleaned AFTER restore attempt (never before)
+  // ✅ FX-01A — Deterministic restore from unified persistence.
+  // Effect wraps three concerns: reading storage, logging resume analytics,
+  // cleaning legacy keys, and (if non-recoverable) navigating away. The
+  // setState calls are the intentional rehydration of form state from storage.
   useEffect(() => {
     if (!tenantSlug) return;
 
@@ -101,10 +103,12 @@ export function YouthMembershipForm() {
 
     if (result.outcome !== 'success' || !result.data) return;
 
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional rehydration from persisted storage */
     if (result.data.step > 1) setStep(result.data.step);
     const fd = result.data.formData as Record<string, unknown>;
     if (fd?.fullName) setAthleteData(fd as unknown as AthleteFormData);
     if (result.data.guardianData) setGuardianData(result.data.guardianData as unknown as GuardianFormData);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tenantSlug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ✅ FX-01 — Persist on step/data changes
@@ -620,6 +624,9 @@ export function YouthMembershipForm() {
                 </CardHeader>
                 <CardContent>
                   <Form {...guardianForm}>
+                    {/* react-hook-form's form.handleSubmit/form.control are not React refs —
+                        React Compiler's heuristic flags them incorrectly. */}
+                    {/* eslint-disable-next-line react-hooks/refs */}
                     <form onSubmit={guardianForm.handleSubmit(handleGuardianSubmit)} className="space-y-4">
                       <FormField
                         control={guardianForm.control}
@@ -735,6 +742,9 @@ export function YouthMembershipForm() {
                 </CardHeader>
                 <CardContent>
                   <Form {...athleteForm}>
+                    {/* react-hook-form's form.handleSubmit/form.control are not React refs —
+                        React Compiler's heuristic flags them incorrectly. */}
+                    {/* eslint-disable-next-line react-hooks/refs */}
                     <form onSubmit={athleteForm.handleSubmit(handleAthleteSubmit)} className="space-y-4">
                       <div className="grid sm:grid-cols-2 gap-4">
                         <FormField

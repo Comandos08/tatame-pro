@@ -39,17 +39,32 @@ export default function IdentityWizard() {
   const { currentUser, isAuthenticated, isLoading: authLoading, signOut } = useCurrentUser();
   const { identityState, createTenant, joinExistingTenant, refreshIdentity } = useIdentity();
 
-  // Wizard state
+  // Wizard state — initial values are hydrated lazily from the localStorage
+  // onboarding intent so the branch (join existing vs create new) is correct on
+  // first render without a setState-in-effect round-trip.
   const [step, setStep] = useState<WizardStep>(1);
-  const [joinMode, setJoinMode] = useState<JoinMode>(null);
-  const [profileType, setProfileType] = useState<ProfileType>(null);
+  const [joinMode, setJoinMode] = useState<JoinMode>(() => {
+    const intent = getOnboardingIntent();
+    if (intent.mode === "join" && intent.tenantCode) return "existing";
+    if (intent.mode === "create") return "new";
+    return null;
+  });
+  const [profileType, setProfileType] = useState<ProfileType>(() => {
+    const intent = getOnboardingIntent();
+    if (intent.mode === "join" && intent.tenantCode) return "athlete";
+    if (intent.mode === "create") return "admin";
+    return null;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // P1-003: Pending redirect — set by handleComplete, consumed by identityState effect
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   // Form fields - NO open search, only exact invite code
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState<string>(() => {
+    const intent = getOnboardingIntent();
+    return intent.mode === "join" ? (intent.tenantCode ?? "") : "";
+  });
   const [newOrgName, setNewOrgName] = useState("");
 
   // A11y — focus trap + step-transition focus management (WCAG 2.1 Level A).
@@ -66,21 +81,19 @@ export default function IdentityWizard() {
     3: "Confirmação",
   };
 
-  // PI-ONB-ENDTOEND-HARDEN-001: Read localStorage onboarding intent on mount
+  // PI-ONB-ENDTOEND-HARDEN-001: Log the onboarding intent read at mount.
+  // The actual state prefill is done via lazy useState init above.
   useEffect(() => {
     const intent = getOnboardingIntent();
     if (intent.mode === "join" && intent.tenantCode) {
-      setJoinMode("existing");
-      setInviteCode(intent.tenantCode);
-      setProfileType("athlete");
       logger.info("[IdentityWizard] Prefilled from onboarding intent", {
         mode: intent.mode,
         tenantCode: intent.tenantCode,
       });
     } else if (intent.mode === "create") {
-      setJoinMode("new");
-      setProfileType("admin");
-      logger.info("[IdentityWizard] Prefilled from onboarding intent", { mode: intent.mode });
+      logger.info("[IdentityWizard] Prefilled from onboarding intent", {
+        mode: intent.mode,
+      });
     }
   }, []);
 
@@ -149,12 +162,15 @@ export default function IdentityWizard() {
     return () => clearTimeout(timer);
   }, [step]);
 
-  // Redirect if already resolved (or after wizard completes)
-  // P1-003: pendingRedirect takes priority over /portal fallback
+  // Redirect if already resolved (or after wizard completes).
+  // P1-003: pendingRedirect takes priority over /portal fallback.
   useEffect(() => {
     if (identityState === "RESOLVED" || identityState === "SUPERADMIN") {
       if (pendingRedirect) {
         navigate(pendingRedirect, { replace: true });
+        // Bookkeeping setState after the navigation side effect so the component
+        // doesn't re-trigger if identityState stays RESOLVED.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPendingRedirect(null);
       } else {
         navigate("/", { replace: true });

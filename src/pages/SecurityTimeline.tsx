@@ -159,6 +159,8 @@ export default function SecurityTimeline() {
   };
 
   useEffect(() => {
+    // Fetch setState-s into loading/events — standard fetch-on-filters pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEvents(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchEvents` is defined inside the component; adding it would cause an infinite fetch loop
   }, [tenant?.id, severityFilter, sourceFilter, operationSearch]);
