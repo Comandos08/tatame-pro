@@ -1,0 +1,5 @@
+screenshots/ is populated by Playwright screenshot tests (e.g. public-verification).
+Keeping this placeholder so fresh checkouts and sandboxed CI runners have the
+directory pre-created before `page.screenshot({ path: 'e2e/screenshots/...' })`
+fires. Playwright's recursive mkdir covers most cases, but some restricted
+environments block runtime directory creation.
