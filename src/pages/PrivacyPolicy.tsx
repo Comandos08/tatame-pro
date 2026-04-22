@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import PublicHeader from '@/components/PublicHeader';
 import { useI18n } from '@/contexts/I18nContext';
 import iconLogo from '@/assets/iconLogo.png';

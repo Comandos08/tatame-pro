@@ -117,7 +117,7 @@ export default function AdminLandingSettings() {
       queryClient.invalidateQueries({ queryKey: ['admin-landing-config'] });
       queryClient.invalidateQueries({ queryKey: ['platform-landing-config'] });
       toast.success(t('common.save') + ' ✓');
-    } catch (err) {
+    } catch {
       toast.error(t('common.error'));
     } finally {
       setHeroSaving(false);

@@ -96,7 +96,6 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   })();
 
   const [session, setSession] = useState<ImpersonationSession | null>(initialRestoredSession);
-  const [isLoading, setIsLoading] = useState(false);
   const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
 
   // ✅ P-IMP-FIX — Explicit resolution status state machine
@@ -509,7 +508,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
   const value: ImpersonationContextType = {
     session,
-    isLoading: isLoading || authLoading,
+    isLoading: authLoading,
     isImpersonating: !!session && session.status === 'ACTIVE',
     impersonatedTenantId: session?.targetTenantId || null,
     remainingMinutes,

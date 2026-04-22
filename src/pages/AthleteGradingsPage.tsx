@@ -271,7 +271,7 @@ export default function AthleteGradingsPage() {
       toast.success(t('grading.registerOnly.success'));
       setIsDialogOpen(false);
       resetForm();
-    } catch (error) {
+    } catch {
       toast.error(t('common.error'));
     } finally {
       setIsGenerating(false);

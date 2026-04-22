@@ -94,7 +94,7 @@ function toAlert(event: Record<string, unknown>): Alert | null {
       dismissed: false,
       tenant_id: tenantId ?? undefined,
     };
-  } catch (error) {
+  } catch {
     realtimeLogger.warn('Transform failed', { action: 'toAlert' });
     return null;
   }
