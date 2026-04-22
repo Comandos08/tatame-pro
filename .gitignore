@@ -20,6 +20,10 @@ dist-ssr
 # Supabase CLI cache (downloaded binaries, ephemeral state)
 supabase/.temp/
 
+# Playwright screenshots — keep the directory via .gitkeep, ignore contents
+e2e/screenshots/*
+!e2e/screenshots/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

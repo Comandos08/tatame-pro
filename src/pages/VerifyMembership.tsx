@@ -71,12 +71,23 @@ export default function VerifyMembership() {
   const [data, setData] = useState<PublicVerificationData | null>(null);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     async function fetchVerificationData() {
       if (!membershipId || !tenantSlug) {
         setError(t('verification.insufficientData'));
         setLoading(false);
         return;
       }
+
+      // Fail-safe: after 15 s without a response, move to the error state so
+      // the page never sits in the spinner forever. The loading card has no
+      // semantic heading, which is both an a11y gap and why CI probes
+      // (waiting on h1/h2) would time out when the backend was unreachable.
+      timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, 15000);
 
       try {
         // Query the hardened public verification view
@@ -88,7 +99,15 @@ export default function VerifyMembership() {
           .select('membership_id, status, start_date, end_date, payment_status, type, tenant_id, tenant_name, tenant_slug, sport_types, athlete_name, digital_card_id, pdf_url, card_valid_until, content_hash_sha256, card_created_at, level_name, level_code, scheme_name, grading_sport_type')
           .eq('membership_id', membershipId)
           .eq('tenant_slug', tenantSlug)
+          .abortSignal(abortController.signal)
           .maybeSingle();
+
+        if (abortController.signal.aborted) {
+          logger.warn('Verification query aborted (timeout)');
+          setError(t('verification.membershipError'));
+          setLoading(false);
+          return;
+        }
 
         if (verificationError) {
           logger.error('Verification query error:', verificationError);
@@ -108,14 +127,25 @@ export default function VerifyMembership() {
         setData(verificationData as PublicVerificationData);
 
       } catch (err) {
-        logger.error('Verification error:', err);
-        setError(t('verification.membershipError'));
+        if (abortController.signal.aborted) {
+          logger.warn('Verification query aborted (timeout)');
+          setError(t('verification.membershipError'));
+        } else {
+          logger.error('Verification error:', err);
+          setError(t('verification.membershipError'));
+        }
       } finally {
+        if (timeoutId) clearTimeout(timeoutId);
         setLoading(false);
       }
     }
 
     fetchVerificationData();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      abortController.abort();
+    };
   }, [membershipId, tenantSlug, t]);
 
   // Note: Athlete name is already masked at the database level
