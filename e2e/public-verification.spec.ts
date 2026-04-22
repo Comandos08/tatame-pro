@@ -36,14 +36,19 @@ const VERIFY_URL = `/${TEST_TENANT_SLUG}/verify/membership/${TEST_MEMBERSHIP_ID}
  * Returns true when the detail UI is present (heading appears AND no error),
  * false otherwise. Lets tests `skip()` deterministically when the seed is
  * missing instead of timing out on sub-assertions.
+ *
+ * Why we don't use page.waitForLoadState('networkidle'): the app keeps long-
+ * lived connections open (Sentry, Supabase realtime reconnects) so the
+ * network never actually idles. waitForLoadState('networkidle') would wait
+ * the full navigation timeout in CI.
  */
 async function ensureDataLoaded(page: Page): Promise<boolean> {
-  // The loading state shows a spinner with a loading copy; the resolved states
-  // both render an <h1>. Wait for that transition to finish before probing.
-  await page.locator('h1').first().waitFor({ state: 'visible', timeout: 15000 });
-  // The error state shows exactly one h1 with "Falha" / failed copy.
-  const heading = (await page.locator('h1').first().textContent())?.toLowerCase() ?? '';
-  const looksLikeError = /falha|failed|not found|n[aã]o encontrad/.test(heading);
+  // Both resolved states (success + error) render a top-level heading. The
+  // first matching <h1> is enough — this also survives minor DOM changes.
+  const heading = page.locator('h1, h2').first();
+  await heading.waitFor({ state: 'visible', timeout: 15000 });
+  const text = (await heading.textContent())?.toLowerCase() ?? '';
+  const looksLikeError = /falha|failed|not found|n[aã]o encontrad/.test(text);
   return !looksLikeError;
 }
 
@@ -51,7 +56,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display verification page for anonymous user', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should NOT show login form — this is a public page regardless of data state.
     await expect(page.locator('input[type="password"]')).not.toBeVisible();
@@ -64,7 +69,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display organization name', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     const orgLabel = page.locator('text=/organiza/i');
@@ -73,7 +78,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display masked athlete name (DB-level masking)', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     const athleteLabel = page.locator('text=/atleta|athlete/i');
@@ -87,7 +92,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should NOT expose any PII (email, phone, address, birth_date)', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const content = await page.textContent('body');
 
@@ -103,7 +108,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display current grading when athlete has one', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Graceful handling: with or without grading, the page must render body
     // content. The grading section is only shown when data.level_name is set.
@@ -113,7 +118,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display validity period', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     const validityLabel = page.locator('text=/validade|valid/i');
@@ -122,7 +127,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display QR code for sharing', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     // qrcode.react renders an <svg> with <rect> children. Assert the first
@@ -134,7 +139,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
   test('should show error for invalid membership ID', async ({ page }) => {
     const invalidId = '00000000-0000-0000-0000-000000000000';
     await page.goto(`/${TEST_TENANT_SLUG}/verify/membership/${invalidId}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should display error message
     const errorIndicator = page.locator('text=/não encontrad|not found|falhou|failed/i');
@@ -143,7 +148,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should show error for invalid tenant slug', async ({ page }) => {
     await page.goto(`/invalid-tenant-xyz/verify/membership/${TEST_MEMBERSHIP_ID}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const content = await page.textContent('body');
     expect(content).toBeTruthy();
@@ -151,7 +156,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should have back button to tenant page', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     // VerifyMembership.tsx wraps the back action in <Link to={`/${tenantSlug}`}>.
@@ -163,7 +168,7 @@ test.describe('Public Membership Verification - Security Hardened', () => {
 
   test('should display download button if digital card is ready', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     if (!(await ensureDataLoaded(page))) test.skip(true, 'verification seed unavailable');
 
     // The page renders the download button when digital_card_id + pdf_url are
@@ -177,7 +182,7 @@ test.describe('Verification Page - Visual Check', () => {
 
   test('should take screenshot of valid verification', async ({ page }) => {
     await page.goto(VERIFY_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Capture once the heading settles so animations don't produce noisy diffs.
     await page.locator('h1').first().waitFor({ state: 'visible', timeout: 10000 });
@@ -191,7 +196,7 @@ test.describe('Verification Page - Visual Check', () => {
   test('should take screenshot of invalid verification', async ({ page }) => {
     const invalidId = '00000000-0000-0000-0000-000000000000';
     await page.goto(`/${TEST_TENANT_SLUG}/verify/membership/${invalidId}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.locator('h1').first().waitFor({ state: 'visible', timeout: 10000 });
 

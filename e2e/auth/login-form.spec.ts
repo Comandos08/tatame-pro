@@ -197,7 +197,7 @@ test.describe('LF — Login Form UI', () => {
 
     await injectSessionCookies(page, data.session);
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
     // Should NOT stay on /login

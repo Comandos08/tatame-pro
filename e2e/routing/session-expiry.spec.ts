@@ -82,7 +82,7 @@ test.describe('Session Expiry Contract', () => {
     
     // Try protected route
     await page.goto('/portal');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Should have limited redirects (max 4)
@@ -97,7 +97,7 @@ test.describe('Session Expiry Contract', () => {
     await page.context().clearCookies();
     
     await page.goto('/portal');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
     
     // Page should have visible content (either login form or loading state)
@@ -159,7 +159,7 @@ test.describe('Session State Transitions', () => {
       await page.goto('/login', { waitUntil: 'commit' });
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
     
     // Should not have critical React errors
@@ -178,7 +178,7 @@ test.describe('Auth State Machine Contract', () => {
     // Multiple visits to portal should behave consistently
     for (let i = 0; i < 3; i++) {
       await page.goto('/portal');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(500);
       
       const url = page.url();

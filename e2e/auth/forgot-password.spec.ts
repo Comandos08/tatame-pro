@@ -169,7 +169,7 @@ test.describe('RP — Reset Password Page', () => {
   test('FP.7: /reset-password with no token shows invalid state', async ({ page }) => {
     await clearAuthSession(page);
     await page.goto('/reset-password');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
 
     // Should not show the password form (token invalid/missing)
@@ -206,7 +206,7 @@ test.describe('RP — Reset Password Page', () => {
     });
 
     await page.goto('/reset-password?token=fake-malformed-token-abc123');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
     // Should not crash

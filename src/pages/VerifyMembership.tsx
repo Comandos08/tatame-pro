@@ -222,7 +222,7 @@ export default function VerifyMembership() {
               <CardContent className="pt-8 pb-8">
                 <div className="text-center">
                   <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-                  <h2 className="text-xl font-semibold mb-2">{t('verification.failed')}</h2>
+                  <h1 className="text-xl font-semibold mb-2">{t('verification.failed')}</h1>
                   <p className="text-muted-foreground">{error || t('verification.membershipNotFoundDesc')}</p>
                 </div>
               </CardContent>
