@@ -113,9 +113,12 @@ export default function TenantOnboarding() {
     refetchInterval: 5000,
   });
 
-  // Initialize selected sport types from status
+  // Initialize selected sport types from the async onboarding status payload.
+  // Legitimate sync pattern: the chip selector is local editable state that must
+  // preload whatever the server already has so the user can continue where they left off.
   useEffect(() => {
     if (status?.selectedSportTypes && status.selectedSportTypes.length > 0) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
       setSelectedSportTypes(status.selectedSportTypes as SportType[]);
     }
   }, [status?.selectedSportTypes]);

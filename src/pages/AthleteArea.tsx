@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -331,8 +331,15 @@ export default function AthleteArea() {
   const activeDigitalCard = activeMembership?.digital_cards?.[0];
   const currentGrading = gradings?.[0];
 
-  // Calculate days until expiry for renewal banner
-  const renewalInfo = useMemo(() => {
+  // Calculate days until expiry for renewal banner.
+  // React Compiler handles memoization automatically; we just compute the derived
+  // value inline so there's no manual memo for the compiler to preserve.
+  const renewalInfo = ((): {
+    membershipId: string;
+    daysUntilExpiry: number;
+    endDate: string;
+    status: string;
+  } | null => {
     if (!activeMembership?.end_date) return null;
     const endDate = new Date(activeMembership.end_date);
     const today = new Date();
@@ -346,7 +353,7 @@ export default function AthleteArea() {
       endDate: activeMembership.end_date,
       status: activeMembership.status,
     };
-  }, [activeMembership]);
+  })();
 
   // All hooks must be declared before any early returns (Rules of Hooks).
   // P2.8 — LGPD: request data erasure

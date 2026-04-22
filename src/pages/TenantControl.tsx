@@ -188,6 +188,8 @@ export default function TenantControl() {
   // 🔐 Access control delegated to RequireGlobalRoles wrapper in App.tsx
   useEffect(() => {
     if (tenantId && isGlobalSuperadmin) {
+      // Fetch setState-s tenant diagnostics into loading/data state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetchData` is an internal function; adding it would cause an infinite fetch loop

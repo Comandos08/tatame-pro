@@ -88,11 +88,14 @@ export default function AdminLandingSettings() {
     enabled: isGlobalSuperadmin,
   });
 
-  // Sync config to state
+  // Sync server-fetched landing config into local editable form state.
+  // Legitimate sync pattern — form must preload server values after async fetch.
   useEffect(() => {
     if (landingConfig) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setHeroEnabled(landingConfig.hero_enabled);
       setHeroImageUrl(landingConfig.hero_image_url || '');
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [landingConfig]);
 

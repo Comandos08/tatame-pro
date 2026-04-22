@@ -27,11 +27,11 @@ async function freezeTime(page: any, isoTimestamp: string) {
   await page.addInitScript((ts: string) => {
     const fixedDate = new Date(ts);
     const OriginalDate = Date;
-    // @ts-ignore
+    // @ts-expect-error overriding global Date with a subclass for test determinism
     globalThis.Date = class extends OriginalDate {
       constructor(...args: any[]) {
         if (args.length === 0) return fixedDate;
-        // @ts-ignore
+        // @ts-expect-error spreading Date constructor args is not typed in lib.d.ts
         return new OriginalDate(...args);
       }
       static now() {
