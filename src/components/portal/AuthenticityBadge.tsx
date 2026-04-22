@@ -31,7 +31,7 @@ export function AuthenticityBadge({ hash, verificationUrl }: AuthenticityBadgePr
       setCopied(true);
       toast(t('portal.hashCopied'), { duration: 2000 });
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao copiar');
     }
   };
