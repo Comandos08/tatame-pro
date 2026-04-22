@@ -15,6 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "i18n:check": "node scripts/check-i18n-keys.cjs",
+    "db:gen-types": "node scripts/supabase-types/gen.mjs",
+    "db:check-types-drift": "node scripts/supabase-types/gen.mjs --check",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "test:load": "k6 run load-tests/health-check.js"

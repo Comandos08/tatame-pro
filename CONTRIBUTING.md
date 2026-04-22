@@ -43,6 +43,23 @@ npm run dev
 - All tables must have RLS enabled
 - Indexes on frequently queried columns
 
+### Supabase Types
+`src/integrations/supabase/types.ts` is generated from the migrations — do not edit by hand.
+
+```bash
+# regenerate types (needs local Postgres on port 5432)
+npm run db:gen-types
+
+# verify types match migrations (what CI runs)
+npm run db:check-types-drift
+```
+
+The generator is offline (no Lovable Cloud credentials needed). It spins up a
+clean Postgres, stubs Supabase's auth/storage/cron surface, applies every
+migration in order, then introspects via `@supabase/postgres-meta`. The
+`db-types-drift` GitHub workflow blocks PRs where `types.ts` diverges from
+the migrations.
+
 ### Lovable Compatibility
 - **Do NOT modify** files that Lovable actively edits (UI components, pages) without coordination
 - New files are safe — Lovable doesn't touch files it didn't create
