@@ -81,7 +81,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
   const { t } = useI18n();
   const queryClient = useQueryClient();
 
-  const form = useForm<CategoryFormInput, unknown, CategoryFormData>({
+  const form = useForm<CategoryFormInput, any, CategoryFormData>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: '',
