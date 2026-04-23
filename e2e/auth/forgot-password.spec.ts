@@ -13,7 +13,7 @@
  *   FP.9  Mocked edge function error is handled gracefully (no crash)
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Route } from '@playwright/test';
 import { clearAuthSession } from '../helpers/authSession';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || '';
@@ -25,6 +25,30 @@ async function goToForgotPassword(page: Parameters<typeof test>[1] extends (...a
   await page.goto('/forgot-password');
   await page.waitForLoadState('domcontentloaded');
   await page.locator('#email').waitFor({ state: 'visible', timeout: 8000 });
+}
+
+/**
+ * Wrap a POST mock so the browser's CORS preflight (OPTIONS) request is
+ * forwarded to the real backend, which returns proper Access-Control-*
+ * headers. Without this, fulfilling OPTIONS with a plain JSON body fails
+ * the preflight and the actual POST never fires — the UI then never
+ * transitions out of its loading state and the test times out.
+ */
+function mockPostOnly(
+  status: number,
+  body: Record<string, unknown>,
+): (route: Route) => Promise<void> {
+  return async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  };
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────
@@ -58,13 +82,10 @@ test.describe('FP — Forgot Password Form', () => {
     await goToForgotPassword(page);
 
     // Mock the edge function call to avoid real network request in CI
-    await page.route(`${SUPABASE_URL}/functions/v1/request-password-reset`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Email sent' }),
-      });
-    });
+    await page.route(
+      `${SUPABASE_URL}/functions/v1/request-password-reset`,
+      mockPostOnly(200, { success: true, message: 'Email sent' }),
+    );
 
     await page.fill('#email', 'test@example.com');
     const submit = page.getByRole('button', { name: /enviar|send|solicitar/i });
@@ -81,13 +102,10 @@ test.describe('FP — Forgot Password Form', () => {
   test('FP.4: success state back-to-login link navigates to /login', async ({ page }) => {
     await goToForgotPassword(page);
 
-    await page.route(`${SUPABASE_URL}/functions/v1/request-password-reset`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Email sent' }),
-      });
-    });
+    await page.route(
+      `${SUPABASE_URL}/functions/v1/request-password-reset`,
+      mockPostOnly(200, { success: true, message: 'Email sent' }),
+    );
 
     await page.fill('#email', 'test@example.com');
     await page.getByRole('button', { name: /enviar|send|solicitar/i }).click();
@@ -105,13 +123,10 @@ test.describe('FP — Forgot Password Form', () => {
   test('FP.5: "try again" on success state resets to form', async ({ page }) => {
     await goToForgotPassword(page);
 
-    await page.route(`${SUPABASE_URL}/functions/v1/request-password-reset`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Email sent' }),
-      });
-    });
+    await page.route(
+      `${SUPABASE_URL}/functions/v1/request-password-reset`,
+      mockPostOnly(200, { success: true, message: 'Email sent' }),
+    );
 
     await page.fill('#email', 'test@example.com');
     await page.getByRole('button', { name: /enviar|send|solicitar/i }).click();
@@ -140,13 +155,10 @@ test.describe('FP — Forgot Password Form', () => {
     await goToForgotPassword(page);
 
     // Simulate edge function 500
-    await page.route(`${SUPABASE_URL}/functions/v1/request-password-reset`, async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Internal Server Error' }),
-      });
-    });
+    await page.route(
+      `${SUPABASE_URL}/functions/v1/request-password-reset`,
+      mockPostOnly(500, { error: 'Internal Server Error' }),
+    );
 
     await page.fill('#email', 'test@example.com');
     await page.getByRole('button', { name: /enviar|send|solicitar/i }).click();
