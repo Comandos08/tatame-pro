@@ -292,7 +292,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         max="120"
                         placeholder={t('events.years')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -311,7 +315,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         max="120"
                         placeholder={t('events.years')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
