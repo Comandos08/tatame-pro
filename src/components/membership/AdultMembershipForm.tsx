@@ -92,7 +92,7 @@ export function AdultMembershipForm() {
         city: z.string().min(2, t('membership.validation.cityRequired')),
         state: z.string().min(2, t('membership.validation.stateRequired')),
         postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
-        country: z.string().min(2),
+        country: z.string().default('BR'),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is stable within a locale; `locale` in deps already captures locale changes
     [locale]
