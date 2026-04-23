@@ -56,4 +56,21 @@ jobs:
         run: npx playwright test --project=ci
 
       - name: Build
+        env:
+          # Same fallbacks as the E2E step above. The anon key is a public,
+          # JWT-signed publishable key — safe to commit (it appears verbatim
+          # in every browser request anyway). Hard-coding the fallback keeps
+          # CI green for forks/PRs that don't have the org secrets set, while
+          # still letting org maintainers override via repo secrets.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://kotxhtveuegrywzyvdnl.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdHhodHZldWVncnl3enl2ZG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTIzMzgsImV4cCI6MjA4NDA2ODMzOH0.xYk_yN_H35ldnzrtnkqNRcqqPQSB54rR0uvi_RHihg0' }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'kotxhtveuegrywzyvdnl' }}
+          VITE_APP_URL: ${{ secrets.VITE_APP_URL || 'https://tatame.pro' }}
         run: npm run build
+
+      - name: Verify build env
+        # Confirms VITE_SUPABASE_* were actually baked into dist/. Catches the
+        # silent failure where Vite substitutes `undefined` literals when env
+        # vars are missing at build time. See scripts/verify-build-env.mjs for
+        # the three checks performed.
+        run: node scripts/verify-build-env.mjs
