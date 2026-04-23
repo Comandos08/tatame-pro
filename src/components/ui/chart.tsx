@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
+import type { NameType } from "recharts/types/component/DefaultTooltipContent";
 
 import { cn } from "@/lib/utils";
 
@@ -91,12 +92,12 @@ const ChartTooltip = RechartsPrimitive.Tooltip;
 
 type TooltipContentProps = RechartsPrimitive.TooltipContentProps<
   RechartsPrimitive.TooltipValueType,
-  RechartsPrimitive.NameType
+  NameType
 >;
 
 type TooltipPayloadEntry = RechartsPrimitive.TooltipPayloadEntry<
   RechartsPrimitive.TooltipValueType,
-  RechartsPrimitive.NameType
+  NameType
 >;
 
 type ChartLegendPayload = ReadonlyArray<RechartsPrimitive.LegendPayload>;
@@ -179,7 +180,7 @@ const ChartTooltipContent = React.forwardRef<
 
             return (
               <div
-                key={item.dataKey}
+                key={typeof item.dataKey === "string" || typeof item.dataKey === "number" ? item.dataKey : index}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                   indicator === "dot" && "items-center",

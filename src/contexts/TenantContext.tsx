@@ -219,7 +219,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
             creationSource: undefined,
           };
           setTenant(tenantData);
-          setBillingInfo(rpcData?.billing ?? null);
+          setBillingInfo(
+            rpcData?.billing
+              ? {
+                  status: rpcData.billing.status,
+                  stripe_customer_id: rpcData.billing.stripe_customer_id ?? null,
+                  scheduled_delete_at: rpcData.billing.scheduled_delete_at ?? null,
+                  trial_expires_at: rpcData.billing.trial_expires_at ?? null,
+                }
+              : null,
+          );
         }
       } catch (err) {
         if (abortController.signal.aborted || !isMountedRef.current) return;
