@@ -124,7 +124,7 @@ export function EditablePersonalData({ athlete, tenantId }: EditablePersonalData
       return null;
     } catch (e) {
       if (e instanceof z.ZodError) {
-        return e.errors[0]?.message || 'Invalid value';
+        return e.issues[0]?.message || 'Invalid value';
       }
       return 'Invalid value';
     }
