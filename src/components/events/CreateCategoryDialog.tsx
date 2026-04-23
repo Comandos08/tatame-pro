@@ -242,7 +242,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         step="0.1"
                         placeholder={t('events.minWeight.placeholder')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -261,7 +265,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         step="0.1"
                         placeholder={t('events.maxWeight.placeholder')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
