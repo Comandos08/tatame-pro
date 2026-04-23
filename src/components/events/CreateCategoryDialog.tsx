@@ -49,13 +49,22 @@ import { CategoryGender } from '@/types/event';
 // AJUSTES APLICADOS: A (UI funcional), B (governança), C (logs + feedback)
 // ============================================
 
+const optionalNumber = (max?: number) => {
+  let base = z.coerce.number().min(0);
+  if (max !== undefined) base = base.max(max);
+  return z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    base.optional(),
+  );
+};
+
 const categorySchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   gender: z.enum(['MALE', 'FEMALE', 'MIXED']).optional(),
-  minWeight: z.coerce.number().min(0).optional().or(z.literal('')),
-  maxWeight: z.coerce.number().min(0).optional().or(z.literal('')),
-  minAge: z.coerce.number().min(0).max(120).optional().or(z.literal('')),
-  maxAge: z.coerce.number().min(0).max(120).optional().or(z.literal('')),
+  minWeight: optionalNumber(),
+  maxWeight: optionalNumber(),
+  minAge: optionalNumber(120),
+  maxAge: optionalNumber(120),
 });
 
 type CategoryFormData = z.infer<typeof categorySchema>;
