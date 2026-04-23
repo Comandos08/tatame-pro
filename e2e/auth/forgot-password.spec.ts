@@ -92,8 +92,13 @@ test.describe('FP — Forgot Password Form', () => {
     await expect(submit).toBeEnabled();
     await submit.click();
 
-    // Should show success state with CheckCircle icon
-    await expect(page.locator('svg').filter({ has: page.locator('circle') }).first()).toBeVisible({ timeout: 5000 });
+    // Success state replaces the form. Detect by what disappears (the email
+    // input is no longer in the DOM) and what appears (the "try again" button
+    // is exclusive to the success card). Don't probe icon DOM — Lucide changed
+    // CheckCircle from a <circle>+<path> structure to all <path> in v1.x and
+    // selectors like `svg.has(circle)` no longer match.
+    await expect(page.locator('#email')).toBeHidden({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /tentar novamente|try again/i })).toBeVisible();
 
     // Should show back-to-login button on success
     await expect(page.getByRole('link', { name: /voltar|back|login/i })).toBeVisible();
@@ -167,9 +172,10 @@ test.describe('FP — Forgot Password Form', () => {
     // Should NOT crash — stay on the same page
     expect(page.url()).toContain('/forgot-password');
 
-    // Should show error toast
-    const toaster = page.locator('[data-sonner-toaster]');
-    await expect(toaster).toBeVisible({ timeout: 5000 });
+    // Wait for the actual toast element, not just the toaster container.
+    // The container `[data-sonner-toaster]` is always mounted but may be 0×0
+    // (= "not visible" to Playwright) until a toast is appended as a child.
+    await expect(page.locator('[data-sonner-toast]').first()).toBeVisible({ timeout: 10000 });
 
     // No JS errors
     expect(jsErrors.filter(e => !e.includes('ResizeObserver'))).toHaveLength(0);
