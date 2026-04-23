@@ -52,8 +52,8 @@ const formSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
   description: z.string().optional(),
   location: z.string().optional(),
-  start_date: z.date({ error: 'Data de início é obrigatória' }),
-  end_date: z.date({ error: 'Data de fim é obrigatória' }),
+  start_date: z.date({ required_error: 'Data de início é obrigatória' }),
+  end_date: z.date({ required_error: 'Data de fim é obrigatória' }),
   sport_type: z.string().optional(),
 }).refine((data) => data.end_date >= data.start_date, {
   message: 'Data de fim deve ser igual ou posterior à data de início',
