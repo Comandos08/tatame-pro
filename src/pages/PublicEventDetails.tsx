@@ -163,11 +163,13 @@ export default function PublicEventDetails() {
               <p className="text-muted-foreground mt-2 max-w-md mx-auto">
                 {t('events.notAvailableForYourOrganization')}
               </p>
-              <Button asChild variant="outline" className="mt-6">
-                <Link to={`/${tenant.slug}/portal`}>
-                  {t('portal.title')}
-                </Link>
-              </Button>
+              {tenant && (
+                <Button asChild variant="outline" className="mt-6">
+                  <Link to={`/${tenant.slug}/portal`}>
+                    {t('portal.title')}
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         </main>

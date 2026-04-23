@@ -12,7 +12,6 @@ import {
   buildDefaultFlagMap,
   resolveFlags,
   INSTITUTIONAL_FLAGS,
-  type InstitutionalFeatureFlag,
 } from '@/lib/featureFlags/featureFlags';
 
 // ─── buildDefaultFlagMap ──────────────────────────────────────────────────────

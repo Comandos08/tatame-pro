@@ -104,7 +104,7 @@ type ChartLegendPayload = ReadonlyArray<RechartsPrimitive.LegendPayload>;
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  TooltipContentProps &
+  Partial<TooltipContentProps> &
     React.ComponentProps<"div"> & {
       hideLabel?: boolean;
       hideIndicator?: boolean;

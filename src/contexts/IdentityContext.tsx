@@ -31,23 +31,7 @@ const IdentityRpcSchema = z.object({
 export type { IdentityState };
 
 export interface IdentityError {
-  code:
-    | "TENANT_NOT_FOUND"
-    | "TENANT_INACTIVE"
-    | "INVITE_INVALID"
-    | "PERMISSION_DENIED"
-    | "IMPERSONATION_INVALID"
-    | "SLUG_TAKEN"
-    | "VALIDATION_ERROR"
-    | "PROFILE_NOT_FOUND"
-    | "NO_ROLES_ASSIGNED"
-    | "BILLING_BLOCKED"
-    | "IDENTITY_TIMEOUT"
-    | "ALREADY_REQUESTED"
-    | "ALREADY_MEMBER"
-    | "ONBOARDING_FORBIDDEN"
-    | "NOT_IMPLEMENTED"
-    | "UNKNOWN";
+  code: string;
   message: string;
 }
 

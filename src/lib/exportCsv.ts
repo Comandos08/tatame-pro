@@ -42,7 +42,7 @@ function sanitizeCsvValue(value: unknown): string {
  * @param columns - Column definitions with keys and labels
  * @param rows - Array of data objects
  */
-export function exportToCsv<T extends Record<string, unknown>>(
+export function exportToCsv<T extends object>(
   filename: string,
   columns: CsvColumn<T>[],
   rows: T[]
@@ -56,9 +56,10 @@ export function exportToCsv<T extends Record<string, unknown>>(
       .map((col) => {
         const key = col.key as string;
         // Support nested keys like "athlete.full_name"
+        const rowRecord = row as Record<string, unknown>;
         const value = key.includes('.') 
-          ? key.split('.').reduce<unknown>((obj, k) => (obj as Record<string, unknown>)?.[k], row)
-          : row[key];
+          ? key.split('.').reduce<unknown>((obj, k) => (obj as Record<string, unknown>)?.[k], rowRecord)
+          : rowRecord[key];
         
         // Apply custom formatter if provided
         const formatted = col.format ? col.format(value, row) : value;
