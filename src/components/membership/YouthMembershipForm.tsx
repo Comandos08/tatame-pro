@@ -146,7 +146,7 @@ export function YouthMembershipForm() {
     city: z.string().min(2, t('membership.validation.cityRequired')),
     state: z.string().min(2, t('membership.validation.stateRequired')),
     postalCode: z.string().min(5, t('membership.validation.postalCodeRequired')),
-    country: z.string().default('BR'),
+    country: z.string().min(2),
   });
 
   const STEPS = [
