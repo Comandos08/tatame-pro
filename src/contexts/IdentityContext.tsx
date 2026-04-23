@@ -31,23 +31,7 @@ const IdentityRpcSchema = z.object({
 export type { IdentityState };
 
 export interface IdentityError {
-  code:
-    | "TENANT_NOT_FOUND"
-    | "TENANT_INACTIVE"
-    | "INVITE_INVALID"
-    | "PERMISSION_DENIED"
-    | "IMPERSONATION_INVALID"
-    | "SLUG_TAKEN"
-    | "VALIDATION_ERROR"
-    | "PROFILE_NOT_FOUND"
-    | "NO_ROLES_ASSIGNED"
-    | "BILLING_BLOCKED"
-    | "IDENTITY_TIMEOUT"
-    | "ALREADY_REQUESTED"
-    | "ALREADY_MEMBER"
-    | "ONBOARDING_FORBIDDEN"
-    | "NOT_IMPLEMENTED"
-    | "UNKNOWN";
+  code: string;
   message: string;
 }
 
@@ -122,8 +106,8 @@ function hardAbortableFetch(timeoutMs: number) {
 }
 
 function emitInstitutional(payload: {
-  domain: string;
-  type: string;
+  domain: "AUTH" | "IDENTITY" | "BILLING" | "SECURITY" | "GOVERNANCE" | "SYSTEM" | "FEATURE_FLAG";
+  type: "LOGIN_SUCCESS" | "LOGIN_FAILED" | "IDENTITY_RESOLVED" | "IDENTITY_ERROR" | "BILLING_STATUS_CHANGED" | "SUBSCRIPTION_SUSPENDED" | "TENANT_LIFECYCLE_CHANGED" | "SECURITY_BLOCK_APPLIED" | "SECURITY_BLOCK_LIFTED" | "SYSTEM_LIMIT_REACHED" | "FLAG_UPDATED";
   tenantId?: string;
   metadata?: Record<string, unknown>;
 }) {
@@ -258,7 +242,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
       if (currentRequestId !== requestIdRef.current) return;
 
-      const unwrapped = unwrapInvoke<IdentityResult>(data);
+      const unwrapped = unwrapInvoke<IdentityResult>(data as Record<string, unknown> | null | undefined);
 
       // P2-FIX: Validate RPC response shape before processing
       const parseResult = IdentityRpcSchema.safeParse(unwrapped);
@@ -269,7 +253,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      applyResult(parseResult.data);
+      applyResult({ ...parseResult.data, tenant: parseResult.data.tenant ?? undefined });
     } catch (err: unknown) {
       if ((err as Error)?.name === "AbortError") {
         setIdentityState("ERROR");
@@ -338,7 +322,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const unwrapped = unwrapInvoke<IdentityResult>(data);
+    const unwrapped = unwrapInvoke<IdentityResult>(data as Record<string, unknown> | null | undefined);
 
     // P2-FIX: Validate action response shape before processing
     const parseResult = IdentityRpcSchema.safeParse(unwrapped);
@@ -350,10 +334,10 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     const validated = parseResult.data;
 
     if (validated?.status === "RESOLVED") {
-      applyResult(validated);
+      applyResult({ ...validated, tenant: validated.tenant ?? undefined });
       return {
         success: true,
-        tenant: validated.tenant,
+        tenant: validated.tenant ?? undefined,
         role: validated.role,
         redirectPath: validated.redirectPath ?? undefined,
       };

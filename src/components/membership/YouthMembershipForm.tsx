@@ -149,6 +149,9 @@ export function YouthMembershipForm() {
     country: z.string().default('BR'),
   });
 
+  type AthleteFormInput = z.input<typeof athleteSchema>;
+  type AthleteFormOutput = z.output<typeof athleteSchema>;
+
   const STEPS = [
     { id: 1, title: t('membership.stepGuardian') },
     { id: 2, title: t('membership.stepAthlete') },
@@ -179,7 +182,7 @@ export function YouthMembershipForm() {
     },
   });
 
-  const athleteForm = useForm<z.infer<typeof athleteSchema>>({
+  const athleteForm = useForm<AthleteFormInput, unknown, AthleteFormOutput>({
     resolver: zodResolver(athleteSchema),
     defaultValues: {
       fullName: '',
@@ -224,7 +227,7 @@ export function YouthMembershipForm() {
     return age;
   }
 
-  const handleAthleteSubmit = (data: z.infer<typeof athleteSchema>) => {
+  const handleAthleteSubmit = (data: AthleteFormOutput) => {
     // Precise age check: must be under 18
     const birthDate = new Date(data.birthDate);
     const age = calculatePreciseAge(birthDate);
@@ -402,15 +405,18 @@ export function YouthMembershipForm() {
         // C4: Upsert guardian by (tenant_id, email)
         if (athleteId && guardianData) {
           try {
+            const guardianPayload: Database['public']['Tables']['guardians']['Insert'] = {
+              tenant_id: tenant.id,
+              profile_id: currentUser.id,
+              full_name: guardianData.fullName,
+              national_id: guardianData.nationalId,
+              email: guardianData.email,
+              phone: guardianData.phone,
+            };
+
             const { data: guardianResult } = await supabase
               .from('guardians')
-              .upsert({
-                tenant_id: tenant.id,
-                full_name: guardianData.fullName,
-                national_id: guardianData.nationalId,
-                email: guardianData.email,
-                phone: guardianData.phone,
-              }, { onConflict: 'tenant_id,email' })
+              .upsert(guardianPayload, { onConflict: 'tenant_id,email' })
               .select('id')
               .single();
 

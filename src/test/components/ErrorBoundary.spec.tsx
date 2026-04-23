@@ -7,7 +7,7 @@
  * Pattern: Data attribute assertions (no UI text — resilient to i18n changes).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 

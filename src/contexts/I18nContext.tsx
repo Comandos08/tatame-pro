@@ -130,7 +130,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback(
     (key: string, params?: Record<string, string>): string => {
-      let value = activeTranslations[key] ?? ptBR[key];
+      let value = activeTranslations[key] ?? ptBR[key as keyof typeof ptBR];
 
       if (!value) {
         logger.warn(`[i18n] Missing key "${key}" for locale "${locale}"`);

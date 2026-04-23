@@ -66,6 +66,7 @@ function AlertItem({
   alert: Alert; 
   onDismiss: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const config = severityConfig[alert.severity] || severityConfig.LOW;
   const Icon = config.icon;
   

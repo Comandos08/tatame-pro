@@ -17,7 +17,7 @@ interface ExportCsvButtonProps<T> {
   className?: string;
 }
 
-export function ExportCsvButton<T extends Record<string, unknown>>({
+export function ExportCsvButton<T extends object>({
   filename,
   columns,
   data,

@@ -46,8 +46,8 @@ function reportMetric(metric: WebVitalMetric): void {
   });
 
   // Report to Sentry if available
-  if (typeof window !== 'undefined' && (window as Record<string, unknown>)['Sentry']) {
-    const Sentry = (window as Record<string, unknown>)['Sentry'] as {
+  if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>)['Sentry']) {
+    const Sentry = (window as unknown as Record<string, unknown>)['Sentry'] as {
       addBreadcrumb?: (b: Record<string, unknown>) => void;
     };
     Sentry.addBreadcrumb?.({

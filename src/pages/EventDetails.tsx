@@ -116,7 +116,7 @@ export default function EventDetails() {
             athlete:athletes(full_name)
           )
         `)
-        .eq('event_id', eventId)
+        .eq('event_id' as never, eventId)
         .not('winner_registration_id', 'is', null)
         .order('round')
         .order('match_number');

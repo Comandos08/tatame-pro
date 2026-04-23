@@ -5,7 +5,7 @@
  * Uses deterministic mocks — no real network calls.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { HttpError } from '../http';
 
 // ─── Mock observability (no real logging in tests) ───────────────────────────
