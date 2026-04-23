@@ -5,6 +5,39 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Fail-fast guard for missing Supabase env vars at build time.
+//
+// Without this, Supabase's createClient throws `supabaseUrl is required`
+// during module import — which happens before main.tsx's body executes,
+// so main.tsx's env-var check never runs and the user sees a silent black
+// screen with an error only visible in devtools.
+//
+// On Lovable Cloud, VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY must
+// be set in the project's environment variables dashboard for the build to
+// bake them into the bundle. If the deployed bundle reaches this file with
+// either missing, we paint a visible red error to document.body so the
+// misconfig is obvious on production without devtools.
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  const missing = [
+    !SUPABASE_URL && 'VITE_SUPABASE_URL',
+    !SUPABASE_PUBLISHABLE_KEY && 'VITE_SUPABASE_PUBLISHABLE_KEY',
+  ].filter(Boolean).join(', ');
+
+  if (typeof document !== 'undefined') {
+    document.body.innerHTML = `
+      <div style="padding:2rem;font-family:system-ui,-apple-system,sans-serif;color:#fff;background:#7f1d1d;min-height:100vh;box-sizing:border-box;line-height:1.5">
+        <h1 style="font-size:1.5rem;margin:0 0 1rem 0;font-weight:600">Configuração de ambiente ausente</h1>
+        <p style="margin:0 0 0.5rem 0">O build não recebeu as variáveis de ambiente do Supabase:</p>
+        <p style="margin:0 0 1rem 0"><code style="font-family:ui-monospace,monospace;background:rgba(0,0,0,0.3);padding:0.25rem 0.5rem;border-radius:4px">${missing}</code></p>
+        <p style="margin:0 0 0.5rem 0">No painel do Lovable Cloud &rarr; Settings &rarr; Environment Variables, confirme que estas variáveis estão presentes e disparando um novo deploy.</p>
+        <p style="margin:1rem 0 0 0;font-size:0.875rem;opacity:0.8">Reference: src/integrations/supabase/client.ts</p>
+      </div>
+    `;
+  }
+
+  throw new Error(`[supabase/client] Missing required env vars: ${missing}`);
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
