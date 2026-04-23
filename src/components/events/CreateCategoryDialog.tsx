@@ -49,13 +49,18 @@ import { CategoryGender } from '@/types/event';
 // AJUSTES APLICADOS: A (UI funcional), B (governança), C (logs + feedback)
 // ============================================
 
+// Schema com input == output: usamos z.union para aceitar number ou undefined,
+// e tratamos string vazia do <Input type="number"> via setValueAs no register/field.
+const optionalNonNegative = z.number().min(0).optional();
+const optionalAge = z.number().min(0).max(120).optional();
+
 const categorySchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   gender: z.enum(['MALE', 'FEMALE', 'MIXED']).optional(),
-  minWeight: z.coerce.number().min(0).optional().or(z.literal('')),
-  maxWeight: z.coerce.number().min(0).optional().or(z.literal('')),
-  minAge: z.coerce.number().min(0).max(120).optional().or(z.literal('')),
-  maxAge: z.coerce.number().min(0).max(120).optional().or(z.literal('')),
+  minWeight: optionalNonNegative,
+  maxWeight: optionalNonNegative,
+  minAge: optionalAge,
+  maxAge: optionalAge,
 });
 
 type CategoryFormData = z.infer<typeof categorySchema>;
@@ -64,6 +69,13 @@ interface CreateCategoryDialogProps {
   eventId: string;
   disabled?: boolean;
 }
+
+// Helper para converter o valor do <input type="number"> em number | undefined
+const toOptionalNumber = (v: string): number | undefined => {
+  if (v === '' || v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 export function CreateCategoryDialog({ eventId, disabled = false }: CreateCategoryDialogProps) {
   const [open, setOpen] = useState(false);
@@ -76,10 +88,10 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
     defaultValues: {
       name: '',
       gender: undefined,
-      minWeight: '',
-      maxWeight: '',
-      minAge: '',
-      maxAge: '',
+      minWeight: undefined,
+      maxWeight: undefined,
+      minAge: undefined,
+      maxAge: undefined,
     },
   });
 
@@ -96,10 +108,10 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
         name: data.name.trim(),
         is_active: true,
         gender: data.gender as CategoryGender || null,
-        min_weight: data.minWeight !== '' ? Number(data.minWeight) : null,
-        max_weight: data.maxWeight !== '' ? Number(data.maxWeight) : null,
-        min_age: data.minAge !== '' ? Number(data.minAge) : null,
-        max_age: data.maxAge !== '' ? Number(data.maxAge) : null,
+        min_weight: data.minWeight ?? null,
+        max_weight: data.maxWeight ?? null,
+        min_age: data.minAge ?? null,
+        max_age: data.maxAge ?? null,
         price_cents: 0,
         currency: 'BRL',
       };
@@ -230,7 +242,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         step="0.1"
                         placeholder={t('events.minWeight.placeholder')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -249,7 +265,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         step="0.1"
                         placeholder={t('events.maxWeight.placeholder')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -272,7 +292,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         max="120"
                         placeholder={t('events.years')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -291,7 +315,11 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
                         min="0"
                         max="120"
                         placeholder={t('events.years')}
-                        {...field}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(toOptionalNumber(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
