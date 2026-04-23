@@ -49,31 +49,33 @@ import { CategoryGender } from '@/types/event';
 // AJUSTES APLICADOS: A (UI funcional), B (governança), C (logs + feedback)
 // ============================================
 
-const optionalNumber = (max?: number) => {
-  let base = z.coerce.number().min(0);
-  if (max !== undefined) base = base.max(max);
-  return z.preprocess(
-    (v) => (v === '' || v === null || v === undefined ? undefined : v),
-    base.optional(),
-  );
-};
+// Schema com input == output: usamos z.union para aceitar number ou undefined,
+// e tratamos string vazia do <Input type="number"> via setValueAs no register/field.
+const optionalNonNegative = z.number().min(0).optional();
+const optionalAge = z.number().min(0).max(120).optional();
 
 const categorySchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   gender: z.enum(['MALE', 'FEMALE', 'MIXED']).optional(),
-  minWeight: optionalNumber(),
-  maxWeight: optionalNumber(),
-  minAge: optionalNumber(120),
-  maxAge: optionalNumber(120),
+  minWeight: optionalNonNegative,
+  maxWeight: optionalNonNegative,
+  minAge: optionalAge,
+  maxAge: optionalAge,
 });
 
-type CategoryFormInput = z.input<typeof categorySchema>;
-type CategoryFormData = z.output<typeof categorySchema>;
+type CategoryFormData = z.infer<typeof categorySchema>;
 
 interface CreateCategoryDialogProps {
   eventId: string;
   disabled?: boolean;
 }
+
+// Helper para converter o valor do <input type="number"> em number | undefined
+const toOptionalNumber = (v: string): number | undefined => {
+  if (v === '' || v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 export function CreateCategoryDialog({ eventId, disabled = false }: CreateCategoryDialogProps) {
   const [open, setOpen] = useState(false);
@@ -81,15 +83,15 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
   const { t } = useI18n();
   const queryClient = useQueryClient();
 
-  const form = useForm<CategoryFormInput, any, CategoryFormData>({
+  const form = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: '',
       gender: undefined,
-      minWeight: '',
-      maxWeight: '',
-      minAge: '',
-      maxAge: '',
+      minWeight: undefined,
+      maxWeight: undefined,
+      minAge: undefined,
+      maxAge: undefined,
     },
   });
 
