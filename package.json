@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:verify": "vite build && node scripts/verify-build-env.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
