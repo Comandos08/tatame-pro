@@ -1,85 +1,64 @@
 
 
-## Adopt `assertTenantAccess` in `complete-tenant-onboarding` (with SETUP compatibility)
+## Fixes de build (3 arquivos)
 
-### Overview
+### 1. `src/components/CookieConsent.tsx`
 
-Add Zero-Trust Tenant Boundary enforcement (A04) to `complete-tenant-onboarding` as an additive security layer. Includes three mandatory adjustments: SETUP tenant compatibility, standardized impersonation extraction, and proper positioning after input validation.
+Adicionar `return undefined` explícito no `useEffect` para satisfazer TS7030.
 
-### Changes
-
-#### File 1: `supabase/functions/_shared/tenant-boundary.ts`
-
-**Add options interface and modify `assertTenantAccess` signature** to support SETUP tenants without breaking existing callers.
-
-- Add an `AssertTenantAccessOptions` interface with optional `allowLifecycleSetup: boolean`
-- Modify the `assertTenantAccess` function to accept this as a 5th optional parameter (backward-compatible)
-- When `allowLifecycleSetup === true`, fetch `lifecycle_status` alongside `is_active` and skip the `TENANT_INACTIVE` check if `lifecycle_status === 'SETUP'`
-- All existing callers (without the options param) behave identically -- fail-closed on inactive tenants
-
-Key logic change in step 2 (tenant existence check):
-
-```text
-Current query:  .select("id, is_active")
-New query:      .select("id, is_active, lifecycle_status")
-
-Current check:  if (!tenant.is_active) -> throw TENANT_INACTIVE
-New check:      if (!tenant.is_active) {
-                  if (options?.allowLifecycleSetup && tenant.lifecycle_status === 'SETUP') {
-                    // Allow — onboarding in progress
-                  } else {
-                    throw TENANT_INACTIVE
-                  }
-                }
+```ts
+useEffect(() => {
+  const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+  if (!consent) {
+    const timer = setTimeout(() => setVisible(true), 1000);
+    return () => clearTimeout(timer);
+  }
+  return undefined;
+}, []);
 ```
 
-#### File 2: `supabase/functions/complete-tenant-onboarding/index.ts`
+### 2. `src/components/athlete/EditablePersonalData.tsx` (linha 127)
 
-**Three surgical additions** (no existing code removed or modified):
+Migrar para a API do Zod v4: `e.errors[0]` → `e.issues[0]`. É o único call site no frontend.
 
-1. **Add import** (after line 35):
-   ```typescript
-   import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
-   ```
+### 3. `src/components/events/CreateCategoryDialog.tsx`
 
-2. **Add tenant boundary check block** (between PARSE INPUT at line 135 and IMPERSONATION CHECK at line 137):
-   - Uses `extractImpersonationId(req, body)` (already imported, consistent with line 140)
-   - Passes `{ allowLifecycleSetup: true }` to permit SETUP tenants
-   - Catches `TenantBoundaryError` and returns 403 with structured code
-   - Re-throws unknown errors
+Substituir `z.coerce.number().optional().or(z.literal(''))` por `z.preprocess` que normaliza `''` → `undefined` antes da coerção. Output passa a ser `number | undefined` (ao invés de `unknown`), realinhando com o `Resolver` do react-hook-form.
 
-   ```typescript
-   // TENANT BOUNDARY CHECK (A04)
-   try {
-     const impersonationIdForBoundary = extractImpersonationId(req, body);
-     await assertTenantAccess(supabase, user.id, tenantId, impersonationIdForBoundary, {
-       allowLifecycleSetup: true,
-     });
-     log.info("Tenant boundary check passed");
-   } catch (boundaryError) {
-     if (boundaryError instanceof TenantBoundaryError) {
-       log.warn("Tenant boundary violation", { code: boundaryError.code, message: boundaryError.message });
-       return new Response(
-         JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
-     }
-     throw boundaryError;
-   }
-   ```
+```ts
+const optionalNumber = (max?: number) => {
+  let base = z.coerce.number().min(0);
+  if (max !== undefined) base = base.max(max);
+  return z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    base.optional(),
+  );
+};
 
-3. **No removals** -- `requireTenantRole` and `requireImpersonationIfSuperadmin` remain as secondary layers.
-
-### Execution Order (after change)
-
-```text
-AUTH VALIDATION -> RATE LIMITING -> PARSE INPUT -> TENANT BOUNDARY CHECK -> IMPERSONATION CHECK -> ROLE CHECK -> Business Logic
+const categorySchema = z.object({
+  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  gender: z.enum(['MALE', 'FEMALE', 'MIXED']).optional(),
+  minWeight: optionalNumber(),
+  maxWeight: optionalNumber(),
+  minAge: optionalNumber(120),
+  maxAge: optionalNumber(120),
+});
 ```
 
-### Technical Details
+Ajustes correspondentes:
+- `defaultValues`: trocar `''` por `undefined` nos 4 campos numéricos.
+- Bloco `payload` no `mutationFn`: trocar `data.minWeight !== '' ? Number(data.minWeight) : null` por `data.minWeight ?? null` (e mesma coisa para os 3 outros).
 
-- `tenantId` is guaranteed to be a non-empty string at the boundary check point (validated by PARSE INPUT block at lines 130-135)
-- `extractImpersonationId` is already imported at line 38 and used at line 140 -- reusing it maintains institutional consistency
-- The `allowLifecycleSetup` option is scoped specifically for the onboarding use case; all other future adopters of `assertTenantAccess` default to strict mode
-- Adding `lifecycle_status` to the select query in `assertTenantAccess` adds negligible overhead (same row, same index hit)
+Isso elimina os 4 erros encadeados (linhas 75, 173, 176, 194) com uma única mudança de schema.
+
+## Validação
+
+1. `bun run build` deve retornar zero erros TS.
+2. Smoke manual no diálogo "Criar categoria": criar uma categoria sem peso/idade (campos `null` no payload) e outra com valores numéricos.
+3. Confirmar que o banner de cookies aparece após 1s e que o cleanup do timer funciona.
+
+## Fora de escopo (registrado)
+
+- Erros de TS em Edge Functions Deno (`supabase/functions/_shared/...`) — task separada conforme alinhado.
+- Conserto do `npx tsc --noEmit` no CI workflow — você tratará no repo.
 
