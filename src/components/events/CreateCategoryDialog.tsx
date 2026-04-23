@@ -67,7 +67,8 @@ const categorySchema = z.object({
   maxAge: optionalNumber(120),
 });
 
-type CategoryFormData = z.infer<typeof categorySchema>;
+type CategoryFormInput = z.input<typeof categorySchema>;
+type CategoryFormData = z.output<typeof categorySchema>;
 
 interface CreateCategoryDialogProps {
   eventId: string;
@@ -80,7 +81,7 @@ export function CreateCategoryDialog({ eventId, disabled = false }: CreateCatego
   const { t } = useI18n();
   const queryClient = useQueryClient();
 
-  const form = useForm<CategoryFormData>({
+  const form = useForm<CategoryFormInput, unknown, CategoryFormData>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: '',
