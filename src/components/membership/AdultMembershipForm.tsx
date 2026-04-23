@@ -98,6 +98,9 @@ export function AdultMembershipForm() {
     [locale]
   );
 
+  type StepOneFormInput = z.input<typeof stepOneSchema>;
+  type StepOneFormData = z.output<typeof stepOneSchema>;
+
   const STEPS = [
     { id: 1, title: t('membership.stepPersonalData') },
     { id: 2, title: t('membership.stepDocuments') },
@@ -110,7 +113,7 @@ export function AdultMembershipForm() {
     OTHER: t('membership.other'),
   };
 
-  const form = useForm<z.infer<typeof stepOneSchema>>({
+  const form = useForm<StepOneFormInput, unknown, StepOneFormData>({
     resolver: zodResolver(stepOneSchema),
     defaultValues: {
       fullName: '',
@@ -186,7 +189,7 @@ export function AdultMembershipForm() {
     });
   }, [step, athleteData, tenantSlug]);
 
-  const handleStepOneSubmit = async (data: z.infer<typeof stepOneSchema>) => {
+  const handleStepOneSubmit = async (data: StepOneFormData) => {
     // Check if adult (18+)
     const birthDate = new Date(data.birthDate);
     const today = new Date();
