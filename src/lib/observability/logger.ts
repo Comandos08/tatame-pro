@@ -31,11 +31,11 @@ interface Logger {
 const isDev =
   typeof import.meta !== 'undefined' && import.meta.env
     ? import.meta.env.DEV
-    : process.env.NODE_ENV === 'development';
+    : false;
 const isTest =
   typeof import.meta !== 'undefined' && import.meta.env
     ? import.meta.env.MODE === 'test'
-    : process.env.NODE_ENV === 'test';
+    : false;
 
 /**
  * Format log entry with timestamp and context.

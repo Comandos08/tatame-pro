@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentUser } from '@/contexts/AuthContext';
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const;
@@ -36,9 +36,9 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
     disabled = false,
   } = options;
 
-  const { signOut, session } = useAuth();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const warningRef = useRef<ReturnType<typeof setTimeout>>();
+  const { signOut, session } = useCurrentUser();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef(0);
 
   const resetTimers = useCallback(() => {
