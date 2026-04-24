@@ -74,3 +74,9 @@ jobs:
         # vars are missing at build time. See scripts/verify-build-env.mjs for
         # the three checks performed.
         run: node scripts/verify-build-env.mjs
+
+      - name: Bundle size budget
+        # Fails the build when initial JS/CSS or any single chunk exceeds the
+        # gzipped budget defined in scripts/check-bundle-size.mjs. Tighten or
+        # loosen the budget intentionally — never silently.
+        run: node scripts/check-bundle-size.mjs

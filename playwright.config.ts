@@ -69,6 +69,27 @@ export default defineConfig({
       name: 'mobile',
       use: { ...devices['Pixel 5'] },
     },
+    // Cross-browser matrix: smoke + critical flows on Firefox + WebKit.
+    // Run locally with `npx playwright test --project=firefox` / `--project=webkit`.
+    // Not yet wired into CI gate — will be enabled after stability baseline.
+    {
+      name: 'firefox',
+      testMatch: [
+        '**/smoke-test.spec.ts',
+        '**/public-verification.spec.ts',
+        '**/auth/login-form.spec.ts',
+      ],
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      testMatch: [
+        '**/smoke-test.spec.ts',
+        '**/public-verification.spec.ts',
+        '**/auth/login-form.spec.ts',
+      ],
+      use: { ...devices['Desktop Safari'] },
+    },
     // P4.3.B: Resilience tests (no auto-retry to detect flakiness)
     {
       name: 'resilience',
