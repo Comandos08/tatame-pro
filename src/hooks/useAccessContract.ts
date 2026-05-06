@@ -15,7 +15,7 @@
  * - Feature not in set → no access
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/contexts/AuthContext';
@@ -62,29 +62,37 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
   const { session } = useCurrentUser();
   const userId = session?.user?.id;
 
+  // Stable ref for queryClient so the channel effect doesn't re-run on
+  // unrelated re-renders. Without this, the channel is torn down/recreated
+  // and listener registration can race with .subscribe(), triggering
+  // "cannot add postgres_changes callbacks after subscribe()".
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
+
   useEffect(() => {
     if (!userId || !tenantId) return;
 
-    const channel = supabase
-      .channel(`access-invalidation-${tenantId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_roles',
-          filter: `user_id=eq.${userId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['access-contract', tenantId] });
-        }
-      )
-      .subscribe();
+    const channel = supabase.channel(`access-invalidation-${tenantId}-${userId}`);
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_roles',
+        filter: `user_id=eq.${userId}`,
+      },
+      () => {
+        queryClientRef.current.invalidateQueries({ queryKey: ['access-contract', tenantId] });
+      }
+    );
+
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, tenantId, queryClient]);
+  }, [userId, tenantId]);
 
   return {
     allowedFeatures,
