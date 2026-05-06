@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: Tatame Pro — Edge Functions API
+  version: 0.1.0
+  description: |
+    OpenAPI skeleton for the 67+ Supabase Edge Functions of Tatame Pro.
+
+    STATUS: skeleton — only the public endpoints and a representative
+    sample of authenticated endpoints are documented here. The full
+    contract for every function lives in `docs/api/edge-functions.md`
+    and the inline JSDoc inside each `supabase/functions/<name>/index.ts`.
+
+    This file is the seed for a complete spec; expand it incrementally
+    as endpoints are reviewed for stability. Anything documented here
+    is considered a published contract — breaking changes require a
+    version bump and a changelog entry.
+
+  contact:
+    name: Tatame Pro Engineering
+    url: https://github.com/Comandos08/tatame-pro
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://{projectRef}.supabase.co/functions/v1
+    description: Supabase Edge Functions
+    variables:
+      projectRef:
+        default: kotxhtveuegrywzyvdnl
+        description: Supabase project reference
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase Auth JWT issued at login. Required for non-public endpoints.
+    cronSecret:
+      type: apiKey
+      in: header
+      name: x-cron-secret
+      description: Required by all scheduled cron functions.
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        correlationId:
+          type: string
+        details:
+          type: object
+
+    SuccessEnvelope:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        timestamp:
+          type: string
+          format: date-time
+
+    VerifyCardRequest:
+      type: object
+      required: [cardId]
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        tenantSlug:
+          type: string
+
+    VerifyCardResponse:
+      type: object
+      properties:
+        found:
+          type: boolean
+        isValid:
+          type: boolean
+        athleteName:
+          type: string
+        membershipStatus:
+          type: string
+        validUntil:
+          type: string
+          format: date
+
+paths:
+  /health-check:
+    get:
+      summary: Service health probe
+      security: []
+      tags: [Public]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /verify-digital-card:
+    post:
+      summary: Public verification of a digital card by ID
+      security: []
+      tags: [Public verification]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyCardRequest"
+      responses:
+        "200":
+          description: Verification result (rate-limited 60 req/min/IP)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyCardResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /verify-diploma:
+    post:
+      summary: Public verification of a diploma by ID
+      security: []
+      tags: [Public verification]
+      responses:
+        "200":
+          description: Verification result (rate-limited)
+
+  /verify-document:
+    post:
+      summary: Public verification of an official document
+      security: []
+      tags: [Public verification]
+      responses:
+        "200":
+          description: Verification result (rate-limited, anti-enumeration)
+
+  /list-public-academies:
+    get:
+      summary: Public listing of academies (paginated)
+      security: []
+      tags: [Public]
+      responses:
+        "200":
+          description: Paginated list of academies
+
+  /request-password-reset:
+    post:
+      summary: Public — request a password reset email
+      security: []
+      tags: [Auth]
+
+  /reset-password:
+    post:
+      summary: Public — apply a new password using a reset token
+      security: []
+      tags: [Auth]
+
+  /admin-create-user:
+    post:
+      summary: Create a new user account (SUPERADMIN only)
+      tags: [Admin]
+      responses:
+        "200": { description: User created }
+        "401": { description: Missing or invalid token }
+        "403": { description: Caller is not SUPERADMIN_GLOBAL }
+        "429": { description: Rate limit (10/h per superadmin) }
+
+  /admin-reset-password:
+    post:
+      summary: Trigger password reset for any user (SUPERADMIN only)
+      tags: [Admin]
+
+  /admin-billing-control:
+    post:
+      summary: Manual billing transitions (SUPERADMIN only)
+      tags: [Admin, Billing]
+
+  /approve-membership:
+    post:
+      summary: Approve a membership application
+      tags: [Membership]
+
+  /reject-membership:
+    post:
+      summary: Reject a membership application
+      tags: [Membership]
+
+  /create-membership-checkout:
+    post:
+      summary: Create a Stripe checkout session for a membership
+      tags: [Billing]
+      responses:
+        "200": { description: Checkout URL returned }
+        "429": { description: Rate-limited; CAPTCHA-protected }
+
+  /tenant-customer-portal:
+    post:
+      summary: Generate Stripe customer portal session for the tenant
+      tags: [Billing]
+
+  /stripe-webhook:
+    post:
+      summary: Stripe webhook receiver (signature-verified)
+      security: []
+      tags: [Webhooks]
+
+  /generate-digital-card:
+    post:
+      summary: Generate a digital card for an approved membership
+      tags: [Membership]
+
+  /generate-diploma:
+    post:
+      summary: Generate a diploma PDF
+      tags: [Diploma]
+
+  /export-athlete-data:
+    post:
+      summary: LGPD — export all data for an athlete (auth + tenant scope)
+      tags: [LGPD]
+
+  /request-erasure:
+    post:
+      summary: LGPD — request erasure of personal data
+      tags: [LGPD]
+
+  /start-impersonation:
+    post:
+      summary: SUPERADMIN starts an impersonation session for a tenant
+      tags: [Impersonation]
+
+  /end-impersonation:
+    post:
+      summary: SUPERADMIN ends an active impersonation session
+      tags: [Impersonation]
+
+  /validate-impersonation:
+    post:
+      summary: Validate that an impersonation session is still active
+      tags: [Impersonation]
+
+tags:
+  - name: Public
+    description: Unauthenticated endpoints; rate-limited and anti-enumeration where applicable.
+  - name: Public verification
+    description: QR-code verification endpoints exposed to the open web.
+  - name: Auth
+    description: Authentication and password-reset flows.
+  - name: Admin
+    description: Restricted to SUPERADMIN_GLOBAL.
+  - name: Membership
+    description: Lifecycle of athlete memberships.
+  - name: Billing
+    description: Stripe checkout, customer portal, manual transitions.
+  - name: Webhooks
+    description: External webhook receivers (Stripe).
+  - name: LGPD
+    description: Data export and erasure flows.
+  - name: Impersonation
+    description: SUPERADMIN impersonation framework with audit + TTL.
+  - name: Diploma
+    description: Diploma PDF generation and verification.

@@ -24,6 +24,10 @@ supabase/.temp/
 e2e/screenshots/*
 !e2e/screenshots/.gitkeep
 
+# Playwright transient artifacts
+playwright-report/
+test-results/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
