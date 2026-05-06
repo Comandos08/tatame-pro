@@ -1,8 +1,14 @@
-
 /* src/index.css */
 
 /* =========================
-   IMPORTS (MUST BE FIRST)
+   TAILWIND (MUST BE FIRST)
+   ========================= */
+
+@config "../tailwind.config.ts";
+@import "tailwindcss";
+
+/* =========================
+   IMPORTS
    ========================= */
 
 /* Font imports */
@@ -10,18 +16,6 @@
 
 /* UI Actions Visibility Hardening Kit */
 @import "./styles/ui-actions-visibility.css";
-
-/* =========================
-   TAILWIND
-   ========================= */
-
-@config "../tailwind.config.ts";
-@import "tailwindcss";
-
-/* TATAME PRO - Design System
-   Combat Sports Multi-tenant SaaS Platform
-   Dark theme with energetic accent colors
-*/
 
 /* TATAME PRO - Design System
    Combat Sports Multi-tenant SaaS Platform
@@ -196,15 +190,15 @@
   }
 
   h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-}
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
 }
 
 @layer utilities {
@@ -221,22 +215,23 @@ h6 {
 
   /* Glass morphism */
   .glass {
-  background-color: hsl(var(--card) / 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid hsl(var(--border) / 0.5);
-}
+    background-color: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
 
- .card-hover {
-  transition: all 0.3s;
-}
+  .card-hover {
+    transition: all 0.3s;
+  }
 
-.card-hover:hover {
-  border-color: hsl(var(--primary) / 0.3);
-  box-shadow:
-    0 10px 15px -3px hsl(0 0% 0% / 0.5),
-    0 4px 6px -4px hsl(0 0% 0% / 0.4);
-}
+  .card-hover:hover {
+    border-color: hsl(var(--primary) / 0.3);
+    box-shadow:
+      0 10px 15px -3px hsl(0 0% 0% / 0.5),
+      0 4px 6px -4px hsl(0 0% 0% / 0.4);
+  }
+
   /* Focus ring */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
