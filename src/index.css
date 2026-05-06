@@ -1,81 +1,36 @@
-/* src/index.css */
-
-/* =========================
-   TAILWIND (MUST BE FIRST)
-   ========================= */
-
 @config "../tailwind.config.ts";
 @import "tailwindcss";
-
-/* =========================
-   IMPORTS
-   ========================= */
-
-/* Font imports */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap");
-
-/* UI Actions Visibility Hardening Kit */
 @import "./styles/ui-actions-visibility.css";
-
-/* TATAME PRO - Design System
-   Combat Sports Multi-tenant SaaS Platform
-   Dark theme with energetic accent colors
-*/
 
 @layer base {
   :root {
-    /* Core backgrounds - Deep dark theme */
     --background: 220 20% 4%;
     --foreground: 0 0% 98%;
-
-    /* Card surfaces - Slightly elevated */
     --card: 220 18% 7%;
     --card-foreground: 0 0% 98%;
-
-    /* Popover/Dropdown */
     --popover: 220 18% 8%;
     --popover-foreground: 0 0% 98%;
-
-    /* Primary - Combat red/orange energy */
     --primary: 0 84% 50%;
     --primary-foreground: 0 0% 100%;
-
-    /* Secondary - Subtle surface */
     --secondary: 220 14% 12%;
     --secondary-foreground: 0 0% 90%;
-
-    /* Muted - Subdued elements */
     --muted: 220 14% 15%;
     --muted-foreground: 220 10% 55%;
-
-    /* Accent - Interactive state feedback (aligned with primary hue) */
     --accent: 0 70% 35%;
     --accent-foreground: 0 0% 100%;
-
-    /* Destructive */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    /* Success */
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
-
-    /* Warning */
     --warning: 45 93% 47%;
     --warning-foreground: 0 0% 0%;
-
-    /* Info */
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
-
-    /* Borders and inputs */
     --border: 220 13% 18%;
     --input: 220 13% 18%;
     --ring: 0 84% 50%;
-
     --radius: 0.625rem;
-
-    /* Sidebar */
     --sidebar-background: 220 20% 5%;
     --sidebar-foreground: 220 10% 70%;
     --sidebar-primary: 0 84% 50%;
@@ -84,14 +39,10 @@
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 220 13% 14%;
     --sidebar-ring: 0 84% 50%;
-
-    /* Custom gradients */
     --gradient-primary: linear-gradient(135deg, hsl(0 84% 50%) 0%, hsl(0 72% 40%) 100%);
     --gradient-dark: linear-gradient(180deg, hsl(220 20% 6%) 0%, hsl(220 20% 3%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(220 18% 9%) 0%, hsl(220 18% 6%) 100%);
     --gradient-glow: radial-gradient(ellipse at center, hsl(0 84% 50% / 0.15) 0%, transparent 70%);
-
-    /* Shadows */
     --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
     --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
     --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.4);
@@ -115,15 +66,12 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    /* Semantic status colors - Light theme */
     --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
     --warning: 45 93% 41%;
     --warning-foreground: 0 0% 0%;
     --info: 199 89% 40%;
     --info-foreground: 0 0% 100%;
-
     --border: 220 13% 90%;
     --input: 220 13% 90%;
     --ring: 0 84% 50%;
@@ -143,9 +91,9 @@
     @apply border-border;
   }
 
-  /* Theme transition - smooth color changes */
   html {
     @apply transition-colors duration-300;
+    font-family: "Inter", system-ui, sans-serif;
   }
 
   html.theme-transitioning,
@@ -162,39 +110,15 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings:
-      "rlig" 1,
-      "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { @apply bg-background; }
+  ::-webkit-scrollbar-thumb { @apply bg-muted rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/30; }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-background;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
-  }
-
-  html {
-    font-family: "Inter", system-ui, sans-serif;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.025em;
@@ -202,87 +126,33 @@
 }
 
 @layer utilities {
-  /* Text gradients */
   .text-gradient-primary {
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-primary);
   }
-
-  /* Glow effects */
-  .glow-primary {
-    box-shadow: var(--shadow-glow);
-  }
-
-  /* Glass morphism */
+  .glow-primary { box-shadow: var(--shadow-glow); }
   .glass {
     background-color: hsl(var(--card) / 0.8);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid hsl(var(--border) / 0.5);
   }
-
-  .card-hover {
-    transition: all 0.3s;
-  }
-
+  .card-hover { transition: all 0.3s; }
   .card-hover:hover {
     border-color: hsl(var(--primary) / 0.3);
-    box-shadow:
-      0 10px 15px -3px hsl(0 0% 0% / 0.5),
-      0 4px 6px -4px hsl(0 0% 0% / 0.4);
+    box-shadow: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.4);
   }
-
-  /* Focus ring */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
   }
 }
 
-/* ===============================
-   ICON COLOR STABILITY
-   =============================== */
+svg { color: inherit; stroke: currentColor; fill: none; }
+button:hover svg, a:hover svg { color: inherit; }
 
-svg {
-  color: inherit;
-  stroke: currentColor;
-  fill: none;
-}
+button svg, a svg, [data-state] svg { color: hsl(var(--foreground)); stroke: currentColor; }
+button:hover svg, a:hover svg, button[data-state="active"] svg, a[data-state="active"] svg { color: hsl(var(--foreground)); }
+[data-radix-collection-item] svg, [data-radix-menu-item] svg, [data-radix-navigation-menu-trigger] svg { color: hsl(var(--foreground)); }
 
-button:hover svg,
-a:hover svg {
-  color: inherit;
-}
-
-/* =====================================================
-   ICON COLOR HARD LOCK
-   ===================================================== */
-
-button svg,
-a svg,
-[data-state] svg {
-  color: hsl(var(--foreground));
-  stroke: currentColor;
-}
-
-button:hover svg,
-a:hover svg,
-button[data-state="active"] svg,
-a[data-state="active"] svg {
-  color: hsl(var(--foreground));
-}
-
-[data-radix-collection-item] svg,
-[data-radix-menu-item] svg,
-[data-radix-navigation-menu-trigger] svg {
-  color: hsl(var(--foreground));
-}
-
-.icon-primary svg,
-.icon-primary {
-  color: hsl(var(--primary));
-}
-
-.icon-accent svg,
-.icon-accent {
-  color: hsl(var(--accent));
-}
+.icon-primary svg, .icon-primary { color: hsl(var(--primary)); }
+.icon-accent svg, .icon-accent { color: hsl(var(--accent)); }
