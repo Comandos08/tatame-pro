@@ -26,17 +26,15 @@ import type { AsyncState } from '@/types/async';
 export type FeatureKey = string;
 
 interface UseAccessContractResult {
-  /** Set of features the current user can access */
   allowedFeatures: Set<string>;
-  /** Deterministic check: can user access this feature? */
   can: (featureKey: FeatureKey) => boolean;
-  /** Whether the contract is still loading */
   isLoading: boolean;
-  /** Whether the RPC call failed */
   isError: boolean;
-  /** PI B1: Normalized async state */
   asyncState: AsyncState<string[]>;
 }
+
+// Global registry to prevent duplicate Realtime channels
+const activeChannels = new Map<string, ReturnType<typeof supabase.channel>>();
 
 export function useAccessContract(tenantId: string | undefined | null): UseAccessContractResult {
   const { data, isLoading, isError, error } = useQuery({
@@ -50,54 +48,60 @@ export function useAccessContract(tenantId: string | undefined | null): UseAcces
       return (data as string[]) || [];
     },
     enabled: !!tenantId,
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const allowedFeatures = new Set(data || []);
   const asyncState = normalizeAsyncState({ data, isLoading, isError, error });
 
-  // 3.1: Realtime invalidation — revoke access immediately on role change
   const queryClient = useQueryClient();
   const { session } = useCurrentUser();
   const userId = session?.user?.id;
-
-  // Stable ref for queryClient so the channel effect doesn't re-run on
-  // unrelated re-renders. Without this, the channel is torn down/recreated
-  // and listener registration can race with .subscribe(), triggering
-  // "cannot add postgres_changes callbacks after subscribe()".
-  const queryClientRef = useRef(queryClient);
-  queryClientRef.current = queryClient;
+  const channelKey = `access-invalidation-${tenantId}-${userId}`;
+  const registeredRef = useRef(false);
 
   useEffect(() => {
     if (!userId || !tenantId) return;
 
-    const channel = supabase.channel(`access-invalidation-${tenantId}-${userId}`);
+    // If channel already exists globally, skip — another instance is handling it
+    if (activeChannels.has(channelKey)) return;
 
-    channel.on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'user_roles',
-        filter: `user_id=eq.${userId}`,
-      },
-      () => {
-        queryClientRef.current.invalidateQueries({ queryKey: ['access-contract', tenantId] });
-      }
-    );
+    registeredRef.current = true;
 
-    channel.subscribe();
+    const channel = supabase
+      .channel(channelKey)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_roles',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['access-contract', tenantId] });
+        }
+      )
+      .subscribe();
+
+    activeChannels.set(channelKey, channel);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (registeredRef.current) {
+        const ch = activeChannels.get(channelKey);
+        if (ch) {
+          supabase.removeChannel(ch);
+          activeChannels.delete(channelKey);
+        }
+        registeredRef.current = false;
+      }
     };
-  }, [userId, tenantId]);
+  }, [userId, tenantId, queryClient, channelKey]);
 
   return {
     allowedFeatures,
     can: (featureKey: FeatureKey) => {
-      // U9: fail-closed via canonical helper
       return failSafeAccess(
         allowedFeatures.has(featureKey),
         isLoading || !tenantId,
