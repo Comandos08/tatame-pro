@@ -27,3 +27,4 @@
     { "source": "/((?!assets|favicon|og-image).*)", "destination": "/index.html" }
   ]
 }
+
