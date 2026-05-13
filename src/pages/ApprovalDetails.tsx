@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Loader2, FileText, CreditCard, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Loader2, FileText, CreditCard, ExternalLink, Info, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 // ── P0-2: Immutable role constant ──────────────────────────────────
@@ -208,6 +208,72 @@ export default function ApprovalDetails() {
   const isPaymentCompleted = membership.payment_status === "PAID";
   const canApproveOrReject = isPendingReview && isPaymentCompleted;
 
+  // Explains to admins WHY the approve/reject buttons are absent or disabled
+  // for any given (status, payment_status) combination. Returns null when the
+  // membership is in a fully actionable state (PENDING_REVIEW + PAID) so the
+  // buttons themselves carry the affordance.
+  const stateExplanation = (() => {
+    const status = membership.status;
+    const payment = membership.payment_status;
+
+    if (status === "DRAFT") {
+      return {
+        tone: "info" as const,
+        icon: Clock,
+        title: "Filiação ainda em rascunho",
+        body: "O atleta ainda não finalizou o cadastro. As ações de aprovação ficam disponíveis quando o status muda para Aguardando Revisão (após o atleta enviar a solicitação e o pagamento for confirmado).",
+      };
+    }
+    if (status === "PENDING_PAYMENT") {
+      return {
+        tone: "info" as const,
+        icon: CreditCard,
+        title: "Aguardando pagamento do atleta",
+        body: "O atleta iniciou o checkout mas o pagamento ainda não foi confirmado pelo Stripe. As ações de aprovação ficam disponíveis quando o status muda para Aguardando Revisão.",
+      };
+    }
+    if (isPendingReview && !isPaymentCompleted) {
+      return {
+        tone: "warn" as const,
+        icon: AlertTriangle,
+        title: "Pagamento ainda não confirmado",
+        body: "Esta solicitação foi enviada para análise, mas o pagamento ainda não foi confirmado. As ações de aprovação/rejeição estão desabilitadas até a confirmação.",
+      };
+    }
+    if (status === "APPROVED" || status === "ACTIVE") {
+      return {
+        tone: "success" as const,
+        icon: CheckCircle2,
+        title: "Filiação já aprovada",
+        body: "Esta solicitação já foi aprovada e está ativa. Para revogar, use a área de Filiações.",
+      };
+    }
+    if (status === "REJECTED") {
+      return {
+        tone: "warn" as const,
+        icon: XCircle,
+        title: "Filiação rejeitada",
+        body: "Esta solicitação foi rejeitada anteriormente. O motivo está logo abaixo. Para reverter, o atleta precisa abrir uma nova solicitação.",
+      };
+    }
+    if (status === "CANCELLED" || status === "EXPIRED") {
+      return {
+        tone: "info" as const,
+        icon: Info,
+        title: status === "EXPIRED" ? "Filiação expirada" : "Filiação cancelada",
+        body: "Esta solicitação não está mais ativa. Para retomar, o atleta precisa abrir uma nova solicitação.",
+      };
+    }
+    // PENDING_REVIEW + PAID — buttons render normally
+    return null;
+  })();
+
+  const explanationStyles = {
+    info: "border-info/30 bg-info/10 text-info",
+    warn: "border-accent bg-accent/50 text-accent-foreground",
+    success: "border-success/30 bg-success/10 text-success",
+  };
+
   const price =
     typeof membership.price_cents === "number"
       ? (membership.price_cents / 100).toFixed(2)
@@ -291,14 +357,17 @@ export default function ApprovalDetails() {
         <StatusBadge status={membership.status} />
       </div>
 
-      {/* Payment alert */}
-      {!isPaymentCompleted && isPendingReview && (
-        <Card className="p-4 border-accent bg-accent/50">
-          <div className="flex items-center gap-2 text-accent-foreground">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm">
-              O pagamento desta solicitação ainda não foi confirmado. As ações de aprovação/rejeição estão desabilitadas até a confirmação do pagamento.
-            </span>
+      {/* State explanation: shows why approve/reject is unavailable
+          (DRAFT, PENDING_PAYMENT, REJECTED, APPROVED, CANCELLED, EXPIRED,
+          or PENDING_REVIEW without confirmed payment). */}
+      {stateExplanation && (
+        <Card className={`p-4 border ${explanationStyles[stateExplanation.tone]}`}>
+          <div className="flex items-start gap-3">
+            <stateExplanation.icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm font-medium">{stateExplanation.title}</p>
+              <p className="text-sm opacity-90">{stateExplanation.body}</p>
+            </div>
           </div>
         </Card>
       )}
