@@ -369,100 +369,171 @@ export default function AthletesList() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('admin.athletes.tableAthlete')}</TableHead>
-                    <TableHead>{t('admin.athletes.tableAcademy')}</TableHead>
-                    <TableHead>{t('admin.athletes.tableGrading')}</TableHead>
-                    <TableHead>{t('admin.athletes.tableMembershipStatus')}</TableHead>
-                    <TableHead>{t('admin.athletes.tablePeriod')}</TableHead>
-                    <TableHead className="text-right">{t('common.actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {athletes.map((athlete, index) => (
-                    <motion.tr
-                      key={athlete.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.02 }}
-                      className="group"
-                    >
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{athlete.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{athlete.email}</p>
+          <>
+            {/* Mobile: stacked cards (visible below md) */}
+            <div className="grid gap-3 md:hidden">
+              {athletes.map((athlete, index) => (
+                <motion.div
+                  key={athlete.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: index * 0.02 }}
+                >
+                  <Card
+                    className="card-hover cursor-pointer"
+                    onClick={() => {
+                      if (athlete.latest_membership) {
+                        navigate(`/${tenant?.slug}/app/memberships/${athlete.latest_membership.id}`);
+                      }
+                    }}
+                  >
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{athlete.full_name}</p>
+                          <p className="text-sm text-muted-foreground truncate">{athlete.email}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {athlete.academy_name ? (
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span>{athlete.academy_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
+                        {athlete.currentGrading && (
+                          <Badge variant="secondary" className="shrink-0">
+                            {athlete.currentGrading.display_name}
+                          </Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {athlete.currentGrading ? (
-                          <Badge variant="secondary">{athlete.currentGrading.display_name}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
                         {athlete.latest_membership ? (
-                          <StatusBadge 
-                            status={athlete.latest_membership.status} 
+                          <StatusBadge
+                            status={athlete.latest_membership.status}
                             label={MEMBERSHIP_STATUS_LABELS[athlete.latest_membership.status]}
                           />
                         ) : (
                           <Badge variant="outline">{t('admin.athletes.noMembership')}</Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {athlete.latest_membership ? (
-                          <span className="text-sm text-muted-foreground">
-                            {formatDisplayDate(athlete.latest_membership.start_date)} - {formatDisplayDate(athlete.latest_membership.end_date)}
+                        {athlete.academy_name && (
+                          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                            <Building2 className="h-3.5 w-3.5" />
+                            <span className="truncate max-w-[160px]">{athlete.academy_name}</span>
                           </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/${tenant?.slug}/app/athletes/${athlete.id}/gradings`)}
-                          >
-                            <Award className="h-4 w-4 mr-1" />
-                            {t('admin.athletes.gradings')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              if (athlete.latest_membership) {
-                                navigate(`/${tenant?.slug}/app/memberships/${athlete.latest_membership.id}`);
-                              }
-                            }}
-                            disabled={!athlete.latest_membership}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                      </div>
+                      {athlete.latest_membership && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatDisplayDate(athlete.latest_membership.start_date)} — {formatDisplayDate(athlete.latest_membership.end_date)}
+                        </p>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/${tenant?.slug}/app/athletes/${athlete.id}/gradings`);
+                        }}
+                      >
+                        <Award className="h-4 w-4 mr-1" />
+                        {t('admin.athletes.gradings')}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Desktop: full table (md and up) */}
+            <Card className="hidden md:block">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('admin.athletes.tableAthlete')}</TableHead>
+                      <TableHead>{t('admin.athletes.tableAcademy')}</TableHead>
+                      <TableHead>{t('admin.athletes.tableGrading')}</TableHead>
+                      <TableHead>{t('admin.athletes.tableMembershipStatus')}</TableHead>
+                      <TableHead>{t('admin.athletes.tablePeriod')}</TableHead>
+                      <TableHead className="text-right">{t('common.actions')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {athletes.map((athlete, index) => (
+                      <motion.tr
+                        key={athlete.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.02 }}
+                        className="group"
+                      >
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{athlete.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{athlete.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {athlete.academy_name ? (
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span>{athlete.academy_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {athlete.currentGrading ? (
+                            <Badge variant="secondary">{athlete.currentGrading.display_name}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {athlete.latest_membership ? (
+                            <StatusBadge
+                              status={athlete.latest_membership.status}
+                              label={MEMBERSHIP_STATUS_LABELS[athlete.latest_membership.status]}
+                            />
+                          ) : (
+                            <Badge variant="outline">{t('admin.athletes.noMembership')}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {athlete.latest_membership ? (
+                            <span className="text-sm text-muted-foreground">
+                              {formatDisplayDate(athlete.latest_membership.start_date)} - {formatDisplayDate(athlete.latest_membership.end_date)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/${tenant?.slug}/app/athletes/${athlete.id}/gradings`)}
+                            >
+                              <Award className="h-4 w-4 mr-1" />
+                              {t('admin.athletes.gradings')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (athlete.latest_membership) {
+                                  navigate(`/${tenant?.slug}/app/memberships/${athlete.latest_membership.id}`);
+                                }
+                              }}
+                              disabled={!athlete.latest_membership}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </motion.tr>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </AppShell>
