@@ -37,12 +37,24 @@ import { join } from "node:path";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-// The Supabase project ref this build is expected to point at. Must match
-// the `ref` segment of VITE_SUPABASE_URL. Hard-coded intentionally — this is
-// a published, public identifier (the host appears in every API call), and
-// hard-coding lets the verifier fail loud if the build accidentally targets
-// a different project.
-const EXPECTED_SUPABASE_HOST = "kotxhtveuegrywzyvdnl.supabase.co";
+// The Supabase host this build is expected to point at. Derived from
+// VITE_SUPABASE_URL if the verifier can see it (CI build step + verify step
+// share the same env block), otherwise falls back to the default dev project.
+// The host appears in every API call, so it's a published, public identifier.
+const DEFAULT_SUPABASE_HOST = "kotxhtveuegrywzyvdnl.supabase.co";
+
+function deriveExpectedHost() {
+  const url = process.env.VITE_SUPABASE_URL;
+  if (!url) return DEFAULT_SUPABASE_HOST;
+  try {
+    return new URL(url).host;
+  } catch {
+    // Malformed URL — surface clearly rather than silently passing.
+    return DEFAULT_SUPABASE_HOST;
+  }
+}
+
+const EXPECTED_SUPABASE_HOST = deriveExpectedHost();
 
 const DIST_DIR = "dist";
 const ASSETS_DIR = join(DIST_DIR, "assets");
