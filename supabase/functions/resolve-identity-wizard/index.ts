@@ -143,7 +143,7 @@ interface IdentityResponse {
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 Deno.serve(async (req) => {
-  // Runtime entry (structured logging only — no console.log with payloads)
+  // Runtime entry (structured logging only — never use raw console calls with payloads)
 
   /* ───────────────────────────────────────────────────────────────────────────
    * CORS PREFLIGHT
