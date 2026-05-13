@@ -34,6 +34,7 @@ import {
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 
 
 // UUID regex for validation
@@ -241,6 +242,27 @@ serve(async (req) => {
   }
 
   const targetTenantId = impersonation.target_tenant_id;
+
+  // ═══════════════════════════════════════════════════════════════
+  // STEP 3.5: TENANT BOUNDARY (A04) — block reset on inactive tenants
+  // ═══════════════════════════════════════════════════════════════
+  try {
+    await assertTenantAccess(supabaseAdmin, superadminUserId, targetTenantId, impersonationId);
+  } catch (boundaryError) {
+    if (boundaryError instanceof TenantBoundaryError) {
+      log.warn("Tenant boundary violation", { code: boundaryError.code, targetTenantId });
+      await logDecision(supabaseAdmin, {
+        decision_type: DECISION_TYPES.PERMISSION_DENIED,
+        severity: "MEDIUM",
+        operation: "admin-reset-password",
+        user_id: superadminUserId,
+        tenant_id: targetTenantId,
+        reason_code: boundaryError.code,
+      });
+      return genericErrorResponse();
+    }
+    throw boundaryError;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // STEP 4: RATE LIMITING — 5/hour fail-closed

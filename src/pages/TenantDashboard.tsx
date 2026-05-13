@@ -1,6 +1,6 @@
 // src/pages/TenantDashboard.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import { AppShell } from "@/layouts/AppShell";
+
+// recharts (~25 KiB gzipped) only renders below the fold — lazy load it so
+// the dashboard's initial chunk doesn't carry it.
+const DashboardCharts = lazy(() => import("@/components/dashboard/DashboardCharts"));
 import { useAccessContract } from "@/hooks/useAccessContract";
 import { useTenantOnboarding } from "@/hooks/tenant/useTenantOnboarding";
 import { TenantOnboardingCard } from "@/components/onboarding/TenantOnboardingCard";
@@ -428,42 +430,24 @@ export default function TenantDashboard() {
               </div>
             )}
 
-            {/* Charts */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("dashboard.membershipsByMonth")}</CardTitle>
-                  <CardDescription>{t("dashboard.last12Months")}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                    <BarChart data={membershipsByMonth} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} allowDecimals={false} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("dashboard.diplomasByMonth")}</CardTitle>
-                  <CardDescription>{t("dashboard.last12Months")}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                    <BarChart data={diplomasByMonth} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} allowDecimals={false} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Charts (lazy — recharts only loads when this section paints) */}
+            <Suspense
+              fallback={
+                <div className="grid lg:grid-cols-2 gap-6">
+                  <div className="h-[342px] bg-muted/30 rounded-lg animate-pulse" />
+                  <div className="h-[342px] bg-muted/30 rounded-lg animate-pulse" />
+                </div>
+              }
+            >
+              <DashboardCharts
+                membershipsByMonth={membershipsByMonth}
+                diplomasByMonth={diplomasByMonth}
+                membershipsTitle={t("dashboard.membershipsByMonth")}
+                diplomasTitle={t("dashboard.diplomasByMonth")}
+                subtitle={t("dashboard.last12Months")}
+                chartConfig={chartConfig}
+              />
+            </Suspense>
 
             {/* Activity and Quick Actions */}
             <div className="grid lg:grid-cols-2 gap-6">
