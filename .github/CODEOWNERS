@@ -1,0 +1,39 @@
+# Tatame Pro — Code Owners
+#
+# Default reviewer for every path. Add additional owners per area below as the
+# team grows. Lines later in the file override earlier ones, so the last
+# matching pattern for a given path wins.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ─── Default fallback ────────────────────────────────────────────────────────
+*                                       @Comandos08
+
+# ─── CI / build / deploy ─────────────────────────────────────────────────────
+/.github/                               @Comandos08
+/vercel.json                            @Comandos08
+/vite.config.ts                         @Comandos08
+/package.json                           @Comandos08
+/package-lock.json                      @Comandos08
+/scripts/                               @Comandos08
+
+# ─── Database & edge functions ───────────────────────────────────────────────
+# Schema changes and edge functions are blast-radius-heavy — require explicit
+# review even for owners who already match the default pattern.
+/supabase/migrations/                   @Comandos08
+/supabase/functions/                    @Comandos08
+/supabase/functions/_shared/            @Comandos08
+/supabase/functions/stripe-webhook/     @Comandos08
+
+# ─── Security / billing / audit ──────────────────────────────────────────────
+/docs/SECURITY/                         @Comandos08
+/docs/SAFE_GOLD/                        @Comandos08
+/docs/SECURITY-BASELINE-v1.md           @Comandos08
+/docs/HARDENING.md                      @Comandos08
+/src/domain/billing/                    @Comandos08
+/src/domain/audit/                      @Comandos08
+
+# ─── Governance docs ─────────────────────────────────────────────────────────
+/docs/PRODUCT-SAFETY.md                 @Comandos08
+/docs/SSF-CONSTITUTION.md               @Comandos08
+/docs/ENGINEERING_GUARDRAILS.md         @Comandos08
