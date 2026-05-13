@@ -1,0 +1,27 @@
+{
+  "name": "Tatame Pro",
+  "short_name": "Tatame",
+  "description": "Plataforma SaaS para federações e academias de Jiu-Jitsu e artes marciais.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0a",
+  "theme_color": "#dc2626",
+  "categories": ["sports", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
