@@ -42,6 +42,7 @@ import {
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 
 
 interface RejectMembershipRequest {
@@ -287,6 +288,28 @@ serve(async (req) => {
     }
 
     log.info("Authorization verified", { isSuperadmin, isTenantAdmin });
+
+    // ========================================================================
+    // 5️⃣.4️⃣ TENANT BOUNDARY (A04 zero-trust): blocks inactive/deleted tenants
+    // ========================================================================
+    try {
+      const impersonationIdForBoundary = extractImpersonationId(req, body);
+      await assertTenantAccess(supabaseAdmin, user.id, targetTenantId, impersonationIdForBoundary);
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code, tenant_id: targetTenantId });
+        await logDecision(supabaseAdmin, {
+          decision_type: DECISION_TYPES.PERMISSION_DENIED,
+          severity: "MEDIUM",
+          operation: "reject-membership",
+          user_id: user.id,
+          tenant_id: targetTenantId,
+          reason_code: boundaryError.code,
+        });
+        return forbiddenResp(correlationId, dynamicCors);
+      }
+      throw boundaryError;
+    }
 
     // ========================================================================
     // 5️⃣.5️⃣ BILLING STATUS CHECK (P1 - Block operations on restricted tenants)

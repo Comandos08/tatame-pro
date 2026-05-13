@@ -20,6 +20,8 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
+import { extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
 
 
 interface AthleteRow {
@@ -171,7 +173,24 @@ serve(async (req) => {
       });
     }
 
-    // Verify the requesting user has admin access to this tenant
+    // Tenant boundary (A04 zero-trust): validates UUID format, tenant is
+    // active, user has membership OR is a SUPERADMIN with valid impersonation.
+    try {
+      const impersonationId = extractImpersonationId(req, body);
+      await assertTenantAccess(supabaseAdmin, user.id, tenant_id, impersonationId);
+    } catch (boundaryError) {
+      if (boundaryError instanceof TenantBoundaryError) {
+        log.warn("Tenant boundary violation", { code: boundaryError.code, userId: user.id, tenant_id });
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          headers: { ...dynamicCors, "Content-Type": "application/json" },
+          status: 403,
+        });
+      }
+      throw boundaryError;
+    }
+
+    // Role gate (additive — assertTenantAccess only checks membership exists,
+    // not the specific role required for a bulk import).
     const { data: roleCheck } = await supabaseAdmin
       .from("user_roles")
       .select("role")
