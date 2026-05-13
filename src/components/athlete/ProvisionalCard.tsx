@@ -1,9 +1,6 @@
 
-import { QRCodeSVG } from 'qrcode.react';
-import { QrCode, AlertCircle, Clock, ExternalLink, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { QrCode, AlertCircle, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { StatusBadge, StatusType } from '@/components/ui/status-badge';
 import { useI18n } from '@/contexts/I18nContext';
 import { formatDate } from '@/lib/i18n/formatters';
@@ -22,18 +19,19 @@ export interface ProvisionalCardProps {
 export function ProvisionalCard({
   athleteName,
   tenantName,
-  tenantSlug,
-  membershipId,
   membershipStatus,
   paymentStatus,
   endDate,
   sportTypes,
 }: ProvisionalCardProps) {
   const { t, locale } = useI18n();
-  
-  // Build the verification URL
-  const verificationUrl = `${window.location.origin}/${tenantSlug}/verify/membership/${membershipId}`;
-  
+
+  // No QR / verify button is shown until the digital_card is issued.
+  // The /verify/membership endpoint relies on the membership_verification
+  // view, whose RLS requires membership_has_digital_card(id)=true. Showing a
+  // scannable QR before approval would always resolve to "not found", which
+  // is misleading and the symptom the audit flagged.
+
   // Determine status message and icon based on payment and membership status
   const getStatusMessage = () => {
     if (paymentStatus === 'PENDING') {
@@ -80,21 +78,19 @@ export function ProvisionalCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* QR Code */}
-          <div className="bg-muted/50 rounded-xl p-4 flex flex-col items-center justify-center">
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <QRCodeSVG 
-                value={verificationUrl}
-                size={140}
-                level="M"
-                includeMargin={false}
-              />
+          {/* Status placeholder (in place of the QR until the digital card is issued) */}
+          <div className="bg-muted/50 rounded-xl p-6 flex flex-col items-center justify-center text-center">
+            <div className="h-32 w-32 rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-2 bg-background/40">
+              <QrCode className="h-10 w-10 text-muted-foreground/50" strokeWidth={1.5} />
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 px-2">
+                {t('athleteArea.provisionalCard')}
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-3 text-center">
+            <p className="text-xs text-muted-foreground mt-3 max-w-[220px]">
               {t('athleteArea.provisionalQrHint')}
             </p>
           </div>
-          
+
           {/* Athlete Info */}
           <div className="space-y-2 text-center">
             <p className="font-semibold text-lg">{athleteName}</p>
@@ -105,40 +101,28 @@ export function ProvisionalCard({
               </p>
             )}
           </div>
-          
+
           {/* Status Badge */}
           <div className="flex justify-center">
-            <StatusBadge 
-              status={membershipStatus as StatusType} 
+            <StatusBadge
+              status={membershipStatus as StatusType}
               size="default"
             />
           </div>
-          
+
           {/* Validity */}
           {endDate && (
             <p className="text-sm text-muted-foreground text-center">
               {t('verification.validUntil')}: {formatDate(endDate, locale)}
             </p>
           )}
-          
+
           {/* Notice */}
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg p-3">
             <p className="text-xs text-amber-800 dark:text-amber-200 text-center">
               {t('verification.provisionalNotice')}
             </p>
           </div>
-          
-          {/* Verify Button */}
-          <Button 
-            variant="outline"
-            className="w-full"
-            asChild
-          >
-            <Link to={`/${tenantSlug}/verify/membership/${membershipId}`}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              {t('athleteArea.verifyMembership')}
-            </Link>
-          </Button>
         </div>
       </CardContent>
     </Card>
