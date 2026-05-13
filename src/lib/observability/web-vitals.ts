@@ -80,18 +80,38 @@ function observePaint(): void {
 
 function observeLCP(): void {
   try {
+    let latestValue = 0;
+    let reported = false;
+
     const observer = new PerformanceObserver((list) => {
       const entries = list.getEntries();
       const last = entries[entries.length - 1];
-      if (last) {
-        reportMetric({
-          name: 'LCP',
-          value: last.startTime,
-          rating: rate('LCP', last.startTime),
-        });
-      }
+      if (last) latestValue = last.startTime;
     });
     observer.observe({ type: 'largest-contentful-paint', buffered: true });
+
+    // Report once when the page becomes hidden (user navigates away or
+    // backgrounds the tab) OR on the first user interaction. LCP only
+    // freezes when interaction starts, so this is when the "final" LCP
+    // is known. Previously we reported on every candidate, flooding the
+    // console with progressively-worse measurements.
+    const report = () => {
+      if (reported || latestValue === 0) return;
+      reported = true;
+      observer.disconnect();
+      reportMetric({
+        name: 'LCP',
+        value: latestValue,
+        rating: rate('LCP', latestValue),
+      });
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') report();
+    });
+    ['click', 'keydown'].forEach((evt) =>
+      document.addEventListener(evt, report, { once: true, capture: true }),
+    );
   } catch {
     // Not supported
   }
