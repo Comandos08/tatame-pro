@@ -8,6 +8,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { SecureRateLimiter, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 
 Deno.serve(async (req) => {
@@ -15,8 +17,11 @@ Deno.serve(async (req) => {
     return corsPreflightResponse(req);
   }
   const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("emit-institutional-event", correlationId);
 
   try {
+    log.info("emit-institutional-event invoked");
     // 1. Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {

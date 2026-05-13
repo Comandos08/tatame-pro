@@ -20,6 +20,8 @@ import {
   errorResponse,
   ERROR_CODES,
 } from "../_shared/errors/envelope.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 
 export const handler = async (req: Request): Promise<Response> => {
@@ -28,10 +30,13 @@ export const handler = async (req: Request): Promise<Response> => {
   }
 
   const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("list-public-academies", correlationId);
 
   try {
     const url = new URL(req.url);
     const tenantSlug = url.searchParams.get("tenant_slug");
+    log.info("list-public-academies invoked", { tenantSlug });
 
     if (!tenantSlug || typeof tenantSlug !== "string" || tenantSlug.length > 100) {
       return errorResponse(

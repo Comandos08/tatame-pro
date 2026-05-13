@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { okResponse, buildSuccessEnvelope } from "../_shared/errors/envelope.ts";
+import { createBackendLogger } from "../_shared/backend-logger.ts";
+import { extractCorrelationId } from "../_shared/correlation.ts";
 
 type HealthPayload = {
   status: "HEALTHY" | "DEGRADED";
@@ -16,8 +18,11 @@ serve(async (req) => {
   }
 
   const dynamicCors = buildCorsHeaders(req.headers.get("Origin") ?? null);
+  const correlationId = extractCorrelationId(req);
+  const log = createBackendLogger("health-check", correlationId);
   const startMs = performance.now();
   const checks: HealthPayload["checks"] = {};
+  log.info("health-check invoked");
 
   // Check 1: Supabase Database connectivity
   try {
