@@ -22,6 +22,7 @@ import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
+import { forbiddenResponse } from "../_shared/errors/envelope.ts";
 
 
 interface AthleteRow {
@@ -181,10 +182,7 @@ serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code, userId: user.id, tenant_id });
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-          status: 403,
-        });
+        return forbiddenResponse(dynamicCors);
       }
       throw boundaryError;
     }
