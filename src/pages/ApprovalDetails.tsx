@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { AppShell } from "@/layouts/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -137,41 +138,47 @@ export default function ApprovalDetails() {
   // ── Loading state ────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-48 w-full" />
-      </div>
+      <AppShell>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </AppShell>
     );
   }
 
   // ── Error state ──────────────────────────────────────────────────
   if (isError) {
     return (
-      <div className="p-6">
-        <Button variant="ghost" className="mb-4" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-        <Card className="p-8 text-center text-destructive">
-          Erro ao carregar solicitação. Tente novamente.
-        </Card>
-      </div>
+      <AppShell>
+        <div className="p-6">
+          <Button variant="ghost" className="mb-4" onClick={() => navigate(-1)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+          <Card className="p-8 text-center text-destructive">
+            Erro ao carregar solicitação. Tente novamente.
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 
   // ── Not found state ──────────────────────────────────────────────
   if (!membership) {
     return (
-      <div className="p-6">
-        <Button variant="ghost" className="mb-4" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-        <Card className="p-8 text-center text-muted-foreground">
-          Solicitação não encontrada.
-        </Card>
-      </div>
+      <AppShell>
+        <div className="p-6">
+          <Button variant="ghost" className="mb-4" onClick={() => navigate(-1)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+          <Card className="p-8 text-center text-muted-foreground">
+            Solicitação não encontrada.
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 
@@ -270,8 +277,9 @@ export default function ApprovalDetails() {
 
   // ── Render ───────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6 max-w-3xl mx-auto">
-      {/* Header */}
+    <AppShell>
+      <div className="p-6 space-y-6 max-w-3xl mx-auto">
+        {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -560,6 +568,7 @@ export default function ApprovalDetails() {
           <p className="text-sm">{membership.rejection_reason}</p>
         </Card>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 }
