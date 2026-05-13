@@ -81,6 +81,12 @@ jobs:
         # silent failure where Vite substitutes `undefined` literals when env
         # vars are missing at build time. See scripts/verify-build-env.mjs for
         # the three checks performed.
+        env:
+          # Must mirror the Build step so the verifier derives the same
+          # expected Supabase host. Without this, the script falls back to
+          # its hardcoded default and fails when a custom project URL is
+          # configured in repo secrets.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://kotxhtveuegrywzyvdnl.supabase.co' }}
         run: node scripts/verify-build-env.mjs
 
       - name: Bundle size budget
