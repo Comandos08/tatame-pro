@@ -205,7 +205,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                           selected={field.value}
                           onSelect={field.onChange}
                           disabled={(date) => date < new Date()}
-                          initialFocus
+                          autoFocus
                         />
                       </PopoverContent>
                     </Popover>
@@ -248,7 +248,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
                             const startDate = form.getValues('start_date');
                             return startDate ? date < startDate : date < new Date();
                           }}
-                          initialFocus
+                          autoFocus
                         />
                       </PopoverContent>
                     </Popover>
