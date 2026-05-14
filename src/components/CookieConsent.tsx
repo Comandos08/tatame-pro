@@ -37,6 +37,9 @@ export default function CookieConsent() {
           {t('cookie.message')}{' '}
           <Link to="/privacy" className="underline hover:text-foreground transition-colors">
             {t('cookie.learnMore')}
+          </Link>{' '}·{' '}
+          <Link to="/terms" className="underline hover:text-foreground transition-colors">
+            {t('footer.terms')}
           </Link>
         </p>
         <div className="flex gap-2 shrink-0">

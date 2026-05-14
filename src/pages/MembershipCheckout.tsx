@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -217,6 +217,20 @@ export default function MembershipCheckout() {
                 </>
               )}
             </Button>
+          )}
+
+          {!feePaid && feeConfigured && (
+            <p className="text-xs text-muted-foreground text-center">
+              Ao prosseguir, você concorda com nossos{' '}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
+                Termos de Uso
+              </Link>{' '}
+              e{' '}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
+                Política de Privacidade
+              </Link>
+              .
+            </p>
           )}
 
           <div className="text-center space-y-1">
