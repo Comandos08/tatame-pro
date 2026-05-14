@@ -132,28 +132,26 @@ function generateToken(): string {
 }
 
 /**
- * Generic error response for fail-closed scenarios
+ * Generic error response for fail-closed scenarios. Takes corsHeaders as a
+ * parameter because `dynamicCors` is built per-request inside the serve()
+ * callback and is not in scope at module level.
  */
-function genericErrorResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+function genericErrorResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    403,
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["operation not permitted"], correlationId),
+    corsHeaders,
   );
 }
 
 /**
  * Rate limit response (after successful logging)
  */
-function rateLimitResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Too many requests" }),
-    { 
-      status: 429, 
-      headers: { 
-        ...dynamicCors, 
-        "Content-Type": "application/json",
-      } 
-    }
+function rateLimitResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    429,
+    buildErrorEnvelope(ERROR_CODES.RATE_LIMITED, "rate_limit.exceeded", true, ["too many requests"], correlationId),
+    corsHeaders,
   );
 }
 
@@ -199,10 +197,10 @@ serve(async (req) => {
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
         log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
-        return genericErrorResponse();
+        return genericErrorResponse(dynamicCors, correlationId);
       }
 
-      return rateLimitResponse();
+      return rateLimitResponse(dynamicCors, correlationId);
     }
 
     const resend = getEmailClient();
@@ -257,7 +255,7 @@ serve(async (req) => {
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
         log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
-        return genericErrorResponse();
+        return genericErrorResponse(dynamicCors, correlationId);
       }
 
       // Return success to prevent email enumeration, but don't actually process
