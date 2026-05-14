@@ -12,8 +12,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 serve(async (req) => {
@@ -28,10 +33,11 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const supabaseAdmin = createClient(
@@ -49,10 +55,11 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     // Rate limiting: 5 exports per hour per user — PII data, strict limit
@@ -61,10 +68,7 @@ serve(async (req) => {
     const rlResult = await rateLimiter.check(rlContext);
     if (!rlResult.allowed) {
       log.warn("Rate limit exceeded for export-athlete-data", { userId: user.id });
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again later." }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
-        status: 429,
-      });
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     const url = new URL(req.url);
@@ -72,10 +76,11 @@ serve(async (req) => {
     const tenantId = url.searchParams.get("tenant_id");
 
     if (!athleteId || !tenantId) {
-      return new Response(JSON.stringify({ error: "athlete_id and tenant_id are required" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["athlete_id and tenant_id are required"], correlationId),
+        dynamicCors,
+      );
     }
 
     log.info("Export requested", { athleteId, tenantId, requestingUser: user.id });
@@ -89,10 +94,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (athleteCheckError || !athleteRecord) {
-      return new Response(JSON.stringify({ error: "Athlete not found" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 404,
-      });
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["athlete"], correlationId),
+        dynamicCors,
+      );
     }
 
     const isOwnData = athleteRecord.profile_id === user.id;
@@ -108,10 +114,11 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!roleCheck) {
-        return new Response(JSON.stringify({ error: "Access denied" }), {
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-          status: 403,
-        });
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["only the athlete or a tenant admin may export this data"], correlationId),
+          dynamicCors,
+        );
       }
     }
 
@@ -216,9 +223,10 @@ serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     log.error("Export failed", { error: message });
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [message], correlationId),
+      dynamicCors,
+    );
   }
 });

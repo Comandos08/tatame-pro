@@ -33,7 +33,12 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 // ============================================================================
 // CORS HEADERS
@@ -215,12 +220,10 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error confirming payment", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 500,
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
     );
   }
 });

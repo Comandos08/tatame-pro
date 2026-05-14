@@ -14,7 +14,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 const OPERATION_NAME = "create-membership-checkout";
@@ -179,26 +185,22 @@ interface MembershipCheckoutRequest {
 /**
  * Generic error response for fail-closed scenarios
  */
-function genericErrorResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+function genericErrorResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    403,
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["operation not permitted"], correlationId),
+    corsHeaders,
   );
 }
 
 /**
  * Rate limit response (after successful logging)
  */
-function rateLimitResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Too many requests" }),
-    { 
-      status: 429, 
-      headers: { 
-        ...dynamicCors, 
-        "Content-Type": "application/json",
-      } 
-    }
+function rateLimitResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    429,
+    buildErrorEnvelope(ERROR_CODES.RATE_LIMITED, "rate_limit.exceeded", true, ["too many requests"], correlationId),
+    corsHeaders,
   );
 }
 
@@ -216,9 +218,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: "Operation not permitted" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+        dynamicCors,
       );
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -251,10 +254,10 @@ serve(async (req) => {
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
         log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
-        return genericErrorResponse();
+        return genericErrorResponse(dynamicCors, correlationId);
       }
 
-      return rateLimitResponse();
+      return rateLimitResponse(dynamicCors, correlationId);
     }
 
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -283,9 +286,10 @@ serve(async (req) => {
     // Validate CAPTCHA
     const captchaResult = await validateCaptcha(captchaToken, clientIP, log);
     if (!captchaResult.success) {
-      return new Response(
-        JSON.stringify({ error: captchaResult.error, captchaRequired: true }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "captcha.required", false, [captchaResult.error ?? "captcha failed"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -324,10 +328,10 @@ serve(async (req) => {
       // FAIL-CLOSED: If logging fails, return generic error
       if (!logId) {
         log.info("Failed to log rate limit decision - BLOCKING (fail-closed)");
-        return genericErrorResponse();
+        return genericErrorResponse(dynamicCors, correlationId);
       }
 
-      return rateLimitResponse();
+      return rateLimitResponse(dynamicCors, correlationId);
     }
 
     // Fetch membership (pode ter ou não athlete)
@@ -425,22 +429,18 @@ serve(async (req) => {
 
     log.info("Checkout session created", { sessionId: session.id });
 
-    return new Response(
-      JSON.stringify({ url: session.url, sessionId: session.id }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      }
+    return okResponse(
+      { url: session.url, sessionId: session.id },
+      dynamicCors,
+      correlationId,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.info("Error creating checkout session", { error: errorMessage });
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 500,
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
     );
   }
 });

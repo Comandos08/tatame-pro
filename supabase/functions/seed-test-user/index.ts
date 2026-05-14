@@ -2,7 +2,13 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 interface SeedUserRequest {
   email: string;
@@ -34,9 +40,10 @@ serve(async (req: Request) => {
 
     if (!seedEnabled || !expectedSecret) {
       log.warn("Seed endpoint disabled or missing secret");
-      return new Response(
-        JSON.stringify({ error: "SEED_ENDPOINT_DISABLED" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["SEED_ENDPOINT_DISABLED"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -45,9 +52,10 @@ serve(async (req: Request) => {
 
     if (!providedSecret || providedSecret !== expectedSecret) {
       log.warn("Invalid seed secret");
-      return new Response(
-        JSON.stringify({ error: "FORBIDDEN" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["invalid seed secret"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -58,16 +66,18 @@ serve(async (req: Request) => {
 
     if (!supabaseUrl || !serviceRoleKey) {
       log.error("Server configuration missing", { hasUrl: !!supabaseUrl, hasServiceRole: !!serviceRoleKey });
-      return new Response(
-        JSON.stringify({ error: "SERVER_CONFIGURATION_ERROR" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
     if (!email || !password || !name) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: email, password, name" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["email, password and name are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -90,14 +100,15 @@ serve(async (req: Request) => {
           .eq("id", athleteId);
       }
 
-      return new Response(
-        JSON.stringify({
+      return okResponse(
+        {
           success: true,
           userId: existingUser.id,
           email,
           message: "User already exists, athlete linked",
-        }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -111,9 +122,10 @@ serve(async (req: Request) => {
 
     if (createError) {
       log.error("Error creating user", createError);
-      return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "system.user_creation_failed", false, [createError.message], correlationId),
+        dynamicCors,
       );
     }
 
@@ -153,20 +165,23 @@ serve(async (req: Request) => {
 
     log.info("Seed user created successfully", { userId, email, athleteId });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         userId,
         email,
         message: "User created and linked successfully",
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     log.error("Error in seed-test-user", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } },
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [message], correlationId),
+      dynamicCors,
     );
   }
 });

@@ -17,7 +17,13 @@ import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_sh
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface GenerateBracketRequest {
@@ -46,9 +52,10 @@ Deno.serve(async (req) => {
     log.info("Request", { categoryId, eventId, hasImpersonation: !!impersonationId });
 
     if (!categoryId || !eventId) {
-      return new Response(
-        JSON.stringify({ error: 'categoryId and eventId are required' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["categoryId and eventId are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -58,9 +65,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+        dynamicCors,
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
@@ -71,9 +79,10 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -81,9 +90,10 @@ Deno.serve(async (req) => {
 
     if (authError || !user) {
       log.error("Auth error", authError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -96,16 +106,18 @@ Deno.serve(async (req) => {
 
     if (catError || !category) {
       log.error("Category not found", catError);
-      return new Response(
-        JSON.stringify({ error: 'Category not found' }),
-        { status: 404, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["category"], correlationId),
+        dynamicCors,
       );
     }
 
     if (category.deleted_at) {
-      return new Response(
-        JSON.stringify({ error: 'Cannot generate bracket for deleted category' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["category is deleted"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -118,9 +130,10 @@ Deno.serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
-        return new Response(
-          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, [boundaryError.code], correlationId),
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -136,9 +149,10 @@ Deno.serve(async (req) => {
     });
     if (!billingGate.ok) {
       log.warn("Billing gate failed", { code: billingGate.code });
-      return new Response(
-        JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
-        { status: billingGate.httpStatus ?? 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        billingGate.httpStatus ?? 403,
+        buildErrorEnvelope(ERROR_CODES.BILLING_BLOCKED, "billing.write_blocked", false, [billingGate.code, billingGate.error].filter(Boolean) as string[], correlationId),
+        dynamicCors,
       );
     }
 
@@ -151,9 +165,10 @@ Deno.serve(async (req) => {
     );
     if (!roleCheck.allowed) {
       log.warn("Role check failed", { error: roleCheck.error });
-      return new Response(
-        JSON.stringify({ error: roleCheck.error }),
-        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, roleCheck.error ? [roleCheck.error] : undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -167,9 +182,10 @@ Deno.serve(async (req) => {
 
     if (!impersonationCheck.valid) {
       log.warn("Impersonation check failed", { error: impersonationCheck.error });
-      return new Response(
-        JSON.stringify({ error: impersonationCheck.error }),
-        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.impersonation_required", false, impersonationCheck.error ? [impersonationCheck.error] : undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -182,26 +198,33 @@ Deno.serve(async (req) => {
 
     if (eventError || !event) {
       log.error("Event not found", eventError);
-      return new Response(
-        JSON.stringify({ error: 'Event not found' }),
-        { status: 404, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["event"], correlationId),
+        dynamicCors,
       );
     }
 
     if (event.deleted_at) {
-      return new Response(
-        JSON.stringify({ error: 'Cannot generate bracket for deleted event' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["event is deleted"], correlationId),
+        dynamicCors,
       );
     }
 
     const allowedStatuses = ['REGISTRATION_OPEN', 'REGISTRATION_CLOSED'];
     if (!allowedStatuses.includes(event.status)) {
-      return new Response(
-        JSON.stringify({ 
-          error: `Cannot generate bracket when event status is ${event.status}. Allowed: ${allowedStatuses.join(', ')}` 
-        }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "data.invalid_state",
+          false,
+          [`event status is ${event.status}; allowed: ${allowedStatuses.join(', ')}`],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -217,16 +240,18 @@ Deno.serve(async (req) => {
 
     if (regError) {
       log.error("Registration fetch error", regError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch registrations' }),
-        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.query_failed", false, ["failed to fetch registrations"], correlationId),
+        dynamicCors,
       );
     }
 
     if (!registrations || registrations.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No active registrations in this category' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["no active registrations in this category"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -251,31 +276,31 @@ Deno.serve(async (req) => {
 
     if (rpcError) {
       log.error("RPC error", rpcError);
-      // Check for specific errors
       const errorMessage = rpcError.message || 'Failed to generate bracket';
       const isDraftExists = errorMessage.includes('Draft bracket already exists');
-      
-      return new Response(
-        JSON.stringify({ 
-          error: errorMessage,
-          code: isDraftExists ? 'DRAFT_EXISTS' : 'RPC_ERROR'
-        }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        isDraftExists ? 409 : 400,
+        buildErrorEnvelope(
+          isDraftExists ? ERROR_CODES.CONFLICT : ERROR_CODES.RPC_ERROR,
+          isDraftExists ? "data.draft_bracket_exists" : "system.rpc_failed",
+          false,
+          [`generate_event_bracket_rpc: ${errorMessage}`],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
     log.info("Success via RPC", { result: rpcResult });
 
-    return new Response(
-      JSON.stringify(rpcResult),
-      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
-    );
+    return okResponse(rpcResult, dynamicCors, correlationId);
 
   } catch (err) {
     log.error("Unexpected error", err);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

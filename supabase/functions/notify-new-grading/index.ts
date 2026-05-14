@@ -9,7 +9,7 @@ import { logBillingRestricted } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
-import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
+import { buildErrorEnvelope, errorResponse, okResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 
 interface NotifyGradingRequest {
@@ -158,17 +158,19 @@ serve(async (req) => {
 
     log.info("Grading notification sent successfully", { grading_id, athlete: athlete.email });
 
-    return new Response(
-      JSON.stringify({ success: true, grading_id, athlete_email: athlete.email }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+    return okResponse(
+      { success: true, grading_id, athlete_email: athlete.email },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error sending grading notification", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
     );
   }
 });
