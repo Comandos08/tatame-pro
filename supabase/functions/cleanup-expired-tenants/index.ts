@@ -25,6 +25,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -375,6 +376,19 @@ serve(async (req) => {
     }
 
     log.info("Job completed", results);
+    // Pages on-call when >=50% of attempted deletions errored (absolute
+    // floor of 3 failures). Note: `skipped` (safeguards tripped) is NOT
+    // in the failure denominator on purpose — those are an expected
+    // outcome, not an error.
+    reportBatchOutcome(log, {
+      jobName: "cleanup-expired-tenants",
+      succeeded: results.deleted,
+      failed: results.errors,
+      metadata: {
+        correlation_id: correlationId,
+        skipped: results.skipped,
+      },
+    });
 
     return okResponse({ success: true, ...results }, dynamicCors, correlationId);
   } catch (error) {

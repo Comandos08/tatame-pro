@@ -26,6 +26,7 @@ import {
   buildErrorEnvelope,
   ERROR_CODES,
 } from "../_shared/errors/envelope.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 
 
 const GRACE_PERIOD_DAYS = 8;
@@ -186,6 +187,15 @@ serve(async (req) => {
     }
 
     log.info("Job completed", results);
+    // Pages on-call when >=50% of attempted trial expirations errored
+    // (with an absolute floor of 3 failures to avoid noise on tiny
+    // batches). Silent on a clean run.
+    reportBatchOutcome(log, {
+      jobName: "expire-trials",
+      succeeded: results.processed,
+      failed: results.errors,
+      metadata: { correlation_id: correlationId },
+    });
 
     return okResponse({ success: true, ...results }, dynamicCors, correlationId);
   } catch (err) {

@@ -23,6 +23,7 @@ import {
 } from "../_shared/errors/envelope.ts";
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 
 
 serve(async (req) => {
@@ -142,6 +143,15 @@ serve(async (req) => {
 
     log.setStep("done");
     log.info("Job completed", { transitioned, failed, total: count });
+    // Pages on-call when >=50% of PAST_DUE → UNPAID transitions errored
+    // (absolute floor of 3 failures). Stuck PAST_DUE tenants past their
+    // grace window mean billing drift visible to end users.
+    reportBatchOutcome(log, {
+      jobName: "expire-grace-period",
+      succeeded: transitioned,
+      failed,
+      metadata: { correlation_id: correlationId },
+    });
 
     return okResponse(
       {
