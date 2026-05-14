@@ -156,14 +156,17 @@ jobs:
           echo "✅ G2 passed"
 
       - name: G3 — All functions must use envelope helpers
-        # 66/66 functions import okResponse/errorResponse. Verify endpoints
-        # (verify-digital-card, verify-diploma, verify-document) intentionally
-        # preserve their flat public contract `{found|valid, ...}` for
-        # external QR scanners — the envelope helpers are imported and used
-        # in catch blocks so the grep still passes.
-        # generate-digital-card and generate-diploma preserve HTTP 200 for
-        # error paths per the I6 anti-enumeration invariant, but use envelope
-        # shapes (`{ok:false, code, messageKey, details, ...}`).
+        # All 66 functions import okResponse/errorResponse from
+        # _shared/errors/envelope.ts. Documented exceptions to the success
+        # path (still satisfy the import grep):
+        #   * verify-digital-card / verify-diploma / verify-document keep a
+        #     flat `{found|valid, ...}` contract for external QR scanners
+        #     and only call errorResponse() on the catch.
+        #   * generate-digital-card / generate-diploma preserve HTTP 200 on
+        #     error paths per the I6 anti-enumeration invariant, but use the
+        #     envelope shape `{ok:false, code, messageKey, details, ...}`.
+        # Any new function MUST import the envelope helpers — regressing
+        # this is a hard fail (no continue-on-error).
         run: |
           echo "🔍 G3: Checking envelope usage in all Edge Functions..."
           FAILED=0
@@ -171,12 +174,30 @@ jobs:
             fn=$(basename "$dir")
             [[ "$fn" == _* ]] && continue
             if ! grep -q "okResponse\|errorResponse" "$dir/index.ts" 2>/dev/null; then
-              echo "⚠️ $fn does not use envelope helpers (advisory)"
+              echo "❌ $fn must import okResponse/errorResponse from _shared/errors/envelope.ts"
               FAILED=1
             fi
           done
           if [ "$FAILED" -eq 1 ]; then exit 1; fi
-          echo "✅ G3 passed"
+          echo "✅ G3 passed (66/66)"
+
+      - name: G3.1 — Edge Functions must not ship ad-hoc {ok:false,error:...}
+        # Companion check to G3: even when an Edge Function imports the
+        # envelope helpers, a stray `JSON.stringify({ ok:false, error:` slips
+        # past G2 (which only flags `{ error:`). Anything matching the
+        # ad-hoc anti-envelope shape is a regression and blocks the PR.
+        # Documented exceptions are listed in the grep -v at the end.
+        run: |
+          echo "🔍 G3.1: Checking for ad-hoc {ok:false,error:...} responses..."
+          FOUND=$(grep -rEn 'JSON\.stringify\(\s*\{\s*ok:\s*false\s*,\s*error:' \
+            supabase/functions --include="*.ts" 2>/dev/null \
+            | grep -Ev "_tests/|\.test\.ts|_shared/" || true)
+          if [ -n "$FOUND" ]; then
+            echo "❌ Ad-hoc {ok:false,error:...} response found — use errorResponse(status, buildErrorEnvelope(...), corsHeaders)"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ G3.1 passed"
 
       - name: G4 — All functions must use backend-logger
         run: |

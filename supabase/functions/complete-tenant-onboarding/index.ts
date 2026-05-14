@@ -143,9 +143,10 @@ serve(async (req) => {
     const { tenantId } = body;
 
     if (!tenantId) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing tenantId", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["tenantId is required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -234,9 +235,10 @@ serve(async (req) => {
 
     if (tenantError || !tenant) {
       log.info("Tenant not found", { error: tenantError?.message });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Tenant not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["tenant"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -510,9 +512,10 @@ serve(async (req) => {
     // dropped stack traces; passing error as the err arg surfaces the
     // full trace into both the structured log line and Sentry.
     log.critical("Unexpected error during tenant onboarding completion", error);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });
