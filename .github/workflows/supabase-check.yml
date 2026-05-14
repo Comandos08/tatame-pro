@@ -14,6 +14,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Deno
+        # Required for the unit-test step below. Edge Functions run on Deno
+        # in production; we use the same runtime in CI so the test surface
+        # matches the deploy surface 1:1.
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Backend unit tests (Deno)
+        # Runs every `_shared/*.test.ts` file. These are pure-function /
+        # mocked-Supabase contract tests with no live network or DB
+        # dependency — they should be deterministic and fast (<10s total).
+        # Permissions: --allow-env for Deno.env.get/set used by tests that
+        # gate on CRON_SECRET / TURNSTILE_SECRET_KEY; --allow-net so Deno
+        # can fetch the std@0.224.0 imports from deno.land.
+        # `_tests/` is intentionally NOT included here — it contains an
+        # integration test that needs a live Supabase project; covering it
+        # is a separate follow-up.
+        run: deno test --allow-env --allow-net supabase/functions/_shared/
+
       - name: Validate SQL — No DROP TABLE
         run: |
           echo "🔍 Checking for DROP TABLE in migrations added after SAFE GOLD governance..."
