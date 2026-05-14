@@ -18,6 +18,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -167,6 +168,16 @@ serve(async (req) => {
     }
 
     log.info("Job completed", results);
+    // Pages on-call when >=50% of attempted PENDING_DELETE transitions
+    // errored (absolute floor of 3 failures). A high failure rate here
+    // means tenants are stuck in TRIAL_EXPIRED past their grace window —
+    // visible billing drift.
+    reportBatchOutcome(log, {
+      jobName: "mark-pending-delete",
+      succeeded: results.processed,
+      failed: results.errors,
+      metadata: { correlation_id: correlationId },
+    });
 
     return okResponse({ success: true, ...results }, dynamicCors, correlationId);
   } catch (error) {
