@@ -828,10 +828,16 @@ async function handleSubscriptionChange(
     try {
       assertBillingConsistency(billingStatus as BillingStatus, isActive);
     } catch (consistencyError) {
-      log.error("BILLING_CONSISTENCY_MISMATCH", { 
-        billingStatus, 
-        isActive, 
+      // Data-integrity incident: post-write check disagrees with what we
+      // just wrote. Escalate via log.critical so Slack/email/Sentry get
+      // paged, not just the dashboard. Previous call passed the metadata
+      // object in the `err` slot, which the logger stringifies to
+      // "[object Object]" — fixed by passing consistencyError as err.
+      log.critical("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+        billingStatus,
+        isActive,
         tenantId: actualTenantId,
+        handler: "subscription_update_state_machine",
       });
       await createAuditLog(supabase, {
         event_type: AUDIT_EVENTS.BILLING_TRANSITION_BLOCKED,
@@ -853,7 +859,7 @@ async function handleSubscriptionChange(
   try {
     await assertBillingTenantConsistency(supabase, actualTenantId);
   } catch (consistencyError) {
-    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+    log.critical("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
       tenant_id: actualTenantId,
       handler: "subscription_update",
     });
@@ -971,7 +977,7 @@ async function handleSubscriptionDeleted(
   try {
     await assertBillingTenantConsistency(supabase, billing.tenant_id);
   } catch (consistencyError) {
-    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+    log.critical("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
       tenant_id: billing.tenant_id,
       handler: "subscription_deleted",
     });
@@ -1164,7 +1170,7 @@ async function handleInvoicePaymentSucceeded(
   try {
     await assertBillingTenantConsistency(supabase, billing.tenant_id);
   } catch (consistencyError) {
-    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+    log.critical("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
       tenant_id: billing.tenant_id,
       handler: "invoice_payment_succeeded",
     });
@@ -1283,7 +1289,7 @@ async function handleInvoicePaymentFailed(
   try {
     await assertBillingTenantConsistency(supabase, billing.tenant_id);
   } catch (consistencyError) {
-    log.error("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
+    log.critical("BILLING_CONSISTENCY_MISMATCH", consistencyError, {
       tenant_id: billing.tenant_id,
       handler: "invoice_payment_failed",
     });
