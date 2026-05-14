@@ -24,7 +24,13 @@ import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requ
 import { createAuditLog } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 serve(async (req) => {
@@ -54,9 +60,10 @@ serve(async (req) => {
     const { badgeId, isActive } = await req.json();
 
     if (!badgeId || typeof isActive !== "boolean") {
-      return new Response(
-        JSON.stringify({ ok: false, error: "badgeId and isActive (boolean) are required", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["badgeId and isActive (boolean) are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -68,9 +75,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (badgeError || !badge) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Badge not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["badge"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -83,9 +91,10 @@ serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
-        return new Response(
-          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, [boundaryError.code], correlationId),
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -104,10 +113,7 @@ serve(async (req) => {
 
     // 5. Idempotent — same state → no-op
     if (badge.is_active === isActive) {
-      return new Response(
-        JSON.stringify({ ok: true, action: "NOOP", badgeCode: badge.code }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-      );
+      return okResponse({ action: "NOOP", badgeCode: badge.code }, dynamicCors, correlationId);
     }
 
     // 6. Update
@@ -133,15 +139,13 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({ ok: true, action: eventType, badgeCode: badge.code }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
+    return okResponse({ action: eventType, badgeCode: badge.code }, dynamicCors, correlationId);
   } catch (error) {
     log.error("[TOGGLE-BADGE-ACTIVE] Error:", error);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

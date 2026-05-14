@@ -330,19 +330,22 @@ export default function AthleteGradingsPage() {
         throw new Error(response.error.message);
       }
 
+      // Edge function returns the institutional envelope:
+      //   success → { ok: true, data: { diploma, grading }, timestamp }
+      //   error   → { ok: false, code, messageKey, details: [businessCode, ...] }
+      // PI-POL-001C/D: business codes are in details[0] (MEMBERSHIP_REQUIRED, OFFICIALITY_OVERRIDE_FORBIDDEN).
       const result = response.data;
-      if (!result.success) {
-        // PI-POL-001C: Handle MEMBERSHIP_REQUIRED with user-friendly message
-        if (result.error === 'MEMBERSHIP_REQUIRED') {
+      if (result?.ok === false) {
+        const businessCode = Array.isArray(result.details) ? result.details[0] : undefined;
+        if (businessCode === 'MEMBERSHIP_REQUIRED') {
           toast.error(t('grading.membershipRequired'));
           return;
         }
-        // PI-POL-001D: Handle override forbidden
-        if (result.error === 'OFFICIALITY_OVERRIDE_FORBIDDEN') {
+        if (businessCode === 'OFFICIALITY_OVERRIDE_FORBIDDEN') {
           toast.error(t('grading.override.forbidden'));
           return;
         }
-        throw new Error(result.error || 'Erro ao gerar diploma');
+        throw new Error(businessCode || result.messageKey || result.code || 'Erro ao gerar diploma');
       }
 
       queryClient.invalidateQueries({ queryKey: ['athlete-gradings', athleteId] });

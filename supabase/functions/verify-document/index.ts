@@ -6,8 +6,11 @@ import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { SecureRateLimitPresets, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+// PUBLIC VERIFICATION CONTRACT — preserved on purpose. See verify-digital-card
+// for the rationale; this endpoint follows the same exception to G3.
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 /**
  * PI-D3-DOCS1.0: Public Document Verification Endpoint

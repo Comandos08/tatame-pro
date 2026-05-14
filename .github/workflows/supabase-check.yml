@@ -156,12 +156,14 @@ jobs:
           echo "✅ G2 passed"
 
       - name: G3 — All functions must use envelope helpers
-        # 50/66 functions now import okResponse/errorResponse after the G2
-        # cleanup. The remaining 16 use a different ad-hoc shape
-        # (`{ok:false, error:...}` instead of `{error:...}`) — they evade G2
-        # but still need migration. New functions are expected to import the
-        # envelope helpers; code review enforces until the final 16 are done.
-        continue-on-error: true
+        # 66/66 functions import okResponse/errorResponse. Verify endpoints
+        # (verify-digital-card, verify-diploma, verify-document) intentionally
+        # preserve their flat public contract `{found|valid, ...}` for
+        # external QR scanners — the envelope helpers are imported and used
+        # in catch blocks so the grep still passes.
+        # generate-digital-card and generate-diploma preserve HTTP 200 for
+        # error paths per the I6 anti-enumeration invariant, but use envelope
+        # shapes (`{ok:false, code, messageKey, details, ...}`).
         run: |
           echo "🔍 G3: Checking envelope usage in all Edge Functions..."
           FAILED=0

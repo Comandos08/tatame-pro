@@ -50,7 +50,13 @@ import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-bound
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 // Generate QR code as base64 PNG data URL
 async function generateQRCodeDataUrl(data: string): Promise<string> {
@@ -100,9 +106,10 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const BASE_URL = Deno.env.get('PUBLIC_APP_URL') ?? 'https://tatame-pro.lovable.app';
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+        dynamicCors,
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
@@ -114,16 +121,18 @@ serve(async (req) => {
     // AUTH VALIDATION (Zero-Trust prerequisite)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing authorization' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
     const { data: { user }, error: userErr } = await supabaseAuth.auth.getUser();
     if (userErr || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid authentication' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -132,9 +141,11 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid request' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      // I6 — HTTP 200 with envelope error (anti-enumeration)
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.MALFORMED_JSON, "validation.invalid_request", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -142,32 +153,36 @@ serve(async (req) => {
 
     // PI-D5.B: Validate UUID format for all IDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
+
     if (!athleteId || !gradingLevelId || !promotionDate) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["athleteId, gradingLevelId and promotionDate are required"], correlationId),
+        dynamicCors,
       );
     }
 
     if (!uuidRegex.test(athleteId) || !uuidRegex.test(gradingLevelId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid ID format' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_uuid", false, ["athleteId and gradingLevelId must be valid UUIDs"], correlationId),
+        dynamicCors,
       );
     }
 
     if (academyId && !uuidRegex.test(academyId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid academy ID format' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_uuid", false, ["academyId must be a valid UUID"], correlationId),
+        dynamicCors,
       );
     }
 
     if (coachId && !uuidRegex.test(coachId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid coach ID format' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_uuid", false, ["coachId must be a valid UUID"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -179,9 +194,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (athleteError || !athlete) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Athlete not found' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["athlete"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -196,17 +212,19 @@ serve(async (req) => {
       .maybeSingle();
 
     if (levelError || !gradingLevel) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Grading level not found' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["grading_level"], correlationId),
+        dynamicCors,
       );
     }
 
     // Validate same tenant
     if (athlete.tenant_id !== gradingLevel.tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid tenant context' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, ["athlete and grading_level belong to different tenants"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -219,9 +237,10 @@ serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
-        return new Response(
-          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, [boundaryError.code], correlationId),
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -235,9 +254,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (tenantError || !tenant) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant not found' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["tenant"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -296,13 +316,16 @@ serve(async (req) => {
         }
       });
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'MEMBERSHIP_REQUIRED',
-          message: 'Official diploma requires ACTIVE membership.'
-        }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "diploma.membership_required",
+          false,
+          ["MEMBERSHIP_REQUIRED", "Official diploma requires ACTIVE membership."],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -364,13 +387,16 @@ serve(async (req) => {
             }
           });
 
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
-              message: 'Override requires valid reason (min 8 chars) and grantor ID.'
-            }),
-            { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+          return errorResponse(
+            200,
+            buildErrorEnvelope(
+              ERROR_CODES.FORBIDDEN,
+              "diploma.officiality_override_forbidden",
+              false,
+              ["OFFICIALITY_OVERRIDE_FORBIDDEN", "Override requires valid reason (min 8 chars) and grantor ID."],
+              correlationId,
+            ),
+            dynamicCors,
           );
         }
 
@@ -402,13 +428,16 @@ serve(async (req) => {
             }
           });
 
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'OFFICIALITY_OVERRIDE_FORBIDDEN',
-              message: 'Override requires ADMIN or SUPERADMIN permissions.'
-            }),
-            { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+          return errorResponse(
+            200,
+            buildErrorEnvelope(
+              ERROR_CODES.FORBIDDEN,
+              "diploma.officiality_override_forbidden",
+              false,
+              ["OFFICIALITY_OVERRIDE_FORBIDDEN", "Override requires ADMIN or SUPERADMIN permissions."],
+              correlationId,
+            ),
+            dynamicCors,
           );
         }
 
@@ -479,9 +508,10 @@ serve(async (req) => {
 
     if (serialError) {
       log.error('Error generating serial number:', serialError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "diploma.generation_failed", true, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -625,9 +655,10 @@ serve(async (req) => {
 
     if (pdfUploadError) {
       log.error('PDF upload error:', pdfUploadError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "diploma.generation_failed", true, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -707,9 +738,16 @@ serve(async (req) => {
 
     if (existingDiploma) {
       log.info('Duplicate diploma prevented', { athlete_id: athleteId, grading_level_id: gradingLevelId, existing_id: existingDiploma.id });
-      return new Response(
-        JSON.stringify({ success: false, error: 'Diploma já emitido para este atleta neste nível', diploma_id: existingDiploma.id, serial_number: existingDiploma.serial_number }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "diploma.duplicate",
+          false,
+          ["DIPLOMA_DUPLICATE", `existing diploma_id=${existingDiploma.id}`, `serial_number=${existingDiploma.serial_number}`],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -738,9 +776,10 @@ serve(async (req) => {
 
     if (diplomaError || !diploma) {
       log.error('Diploma insert error:', diplomaError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-        { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "diploma.generation_failed", true, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -800,9 +839,8 @@ serve(async (req) => {
       }).catch((err) => log.error('Failed to send grading notification:', err));
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return okResponse(
+      {
         diploma: {
           id: diploma.id,
           serialNumber,
@@ -810,16 +848,18 @@ serve(async (req) => {
           qrCodeImageUrl,
         },
         grading: grading || null,
-      }),
-      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error: unknown) {
-    // PI-D5.B: Neutral error - no stack trace, no semantic info
+    // PI-D5.B: Neutral error - no stack trace, HTTP 200 preserved per I6
     log.error('Error generating diploma:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: 'Diploma generation failed' }),
-      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+    return errorResponse(
+      200,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "diploma.generation_failed", true, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

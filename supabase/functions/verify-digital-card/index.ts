@@ -3,8 +3,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isInstitutionalDocumentValid } from "../_shared/isDocumentValid.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { SecureRateLimitPresets, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+// PUBLIC VERIFICATION CONTRACT — preserved on purpose.
+// External QR scanners (mobile, kiosks, web verifier pages) read fields
+// directly off the response body (`data.found`, `data.isValid`, ...). We
+// intentionally do NOT wrap success/not-found in the institutional envelope;
+// only fatal internal errors (the catch block at the bottom) use it. This
+// is the documented exception to G3 — see docs/BADGE-CONTRACT.md.
+import { buildErrorEnvelope, errorResponse, ERROR_CODES } from "../_shared/errors/envelope.ts";
 
 
 interface VerifyRequest {
@@ -310,12 +317,10 @@ serve(async (req) => {
     });
   } catch (error) {
     log.error("Error verifying card", error);
-    return new Response(
-      JSON.stringify({ found: false, error: "Internal error" }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 500,
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

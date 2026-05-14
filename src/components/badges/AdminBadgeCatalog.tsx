@@ -99,14 +99,16 @@ export function AdminBadgeCatalog({ tenantId }: AdminBadgeCatalogProps) {
       if (response.error) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (envelope) => {
       queryClient.invalidateQueries({ queryKey: ["badge-catalog", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["tenant-badges-catalog", tenantId] });
       setToggleTarget(null);
-      if (data?.action === "NOOP") {
+      // Edge function returns the institutional envelope: { ok, data: { action, ... } }
+      const action = envelope?.data?.action;
+      if (action === "NOOP") {
         toast.info("Status já estava definido.");
       } else {
-        toast.success(data?.action === "BADGE_ACTIVATED" ? "Badge ativado." : "Badge desativado.");
+        toast.success(action === "BADGE_ACTIVATED" ? "Badge ativado." : "Badge desativado.");
       }
     },
     onError: (err: Error) => {

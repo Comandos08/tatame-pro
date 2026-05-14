@@ -22,8 +22,14 @@ import { requireBillingStatus, billingRestrictedResponse } from "../_shared/requ
 import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface AssignBadgeRequest {
@@ -63,10 +69,7 @@ serve(async (req) => {
     const rlResult = await rateLimiter.check(rlContext);
     if (!rlResult.allowed) {
       log.warn("Rate limit exceeded for assign-athlete-badge", { userId: user.id });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Rate limit exceeded", code: "RATE_LIMITED" }),
-        { status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 60) } }
-      );
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     // 2. Parse input
@@ -74,9 +77,10 @@ serve(async (req) => {
     const { athleteId, badgeId } = body;
 
     if (!athleteId || !badgeId) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing athleteId or badgeId", code: "BAD_REQUEST" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["athleteId and badgeId are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -88,9 +92,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (athleteError || !athlete) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Athlete not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["athlete"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -103,9 +108,10 @@ serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
-        return new Response(
-          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, [boundaryError.code], correlationId),
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -133,21 +139,27 @@ serve(async (req) => {
       .maybeSingle();
 
     if (badgeError || !badge) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Badge not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["badge"], correlationId),
+        dynamicCors,
       );
     }
 
     if (badge.tenant_id !== tenantId) {
       log.warn("Cross-tenant badge attempt blocked");
-      return forbiddenResponse("Badge does not belong to this tenant");
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, ["badge does not belong to this tenant"], correlationId),
+        dynamicCors,
+      );
     }
 
     if (!badge.is_active) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Badge is inactive", code: "BADGE_INACTIVE" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["badge is inactive"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -204,15 +216,13 @@ serve(async (req) => {
       });
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, action, badgeCode: badge.code }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
+    return okResponse({ action, badgeCode: badge.code }, dynamicCors, correlationId);
   } catch (error) {
     log.error("Unexpected error", error);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

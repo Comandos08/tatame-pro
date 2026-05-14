@@ -114,12 +114,14 @@ export function AdminBadgeManager({ athleteId, tenantId }: AdminBadgeManagerProp
       if (response.error) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (envelope) => {
       queryClient.invalidateQueries({ queryKey: ["athlete-badges-admin", athleteId] });
       queryClient.invalidateQueries({ queryKey: ["athlete-badges", athleteId] });
       setAssignDialogOpen(false);
       setSelectedBadgeId("");
-      if (data?.action === "NOOP") {
+      // Edge function returns the institutional envelope: { ok, data: { action, ... } }
+      const action = envelope?.data?.action;
+      if (action === "NOOP") {
         toast.info("Badge já atribuído.");
       } else {
         toast.success("Badge atribuído com sucesso.");
