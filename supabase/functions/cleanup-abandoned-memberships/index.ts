@@ -5,6 +5,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -147,6 +148,15 @@ serve(async (req) => {
     const failCount = results.filter(r => !r.success).length;
 
     log.info("Cleanup completed", { successCount, failCount });
+    // Pages on-call when >=50% of abandoned-DRAFT cleanups errored
+    // (absolute floor of 3). High failure rate = abandoned drafts pile
+    // up and pollute the membership tables.
+    reportBatchOutcome(log, {
+      jobName: "cleanup-abandoned-memberships",
+      succeeded: successCount,
+      failed: failCount,
+      metadata: { correlation_id: correlationId, job_run_id: jobRunId },
+    });
 
     // Log job execution completion
     await createAuditLog(supabase, {
@@ -171,7 +181,8 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error("Error", error);
+    // Pages on-call. Top-level catch — cleanup never ran today.
+    log.critical("Fatal error in cleanup-abandoned-memberships", error, { error_message: errorMessage });
     return errorResponse(
       500,
       buildErrorEnvelope(

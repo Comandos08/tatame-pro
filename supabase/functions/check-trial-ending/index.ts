@@ -18,6 +18,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -162,7 +163,18 @@ serve(async (req) => {
       }
     }
 
+    const notified = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
     log.info("Finished processing", { results });
+    // Pages on-call when >=50% of trial-ending notifications errored
+    // (absolute floor of 3). A high failure rate here means tenants are
+    // about to hit TRIAL_EXPIRED without warning.
+    reportBatchOutcome(log, {
+      jobName: "check-trial-ending",
+      succeeded: notified,
+      failed,
+      metadata: { correlation_id: correlationId, job_run_id: jobRunId },
+    });
 
     // Log job execution completion
     await supabase.from("audit_logs").insert({
@@ -172,8 +184,8 @@ serve(async (req) => {
         job_run_id: jobRunId,
         status: 'COMPLETED',
         processed: results.length,
-        notified: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length,
+        notified,
+        failed,
         automatic: true,
         scheduled: true,
         source: 'check-trial-ending-job',
@@ -187,7 +199,9 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error("Error in check-trial-ending", { error: errorMessage });
+    // Pages on-call. Top-level catch means the job died before/during
+    // the batch — no trial-ending emails get sent today.
+    log.critical("Fatal error in check-trial-ending", error, { error_message: errorMessage });
     return errorResponse(
       500,
       buildErrorEnvelope(

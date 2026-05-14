@@ -236,7 +236,9 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error("Fatal error", error);
+    // Pages on-call. Top-level catch — the cleanup never ran, so /tmp
+    // storage will keep accumulating until the next scheduled run.
+    log.critical("Fatal error in cleanup-tmp-documents", error, { error_message: errorMessage });
     return errorResponse(
       500,
       buildErrorEnvelope(

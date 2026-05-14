@@ -201,7 +201,11 @@ serve(async (req) => {
       { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    log.error("Billing consistency scan failed", error);
+    // Pages on-call. This watcher IS the billing-consistency net: if its
+    // own run dies (DB unreachable, schema drift on tenants/tenant_billing,
+    // OOM mid-scan), drift goes silently undetected until the next
+    // scheduled run. Same severity as a detected mismatch.
+    log.critical("Billing consistency scan failed", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Scan failed" }),
       { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
