@@ -497,7 +497,13 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    log.info("Unexpected error", { error: String(error) });
+    // Catastrophic failure during a critical user-facing flow — a stuck
+    // onboarding is the kind of thing an operator should hear about
+    // immediately, not the next time someone checks the dashboard. Also
+    // upgraded the prior log.info(... String(error)) call which silently
+    // dropped stack traces; passing error as the err arg surfaces the
+    // full trace into both the structured log line and Sentry.
+    log.critical("Unexpected error during tenant onboarding completion", error);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal server error", code: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
