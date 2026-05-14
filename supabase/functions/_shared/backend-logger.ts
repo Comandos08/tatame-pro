@@ -16,6 +16,7 @@
  */
 
 import { captureBackendException } from "./sentry.ts";
+import { dispatchCriticalAlert } from "./critical-alert.ts";
 
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
@@ -79,6 +80,18 @@ export interface BackendLogger {
   info(msg: string, data?: Record<string, unknown>): void;
   warn(msg: string, data?: Record<string, unknown>): void;
   error(msg: string, err?: unknown, data?: Record<string, unknown>): void;
+  /**
+   * Same shape as .error() but additionally fire-and-forget dispatches a
+   * CRITICAL alert through notify-critical-alert (Slack + admin email +
+   * institutional_events). Use ONLY for catastrophic failures that warrant
+   * a human looking at the dashboard — billing drift, webhook explosions,
+   * data integrity violations, cron failures that block other crons.
+   *
+   * Do NOT use for normal user-facing errors (400/401/403/404) — those are
+   * .error(). Use the right level so the on-call surface stays signal, not
+   * noise.
+   */
+  critical(msg: string, err?: unknown, data?: Record<string, unknown>): void;
 }
 
 /**
@@ -139,6 +152,49 @@ export function createBackendLogger(fnName: string, correlationId: string): Back
       } catch {
         // Sentry helper already swallows; this is a paranoid second net.
       }
+    },
+
+    critical(msg: string, err?: unknown, data?: Record<string, unknown>) {
+      // Identical to .error() for the structured-log and Sentry paths —
+      // critical IS an error, with extra fanout. Do not split the source
+      // of truth across two formats.
+      const errData: Record<string, unknown> =
+        err instanceof Error
+          ? { error_name: err.name, error_message: err.message }
+          : err !== undefined
+            ? { error_raw: String(err) }
+            : {};
+      emit("ERROR", ctx, msg, { ...errData, severity: "CRITICAL", ...data });
+
+      try {
+        captureBackendException(err ?? new Error(msg), {
+          fn: ctx.fnName,
+          correlationId: ctx.correlationId,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          level: "fatal",
+          tags: { critical: "true" },
+          extra: { log_message: msg, step: ctx.step ?? undefined, ...(data ?? {}) },
+        });
+      } catch { /* swallow */ }
+
+      try {
+        // Fire-and-forget escalation to Slack + email + institutional_events
+        // via the notify-critical-alert function. Never blocks the caller.
+        dispatchCriticalAlert({
+          event_id: ctx.correlationId,
+          event_type: msg,
+          severity: "CRITICAL",
+          tenant_id: ctx.tenantId,
+          source: ctx.fnName,
+          metadata: {
+            user_id: ctx.userId ?? undefined,
+            step: ctx.step ?? undefined,
+            ...errData,
+            ...(data ?? {}),
+          },
+        });
+      } catch { /* swallow — see critical-alert.ts */ }
     },
   };
 }
