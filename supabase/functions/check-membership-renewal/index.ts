@@ -18,6 +18,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -168,7 +169,16 @@ serve(async (req) => {
     }
 
     const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
     log.info("Renewal check complete", { total: results.length, success: successCount });
+    // Pages on-call when >=50% of renewal reminders errored (absolute
+    // floor of 3). Athletes miss the renewal window silently otherwise.
+    reportBatchOutcome(log, {
+      jobName: "check-membership-renewal",
+      succeeded: successCount,
+      failed: failCount,
+      metadata: { correlation_id: correlationId },
+    });
 
     return okResponse(
       { success: true, notified: successCount, total: results.length, results },
@@ -178,7 +188,9 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error("Error in renewal check", error);
+    // Pages on-call. Top-level catch — the whole job died, no renewal
+    // emails get sent today.
+    log.critical("Fatal error in renewal check", error);
     return errorResponse(
       500,
       buildErrorEnvelope(

@@ -5,6 +5,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -194,6 +195,19 @@ serve(async (req) => {
     const failCount = results.filter(r => !r.success).length;
 
     log.info("Cleanup completed", { cancelledCount, skippedCount, failCount });
+    // Pages on-call when >=50% of pending-payment GC errored (absolute
+    // floor of 3). `skipped` (status changed mid-run by another path) is
+    // bucketed separately — not in the failure denominator.
+    reportBatchOutcome(log, {
+      jobName: "cleanup-pending-payment-memberships",
+      succeeded: cancelledCount,
+      failed: failCount,
+      metadata: {
+        correlation_id: correlationId,
+        job_run_id: jobRunId,
+        skipped: skippedCount,
+      },
+    });
 
     // Log job execution completion
     await createAuditLog(supabase, {
@@ -227,7 +241,8 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error("Error", error);
+    // Pages on-call. Top-level catch — pending-payment GC never ran today.
+    log.critical("Fatal error in cleanup-pending-payment-memberships", error, { error_message: errorMessage });
     return errorResponse(
       500,
       buildErrorEnvelope(
