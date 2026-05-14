@@ -34,7 +34,18 @@ jobs:
         # `_tests/` is intentionally NOT included here — it contains an
         # integration test that needs a live Supabase project; covering it
         # is a separate follow-up.
-        run: deno test --allow-env --allow-net supabase/functions/_shared/
+        #
+        # --no-check: required because several tests transitively import
+        # `@supabase/supabase-js@2` via the modules under test
+        # (tenant-boundary.ts, audit-logger.ts, ...). supabase-js has a
+        # `@types/node` peer dep that Deno's type-checker cannot resolve
+        # without a populated node_modules/. Skipping type-check here is
+        # safe — tsc --noEmit in the ci.yml workflow already covers the
+        # frontend/shared TS, and the assertion logic in these tests is
+        # what we actually need to verify at runtime. Re-enable check
+        # once we either (a) switch to a Deno-native supabase-js import
+        # or (b) wire `deno install` against a deno.json with `nodeModulesDir`.
+        run: deno test --allow-env --allow-net --no-check supabase/functions/_shared/
 
       - name: Validate SQL — No DROP TABLE
         run: |
