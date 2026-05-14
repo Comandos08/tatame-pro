@@ -214,30 +214,33 @@ export default function MembershipDetailsPage() {
       return data as unknown as MembershipDetails;
     },
     enabled: !!membershipId,
+    staleTime: 30_000,
   });
 
-  // Fetch last cancellation audit event to determine if manual cancel
+  // Fetch last cancellation audit event to determine if manual cancel.
+  // Previously this fetched the 20 most-recent MEMBERSHIP_MANUAL_CANCELLED
+  // events globally and filtered client-side — which silently missed the
+  // right event whenever there were more than 20 cancellations between this
+  // membership's cancellation and now. Now we filter on the JSONB
+  // membership_id directly so the result is correct regardless of volume.
   const { data: lastCancelEvent } = useQuery({
     queryKey: ['membership-last-cancel-event', membershipId],
     queryFn: async () => {
       if (!membershipId || membership?.status !== 'CANCELLED') return null;
-      
+
       const { data } = await supabase
         .from('audit_logs')
         .select('event_type, metadata')
         .eq('event_type', 'MEMBERSHIP_MANUAL_CANCELLED')
+        .eq('metadata->>membership_id', membershipId)
         .order('created_at', { ascending: false })
-        .limit(20);
-      
-      // Find matching log for this membership
-      const match = data?.find((log) => {
-        const meta = log.metadata as { membership_id?: string } | null;
-        return meta?.membership_id === membershipId;
-      });
-      
-      return match || null;
+        .limit(1)
+        .maybeSingle();
+
+      return data ?? null;
     },
     enabled: !!membershipId && membership?.status === 'CANCELLED',
+    staleTime: 30_000,
   });
 
   // Can reactivate only if:
@@ -284,6 +287,7 @@ export default function MembershipDetailsPage() {
       return data;
     },
     enabled: !!membership?.athlete?.id && !!tenant?.id,
+    staleTime: 30_000,
   });
 
 

@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
@@ -61,6 +62,17 @@ serve(async (req) => {
         JSON.stringify({ error: "Unauthorized" }),
         { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
+    }
+
+    // The file header comment promised "5 registrations per 10 minutes per
+    // athlete (Upstash, fail-open for events)" but the limiter was never
+    // wired. Adding it here so the documented contract matches the runtime.
+    const rateLimiter = RATE_LIMIT_PRESETS.eventRegistrationCheckout();
+    const rlContext = buildRateLimitContext(req, user.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for event registration checkout", { userId: user.id });
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     const body: EventRegistrationCheckoutRequest = await req.json();

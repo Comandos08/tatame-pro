@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 interface RequestBody {
@@ -62,6 +63,16 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Unauthorized - No user ID in token" }),
         { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
       );
+    }
+
+    // 60 requests per minute per authenticated user — caps enumeration of
+    // document IDs while staying well above any legitimate UI burst.
+    const rateLimiter = RATE_LIMIT_PRESETS.getDocument();
+    const rlContext = buildRateLimitContext(req, userId, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for get-document", { userId });
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     // Parse request body

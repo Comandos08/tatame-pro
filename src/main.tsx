@@ -20,6 +20,25 @@ Set these in your .env file or hosting environment and restart.
   throw new Error(`Missing required env vars: ${missingEnvVars.join(', ')}`);
 }
 
+// After a deploy, the browser may still hold an older index.html that
+// references chunks Vercel has already purged. Vite fires "vite:preloadError"
+// whenever a dynamic import (React.lazy) 404s. We do one silent full reload
+// to fetch the new index.html; if it still fails on the next attempt, the
+// ErrorBoundary surfaces the error normally instead of looping forever.
+const CHUNK_RELOAD_KEY = "tatame:chunk-reload-attempt";
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (event) => {
+    try {
+      if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return;
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+    } catch {
+      // sessionStorage unavailable (private mode, quota) — still try to reload.
+    }
+    event.preventDefault();
+    window.location.reload();
+  });
+}
+
 // Sentry — initialize if DSN is configured via VITE_SENTRY_DSN.
 // Bundled as an npm dep but imported dynamically so the ~50KB gzipped chunk
 // is only fetched when there is a DSN to send events to. Consumers
@@ -59,3 +78,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+// Clear the reload guard a few seconds after a successful boot so a later
+// stale-chunk event (another deploy mid-session) can also self-heal once.
+if (typeof window !== "undefined") {
+  setTimeout(() => {
+    try { sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch { /* noop */ }
+  }, 5000);
+}

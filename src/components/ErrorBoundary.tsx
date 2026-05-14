@@ -44,6 +44,31 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Defensive: if a chunk import failed without firing "vite:preloadError"
+    // (e.g. a manual re-import, or an older Vite that didn't emit it), self-
+    // heal by reloading once. Mirrors the listener registered in main.tsx so
+    // the user is never stuck on a stale-chunk 404 loop after a deploy.
+    const isChunkLoadError =
+      error?.name === "ChunkLoadError" ||
+      /Failed to fetch dynamically imported module|Loading chunk \d+ failed|Importing a module script failed/i.test(
+        error?.message ?? "",
+      );
+
+    if (isChunkLoadError) {
+      const KEY = "tatame:chunk-reload-attempt";
+      let alreadyTried = false;
+      try {
+        alreadyTried = Boolean(sessionStorage.getItem(KEY));
+        if (!alreadyTried) sessionStorage.setItem(KEY, String(Date.now()));
+      } catch {
+        // sessionStorage unavailable — still reload once.
+      }
+      if (!alreadyTried) {
+        window.location.reload();
+        return;
+      }
+    }
+
     // Keep signature compatible with current reportErrorBoundary(componentName?: string)
     const route = window.location.pathname;
     const env = import.meta.env.MODE;

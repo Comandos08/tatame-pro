@@ -32,9 +32,22 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth: Only service role or SUPERADMIN
-    const authHeader = req.headers.get("authorization");
-    if (authHeader && !authHeader.includes(supabaseServiceKey)) {
+    // Auth: either an x-cron-secret header (pg_cron path) OR a SUPERADMIN_GLOBAL JWT.
+    // The previous implementation compared the Authorization header against the
+    // service-role key with `.includes()`, which is a brittle and timing-leaky
+    // way to identify cron callers. The pg_cron migration already sends the
+    // canonical `x-cron-secret` header — we match that instead.
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const requestCronSecret = req.headers.get("x-cron-secret");
+    const isCronCall = Boolean(cronSecret && requestCronSecret && requestCronSecret === cronSecret);
+
+    if (!isCronCall) {
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+          status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" },
+        });
+      }
       const token = authHeader.replace("Bearer ", "");
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) {
@@ -58,9 +71,7 @@ serve(async (req) => {
       const rlResult = await rateLimiter.check(rlContext);
       if (!rlResult.allowed) {
         log.warn("Rate limit exceeded for audit-billing-consistency", { userId: user.id });
-        return new Response(JSON.stringify({ ok: false, error: "Rate limit exceeded" }), {
-          status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
-        });
+        return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
       }
     }
 
