@@ -38,7 +38,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { requireTenantActive, tenantNotActiveResponse } from "../_shared/requireTenantActive.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface GenerateCardRequest {
@@ -84,10 +90,11 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       log.warn("Auth failed - missing authorization header");
-      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
@@ -98,10 +105,11 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
     if (userError || !user) {
       log.warn("Auth failed - invalid token");
-      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     log.setUser(user.id);
@@ -112,11 +120,12 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      // Neutral error - no stack trace
-      return new Response(JSON.stringify({ success: false, error: "Invalid request" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      });
+      // Neutral error - HTTP 200 preserved per I6 (anti-enumeration)
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.MALFORMED_JSON, "validation.invalid_request", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const { membershipId } = body;
@@ -124,10 +133,11 @@ serve(async (req) => {
     // PI-D5.B: Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!membershipId || typeof membershipId !== "string" || !uuidRegex.test(membershipId)) {
-      return new Response(JSON.stringify({ success: false, error: "Invalid membership ID" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_uuid", false, ["membershipId must be a valid UUID"], correlationId),
+        dynamicCors,
+      );
     }
 
     // Fetch membership with athlete and tenant data
@@ -168,10 +178,11 @@ serve(async (req) => {
 
       if (!hasAdminRole) {
         log.warn("Access denied - caller is not membership owner or tenant admin", { userId: user.id });
-        return new Response(JSON.stringify({ success: false, error: "Forbidden" }), {
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-          status: 403,
-        });
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["membership owner or tenant admin required"], correlationId),
+          dynamicCors,
+        );
       }
     }
 
@@ -202,10 +213,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingCard) {
-      return new Response(JSON.stringify({ success: true, message: "Card already exists", cardId: existingCard.id }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return okResponse(
+        { message: "Card already exists", cardId: existingCard.id },
+        dynamicCors,
+        correlationId,
+      );
     }
 
     const athlete = membership.athlete;
@@ -531,20 +543,22 @@ serve(async (req) => {
         await supabase.from("digital_cards").delete().eq("id", digitalCard.id);
       }
 
-      return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "card.token_generation_failed", true, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     publicToken = tokenResult;
 
     // Defensive assertion
     if (!publicToken) {
-      return new Response(JSON.stringify({ success: false, error: "Token generation failed" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return errorResponse(
+        200,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "card.token_generation_failed", true, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     // PI-D4-AUDIT1.0: Log DOCUMENT_ISSUED event
@@ -560,9 +574,8 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return okResponse(
+      {
         digitalCard: {
           id: digitalCard.id,
           qrCodeUrl: qrUrl.publicUrl,
@@ -570,15 +583,17 @@ serve(async (req) => {
           contentHash: contentHash,
           publicToken: publicToken,
         },
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 },
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error: unknown) {
-    // PI-D5.B: Neutral error - no stack trace, no semantic info
+    // PI-D5.B: Neutral error - no stack trace, HTTP 200 preserved per I6
     log.error("Error generating digital card:", error);
-    return new Response(JSON.stringify({ success: false, error: "Card generation failed" }), {
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return errorResponse(
+      200,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "card.generation_failed", true, undefined, correlationId),
+      dynamicCors,
+    );
   }
 });

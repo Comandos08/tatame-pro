@@ -11,7 +11,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { mapStripeStatusToBilling } from "../_shared/billing-state-machine.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 // Trial period in days for new tenants (Growth Trial Strategy)
@@ -142,17 +148,20 @@ serve(async (req) => {
         }
       });
       
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error_code: envValidation.error_code,
-          message: envValidation.message
-        }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR,
+          "billing.env_invalid",
+          false,
+          [envValidation.error_code, envValidation.message].filter(Boolean) as string[],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
-    log.info("Environment validation passed", { 
+    log.info("Environment validation passed", {
       keyEnv: envValidation.keyEnv, 
       configEnv: envValidation.configEnv 
     });
@@ -186,13 +195,16 @@ serve(async (req) => {
         }
       });
       
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error_code: priceResolution.error_code,
-          message: priceResolution.message
-        }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.INTERNAL_ERROR,
+          "billing.price_not_configured",
+          false,
+          [priceResolution.error_code, priceResolution.message].filter(Boolean) as string[],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -249,13 +261,16 @@ serve(async (req) => {
           }
         });
         
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error_code: 'BILLING_STRIPE_PRICE_NOT_FOUND',
-            message: 'Stripe price not found in current environment. Check billing configuration.'
-          }),
-          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+        return errorResponse(
+          400,
+          buildErrorEnvelope(
+            ERROR_CODES.INTERNAL_ERROR,
+            "billing.stripe_price_not_found",
+            false,
+            ["Stripe price not found in current environment. Check billing configuration."],
+            correlationId,
+          ),
+          dynamicCors,
         );
       }
     } else {
@@ -326,14 +341,14 @@ serve(async (req) => {
           status: existingSub.status
         });
         
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
+        return okResponse(
+          {
             message: "Subscription already active",
             subscriptionId: existingBilling.stripe_subscription_id,
-            status: existingSub.status
-          }),
-          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+            status: existingSub.status,
+          },
+          dynamicCors,
+          correlationId,
         );
       }
     }
@@ -431,15 +446,15 @@ serve(async (req) => {
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent;
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return okResponse(
+      {
         subscriptionId: subscription.id,
         status: subscription.status,
         clientSecret: paymentIntent?.client_secret,
         currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown billing error";
@@ -463,16 +478,16 @@ serve(async (req) => {
       log.error("[BILLING] Failed to audit unexpected error");
     }
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error_code: "BILLING_UNEXPECTED_ERROR",
-        message: "Unexpected billing error. Please contact support."
-      }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "billing.unexpected_error",
+        true,
+        ["Unexpected billing error. Please contact support."],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });

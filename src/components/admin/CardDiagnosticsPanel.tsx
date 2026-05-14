@@ -140,8 +140,13 @@ export function CardDiagnosticsPanel() {
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Falha ao gerar carteirinha');
-      
+      // Edge function returns the institutional envelope.
+      //   success → { ok: true, data: { digitalCard | message, ... }, timestamp }
+      //   error   → { ok: false, code, messageKey, details, timestamp }
+      if (data?.ok === false) {
+        throw new Error(data.details?.[0] || data.messageKey || data.code || 'Falha ao gerar carteirinha');
+      }
+
       return data;
     },
     onSuccess: (_, membershipId) => {
