@@ -8,7 +8,14 @@
  * the returned object for structured logging.
  *
  * Output: one JSON line per log entry, machine-parseable.
+ *
+ * As of 2026-05-14, `log.error(...)` also fires a fire-and-forget Sentry
+ * event when `SENTRY_DSN_BACKEND` is configured — see `./sentry.ts`. The
+ * Sentry call is wrapped in try/swallow so even a misbehaving observability
+ * layer can never break the calling request path.
  */
+
+import { captureBackendException } from "./sentry.ts";
 
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
@@ -116,6 +123,22 @@ export function createBackendLogger(fnName: string, correlationId: string): Back
             ? { error_raw: String(err) }
             : {};
       emit("ERROR", ctx, msg, { ...errData, ...data });
+
+      // Fire-and-forget Sentry event. No-op when SENTRY_DSN_BACKEND is
+      // unset; never throws regardless. The structured JSON log above is
+      // the source of truth — Sentry is just an indexed/searchable
+      // mirror with alerting on top.
+      try {
+        captureBackendException(err ?? new Error(msg), {
+          fn: ctx.fnName,
+          correlationId: ctx.correlationId,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          extra: { log_message: msg, step: ctx.step ?? undefined, ...(data ?? {}) },
+        });
+      } catch {
+        // Sentry helper already swallows; this is a paranoid second net.
+      }
     },
   };
 }

@@ -60,6 +60,29 @@ serve(async (req) => {
     checks["stripe"] = { status: "UNREACHABLE" };
   }
 
+  // Check 3: Upstash Redis (rate limiter). When Redis is down the secure rate
+  // limiter fails closed, blocking every protected endpoint — so this needs
+  // to surface in health output instead of being invisible until the first
+  // 503 from a real request.
+  try {
+    const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
+    const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+    if (redisUrl && redisToken) {
+      const redisStart = performance.now();
+      const resp = await fetch(`${redisUrl}/ping`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      const redisLatency = Math.round(performance.now() - redisStart);
+      checks["redis"] = resp.ok
+        ? { status: "HEALTHY", latencyMs: redisLatency }
+        : { status: "DEGRADED", latencyMs: redisLatency };
+    } else {
+      checks["redis"] = { status: "NOT_CONFIGURED" };
+    }
+  } catch {
+    checks["redis"] = { status: "UNREACHABLE" };
+  }
+
   const allHealthy = Object.values(checks).every(
     (c) => c.status === "HEALTHY" || c.status === "NOT_CONFIGURED"
   );

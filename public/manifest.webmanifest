@@ -12,8 +12,14 @@
   "categories": ["sports", "productivity", "business"],
   "icons": [
     {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/favicon.png",
-      "sizes": "44x44",
+      "sizes": "44x43",
       "type": "image/png"
     }
   ]
