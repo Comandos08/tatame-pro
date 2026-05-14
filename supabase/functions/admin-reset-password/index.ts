@@ -33,8 +33,14 @@ import {
 } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 // UUID regex for validation
@@ -49,26 +55,20 @@ const rateLimiter = new SecureRateLimiter({
   logSecurityEvent: true,
 });
 
-// Generic error response (anti-enumeration)
-function genericErrorResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    { 
-      status: 403, 
-      headers: { ...dynamicCors, "Content-Type": "application/json" } 
-    }
+// Generic error response (anti-enumeration). corsHeaders is taken as a
+// parameter because `dynamicCors` is built per-request inside the serve()
+// callback and is not in scope at module level.
+function genericErrorResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    403,
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["operation not permitted"], correlationId),
+    corsHeaders,
   );
 }
 
 // Generic success response
-function successResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: true, message: "Password reset executed" }),
-    { 
-      status: 200, 
-      headers: { ...dynamicCors, "Content-Type": "application/json" } 
-    }
-  );
+function successResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return okResponse({ message: "Password reset executed" }, corsHeaders, correlationId);
 }
 
 serve(async (req) => {
@@ -83,9 +83,10 @@ serve(async (req) => {
 
   // Only allow POST
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Method not allowed" }),
-      { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      405,
+      buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.method_not_allowed", false, [`method ${req.method} not allowed`], correlationId),
+      dynamicCors,
     );
   }
 
@@ -103,9 +104,10 @@ serve(async (req) => {
   // ═══════════════════════════════════════════════════════════════
   if (!authHeader?.startsWith("Bearer ")) {
     log.warn("No auth header");
-    return new Response(
-      JSON.stringify({ ok: false, error: "Unauthorized" }),
-      { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      401,
+      buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 
@@ -125,7 +127,7 @@ serve(async (req) => {
       reason: "INSUFFICIENT_PERMISSIONS",
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   const superadminUserId = roleCheck.userId;
@@ -146,9 +148,10 @@ serve(async (req) => {
       metadata: { error: "Could not parse request body" },
     });
 
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid request body" }),
-      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      422,
+      buildErrorEnvelope(ERROR_CODES.MALFORMED_JSON, "validation.invalid_json", false, ["could not parse request body"], correlationId),
+      dynamicCors,
     );
   }
 
@@ -168,7 +171,7 @@ serve(async (req) => {
       reason: "MISSING_IMPERSONATION",
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   // Fetch and validate impersonation session
@@ -188,7 +191,7 @@ serve(async (req) => {
       reason: "INVALID_IMPERSONATION",
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   // Verify ownership
@@ -202,7 +205,7 @@ serve(async (req) => {
       reason: "IMPERSONATION_OWNER_MISMATCH",
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   // Verify active status
@@ -217,7 +220,7 @@ serve(async (req) => {
       reason: `IMPERSONATION_${impersonation.status}`,
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   // Verify not expired
@@ -238,7 +241,7 @@ serve(async (req) => {
       reason: "IMPERSONATION_EXPIRED",
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 
   const targetTenantId = impersonation.target_tenant_id;
@@ -259,7 +262,7 @@ serve(async (req) => {
         tenant_id: targetTenantId,
         reason_code: boundaryError.code,
       });
-      return genericErrorResponse();
+      return genericErrorResponse(dynamicCors, correlationId);
     }
     throw boundaryError;
   }
@@ -282,7 +285,7 @@ serve(async (req) => {
       limit: 5,
     });
 
-    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
+    return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -307,9 +310,10 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid payload" }),
-      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      422,
+      buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_payload", false, ["invalid userId"], correlationId),
+      dynamicCors,
     );
   }
 
@@ -331,9 +335,10 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid payload" }),
-      { status: 422, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      422,
+      buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_payload", false, ["password must be at least 12 characters"], correlationId),
+      dynamicCors,
     );
   }
 
@@ -365,7 +370,7 @@ serve(async (req) => {
       });
 
       // Still return generic error
-      return genericErrorResponse();
+      return genericErrorResponse(dynamicCors, correlationId);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -392,7 +397,7 @@ serve(async (req) => {
       impersonation: impersonationId,
     });
 
-    return successResponse();
+    return successResponse(dynamicCors, correlationId);
 
   } catch (error) {
     log.error("Unexpected error", error);
@@ -411,6 +416,6 @@ serve(async (req) => {
       },
     });
 
-    return genericErrorResponse();
+    return genericErrorResponse(dynamicCors, correlationId);
   }
 });

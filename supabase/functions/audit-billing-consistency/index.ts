@@ -14,8 +14,14 @@ import { deriveTenantActive, isKnownBillingStatus } from "../_shared/billing-sta
 import type { BillingStatus } from "../_shared/billing-state-machine.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 serve(async (req) => {
@@ -44,25 +50,31 @@ serve(async (req) => {
     if (!isCronCall) {
       const authHeader = req.headers.get("authorization");
       if (!authHeader) {
-        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-          status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" },
-        });
+        return errorResponse(
+          401,
+          buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+          dynamicCors,
+        );
       }
       const token = authHeader.replace("Bearer ", "");
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) {
-        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-          status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" },
-        });
+        return errorResponse(
+          401,
+          buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+          dynamicCors,
+        );
       }
       const { data: superadmin } = await supabase
         .from("user_roles").select("id")
         .eq("user_id", user.id).eq("role", "SUPERADMIN_GLOBAL")
         .is("tenant_id", null).maybeSingle();
       if (!superadmin) {
-        return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
-          status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" },
-        });
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["SUPERADMIN_GLOBAL required"], correlationId),
+          dynamicCors,
+        );
       }
 
       // Rate limiting for human callers: 10 scans per hour (expensive full-table scan)
@@ -190,15 +202,15 @@ serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
+    return okResponse(
+      {
         total_tenants: tenants.length,
         tenants_with_billing: billingByTenant.size,
         mismatches_found: mismatches.length,
         mismatches,
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     // Pages on-call. This watcher IS the billing-consistency net: if its
@@ -206,9 +218,10 @@ serve(async (req) => {
     // OOM mid-scan), drift goes silently undetected until the next
     // scheduled run. Same severity as a detected mismatch.
     log.critical("Billing consistency scan failed", error);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Scan failed" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.scan_failed", false, ["billing consistency scan failed"], correlationId),
+      dynamicCors,
     );
   }
 });

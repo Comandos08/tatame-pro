@@ -34,7 +34,13 @@ import { requireTenantActive, tenantNotActiveResponse } from "../_shared/require
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface JoinFederationRequest {
@@ -67,9 +73,10 @@ serve(async (req) => {
     // ========================================================================
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -77,9 +84,10 @@ serve(async (req) => {
       authHeader.replace("Bearer ", "")
     );
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid token" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -90,9 +98,10 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid request" }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.MALFORMED_JSON, "validation.invalid_json", false, ["could not parse request body"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -110,9 +119,10 @@ serve(async (req) => {
     // Validate UUIDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!tenantId || !federationId || !uuidRegex.test(tenantId) || !uuidRegex.test(federationId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid ID format" }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.invalid_uuid", false, ["tenantId and federationId must be valid UUIDs"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -140,9 +150,10 @@ serve(async (req) => {
     const isFedAdmin = fedRoles?.some(r => r.role === "FED_ADMIN");
 
     if (!isSuperadmin && !isTenantAdmin && !isFedAdmin) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Insufficient permissions" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["FED_ADMIN, ADMIN_TENANT or SUPERADMIN_GLOBAL required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -164,16 +175,18 @@ serve(async (req) => {
       .maybeSingle();
 
     if (fedError || !federation) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Federation not found" }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["federation"], correlationId),
+        dynamicCors,
       );
     }
 
     if (federation.status !== "ACTIVE") {
-      return new Response(
-        JSON.stringify({ success: false, error: "Federation is not active" }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, [`federation status is ${federation.status}`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -188,9 +201,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existing && !existing.left_at) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Tenant is already a member" }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.duplicate", false, ["tenant is already a member of this federation"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -212,9 +226,10 @@ serve(async (req) => {
 
       if (updateError) {
         log.error("Update error", updateError);
-        return new Response(
-          JSON.stringify({ success: false, error: "Failed to rejoin federation" }),
-          { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          500,
+          buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.query_failed", true, [`failed to rejoin federation: ${updateError.message}`], correlationId),
+          dynamicCors,
         );
       }
     } else {
@@ -229,9 +244,10 @@ serve(async (req) => {
 
       if (insertError) {
         log.error("Insert error", insertError);
-        return new Response(
-          JSON.stringify({ success: false, error: "Failed to join federation" }),
-          { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          500,
+          buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.query_failed", true, [`failed to join federation: ${insertError.message}`], correlationId),
+          dynamicCors,
         );
       }
     }
@@ -253,21 +269,22 @@ serve(async (req) => {
 
     log.info("Success", { tenantId, federationId });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return okResponse(
+      {
         federationId,
         tenantId,
         joinedAt: now,
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error) {
     log.error("Error", error);
-    return new Response(
-      JSON.stringify({ success: false, error: "Operation failed" }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

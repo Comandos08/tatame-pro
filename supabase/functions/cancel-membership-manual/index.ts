@@ -44,7 +44,13 @@ import {
 } from "../_shared/requireBillingStatus.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 const OPERATION_NAME = "cancel-membership-manual";
@@ -70,15 +76,15 @@ function cancelMembershipRateLimiter() {
 }
 
 /**
- * Generic error response (anti-enumeration)
+ * Generic error response (anti-enumeration). Takes corsHeaders as a parameter
+ * because `dynamicCors` is built per-request inside the serve() callback and
+ * is not in scope at module level.
  */
-function forbiddenResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Operation not permitted" }),
-    {
-      status: 403,
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-    }
+function forbiddenResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    403,
+    buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["operation not permitted"], correlationId),
+    corsHeaders,
   );
 }
 
@@ -106,12 +112,10 @@ serve(async (req) => {
         operation: OPERATION_NAME,
         reason: "MISSING_AUTH",
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        {
-          status: 401,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -125,12 +129,10 @@ serve(async (req) => {
         operation: OPERATION_NAME,
         reason: "INVALID_TOKEN",
       });
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation not permitted" }),
-        {
-          status: 401,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -155,7 +157,7 @@ serve(async (req) => {
         limit: 10,
       });
 
-      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors);
+      return rateLimiter.tooManyRequestsResponse(rateLimitResult, dynamicCors, correlationId);
     }
 
     // ========================================================================
@@ -173,7 +175,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "INVALID_PAYLOAD",
       });
-      return forbiddenResponse();
+      return forbiddenResponse(dynamicCors, correlationId);
     }
 
     const membershipId = body.membershipId;
@@ -188,7 +190,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MISSING_MEMBERSHIP_ID",
       });
-      return forbiddenResponse();
+      return forbiddenResponse(dynamicCors, correlationId);
     }
 
     // Validate reason (min 5 chars)
@@ -202,15 +204,10 @@ serve(async (req) => {
         reason_code: "REASON_TOO_SHORT",
         metadata: { reason_length: reason.length },
       });
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Reason must be at least 5 characters",
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.reason_too_short", false, ["reason must be at least 5 characters"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -238,7 +235,7 @@ serve(async (req) => {
         user_id: user.id,
         reason_code: "MEMBERSHIP_NOT_FOUND",
       });
-      return forbiddenResponse();
+      return forbiddenResponse(dynamicCors, correlationId);
     }
 
     const targetTenantId = membership.tenant_id;
@@ -279,7 +276,7 @@ serve(async (req) => {
         actual_roles: roles?.map((r) => r.role) || [],
         reason: "INSUFFICIENT_PERMISSIONS",
       });
-      return forbiddenResponse();
+      return forbiddenResponse(dynamicCors, correlationId);
     }
 
     // 5.2 If superadmin, REQUIRE valid impersonation
@@ -306,7 +303,7 @@ serve(async (req) => {
           reason: impersonationCheck.error || "INVALID_IMPERSONATION",
         });
 
-        return forbiddenResponse();
+        return forbiddenResponse(dynamicCors, correlationId);
       }
 
       log.info("Superadmin with valid impersonation", {
@@ -345,18 +342,15 @@ serve(async (req) => {
       log.info("Membership already cancelled - idempotent return", {
         membershipId,
       });
-      return new Response(
-        JSON.stringify({
-          ok: true,
+      return okResponse(
+        {
           membershipId,
           previousStatus: "CANCELLED",
           newStatus: "CANCELLED",
           idempotent: true,
-        }),
-        {
-          status: 200,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -371,16 +365,16 @@ serve(async (req) => {
         reason_code: "INVALID_STATUS",
         metadata: { current_status: previousStatus },
       });
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "STATUS_NOT_ELIGIBLE",
-          details: `Cannot cancel membership with status ${previousStatus}. Only DRAFT, PENDING_PAYMENT, PENDING_REVIEW are eligible.`,
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "membership.status_not_eligible",
+          false,
+          [`cannot cancel membership with status ${previousStatus}; only DRAFT, PENDING_PAYMENT, PENDING_REVIEW are eligible`],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -398,17 +392,16 @@ serve(async (req) => {
         reason_code: "ALREADY_PAID",
         metadata: { payment_status: membership.payment_status },
       });
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "CANNOT_CANCEL_PAID_MEMBERSHIP",
-          details:
-            "Paid memberships cannot be manually cancelled. Use refund process instead.",
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "membership.cannot_cancel_paid",
+          false,
+          ["paid memberships cannot be manually cancelled; use refund process instead"],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -428,24 +421,22 @@ serve(async (req) => {
       log.error("Gatekeeper RPC failed", { error: rpcError.message });
       // Check if it's a transition error (race condition)
       if (rpcError.message?.includes("Invalid transition")) {
-        return new Response(
-          JSON.stringify({
-            ok: false,
-            error: "STATUS_CHANGED",
-            details: "Membership status changed during operation",
-          }),
-          {
-            status: 409,
-            headers: { ...dynamicCors, "Content-Type": "application/json" },
-          }
+        return errorResponse(
+          409,
+          buildErrorEnvelope(
+            ERROR_CODES.CONFLICT,
+            "membership.status_changed",
+            false,
+            ["membership status changed during operation"],
+            correlationId,
+          ),
+          dynamicCors,
         );
       }
-      return new Response(
-        JSON.stringify({ ok: false, error: "Operation failed" }),
-        {
-          status: 500,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.RPC_ERROR, "system.rpc_failed", false, [`change_membership_state: ${rpcError.message ?? "unknown"}`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -498,26 +489,21 @@ serve(async (req) => {
 
     log.info("Operation completed successfully", { membershipId });
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
+    return okResponse(
+      {
         membershipId,
         previousStatus,
         newStatus: "CANCELLED",
-      }),
-      {
-        status: 200,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     log.error("Unexpected error", error);
-    return new Response(
-      JSON.stringify({ ok: false, error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

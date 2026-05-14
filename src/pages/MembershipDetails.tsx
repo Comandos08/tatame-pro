@@ -129,8 +129,14 @@ export default function MembershipDetailsPage() {
         }
       );
 
-      if (error || data?.error) {
-        throw new Error(data?.error || error?.message || 'Failed to cancel');
+      // Edge function returns the institutional envelope:
+      //   success → { ok: true, data: {...}, timestamp }
+      //   error   → { ok: false, code, messageKey, details, timestamp }
+      const envelopeError = data && data.ok === false
+        ? (data.details?.[0] || data.code || 'Failed to cancel')
+        : null;
+      if (error || envelopeError) {
+        throw new Error(envelopeError || error?.message || 'Failed to cancel');
       }
 
       return data;
@@ -165,8 +171,12 @@ export default function MembershipDetailsPage() {
         }
       );
 
-      if (error || data?.error) {
-        throw new Error(data?.error || error?.message || 'Failed to reactivate');
+      // Institutional envelope (see cancel-membership-manual handler above).
+      const envelopeError = data && data.ok === false
+        ? (data.details?.[0] || data.code || 'Failed to reactivate')
+        : null;
+      if (error || envelopeError) {
+        throw new Error(envelopeError || error?.message || 'Failed to reactivate');
       }
 
       return data;
