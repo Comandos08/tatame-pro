@@ -7,6 +7,13 @@ import { getMembershipExpiredTemplate } from "../_shared/email-templates/members
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/cron-auth.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface MembershipResult {
@@ -47,28 +54,8 @@ serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("expire-memberships", correlationId);
 
-  // ========================================
-  // CRON_SECRET VALIDATION
-  // ========================================
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestSecret = req.headers.get("x-cron-secret");
-
-  if (!cronSecret) {
-    log.error("CRON_SECRET not configured");
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-
-  if (requestSecret !== cronSecret) {
-    log.error("Invalid or missing x-cron-secret");
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-  // ========================================
+  const cronReject = requireCronSecret(req, dynamicCors, log, correlationId);
+  if (cronReject) return cronReject;
 
   // ========================================================================
   // 4️⃣ JOB CORRELATION ID
@@ -131,8 +118,8 @@ serve(async (req) => {
     log.info("Found memberships to expire", { jobRunId, count: totalFound });
 
     if (!expiredMemberships || expiredMemberships.length === 0) {
-      return new Response(
-        JSON.stringify({ 
+      return okResponse(
+        {
           job: "expire-memberships",
           jobRunId,
           success: true,
@@ -141,8 +128,9 @@ serve(async (req) => {
           emailsSent: 0,
           failed: 0,
           message: "No memberships to expire",
-        }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -425,8 +413,8 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({ 
+    return okResponse(
+      {
         job: "expire-memberships",
         jobRunId,
         success: true,
@@ -436,21 +424,24 @@ serve(async (req) => {
         failed,
         emailsSent,
         results,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error", undefined, { jobRunId, error: errorMessage });
-    return new Response(
-      JSON.stringify({ 
-        job: "expire-memberships",
-        jobRunId,
-        success: false,
-        error: errorMessage,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        false,
+        [errorMessage, `jobRunId=${jobRunId}`],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });
