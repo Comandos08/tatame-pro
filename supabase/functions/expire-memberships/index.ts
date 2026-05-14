@@ -8,6 +8,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -394,6 +395,16 @@ serve(async (req) => {
     const emailsSent = results.filter(r => r.email.sent).length;
 
     log.info("Job completed", { jobRunId, processed, expired, skipped, failed, emailsSent });
+    // Pages on-call when >=50% of attempted membership expirations errored
+    // (absolute floor of 3 failures). `expired` (success) and `skipped`
+    // (engine no-op, e.g. already-sent email) are bucketed separately —
+    // skipped is NOT in the failure denominator.
+    reportBatchOutcome(log, {
+      jobName: "expire-memberships",
+      succeeded: expired,
+      failed,
+      metadata: { correlation_id: correlationId, job_run_id: jobRunId, skipped },
+    });
 
     // Log job execution completion
     await createAuditLog(supabase, {
