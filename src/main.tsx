@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 import { AppProviders } from "@/contexts/AppProviders";
+import { isKnownNoiseError, installNoiseSilencer } from "@/lib/observability/noise-filters";
 
 // Critical env var validation — fail fast with a clear message rather than
 // a cryptic Supabase client error buried deep in the call stack.
@@ -39,6 +40,12 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Suppress browser-extension / known-benign noise at the console level so
+// "Uncaught (in promise)" lines from chrome.runtime listeners closed by
+// their own extension don't pollute the user's devtools and (later) the
+// Sentry dashboard. Patterns are conservative — see noise-filters.ts.
+installNoiseSilencer();
+
 // Sentry — initialize if DSN is configured via VITE_SENTRY_DSN.
 // Bundled as an npm dep but imported dynamically so the ~50KB gzipped chunk
 // is only fetched when there is a DSN to send events to. Consumers
@@ -52,6 +59,15 @@ if (import.meta.env.VITE_SENTRY_DSN && typeof window !== "undefined") {
         environment: import.meta.env.MODE,
         release: (import.meta.env.VITE_APP_VERSION as string) || "unknown",
         tracesSampleRate: 0.1,
+        // Drop chrome-extension and known-benign-warning events before
+        // they hit the dashboard. Same predicate as installNoiseSilencer
+        // — single source of truth for "what counts as noise".
+        beforeSend(event, hint) {
+          if (isKnownNoiseError(hint?.originalException ?? event.message)) {
+            return null;
+          }
+          return event;
+        },
       });
       (window as unknown as Record<string, unknown>)["Sentry"] = Sentry;
     })
