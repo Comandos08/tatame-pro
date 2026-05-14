@@ -137,12 +137,23 @@ export function formatNumber(
 
 /**
  * Formata tempo relativo (ex: "há 5 min", "2 days ago")
+ *
+ * Aceita Date, ISO string, timestamp, null ou undefined — mantém a mesma
+ * convenção defensiva de formatDate/formatCurrency/formatNumber: nulls e
+ * inputs inválidos retornam '-' em vez de propagar Invalid Date pro Intl.
  */
 export function formatRelativeTime(
-  dateStr: string | Date,
+  dateStr: string | number | Date | null | undefined,
   locale: LocaleCode | string
 ): string {
-  const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+  if (dateStr === null || dateStr === undefined) return '-';
+
+  const date = typeof dateStr === 'string' || typeof dateStr === 'number'
+    ? new Date(dateStr)
+    : dateStr;
+
+  if (isNaN(date.getTime())) return '-';
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -154,7 +165,7 @@ export function formatRelativeTime(
   // Use Intl.RelativeTimeFormat when available
   try {
     const rtf = new Intl.RelativeTimeFormat(intlLocale, { numeric: 'auto' });
-    
+
     if (diffMins < 60) {
       return rtf.format(-diffMins, 'minute');
     }
