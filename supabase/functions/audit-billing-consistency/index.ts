@@ -136,12 +136,29 @@ serve(async (req) => {
       }
     }
 
-    // Log results
-    log.info("Billing consistency scan complete", {
-      total_tenants: tenants.length,
-      tenants_with_billing: billingByTenant.size,
-      mismatches_found: mismatches.length,
-    });
+    // Log results. Mismatches are a data-integrity incident: they mean a
+    // tenant's is_active flag has drifted from what the billing status
+    // expects (silent webhook failure, manual override gone wrong, etc.)
+    // and on-call needs to know without a human refreshing this endpoint.
+    if (mismatches.length > 0) {
+      log.critical("BILLING_CONSISTENCY_MISMATCH_DETECTED", undefined, {
+        total_tenants: tenants.length,
+        tenants_with_billing: billingByTenant.size,
+        mismatches_found: mismatches.length,
+        sample: mismatches.slice(0, 5).map((m) => ({
+          tenant_slug: m.tenant_slug,
+          billing_status: m.billing_status,
+          is_active: m.is_active,
+          expected_active: m.expected_active,
+        })),
+      });
+    } else {
+      log.info("Billing consistency scan complete", {
+        total_tenants: tenants.length,
+        tenants_with_billing: billingByTenant.size,
+        mismatches_found: 0,
+      });
+    }
 
     // Record scan result as institutional event
     await supabase.from("institutional_events").insert({
