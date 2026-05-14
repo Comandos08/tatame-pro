@@ -24,6 +24,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/cron-auth.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 // ============================================================================
 // CONFIGURATION
@@ -180,28 +187,8 @@ serve(async (req: Request): Promise<Response> => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("pre-expiration-scheduler", correlationId);
 
-  // ========================================
-  // CRON_SECRET VALIDATION
-  // ========================================
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestSecret = req.headers.get("x-cron-secret");
-
-  if (!cronSecret) {
-    log.error("CRON_SECRET not configured");
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-
-  if (requestSecret !== cronSecret) {
-    log.error("Invalid or missing x-cron-secret");
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-  // ========================================
+  const cronReject = requireCronSecret(req, dynamicCors, log, correlationId);
+  if (cronReject) return cronReject;
 
   const jobRunId = crypto.randomUUID();
 
@@ -525,25 +512,22 @@ serve(async (req: Request): Promise<Response> => {
       results,
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-    });
+    return okResponse(response, dynamicCors, correlationId);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.info("Job failed", { error: errorMessage });
+    log.error("Job failed", error, { jobRunId });
 
-    return new Response(
-      JSON.stringify({
-        job: "pre-expiration-scheduler",
-        jobRunId,
-        error: errorMessage,
-      }),
-      {
-        status: 500,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        false,
+        [errorMessage, `jobRunId=${jobRunId}`],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });

@@ -17,6 +17,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/cron-auth.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 const DELETE_BUFFER_DAYS = 7;
@@ -54,28 +61,8 @@ serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("mark-pending-delete", correlationId);
 
-  // ========================================
-  // CRON_SECRET VALIDATION
-  // ========================================
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestSecret = req.headers.get("x-cron-secret");
-
-  if (!cronSecret) {
-    log.error("CRON_SECRET not configured");
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-
-  if (requestSecret !== cronSecret) {
-    log.error("Invalid or missing x-cron-secret");
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-  // ========================================
+  const cronReject = requireCronSecret(req, dynamicCors, log, correlationId);
+  if (cronReject) return cronReject;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -181,16 +168,20 @@ serve(async (req) => {
 
     log.info("Job completed", results);
 
-    return new Response(
-      JSON.stringify({ success: true, ...results }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
-    );
+    return okResponse({ success: true, ...results }, dynamicCors, correlationId);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Job failed", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        false,
+        [errorMessage],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });

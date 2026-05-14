@@ -24,6 +24,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/cron-auth.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 /**
@@ -64,27 +71,8 @@ serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("transition-youth-to-adult", correlationId);
 
-  // ========================================
-  // CRON_SECRET VALIDATION
-  // ========================================
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestSecret = req.headers.get("x-cron-secret");
-
-  if (!cronSecret) {
-    log.error("CRON_SECRET not configured");
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
-
-  if (requestSecret !== cronSecret) {
-    log.error("Invalid or missing x-cron-secret");
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-    );
-  }
+  const cronReject = requireCronSecret(req, dynamicCors, log, correlationId);
+  if (cronReject) return cronReject;
 
   const jobRunId = crypto.randomUUID();
 
@@ -157,8 +145,8 @@ serve(async (req) => {
         },
       });
 
-      return new Response(
-        JSON.stringify({
+      return okResponse(
+        {
           job: "transition-youth-to-adult",
           jobRunId,
           success: true,
@@ -167,8 +155,9 @@ serve(async (req) => {
           skipped: 0,
           failed: 0,
           message: "No athletes with guardians found",
-        }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -353,8 +342,8 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         job: "transition-youth-to-adult",
         jobRunId,
         success: true,
@@ -363,21 +352,24 @@ serve(async (req) => {
         skipped,
         failed,
         results,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.info("Job failed", { jobRunId, error: errorMessage });
-    return new Response(
-      JSON.stringify({
-        job: "transition-youth-to-adult",
-        jobRunId,
-        success: false,
-        error: errorMessage,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    log.error("Job failed", error, { jobRunId });
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        false,
+        [errorMessage, `jobRunId=${jobRunId}`],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });

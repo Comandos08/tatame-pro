@@ -6,6 +6,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/cron-auth.ts";
+import {
+  okResponse,
+  errorResponse,
+  buildErrorEnvelope,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 // Constantes fixas (IMUTÁVEIS)
 const TTL_DAYS = 7;
@@ -27,27 +34,10 @@ serve(async (req) => {
   const correlationId = extractCorrelationId(req);
   const log = createBackendLogger("cleanup-tmp-documents", correlationId);
 
+  const cronReject = requireCronSecret(req, dynamicCors, log, correlationId);
+  if (cronReject) return cronReject;
+
   try {
-    // 1. Validar CRON_SECRET
-    const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
-    const requestSecret = req.headers.get("x-cron-secret") ?? "";
-
-    if (!cronSecret) {
-      log.error("Error: CRON_SECRET not configured");
-      return new Response(
-        JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (requestSecret !== cronSecret) {
-      log.error("Forbidden: Invalid or missing x-cron-secret header");
-      return new Response(
-        JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -232,23 +222,31 @@ serve(async (req) => {
     log.info("Cleanup completed", { deletedCount, skippedCount });
 
     // 7. Retornar relatório estruturado
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         deleted_count: deletedCount,
         skipped_count: skippedCount,
         ttl_days: TTL_DAYS,
         results,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Fatal error", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(
+        ERROR_CODES.INTERNAL_ERROR,
+        "system.internal_error",
+        false,
+        [errorMessage],
+        correlationId,
+      ),
+      dynamicCors,
     );
   }
 });
