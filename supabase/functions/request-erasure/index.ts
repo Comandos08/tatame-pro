@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 
 
 serve(async (req) => {
@@ -51,6 +52,18 @@ serve(async (req) => {
         JSON.stringify({ error: "Unauthorized" }),
         { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
       );
+    }
+
+    // Rate limit before parsing the body so we cap the cost of abuse —
+    // 3 erasure requests per day per user. The pending-request dedupe below
+    // protects against legitimate duplicates; this protects against bots and
+    // mass enumeration of athlete_id values.
+    const rateLimiter = RATE_LIMIT_PRESETS.requestErasure();
+    const rlContext = buildRateLimitContext(req, user.id, null);
+    const rlResult = await rateLimiter.check(rlContext);
+    if (!rlResult.allowed) {
+      log.warn("Rate limit exceeded for request-erasure", { userId: user.id });
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     const { athlete_id, tenant_id, reason } = await req.json();

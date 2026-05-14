@@ -427,7 +427,39 @@ export const SecureRateLimitPresets = {
     limit: 10,
     windowSeconds: 3600,
   }),
+
+  /** Event registration checkout: 5 per 10 minutes per user */
+  eventRegistrationCheckout: () => new SecureRateLimiter({
+    operation: "event-registration-checkout",
+    limit: 5,
+    windowSeconds: 600,
+  }),
+
+  /** LGPD erasure request: 3 per day per user — sensitive, dedupe already in place */
+  requestErasure: () => new SecureRateLimiter({
+    operation: "request-erasure",
+    limit: 3,
+    windowSeconds: 86400,
+  }),
+
+  /** Get document (private, authenticated): 60 per minute per user */
+  getDocument: () => new SecureRateLimiter({
+    operation: "get-document",
+    limit: 60,
+    windowSeconds: 60,
+  }),
 };
+
+/**
+ * Backwards-compatible alias: eight Edge Functions import the presets as
+ * `RATE_LIMIT_PRESETS` (admin-billing-control, admin-create-user, assign- and
+ * revoke-athlete-badge, audit-billing-consistency, audit-rls,
+ * export-athlete-data, import-athletes). Without this alias the named import
+ * resolves to `undefined` at runtime and the first call to `.someName()`
+ * throws — silently bypassing rate limiting for those endpoints. Keep the
+ * alias until the imports are migrated to `SecureRateLimitPresets`.
+ */
+export const RATE_LIMIT_PRESETS = SecureRateLimitPresets;
 
 /**
  * Utility to extract IP from request
