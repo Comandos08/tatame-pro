@@ -4,7 +4,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import iconLogo from '@/assets/iconLogo.png';
 import { InstitutionalSeal } from '@/components/institutional';
 
-export default function PrivacyPolicy() {
+export default function TermsOfUse() {
   const { t } = useI18n();
 
   return (
@@ -15,110 +15,152 @@ export default function PrivacyPolicy() {
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto">
             <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-8">
-              {t('privacy.title')}
+              {t('terms.title')}
             </h1>
 
             <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
-              {/* Data Controller */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.controller.title')}
-                </h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {t('privacy.controller.text')}
-                </p>
-              </section>
-
-              {/* Data Collected */}
-              <section>
-                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.dataCollected.title')}
+                  {t('terms.acceptance.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.dataCollected.text')}
+                  {t('terms.acceptance.text')}
                 </p>
               </section>
 
-              {/* Purpose */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.purpose.title')}
+                  {t('terms.service.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.purpose.text')}
+                  {t('terms.service.text')}
                 </p>
               </section>
 
-              {/* Legal Basis (LGPD) */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.legalBasis.title')}
+                  {t('terms.account.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.legalBasis.text')}
+                  {t('terms.account.text')}
                 </p>
               </section>
 
-              {/* Data Sharing */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.sharing.title')}
+                  {t('terms.acceptableUse.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.sharing.text')}
+                  {t('terms.acceptableUse.text')}
                 </p>
               </section>
 
-              {/* Rights (LGPD) */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.rights.title')}
+                  {t('terms.payments.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.rights.text')}
+                  {t('terms.payments.text')}
                 </p>
               </section>
 
-              {/* Cookies */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.cookies.title')}
+                  {t('terms.refunds.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {t('privacy.cookies.text')}
+                  {t('terms.refunds.text')}
                 </p>
               </section>
 
-              {/* Data Retention */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.retention.title')}
+                  {t('terms.intellectualProperty.title')}
                 </h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {t('privacy.retention.text')}
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.intellectualProperty.text')}
                 </p>
               </section>
 
-              {/* Contact */}
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
-                  {t('privacy.contact.title')}
+                  {t('terms.tenantData.title')}
                 </h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {t('privacy.contact.text')}
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.tenantData.text')}
                 </p>
               </section>
 
-              {/* Last Updated */}
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.availability.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.availability.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.liability.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.liability.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.termination.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.termination.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.changes.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.changes.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.law.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.law.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.contact.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.contact.text')}
+                </p>
+              </section>
+
+              <p className="text-sm text-muted-foreground pt-4">
+                {t('terms.relatedPrivacy')}{' '}
+                <Link to="/privacy" className="underline hover:text-foreground transition-colors">
+                  {t('terms.relatedPrivacyLink')}
+                </Link>
+                .
+              </p>
+
               <p className="text-xs text-muted-foreground/60 pt-8 border-t border-border">
-                {t('privacy.lastUpdated')}
+                {t('terms.lastUpdated')}
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -129,19 +171,9 @@ export default function PrivacyPolicy() {
               </div>
               <InstitutionalSeal />
             </div>
-            <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6 text-sm">
-              <nav className="flex items-center gap-4 text-muted-foreground">
-                <Link to="/privacy" className="hover:text-foreground transition-colors">
-                  {t('footer.privacy')}
-                </Link>
-                <Link to="/terms" className="hover:text-foreground transition-colors">
-                  {t('footer.terms')}
-                </Link>
-              </nav>
-              <p className="text-sm text-muted-foreground">
-                {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
+            </p>
           </div>
         </div>
       </footer>

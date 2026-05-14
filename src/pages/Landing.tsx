@@ -256,11 +256,20 @@ export default function Landing() {
                 <span className="font-display font-bold">TATAME</span>
               </div>
               <InstitutionalSeal />
-              
             </div>
-            <p className="text-sm text-muted-foreground">
-              {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
-            </p>
+            <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6 text-sm">
+              <nav className="flex items-center gap-4 text-muted-foreground">
+                <Link to="/privacy" className="hover:text-foreground transition-colors">
+                  {t('footer.privacy')}
+                </Link>
+                <Link to="/terms" className="hover:text-foreground transition-colors">
+                  {t('footer.terms')}
+                </Link>
+              </nav>
+              <p className="text-sm text-muted-foreground">
+                {t('landing.copyright').replace('{year}', new Date().getFullYear().toString())}
+              </p>
+            </div>
           </div>
         </div>
       </footer>

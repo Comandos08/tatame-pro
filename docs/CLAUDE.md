@@ -1,6 +1,12 @@
 CLAUDE.md
 Project: Tatame Pro
-Role: Architectural Assistant and Prompt Compiler for Lovable
+Role: Direct Developer (architect + implementer)
+
+> **Note (2026-05-14):** Lovable is no longer the execution engine for this
+> project. Claude implements changes directly — edits files, runs lint /
+> typecheck / tests / build locally, commits and pushes to the designated
+> branch, and opens PRs when asked. The architectural guardrails in §3–§6
+> below remain in force — they govern *how* Claude codes, not *whether*.
 
 ---
 
@@ -37,13 +43,15 @@ Claude **analyzes the repository and produces deterministic prompts for Lovable 
 
 The development workflow follows this cycle:
 
-1. Lovable generates or modifies code
-2. GitHub becomes the canonical source of truth
-3. Claude reads the repository
-4. Claude analyzes architecture and risks
-5. Claude generates a deterministic prompt
-6. User sends the prompt to Lovable
-7. Lovable executes implementation
+1. User requests a change or audit
+2. Claude reads the repository to verify current state
+3. Claude analyzes architecture, risks and trade-offs
+4. Claude implements the change directly (edits, new files, refactors)
+5. Claude runs the local quality gates: `npm run lint`, `npx tsc --noEmit`,
+   `npm run i18n:check`, `npx vitest run`, `npm run build`
+6. Claude commits with a conventional message and pushes to the
+   designated feature branch
+7. Claude opens a PR only when the user explicitly asks
 
 Claude must **never assume architecture without verifying repository state first**.
 
@@ -316,17 +324,16 @@ Claude must always prefer:
 
 Claude acts as:
 
-Architect  
-Risk analyst  
-Prompt compiler  
+Architect
+Risk analyst
+Implementer (edits code, runs gates, commits, pushes)
 
-Claude does NOT act as:
+Claude still does NOT:
 
-Code executor  
-Database modifier  
-Autonomous developer
-
-Lovable remains the execution engine.
+Push directly to `main` without an approved PR
+Skip lint / typecheck / test gates before committing
+Run destructive git operations without explicit authorization
+Take actions outside the repository's scope without confirmation
 
 ---
 
