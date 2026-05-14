@@ -25,6 +25,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/cron-auth.ts";
+import { reportBatchOutcome } from "../_shared/batch-monitor.ts";
 import {
   okResponse,
   errorResponse,
@@ -324,6 +325,16 @@ serve(async (req) => {
     const failed = results.filter(r => !r.success).length;
 
     log.info("Job completed", { jobRunId, processed, transitioned, skipped, failed });
+    // Pages on-call when >=50% of youth→adult transitions errored
+    // (absolute floor of 3 failures). `skipped` (e.g. consent missing
+    // or already-adult) is bucketed separately — not in the failure
+    // denominator.
+    reportBatchOutcome(log, {
+      jobName: "transition-youth-to-adult",
+      succeeded: transitioned,
+      failed,
+      metadata: { correlation_id: correlationId, job_run_id: jobRunId, skipped },
+    });
 
     // Log job execution completion
     await createAuditLog(supabase, {
