@@ -13,7 +13,13 @@ import {
   mapStripeStatusToBilling,
 } from "../_shared/billing-state-machine.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClientAny = SupabaseClient<any, any, any>;
@@ -147,17 +153,19 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       log.setStep("config_check");
       log.error("Missing Supabase configuration");
-      return new Response(
-        JSON.stringify({ error: "Webhook not configured" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, ["webhook not configured"], correlationId),
+        dynamicCors,
       );
     }
     if (!stripeSecretKey || !webhookSecret) {
       log.setStep("config_check");
       log.error("Missing Stripe configuration");
-      return new Response(
-        JSON.stringify({ error: "Webhook not configured" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, ["webhook not configured"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -174,9 +182,10 @@ serve(async (req) => {
     if (!signature) {
       log.setStep("signature_check");
       log.warn("Missing Stripe signature header");
-      return new Response(
-        JSON.stringify({ error: "Missing signature" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.missing_signature", false, ["missing stripe-signature header"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -189,9 +198,10 @@ serve(async (req) => {
     } catch (err) {
       log.setStep("signature_validation");
       log.error("Webhook signature verification failed", err);
-      return new Response(
-        JSON.stringify({ error: "Invalid signature" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_signature", false, ["webhook signature verification failed"], correlationId),
+        dynamicCors,
       );
     }
 

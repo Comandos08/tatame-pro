@@ -12,8 +12,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 serve(async (req) => {
@@ -28,9 +34,10 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -48,9 +55,10 @@ serve(async (req) => {
     );
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -69,9 +77,10 @@ serve(async (req) => {
     const { athlete_id, tenant_id, reason } = await req.json();
 
     if (!athlete_id || !tenant_id) {
-      return new Response(
-        JSON.stringify({ error: "athlete_id and tenant_id are required" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["athlete_id and tenant_id are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -84,9 +93,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!athlete) {
-      return new Response(
-        JSON.stringify({ error: "Athlete not found" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["athlete"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -103,9 +113,10 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!roleMember) {
-        return new Response(
-          JSON.stringify({ error: "Forbidden: you may only request erasure for your own data" }),
-          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 403 }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["may only request erasure for your own data"], correlationId),
+          dynamicCors,
         );
       }
     }
@@ -121,9 +132,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existing) {
-      return new Response(
-        JSON.stringify({ error: "Uma solicitação de exclusão já está em análise", request_id: existing.id }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.duplicate", false, [`erasure request already pending (request_id=${existing.id})`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -157,20 +169,22 @@ serve(async (req) => {
 
     log.info("LGPD erasure request created", { athlete_id, tenant_id, request_id: auditEntry.id });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         request_id: auditEntry.id,
         status: "PENDING_ADMIN_REVIEW",
         message: "Sua solicitação foi registrada e será analisada pela equipe administrativa. Registros esportivos oficiais podem ter retenção legal obrigatória.",
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error creating erasure request", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
     );
   }
 });

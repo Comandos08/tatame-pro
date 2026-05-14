@@ -236,9 +236,10 @@ serve(async (req) => {
     );
   } catch (error) {
     log.error('[notify-critical-alert] Error:', error);
-    return new Response(
-      JSON.stringify({ error: 'INTERNAL_ERROR' }),
-      { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

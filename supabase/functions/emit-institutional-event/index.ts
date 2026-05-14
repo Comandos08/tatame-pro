@@ -6,10 +6,16 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { SecureRateLimiter, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 Deno.serve(async (req) => {
@@ -25,10 +31,11 @@ Deno.serve(async (req) => {
     // 1. Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -42,10 +49,11 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await anonClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     // Rate limiting: 200 events per hour per user (frontend telemetry, generous but bounded)
@@ -59,10 +67,7 @@ Deno.serve(async (req) => {
     const rlContext = buildRateLimitContext(req, user.id, null);
     const rlResult = await rateLimiter.check(rlContext);
     if (!rlResult.allowed) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-        status: 429,
-        headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
-      });
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     // 2. Parse event payload
@@ -70,10 +75,11 @@ Deno.serve(async (req) => {
     const { domain, type, tenantId, metadata } = body;
 
     if (!domain || !type) {
-      return new Response(JSON.stringify({ error: "Missing domain or type" }), {
-        status: 400,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["domain and type are required"], correlationId),
+        dynamicCors,
+      );
     }
 
     // 3. Insert using service_role (bypasses RLS)
@@ -88,15 +94,11 @@ Deno.serve(async (req) => {
     });
 
     // Always return success (fail-silent for caller)
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-    });
+    return okResponse({ accepted: true }, dynamicCors, correlationId);
   } catch (_err) {
-    // Fail-silent: never break caller flow
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-    });
+    // Fail-silent: never break caller flow. We still wrap in the envelope so
+    // consumers get a deterministic shape; the upstream caller only checks
+    // HTTP 200.
+    return okResponse({ accepted: true }, dynamicCors, correlationId);
   }
 });

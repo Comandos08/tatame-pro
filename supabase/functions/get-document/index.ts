@@ -1,8 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface RequestBody {
@@ -22,18 +28,20 @@ Deno.serve(async (req) => {
   try {
     // Only accept POST
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({ error: "Method not allowed" }),
-        { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        405,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.method_not_allowed", false, [`method ${req.method} not allowed`], correlationId),
+        dynamicCors,
       );
     }
 
     // Verify authorization
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized - Missing or invalid authorization header" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -51,17 +59,19 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
     
     if (claimsError || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized - Invalid token" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
     const userId = claimsData.claims.sub as string;
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized - No user ID in token" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, ["no user id in token"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -80,9 +90,10 @@ Deno.serve(async (req) => {
     const { documentId } = body;
 
     if (!documentId) {
-      return new Response(
-        JSON.stringify({ error: "Missing documentId" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["documentId is required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -105,16 +116,18 @@ Deno.serve(async (req) => {
 
     if (docError) {
       log.error("Error fetching document", docError);
-      return new Response(
-        JSON.stringify({ error: "Error fetching document" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.query_failed", false, ["error fetching document"], correlationId),
+        dynamicCors,
       );
     }
 
     if (!document) {
-      return new Response(
-        JSON.stringify({ error: "Document not found" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["document"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -206,9 +219,10 @@ Deno.serve(async (req) => {
         },
       });
 
-      return new Response(
-        JSON.stringify({ error: "Forbidden - You do not have permission to access this document" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["document access denied"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -226,9 +240,10 @@ Deno.serve(async (req) => {
     }
 
     if (!filePath) {
-      return new Response(
-        JSON.stringify({ error: "Invalid file path in document record" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "data.invalid_state", false, ["invalid file path in document record"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -239,9 +254,10 @@ Deno.serve(async (req) => {
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
       log.error("Error creating signed URL", signedUrlError);
-      return new Response(
-        JSON.stringify({ error: "Error generating download URL" }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.storage_failed", false, ["error generating download URL"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -258,21 +274,23 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         signedUrl: signedUrlData.signedUrl,
         expiresIn: 300,
         documentType: document.type,
         fileType: document.file_type,
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     log.error("Unexpected error in get-document", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

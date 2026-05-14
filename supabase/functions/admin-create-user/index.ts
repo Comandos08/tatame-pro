@@ -2,8 +2,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface CreateUserRequest {
@@ -34,19 +40,21 @@ serve(async (req: Request) => {
     // Verify caller is superadmin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !caller) {
-      return new Response(
-        JSON.stringify({ error: "Invalid token" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -58,9 +66,10 @@ serve(async (req: Request) => {
       .eq("role", "SUPERADMIN_GLOBAL");
 
     if (!roles || roles.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: requires SUPERADMIN_GLOBAL role" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["SUPERADMIN_GLOBAL required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -70,18 +79,16 @@ serve(async (req: Request) => {
     const rlResult = await rateLimiter.check(rlContext);
     if (!rlResult.allowed) {
       log.warn("Rate limit exceeded for admin-create-user", { userId: caller.id });
-      return new Response(
-        JSON.stringify({ error: "Rate limit exceeded. Try again later." }),
-        { status: 429, headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 60) } }
-      );
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     const { email, password, name, athleteId, tenantId }: CreateUserRequest = await req.json();
 
     if (!email || !password || !name) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: email, password, name" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["email, password and name are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -95,9 +102,10 @@ serve(async (req: Request) => {
 
     if (createError) {
       log.error("Error creating user", createError);
-      return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "system.user_creation_failed", false, [createError.message], correlationId),
+        dynamicCors,
       );
     }
 
@@ -151,20 +159,23 @@ serve(async (req: Request) => {
 
     log.info("User created successfully", { userId, email });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         userId,
         email,
         message: "User created and linked successfully",
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     log.error("Error in admin-create-user", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [message], correlationId),
+      dynamicCors,
     );
   }
 });

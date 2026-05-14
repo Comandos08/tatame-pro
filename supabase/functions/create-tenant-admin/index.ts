@@ -3,7 +3,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface RequestBody {
@@ -24,17 +30,19 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({ error: "Method not allowed" }),
-        { status: 405, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        405,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.method_not_allowed", false, [`method ${req.method} not allowed`], correlationId),
+        dynamicCors,
       );
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -51,9 +59,10 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
     
     if (claimsError || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized - Invalid token" }),
-        { status: 401, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -72,9 +81,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!superadminRole) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden - Only superadmins can create tenant admins" }),
-        { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["superadmin required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -83,9 +93,10 @@ Deno.serve(async (req) => {
     const { email, name, password, tenantId } = body;
 
     if (!email || !tenantId) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: email, tenantId" }),
-        { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["email and tenantId are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -97,9 +108,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (tenantError || !tenant) {
-      return new Response(
-        JSON.stringify({ error: "Tenant not found" }),
-        { status: 404, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["tenant"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -147,15 +159,17 @@ Deno.serve(async (req) => {
             userId = existingAuthUser.id;
             isNewUser = false;
           } else {
-            return new Response(
-              JSON.stringify({ error: `Error creating user: ${createError.message}` }),
-              { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+            return errorResponse(
+              400,
+              buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "system.user_creation_failed", false, [`error creating user: ${createError.message}`], correlationId),
+              dynamicCors,
             );
           }
         } else {
-          return new Response(
-            JSON.stringify({ error: `Error creating user: ${createError.message}` }),
-            { status: 400, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+          return errorResponse(
+            400,
+            buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "system.user_creation_failed", false, [`error creating user: ${createError.message}`], correlationId),
+            dynamicCors,
           );
         }
       } else {
@@ -173,15 +187,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (existingRole) {
-      return new Response(
-        JSON.stringify({
+      return okResponse(
+        {
           success: true,
           message: "User already has admin role for this tenant",
           userId,
           isNewUser: false,
           alreadyAdmin: true,
-        }),
-        { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -192,9 +207,10 @@ Deno.serve(async (req) => {
     );
 
     if (roleError) {
-      return new Response(
-        JSON.stringify({ error: `Error assigning role: ${roleError.message}` }),
-        { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.RPC_ERROR, "system.rpc_failed", false, [`grant_admin_tenant_role: ${roleError.message}`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -225,8 +241,8 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         message: isNewUser
           ? "New admin user created successfully"
@@ -236,14 +252,16 @@ Deno.serve(async (req) => {
         generatedPassword: isNewUser ? generatedPassword : null,
         tenantSlug: tenant.slug,
         tenantName: tenant.name,
-      }),
-      { status: 200, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     log.error("Error in create-tenant-admin:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

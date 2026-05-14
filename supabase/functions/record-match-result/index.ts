@@ -17,7 +17,13 @@ import { requireImpersonationIfSuperadmin, extractImpersonationId } from "../_sh
 import { requireActiveTenantBillingWrite } from "../_shared/requireActiveTenantBillingWrite.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface RecordResultRequest {
@@ -46,16 +52,18 @@ Deno.serve(async (req) => {
     log.info("Request", { matchId, winnerRegistrationId, hasImpersonation: !!impersonationId });
 
     if (!matchId) {
-      return new Response(
-        JSON.stringify({ error: 'matchId is required' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["matchId is required"], correlationId),
+        dynamicCors,
       );
     }
 
     if (!winnerRegistrationId) {
-      return new Response(
-        JSON.stringify({ error: 'winnerRegistrationId is required' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["winnerRegistrationId is required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -65,9 +73,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+        dynamicCors,
       );
     }
     // PI-AUTH-CLIENT-SPLIT-001: supabaseAdmin for DB ops, supabaseAuth for JWT validation
@@ -78,9 +87,10 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -88,9 +98,10 @@ Deno.serve(async (req) => {
 
     if (authError || !user) {
       log.error("Auth error", authError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -103,30 +114,34 @@ Deno.serve(async (req) => {
 
     if (matchError || !match) {
       log.error("Match not found", matchError);
-      return new Response(
-        JSON.stringify({ error: 'Match not found' }),
-        { status: 404, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["match"], correlationId),
+        dynamicCors,
       );
     }
 
     if (match.deleted_at) {
-      return new Response(
-        JSON.stringify({ error: 'Cannot record result on deleted match' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["match is deleted"], correlationId),
+        dynamicCors,
       );
     }
 
     if (match.status === 'COMPLETED') {
-      return new Response(
-        JSON.stringify({ error: 'Match result is already recorded' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["match already completed"], correlationId),
+        dynamicCors,
       );
     }
 
     if (match.status === 'BYE') {
-      return new Response(
-        JSON.stringify({ error: 'Cannot record result for BYE match' }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["match is BYE"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -139,9 +154,10 @@ Deno.serve(async (req) => {
     } catch (boundaryError) {
       if (boundaryError instanceof TenantBoundaryError) {
         log.warn("Tenant boundary violation", { code: boundaryError.code });
-        return new Response(
-          JSON.stringify({ ok: false, code: boundaryError.code, error: "Access denied" }),
-          { status: 403, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+        return errorResponse(
+          403,
+          buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, [boundaryError.code], correlationId),
+          dynamicCors,
         );
       }
       throw boundaryError;
@@ -157,9 +173,10 @@ Deno.serve(async (req) => {
     });
     if (!billingGate.ok) {
       log.warn("Billing gate failed", { code: billingGate.code });
-      return new Response(
-        JSON.stringify({ ok: false, code: billingGate.code, error: billingGate.error }),
-        { status: billingGate.httpStatus ?? 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        billingGate.httpStatus ?? 403,
+        buildErrorEnvelope(ERROR_CODES.BILLING_BLOCKED, "billing.write_blocked", false, [billingGate.code, billingGate.error].filter(Boolean) as string[], correlationId),
+        dynamicCors,
       );
     }
 
@@ -172,9 +189,10 @@ Deno.serve(async (req) => {
     );
     if (!roleCheck.allowed) {
       log.warn("Role check failed", { error: roleCheck.error });
-      return new Response(
-        JSON.stringify({ error: roleCheck.error }),
-        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, roleCheck.error ? [roleCheck.error] : undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -188,9 +206,10 @@ Deno.serve(async (req) => {
 
     if (!impersonationCheck.valid) {
       log.warn("Impersonation check failed", { error: impersonationCheck.error });
-      return new Response(
-        JSON.stringify({ error: impersonationCheck.error }),
-        { status: 403, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.impersonation_required", false, impersonationCheck.error ? [impersonationCheck.error] : undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -204,24 +223,23 @@ Deno.serve(async (req) => {
 
     if (rpcError) {
       log.error("RPC error", rpcError);
-      return new Response(
-        JSON.stringify({ error: rpcError.message }),
-        { status: 400, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.RPC_ERROR, "system.rpc_failed", false, [`record_match_result_rpc: ${rpcError.message || "unknown error"}`], correlationId),
+        dynamicCors,
       );
     }
 
     log.info("Success", { result: rpcResult });
 
-    return new Response(
-      JSON.stringify(rpcResult),
-      { status: 200, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
-    );
+    return okResponse(rpcResult, dynamicCors, correlationId);
 
   } catch (err) {
     log.error("Unexpected error", err);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, undefined, correlationId),
+      dynamicCors,
     );
   }
 });

@@ -142,30 +142,25 @@ jobs:
           echo "✅ G1 passed"
 
       - name: G2 — No ad-hoc error responses
-        # Advisory: 160 legacy ad-hoc {error: ...} responses exist across 37
-        # Edge Functions and migrating them all is a multi-day refactor (each
-        # call site needs to pick an ERROR_CODES.* mapping, plumb correlation
-        # IDs, decide on retryable). Tracked as P1 in
-        # docs/PRODUCTION-AUDIT-2026-05-13.md §3. New code is still expected
-        # to use errorResponse/buildErrorEnvelope from _shared/errors/envelope.ts.
-        continue-on-error: true
+        # All 27 legacy `JSON.stringify({ error: ... })` call sites were
+        # migrated to errorResponse/buildErrorEnvelope from
+        # _shared/errors/envelope.ts. Any regression is a hard fail —
+        # new code must use the envelope helpers, not ad-hoc shapes.
         run: |
           echo "🔍 G2: Checking for ad-hoc { error } responses..."
           if grep -rn 'JSON\.stringify({[[:space:]]*error:' supabase/functions --include="*.ts" \
             | grep -Ev "_tests/|\.test\.ts|_shared/"; then
-            echo "⚠️ Ad-hoc { error } response found (advisory — see audit P1)"
+            echo "❌ Ad-hoc { error } response found — use errorResponse() from _shared/errors/envelope.ts"
             exit 1
           fi
           echo "✅ G2 passed"
 
       - name: G3 — All functions must use envelope helpers
-        # Advisory: 46/68 functions don't import okResponse/errorResponse from
-        # _shared/errors/envelope.ts (broad legacy gap from before SAFE GOLD
-        # adoption). Migrating all of them is the same multi-day refactor as
-        # G2. Tracked together with G2 as P1 in
-        # docs/PRODUCTION-AUDIT-2026-05-13.md §3. New functions are expected
-        # to import the envelope helpers; enforcement is code review until
-        # the cleanup PR lands.
+        # 50/66 functions now import okResponse/errorResponse after the G2
+        # cleanup. The remaining 16 use a different ad-hoc shape
+        # (`{ok:false, error:...}` instead of `{error:...}`) — they evade G2
+        # but still need migration. New functions are expected to import the
+        # envelope helpers; code review enforces until the final 16 are done.
         continue-on-error: true
         run: |
           echo "🔍 G3: Checking envelope usage in all Edge Functions..."

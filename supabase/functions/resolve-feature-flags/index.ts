@@ -7,9 +7,14 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 Deno.serve(async (req) => {
@@ -24,10 +29,11 @@ Deno.serve(async (req) => {
     log.info("resolve-feature-flags invoked");
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -40,20 +46,22 @@ Deno.serve(async (req) => {
     });
     const { data: { user }, error: authError } = await anonClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const body = await req.json();
     const { tenantId } = body;
 
     if (!tenantId) {
-      return new Response(JSON.stringify({ error: "Missing tenantId" }), {
-        status: 400,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["tenantId is required"], correlationId),
+        dynamicCors,
+      );
     }
 
     // Fetch flags using service_role

@@ -18,11 +18,17 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
 import { assertTenantAccess, TenantBoundaryError } from "../_shared/tenant-boundary.ts";
 import { extractImpersonationId } from "../_shared/requireImpersonationIfSuperadmin.ts";
-import { forbiddenResponse } from "../_shared/errors/envelope.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  forbiddenResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 interface AthleteRow {
@@ -99,10 +105,11 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     const supabaseAdmin = createClient(
@@ -119,10 +126,11 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
+      );
     }
 
     // Rate limiting: 5 imports per hour per admin (bulk op, expensive)
@@ -131,18 +139,18 @@ serve(async (req) => {
     const rlResult = await rateLimiter.check(rlContext);
     if (!rlResult.allowed) {
       log.warn("Rate limit exceeded for import-athletes", { userId: user.id });
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Maximum 5 imports per hour." }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json", "Retry-After": String(rlResult.retryAfterSeconds ?? 3600) },
-        status: 429,
-      });
+      // Reuse the limiter's canonical envelope response (includes Retry-After,
+      // RateLimit-*, and the institutional envelope shape).
+      return rateLimiter.tooManyRequestsResponse(rlResult, dynamicCors, correlationId);
     }
 
     // Validate Content-Type (P1-29: CSV MIME type validation)
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
-      return new Response(
-        JSON.stringify({ error: "Content-Type must be application/json. CSV parsing should be done client-side." }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 415 },
+      return errorResponse(
+        415,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.unsupported_media_type", false, ["Content-Type must be application/json. CSV parsing should be done client-side."], correlationId),
+        dynamicCors,
       );
     }
 
@@ -154,24 +162,27 @@ serve(async (req) => {
     };
 
     if (!tenant_id) {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["tenant_id is required"], correlationId),
+        dynamicCors,
+      );
     }
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
-      return new Response(JSON.stringify({ error: "rows array is required and must not be empty" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["rows array is required and must not be empty"], correlationId),
+        dynamicCors,
+      );
     }
 
     if (rows.length > 500) {
-      return new Response(JSON.stringify({ error: "Maximum 500 rows per import batch" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return errorResponse(
+        413,
+        buildErrorEnvelope(ERROR_CODES.PAYLOAD_TOO_LARGE, "validation.payload_too_large", false, ["maximum 500 rows per import batch"], correlationId),
+        dynamicCors,
+      );
     }
 
     // Tenant boundary (A04 zero-trust): validates UUID format, tenant is
@@ -198,10 +209,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!roleCheck) {
-      return new Response(JSON.stringify({ error: "Access denied" }), {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 403,
-      });
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["ADMIN_TENANT or SUPERADMIN_GLOBAL required"], correlationId),
+        dynamicCors,
+      );
     }
 
     log.info("Import request", { tenant_id, rowCount: rows.length, mode });
@@ -214,9 +226,10 @@ serve(async (req) => {
     });
 
     if (allErrors.length > 0) {
-      return new Response(
-        JSON.stringify({ success: false, errors: allErrors, inserted: 0 }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 422 }
+      return errorResponse(
+        422,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.failed", false, allErrors, correlationId),
+        dynamicCors,
       );
     }
 
@@ -258,8 +271,8 @@ serve(async (req) => {
     }));
 
     if (mode === "validate") {
-      return new Response(
-        JSON.stringify({
+      return okResponse(
+        {
           success: true,
           mode: "validate",
           total: rows.length,
@@ -267,8 +280,9 @@ serve(async (req) => {
           toInsert: rows.length - duplicateRows.length,
           duplicateRows,
           validationResults,
-        }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+        },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -292,9 +306,10 @@ serve(async (req) => {
       }));
 
     if (toInsert.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, mode: "confirm", inserted: 0, skipped: rows.length, message: "All rows were duplicates" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      return okResponse(
+        { success: true, mode: "confirm", inserted: 0, skipped: rows.length, message: "All rows were duplicates" },
+        dynamicCors,
+        correlationId,
       );
     }
 
@@ -304,29 +319,32 @@ serve(async (req) => {
 
     if (insertError) {
       log.error("Insert failed", { error: insertError.message });
-      return new Response(
-        JSON.stringify({ success: false, error: insertError.message, inserted: 0 }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.query_failed", false, [`insert failed: ${insertError.message}`], correlationId),
+        dynamicCors,
       );
     }
 
     log.info("Import completed", { inserted: toInsert.length, skipped: duplicateRows.length });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         success: true,
         mode: "confirm",
         inserted: toInsert.length,
         skipped: duplicateRows.length,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     log.error("Import failed", { error: message });
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [message], correlationId),
+      dynamicCors,
+    );
   }
 });

@@ -12,8 +12,14 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 const BASE_URL = Deno.env.get("PUBLIC_APP_URL") ?? "https://tatame-pro.lovable.app";
@@ -38,9 +44,10 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.missing_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -58,9 +65,10 @@ serve(async (req) => {
     );
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 401 }
+      return errorResponse(
+        401,
+        buildErrorEnvelope(ERROR_CODES.UNAUTHORIZED, "auth.invalid_token", false, undefined, correlationId),
+        dynamicCors,
       );
     }
 
@@ -79,9 +87,10 @@ serve(async (req) => {
     const { event_id, category_id, athlete_id, success_url, cancel_url } = body;
 
     if (!event_id || !category_id || !athlete_id) {
-      return new Response(
-        JSON.stringify({ error: "event_id, category_id and athlete_id are required" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.VALIDATION_ERROR, "validation.required_field", false, ["event_id, category_id and athlete_id are required"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -101,9 +110,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (catError || !category) {
-      return new Response(
-        JSON.stringify({ error: "Category not found or inactive" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["category not found or inactive"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -113,16 +123,18 @@ serve(async (req) => {
     } | null;
 
     if (!event) {
-      return new Response(
-        JSON.stringify({ error: "Event not found" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 404 }
+      return errorResponse(
+        404,
+        buildErrorEnvelope(ERROR_CODES.NOT_FOUND, "data.not_found", false, ["event"], correlationId),
+        dynamicCors,
       );
     }
 
     if (event.status !== "PUBLISHED") {
-      return new Response(
-        JSON.stringify({ error: "Event is not open for registrations" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 400 }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["event not open for registrations"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -136,9 +148,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existing && existing.status !== "CANCELED") {
-      return new Response(
-        JSON.stringify({ error: "Athlete already registered in this category", registration_id: existing.id }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.duplicate", false, [`athlete already registered (registration_id=${existing.id})`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -152,9 +165,10 @@ serve(async (req) => {
         .neq("status", "CANCELED");
 
       if ((count ?? 0) >= category.max_participants) {
-        return new Response(
-          JSON.stringify({ error: "Category is full" }),
-          { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 409 }
+        return errorResponse(
+          409,
+          buildErrorEnvelope(ERROR_CODES.CONFLICT, "data.invalid_state", false, ["category is full"], correlationId),
+          dynamicCors,
         );
       }
     }
@@ -187,18 +201,20 @@ serve(async (req) => {
       }
 
       log.info("Free event registration created", { registration_id: registration.id });
-      return new Response(
-        JSON.stringify({ registration_id: registration.id, is_free: true }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      return okResponse(
+        { registration_id: registration.id, is_free: true },
+        dynamicCors,
+        correlationId,
       );
     }
 
     // --- PAID EVENT: create Stripe Checkout session ---
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
-      return new Response(
-        JSON.stringify({ error: "Payment not configured" }),
-        { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 503 }
+      return errorResponse(
+        503,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", true, ["payment not configured"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -257,21 +273,23 @@ serve(async (req) => {
 
     log.info("Stripe checkout session created", { session_id: session.id, registration_id: pendingReg.id });
 
-    return new Response(
-      JSON.stringify({
+    return okResponse(
+      {
         checkout_url: session.url,
         session_id: session.id,
         registration_id: pendingReg.id,
         is_free: false,
-      }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 200 }
+      },
+      dynamicCors,
+      correlationId,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     log.error("Error creating event registration checkout", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { headers: { ...dynamicCors, "Content-Type": "application/json" }, status: 500 }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
     );
   }
 });

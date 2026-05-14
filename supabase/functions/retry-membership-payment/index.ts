@@ -6,7 +6,13 @@ import { createAuditLog, AUDIT_EVENTS } from "../_shared/audit-logger.ts";
 import { validateCaptcha, captchaErrorResponse } from "../_shared/captcha.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
-import { corsHeaders, corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  buildErrorEnvelope,
+  errorResponse,
+  okResponse,
+  ERROR_CODES,
+} from "../_shared/errors/envelope.ts";
 
 
 const OPERATION_NAME = "retry-membership-payment";
@@ -133,16 +139,11 @@ interface RetryPaymentRequest {
   captchaToken?: string;
 }
 
-function rateLimitResponse(): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: "Too many requests" }),
-    {
-      status: 429,
-      headers: {
-        ...dynamicCors,
-        "Content-Type": "application/json",
-      },
-    }
+function rateLimitResponse(corsHeaders: Record<string, string>, correlationId?: string): Response {
+  return errorResponse(
+    429,
+    buildErrorEnvelope(ERROR_CODES.RATE_LIMITED, "rate_limit.exceeded", true, ["too many requests"], correlationId),
+    corsHeaders,
   );
 }
 
@@ -160,9 +161,10 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
   if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-    return new Response(
-      JSON.stringify({ error: "Server configuration error" }),
-      { status: 500, headers: { ...dynamicCors, "Content-Type": "application/json" } }
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.misconfigured", false, undefined, correlationId),
+      dynamicCors,
     );
   }
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -192,7 +194,7 @@ serve(async (req) => {
         },
       });
 
-      return rateLimitResponse();
+      return rateLimitResponse(dynamicCors, correlationId);
     }
 
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -287,7 +289,7 @@ serve(async (req) => {
         },
       });
 
-      return rateLimitResponse();
+      return rateLimitResponse(dynamicCors, correlationId);
     }
 
     // === AJUSTE #2: Tenant Boundary Validation ===
@@ -301,12 +303,10 @@ serve(async (req) => {
         expected: tenantSlug,
         actual: tenant?.slug,
       });
-      return new Response(
-        JSON.stringify({ error: "FORBIDDEN_CROSS_TENANT" }),
-        {
-          status: 403,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.tenant_boundary", false, ["cross-tenant retry blocked"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -329,10 +329,11 @@ serve(async (req) => {
         applicant_profile_id: membership.applicant_profile_id,
         athlete_profile_id: athlete?.profile_id,
       });
-      return new Response(JSON.stringify({ error: "FORBIDDEN_NOT_OWNER" }), {
-        status: 403,
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-      });
+      return errorResponse(
+        403,
+        buildErrorEnvelope(ERROR_CODES.FORBIDDEN, "auth.forbidden", false, ["not the membership owner"], correlationId),
+        dynamicCors,
+      );
     }
 
     // === Status Validation ===
@@ -344,15 +345,10 @@ serve(async (req) => {
         status: membership.status,
         payment_status: membership.payment_status,
       });
-      return new Response(
-        JSON.stringify({
-          error: "MEMBERSHIP_NOT_ELIGIBLE_FOR_RETRY",
-          details: "Only CANCELLED memberships with NOT_PAID can retry",
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "membership.not_eligible_for_retry", false, ["only CANCELLED memberships with NOT_PAID can retry"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -383,15 +379,10 @@ serve(async (req) => {
         membershipId,
         event_type: matchingLog?.event_type,
       });
-      return new Response(
-        JSON.stringify({
-          error: "RETRY_BLOCKED_MANUAL_CANCELLATION",
-          details: "Manual cancellations cannot be retried. Contact administrator.",
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "membership.retry_blocked_manual", false, ["manual cancellations cannot be retried; contact administrator"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -409,15 +400,10 @@ serve(async (req) => {
       log.info("Retry not allowed for unknown cancellation reason", {
         cancellationReason,
       });
-      return new Response(
-        JSON.stringify({
-          error: "RETRY_NOT_ALLOWED_FOR_UNKNOWN_CANCELLATION",
-          details: "Only payment timeout cancellations can be retried",
-        }),
-        {
-          status: 400,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        400,
+        buildErrorEnvelope(ERROR_CODES.CONFLICT, "membership.retry_not_allowed", false, [`unknown cancellation reason: ${cancellationReason ?? "none"}`], correlationId),
+        dynamicCors,
       );
     }
 
@@ -435,17 +421,20 @@ serve(async (req) => {
 
     if (rpcError) {
       log.info("Gatekeeper RPC failed", { error: rpcError.message });
-      return new Response(
-        JSON.stringify({
-          error: "STATUS_CHANGED_CONCURRENT_RETRY",
-          details: rpcError.message?.includes("Invalid transition") 
-            ? "Membership status changed during retry attempt"
-            : rpcError.message,
-        }),
-        {
-          status: 409,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        409,
+        buildErrorEnvelope(
+          ERROR_CODES.CONFLICT,
+          "membership.status_changed_concurrent_retry",
+          false,
+          [
+            rpcError.message?.includes("Invalid transition")
+              ? "membership status changed during retry attempt"
+              : (rpcError.message ?? "unknown rpc error"),
+          ],
+          correlationId,
+        ),
+        dynamicCors,
       );
     }
 
@@ -541,15 +530,10 @@ serve(async (req) => {
         },
       });
 
-      return new Response(
-        JSON.stringify({
-          error: "STRIPE_SESSION_FAILED",
-          details: "Failed to create payment session. Please try again.",
-        }),
-        {
-          status: 500,
-          headers: { ...dynamicCors, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        500,
+        buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.stripe_session_failed", true, ["failed to create payment session"], correlationId),
+        dynamicCors,
       );
     }
 
@@ -583,20 +567,19 @@ serve(async (req) => {
       sessionId: stripeSession.id,
     });
 
-    return new Response(
-      JSON.stringify({ url: stripeSession.url, sessionId: stripeSession.id }),
-      {
-        headers: { ...dynamicCors, "Content-Type": "application/json" },
-        status: 200,
-      }
+    return okResponse(
+      { url: stripeSession.url, sessionId: stripeSession.id },
+      dynamicCors,
+      correlationId,
     );
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     log.info("Error in retry-membership-payment", { error: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...dynamicCors, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return errorResponse(
+      500,
+      buildErrorEnvelope(ERROR_CODES.INTERNAL_ERROR, "system.internal_error", false, [errorMessage], correlationId),
+      dynamicCors,
+    );
   }
 });
