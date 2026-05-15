@@ -295,6 +295,38 @@ Use the validation protocol from `docs/RELEASE-READINESS-P0.md` §8:
 
 Roll back trigger: any of steps 3, 6, 8 fail → `vercel rollback` to previous deployment, debug in staging.
 
+### 13.1 Stripe Connect (marketplace) smoke test
+
+Prereq: Connect enabled + Express default in Stripe Dashboard; both webhook
+endpoints registered (§8 and `stripe-webhook-setup.md` §6); secrets set.
+
+1. As the test tenant admin, open **Settings → Repasses e conta bancária**.
+   Confirm the card shows "not connected" and the disclosed fee % matches
+   `platform_fee_bps` (default 5%).
+2. Click **Conectar conta bancária** → complete Stripe Express onboarding
+   with test data (use Stripe's test KYC values).
+3. On return, confirm the card auto-refreshes to **Conta ativa** (or
+   "Em análise" if Stripe is still verifying — click **Atualizar status**).
+   Verify the `account.updated` event landed on the Connect webhook endpoint
+   (Stripe Dashboard → the Connect endpoint → Recent deliveries → 200).
+4. Run a membership checkout for an athlete in this tenant. In the Stripe
+   Dashboard confirm: the PaymentIntent has `application_fee_amount` ≈ 5% and
+   `transfer_data.destination` = the tenant's `acct_...`. The funds show on
+   the **connected account**, the fee on the **platform** balance.
+5. Confirm NO `BILLING_CONNECT_FALLBACK_PLATFORM_CHARGE` institutional event
+   was emitted for this tenant (that event means the soft fallback fired —
+   i.e. the tenant was NOT connected).
+6. Open **Abrir painel de repasses** → confirm the Stripe Express dashboard
+   opens in a new tab and shows the incoming payment.
+7. (Negative) With a SECOND tenant that has NOT onboarded, start an event
+   creation → confirm the amber `ConnectStatusBanner` appears, and a
+   membership checkout for that tenant emits the CRITICAL
+   `BILLING_CONNECT_FALLBACK_PLATFORM_CHARGE` event (soft fallback working).
+
+Roll back trigger: step 4 routes funds to the platform instead of the
+connected account → freeze, investigate `_shared/connect.ts` /
+`getTenantConnectInfo` wiring before taking real money.
+
 ---
 
 ## 14. Open follow-ups (do not block launch)

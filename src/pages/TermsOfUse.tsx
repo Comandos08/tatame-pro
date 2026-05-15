@@ -66,6 +66,15 @@ export default function TermsOfUse() {
 
               <section>
                 <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
+                  {t('terms.marketplace.title')}
+                </h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {t('terms.marketplace.text')}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-display text-xl font-bold text-foreground/90 mb-3">
                   {t('terms.refunds.title')}
                 </h2>
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
