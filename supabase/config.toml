@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.connect-account-refresh]
 verify_jwt = false
 
+[functions.connect-dashboard-login-link]
+verify_jwt = false
+
 [functions.check-trial-ending]
 verify_jwt = false
 

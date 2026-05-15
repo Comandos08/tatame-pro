@@ -45,6 +45,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useCurrentUser } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { ConnectStatusBanner } from '@/components/billing/ConnectStatusBanner';
 import { cn } from '@/lib/utils';
 import { EventImageUpload } from './EventImageUpload';
 
@@ -138,7 +139,11 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
             {t('events.createEventDesc')}
           </DialogDescription>
         </DialogHeader>
-        
+
+        {tenant?.id && tenant?.slug && (
+          <ConnectStatusBanner tenantId={tenant.id} tenantSlug={tenant.slug} />
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField

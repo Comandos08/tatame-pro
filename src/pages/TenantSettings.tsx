@@ -17,6 +17,7 @@ import { LoadingState } from '@/components/ux/LoadingState';
 import { BrandingUploadSection } from '@/components/settings/BrandingUploadSection';
 import { hexToHsl } from '@/lib/colorUtils';
 import { AdminBadgeCatalog } from '@/components/badges/AdminBadgeCatalog';
+import { ConnectPayoutsCard } from '@/components/settings/ConnectPayoutsCard';
 import { auditEvent } from '@/lib/audit/auditEvent';
 
 export default function TenantSettings() {
@@ -231,6 +232,9 @@ export default function TenantSettings() {
                 </div>
               </CardContent>
             </Card>
+            {/* Stripe Connect — marketplace payouts */}
+            <ConnectPayoutsCard tenantId={tenant.id} />
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
