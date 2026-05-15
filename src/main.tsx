@@ -6,21 +6,6 @@ import App from "./App";
 import { AppProviders } from "@/contexts/AppProviders";
 import { isKnownNoiseError, installNoiseSilencer } from "@/lib/observability/noise-filters";
 
-// Critical env var validation — fail fast with a clear message rather than
-// a cryptic Supabase client error buried deep in the call stack.
-const REQUIRED_ENV_VARS = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY'] as const;
-const missingEnvVars = REQUIRED_ENV_VARS.filter(
-  key => !import.meta.env[key]
-);
-if (missingEnvVars.length > 0) {
-  document.body.innerHTML = `<pre style="padding:2rem;color:red;font-family:monospace">
-[Tatame Pro] Missing required environment variables:\n${missingEnvVars.join('\n')}
-
-Set these in your .env file or hosting environment and restart.
-  </pre>`;
-  throw new Error(`Missing required env vars: ${missingEnvVars.join(', ')}`);
-}
-
 // After a deploy, the browser may still hold an older index.html that
 // references chunks Vercel has already purged. Vite fires "vite:preloadError"
 // whenever a dynamic import (React.lazy) 404s. We do one silent full reload
