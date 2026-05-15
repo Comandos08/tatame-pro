@@ -113,11 +113,50 @@ To manually retry a failed event:
 
 ---
 
-## 6. Production Checklist
+## 6. Connect (marketplace) webhook — SECOND endpoint
 
-- [ ] Webhook endpoint registered in Stripe Dashboard (production mode, not test mode)
-- [ ] Correct events selected (see list above)
+Tatame Pro uses Stripe Connect for tenant payouts. Connect account/payout
+events are delivered to a **separate** endpoint with **its own signing
+secret**, handled by the `stripe-connect-webhook` function (distinct from the
+platform `stripe-webhook`).
+
+### 6.1 Register the Connect endpoint
+
+1. Stripe Dashboard → **Developers → Webhooks → Add endpoint**
+2. URL: `https://<project-ref>.supabase.co/functions/v1/stripe-connect-webhook`
+3. **CRITICAL:** under *Listen to events on*, select **Connected accounts**
+   (not "Your account"). This is what makes Stripe deliver events with the
+   `account` field set.
+4. Select these events:
+   - `account.updated`
+   - `account.application.deauthorized`
+   - `payout.paid`
+   - `payout.failed`
+   - `charge.refunded`
+5. Copy the signing secret (`whsec_...`) → set `STRIPE_CONNECT_WEBHOOK_SECRET`
+   in Supabase Edge Function secrets. **Do not reuse `STRIPE_WEBHOOK_SECRET`** —
+   the two endpoints have different secrets.
+
+### 6.2 What each event does
+
+| Event | Effect |
+|---|---|
+| `account.updated` | Syncs `charges/payouts/details_submitted` into `tenants` |
+| `account.application.deauthorized` | Flags tenant not-ready, CRITICAL alert |
+| `payout.paid` | Audit trail of payout reaching the tenant bank |
+| `payout.failed` | CRITICAL institutional event — money did NOT arrive |
+| `charge.refunded` | Refund audit trail on the connected account |
+
+---
+
+## 7. Production Checklist
+
+- [ ] Platform webhook endpoint registered (production mode, not test mode)
+- [ ] Correct platform events selected (see §3)
 - [ ] `STRIPE_WEBHOOK_SECRET` set in Supabase Edge Function secrets
 - [ ] `STRIPE_SECRET_KEY` (live key) set in Supabase Edge Function secrets
-- [ ] At least one test event delivered successfully
-- [ ] Recent deliveries show 200 OK for the last 24h
+- [ ] **Connect** endpoint registered with *Connected accounts* scope (§6.1)
+- [ ] `STRIPE_CONNECT_WEBHOOK_SECRET` set (distinct from platform secret)
+- [ ] Stripe Connect enabled, Express set as default account type
+- [ ] At least one test event delivered successfully on BOTH endpoints
+- [ ] Recent deliveries show 200 OK for the last 24h on BOTH endpoints
