@@ -1,0 +1,79 @@
+name: Supabase — Deploy (functions + migrations)
+
+# Why this exists
+# ----------------
+# Lovable Cloud used to deploy Edge Functions and apply migrations to the
+# production Supabase project automatically. After Lovable was removed there
+# was NO pipeline doing this, so merged functions/migrations never reached
+# production (frontend ships via Vercel, backend silently did not → 404 +
+# CORS-preflight failures for new functions).
+#
+# Opt-in, mirroring the VERCEL_DEPLOY_ENABLED convention in cd.yml. Nothing
+# runs until you set the repo variable and secrets:
+#   Settings → Variables  → SUPABASE_DEPLOY_ENABLED = true
+#   Settings → Secrets    → SUPABASE_ACCESS_TOKEN   (account → access tokens)
+#                           SUPABASE_PROJECT_REF     (e.g. bmgdtffneqefaxekxmdo)
+#                           SUPABASE_DB_PASSWORD     (project DB password, for db push)
+#
+# Order matters: migrations FIRST (so functions never hit a missing column),
+# then functions. Migrations in this repo are written idempotently
+# (IF NOT EXISTS) but `db push` against prod is still high-blast-radius —
+# keep it gated and review the diff before enabling.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/supabase-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      skip_db_push:
+        description: 'Deploy functions only (skip migrations)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: supabase-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.SUPABASE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Apply migrations (db push)
+        if: ${{ github.event_name == 'push' || inputs.skip_db_push != true }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push
+
+      - name: Deploy Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        # `supabase functions deploy` with no name deploys every function in
+        # supabase/functions, honouring config.toml (verify_jwt per function).
+        # _shared/ and _tests/ are not functions and are skipped by the CLI.
+        run: supabase functions deploy --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Summary
+        run: |
+          echo "::notice::Supabase deploy complete — functions + migrations applied to ${{ secrets.SUPABASE_PROJECT_REF }}"
