@@ -14,6 +14,7 @@ import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
 import { RATE_LIMIT_PRESETS, buildRateLimitContext } from "../_shared/secure-rate-limiter.ts";
+import { getTenantConnectInfo, buildDestinationChargeParams } from "../_shared/connect.ts";
 import {
   buildErrorEnvelope,
   errorResponse,
@@ -243,6 +244,38 @@ serve(async (req) => {
       throw new Error(`Failed to create pending registration: ${pendingError.message}`);
     }
 
+    // MARKETPLACE — destination charge. The event fee belongs to the Tenant.
+    // Soft fallback (Phase 1+2): legacy platform charge when the Tenant has
+    // not completed Connect onboarding, plus a CRITICAL telemetry event.
+    const connectInfo = await getTenantConnectInfo(supabase, event.tenant_id);
+    const destinationParams = buildDestinationChargeParams(
+      connectInfo,
+      category.price_cents,
+    );
+
+    if (!destinationParams) {
+      log.warn("Tenant not Connect-ready — falling back to platform charge", {
+        tenantId: event.tenant_id,
+        hasAccount: !!connectInfo?.stripeConnectAccountId,
+        chargesEnabled: connectInfo?.chargesEnabled ?? false,
+      });
+      await supabase.from("institutional_events").insert({
+        event_type: "BILLING_CONNECT_FALLBACK_PLATFORM_CHARGE",
+        severity: "CRITICAL",
+        source: "create-event-registration-checkout",
+        tenant_id: event.tenant_id,
+        metadata: {
+          registration_id: pendingReg.id,
+          event_id,
+          category_id,
+          reason: connectInfo?.stripeConnectAccountId
+            ? "charges_not_enabled"
+            : "no_connect_account",
+          amount_cents: category.price_cents,
+        },
+      }).then(undefined, () => { /* fail-silent: never block checkout on telemetry */ });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -260,12 +293,14 @@ serve(async (req) => {
         },
       ],
       customer_email: athlete?.email,
+      ...(destinationParams ? { payment_intent_data: destinationParams } : {}),
       metadata: {
         registration_id: pendingReg.id,
         event_id,
         category_id,
         athlete_id,
         tenant_id: event.tenant_id,
+        connect_mode: destinationParams ? "destination" : "platform_fallback",
       },
       success_url: success_url || defaultSuccessUrl,
       cancel_url: cancel_url || defaultCancelUrl,

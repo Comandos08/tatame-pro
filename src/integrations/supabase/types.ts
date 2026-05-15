@@ -2347,6 +2347,30 @@ export type Database = {
           },
         ]
       }
+      login_attempts: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          ip_address: string | null
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+        }
+        Relationships: []
+      }
       membership_analytics: {
         Row: {
           created_at: string
@@ -2557,17 +2581,17 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_memberships_applicant_profile"
+            columns: ["applicant_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "memberships_academy_id_fkey"
             columns: ["academy_id"]
             isOneToOne: false
             referencedRelation: "academies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "memberships_applicant_profile_id_fkey"
-            columns: ["applicant_profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -3174,10 +3198,16 @@ export type Database = {
           onboarding_completed: boolean | null
           onboarding_completed_at: string | null
           onboarding_completed_by: string | null
+          platform_fee_bps: number
           primary_color: string | null
           slug: string
           sport_types: string[] | null
           status: string
+          stripe_connect_account_id: string | null
+          stripe_connect_charges_enabled: boolean
+          stripe_connect_details_submitted: boolean
+          stripe_connect_payouts_enabled: boolean
+          stripe_connect_updated_at: string | null
           stripe_customer_id: string | null
           updated_at: string | null
         }
@@ -3197,10 +3227,16 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           onboarding_completed_by?: string | null
+          platform_fee_bps?: number
           primary_color?: string | null
           slug: string
           sport_types?: string[] | null
           status?: string
+          stripe_connect_account_id?: string | null
+          stripe_connect_charges_enabled?: boolean
+          stripe_connect_details_submitted?: boolean
+          stripe_connect_payouts_enabled?: boolean
+          stripe_connect_updated_at?: string | null
           stripe_customer_id?: string | null
           updated_at?: string | null
         }
@@ -3220,10 +3256,16 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           onboarding_completed_by?: string | null
+          platform_fee_bps?: number
           primary_color?: string | null
           slug?: string
           sport_types?: string[] | null
           status?: string
+          stripe_connect_account_id?: string | null
+          stripe_connect_charges_enabled?: boolean
+          stripe_connect_details_submitted?: boolean
+          stripe_connect_payouts_enabled?: boolean
+          stripe_connect_updated_at?: string | null
           stripe_customer_id?: string | null
           updated_at?: string | null
         }
@@ -3289,18 +3331,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      v_user_id: {
-        Row: {
-          id: string | null
-        }
-        Insert: {
-          id?: string | null
-        }
-        Update: {
-          id?: string | null
-        }
-        Relationships: []
       }
       webhook_events: {
         Row: {
@@ -3632,33 +3662,7 @@ export type Database = {
         Returns: boolean
       }
       audit_public_access_snapshot: { Args: never; Returns: Json }
-      audit_public_access_snapshot_superadmin: {
-        Args: never
-        Returns: {
-          cmd: string
-          permissive: string
-          policyname: string
-          qual: string
-          roles: string[]
-          schemaname: string
-          tablename: string
-          with_check: string
-        }[]
-      }
       audit_rls_snapshot: {
-        Args: never
-        Returns: {
-          cmd: string
-          permissive: string
-          policyname: string
-          qual: string
-          roles: string[]
-          schemaname: string
-          tablename: string
-          with_check: string
-        }[]
-      }
-      audit_rls_snapshot_superadmin: {
         Args: never
         Returns: {
           cmd: string
@@ -3679,21 +3683,7 @@ export type Database = {
           schema: string
         }[]
       }
-      audit_security_definer_snapshot_superadmin: {
-        Args: never
-        Returns: {
-          definition: string
-          function_name: string
-          schema: string
-        }[]
-      }
       audit_tables_without_rls: {
-        Args: never
-        Returns: {
-          tablename: string
-        }[]
-      }
-      audit_tables_without_rls_superadmin: {
         Args: never
         Returns: {
           tablename: string
@@ -3739,7 +3729,7 @@ export type Database = {
         Returns: Json
       }
       change_tenant_lifecycle_state: {
-        Args: { p_new_state: string; p_reason?: string; p_tenant_id: string }
+        Args: { p_new_state: string; p_reason: string; p_tenant_id: string }
         Returns: string
       }
       check_academy_governance_v1: {
@@ -3845,7 +3835,7 @@ export type Database = {
         Args: { _coach_id: string }
         Returns: boolean
       }
-      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      dearmor: { Args: { "": string }; Returns: string }
       explain_security_decision: {
         Args: { p_decision_id: string }
         Returns: {
@@ -3866,6 +3856,8 @@ export type Database = {
           status: string
         }[]
       }
+      gen_random_uuid: { Args: never; Returns: string }
+      gen_salt: { Args: { "": string }; Returns: string }
       generate_document_token: {
         Args: {
           p_document_id: string
@@ -4007,6 +3999,10 @@ export type Database = {
         Args: { input: string }
         Returns: string
       }
+      pgp_armor_headers: {
+        Args: { "": string }
+        Returns: Record<string, unknown>[]
+      }
       record_match_result_rpc: {
         Args: {
           p_match_id: string
@@ -4038,6 +4034,22 @@ export type Database = {
         Returns: boolean
       }
       user_has_tenant_context: { Args: { _user_id: string }; Returns: boolean }
+      uuid_generate_v1: { Args: never; Returns: string }
+      uuid_generate_v1mc: { Args: never; Returns: string }
+      uuid_generate_v3: {
+        Args: { name: string; namespace: string }
+        Returns: string
+      }
+      uuid_generate_v4: { Args: never; Returns: string }
+      uuid_generate_v5: {
+        Args: { name: string; namespace: string }
+        Returns: string
+      }
+      uuid_nil: { Args: never; Returns: string }
+      uuid_ns_dns: { Args: never; Returns: string }
+      uuid_ns_oid: { Args: never; Returns: string }
+      uuid_ns_url: { Args: never; Returns: string }
+      uuid_ns_x500: { Args: never; Returns: string }
       verify_decision_log_chain: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -4053,12 +4065,13 @@ export type Database = {
       app_role:
         | "SUPERADMIN_GLOBAL"
         | "ADMIN_TENANT"
-        | "ATLETA"
-        | "COACH_ASSISTENTE"
-        | "COACH_PRINCIPAL"
-        | "INSTRUTOR"
         | "STAFF_ORGANIZACAO"
+        | "COACH_PRINCIPAL"
+        | "COACH_ASSISTENTE"
+        | "INSTRUTOR"
         | "RECEPCAO"
+        | "ATLETA"
+        | "RESPONSAVELLEGAL"
       athlete_status: "ASPIRANTE" | "ATIVO" | "SUSPENSO" | "INATIVO"
       billing_status:
         | "ACTIVE"
@@ -4114,7 +4127,7 @@ export type Database = {
         | "REJECTED"
         | "ADMIN_ACTIVE"
       membership_type: "FIRST_MEMBERSHIP" | "RENEWAL"
-      payment_status: "NOT_PAID" | "PAID" | "FAILED" | "WAIVED"
+      payment_status: "NOT_PAID" | "PAID" | "FAILED" | "WAIVED" | "REFUNDED"
       security_severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
       tenant_lifecycle_status:
         | "SETUP"
@@ -4253,12 +4266,13 @@ export const Constants = {
       app_role: [
         "SUPERADMIN_GLOBAL",
         "ADMIN_TENANT",
-        "ATLETA",
-        "COACH_ASSISTENTE",
-        "COACH_PRINCIPAL",
-        "INSTRUTOR",
         "STAFF_ORGANIZACAO",
+        "COACH_PRINCIPAL",
+        "COACH_ASSISTENTE",
+        "INSTRUTOR",
         "RECEPCAO",
+        "ATLETA",
+        "RESPONSAVELLEGAL",
       ],
       athlete_status: ["ASPIRANTE", "ATIVO", "SUSPENSO", "INATIVO"],
       billing_status: [
@@ -4321,7 +4335,7 @@ export const Constants = {
         "ADMIN_ACTIVE",
       ],
       membership_type: ["FIRST_MEMBERSHIP", "RENEWAL"],
-      payment_status: ["NOT_PAID", "PAID", "FAILED", "WAIVED"],
+      payment_status: ["NOT_PAID", "PAID", "FAILED", "WAIVED", "REFUNDED"],
       security_severity: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
       tenant_lifecycle_status: [
         "SETUP",

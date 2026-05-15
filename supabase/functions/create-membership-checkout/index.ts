@@ -15,6 +15,7 @@ import { logDecision, DECISION_TYPES } from "../_shared/decision-logger.ts";
 import { createBackendLogger } from "../_shared/backend-logger.ts";
 import { extractCorrelationId } from "../_shared/correlation.ts";
 import { corsPreflightResponse, buildCorsHeaders } from "../_shared/cors.ts";
+import { getTenantConnectInfo, buildDestinationChargeParams } from "../_shared/connect.ts";
 import {
   buildErrorEnvelope,
   errorResponse,
@@ -376,7 +377,47 @@ serve(async (req) => {
       throw new Error("Customer email not found");
     }
 
-    log.info("Creating checkout session", { membershipId, customerEmail });
+    // MARKETPLACE — destination charge. The membership fee belongs to the
+    // Tenant, not the platform. When the Tenant has completed Stripe Connect
+    // onboarding (charges_enabled), Stripe routes the funds to their account
+    // and retains the platform application fee automatically.
+    //
+    // Soft fallback (Phase 1+2): if the Tenant has NOT onboarded yet, we keep
+    // the legacy platform-only charge so existing tenants don't break on
+    // deploy, but emit a CRITICAL institutional event so ops/the tenant are
+    // told to onboard. A later phase flips this to a hard block.
+    const connectInfo = await getTenantConnectInfo(supabaseAdmin, tenant.id);
+    const destinationParams = buildDestinationChargeParams(
+      connectInfo,
+      membership.price_cents,
+    );
+
+    if (!destinationParams) {
+      log.warn("Tenant not Connect-ready — falling back to platform charge", {
+        tenantId: tenant.id,
+        hasAccount: !!connectInfo?.stripeConnectAccountId,
+        chargesEnabled: connectInfo?.chargesEnabled ?? false,
+      });
+      await supabaseAdmin.from("institutional_events").insert({
+        event_type: "BILLING_CONNECT_FALLBACK_PLATFORM_CHARGE",
+        severity: "CRITICAL",
+        source: "create-membership-checkout",
+        tenant_id: tenant.id,
+        metadata: {
+          membership_id: membershipId,
+          reason: connectInfo?.stripeConnectAccountId
+            ? "charges_not_enabled"
+            : "no_connect_account",
+          amount_cents: membership.price_cents,
+        },
+      }).then(undefined, () => { /* fail-silent: never block checkout on telemetry */ });
+    }
+
+    log.info("Creating checkout session", {
+      membershipId,
+      customerEmail,
+      connectMode: destinationParams ? "destination" : "platform_fallback",
+    });
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -397,10 +438,12 @@ serve(async (req) => {
       mode: "payment",
       success_url: `${successUrl}?membership_id=${membershipId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
+      ...(destinationParams ? { payment_intent_data: destinationParams } : {}),
       metadata: {
         membership_id: membershipId,
         tenant_id: tenant.id,
         athlete_id: membership.athlete?.id || null,
+        connect_mode: destinationParams ? "destination" : "platform_fallback",
       },
     });
 
