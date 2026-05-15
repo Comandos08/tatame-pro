@@ -39,6 +39,9 @@ verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
 
+[functions.stripe-connect-webhook]
+verify_jwt = false
+
 [functions.check-membership-renewal]
 verify_jwt = false
 
