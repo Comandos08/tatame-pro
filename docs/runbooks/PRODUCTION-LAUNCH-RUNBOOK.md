@@ -10,9 +10,53 @@
 
 ## 0. Pre-flight
 
+
 - [ ] Repo on `main` branch, CI green, no uncommitted work.
 - [ ] Latest production audit reviewed (`docs/PRODUCTION-AUDIT-2026-03-12.md`).
 - [ ] Two-person rule: at least one teammate available during the cutover window.
+
+---
+
+## 0.5 Backend deploy — Edge Functions & migrations (CRITICAL)
+
+> ⚠️ **There is no longer an automatic backend deploy.** Lovable Cloud used
+> to push Edge Functions and apply migrations. After Lovable was removed the
+> frontend still auto-deploys via Vercel on merge, but **functions and
+> migrations do NOT**. Merging a PR that adds a function and the UI that
+> calls it, without this step, produces 404s and `CORS preflight … does not
+> have HTTP ok status` errors in the browser (the function path doesn't
+> exist, so no CORS header is returned).
+
+### 0.5.1 Immediate manual deploy (fastest unblock)
+
+From a machine with the Supabase CLI logged in (`supabase login`):
+
+```bash
+supabase link --project-ref <project-ref>     # e.g. bmgdtffneqefaxekxmdo
+supabase db push                              # apply pending migrations FIRST
+supabase functions deploy --project-ref <project-ref>   # deploy ALL functions
+```
+
+Order matters: migrations first so functions don't hit missing columns.
+`config.toml` is honoured (per-function `verify_jwt`). To deploy a single
+function: `supabase functions deploy connect-onboarding-start --project-ref <ref>`.
+
+### 0.5.2 Permanent fix — enable the deploy workflow
+
+`.github/workflows/supabase-deploy.yml` runs on every push to `main` that
+touches `supabase/**`, plus manual dispatch. It is **opt-in**:
+
+- [ ] Repo → Settings → Variables → `SUPABASE_DEPLOY_ENABLED` = `true`
+- [ ] Repo → Settings → Secrets:
+  - [ ] `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens)
+  - [ ] `SUPABASE_PROJECT_REF` (the prod project ref)
+  - [ ] `SUPABASE_DB_PASSWORD` (prod DB password — for `db push`)
+- [ ] Trigger once via **Actions → Supabase — Deploy → Run workflow** and
+      confirm functions + migrations land before relying on auto-deploy.
+
+**Acceptance:** in the browser, `connect-account-refresh` /
+`connect-onboarding-start` return 200 (not a CORS-preflight failure), and
+the Settings → "Repasses e conta bancária" card renders its state.
 
 ---
 
