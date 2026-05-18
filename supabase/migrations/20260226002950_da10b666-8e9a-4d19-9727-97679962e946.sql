@@ -1,71 +1,33 @@
+-- =============================================================================
+-- DEV-ONLY MIGRATION — NEUTRALIZED (P3-FIX 1.4)
+-- =============================================================================
+-- This file originally contained an unguarded destructive reset that, on any
+-- populated database, would have wiped roles, auth users and profiles:
+--
+--   DELETE FROM public.user_roles;                        -- ALL roles
+--   INSERT INTO public.user_roles (... SUPERADMIN_GLOBAL ...) for global@tatame.pro
+--   UPDATE public.profiles SET tenant_id = NULL  (global profile)
+--   DELETE FROM auth.users     WHERE email <> 'global@tatame.pro';
+--   DELETE FROM public.profiles WHERE email <> 'global@tatame.pro';
+--
+-- It has been intentionally neutralized to prevent accidental data destruction
+-- if this migration sequence is ever replayed on a production or staging DB,
+-- or when provisioning a fresh environment from migrations.
+--
+-- The production database is unaffected: this migration version is already
+-- recorded as applied and is matched by version, not by content. The
+-- SUPERADMIN_GLOBAL bootstrap for global@tatame.pro is environment seed data
+-- (handled by operational seeding), not a schema migration concern.
+--
+-- Original intent: collapse the environment down to only global@tatame.pro.
+-- This is a destructive dev-only operation and must never run in production.
+-- Consistent with the neutralization of sibling migration 20260226000528.
+-- =============================================================================
 
--- ==========================================
--- 1. Store global IDs
--- ==========================================
-
-CREATE TEMP TABLE tmp_global_admin AS
-SELECT
-  (SELECT id FROM auth.users WHERE email = 'global@tatame.pro') AS auth_user_id,
-  (SELECT id FROM public.profiles WHERE email = 'global@tatame.pro') AS profile_id;
-
--- Guardrail
 DO $$
 BEGIN
-  IF (SELECT auth_user_id FROM tmp_global_admin) IS NULL THEN
-    RAISE EXCEPTION 'ABORT: global@tatame.pro not found in auth.users';
-  END IF;
-  IF (SELECT profile_id FROM tmp_global_admin) IS NULL THEN
-    RAISE EXCEPTION 'ABORT: global@tatame.pro not found in public.profiles';
-  END IF;
+  RAISE NOTICE
+    'SKIPPED: 20260226002950 is a neutralized dev-only data-wipe migration. '
+    'No data was modified. If you need to reset a dev DB, use `supabase db reset` '
+    'on a local/dev project only.';
 END $$;
-
--- ==========================================
--- 2. Remove ALL existing roles
--- ==========================================
-
-DELETE FROM public.user_roles;
-
--- ==========================================
--- 3. Insert SUPERADMIN_GLOBAL role
--- ==========================================
-
-INSERT INTO public.user_roles (
-  user_id,
-  role,
-  tenant_id,
-  created_at
-)
-SELECT
-  auth_user_id,
-  'SUPERADMIN_GLOBAL',
-  NULL,
-  NOW()
-FROM tmp_global_admin;
-
--- ==========================================
--- 4. Ensure profile is detached from tenants
--- ==========================================
-
-UPDATE public.profiles
-SET tenant_id = NULL
-WHERE id = (SELECT profile_id FROM tmp_global_admin);
-
--- ==========================================
--- 5. Clean any remaining auth users (safety)
--- ==========================================
-
-DELETE FROM auth.users
-WHERE email <> 'global@tatame.pro';
-
--- ==========================================
--- 6. Clean any remaining profiles
--- ==========================================
-
-DELETE FROM public.profiles
-WHERE email <> 'global@tatame.pro';
-
--- ==========================================
--- 7. Cleanup
--- ==========================================
-
-DROP TABLE IF EXISTS tmp_global_admin;
